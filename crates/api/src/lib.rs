@@ -39,7 +39,7 @@ pub fn api_router(state: AppState) -> Router {
         .nest("/courses", courses::router())
         .nest("/credits", credits::router())
         .nest("/creator", creator::router())
-        .nest("/docs", docs::router())
+        // docs are served from static files, not DB (see server/docs_files.rs)
         .nest("/articles", articles::router())
         .nest("/forum", forum::router())
         .nest("/notifications", notifications::router())

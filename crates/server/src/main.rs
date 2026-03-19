@@ -1,3 +1,5 @@
+mod docs_files;
+
 use axum::{
     body::Body,
     extract::DefaultBodyLimit,
@@ -94,8 +96,10 @@ async fn main() {
         .nest_service("/uploads", ServeDir::new(&upload_dir))
         // Serve static assets (CSS, JS, images)
         .nest_service("/assets", ServeDir::new("assets"))
-        // API routes — nested under /api, takes priority
+        // API routes
         .nest("/api", api_router(state))
+        // File-based docs API (overrides the DB-based /api/docs)
+        .nest("/api/docs", docs_files::router())
         // Frontend pages — explicit SSR routes
         .route("/", get(ssr.clone()))
         .route("/download", get(ssr.clone()))

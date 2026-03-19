@@ -1,0 +1,74 @@
+[
+  {
+    "category": "Getting Started",
+    "pages": [
+      { "slug": "getting-started/installation", "title": "Installation" },
+      { "slug": "getting-started/first-project", "title": "Your First Project" },
+      { "slug": "getting-started/editor-overview", "title": "Editor Overview" },
+      { "slug": "getting-started/concepts", "title": "Core Concepts" }
+    ]
+  },
+  {
+    "category": "Editor",
+    "pages": [
+      { "slug": "editor/scenes", "title": "Scenes & Hierarchy" },
+      { "slug": "editor/inspector", "title": "Inspector" },
+      { "slug": "editor/viewport", "title": "Viewport & Camera" },
+      { "slug": "editor/materials", "title": "Material Editor" },
+      { "slug": "editor/terrain", "title": "Terrain" },
+      { "slug": "editor/animation", "title": "Animation" },
+      { "slug": "editor/audio", "title": "Audio" },
+      { "slug": "editor/keybindings", "title": "Keyboard Shortcuts" }
+    ]
+  },
+  {
+    "category": "Scripting",
+    "pages": [
+      { "slug": "scripting/overview", "title": "Overview" },
+      { "slug": "scripting/rhai", "title": "Rhai" },
+      { "slug": "scripting/lua", "title": "Lua" },
+      { "slug": "scripting/blueprints", "title": "Visual Blueprints" },
+      { "slug": "scripting/input", "title": "Input Handling" },
+      { "slug": "scripting/physics", "title": "Physics" },
+      { "slug": "scripting/ui", "title": "Game UI" }
+    ]
+  },
+  {
+    "category": "Networking",
+    "pages": [
+      { "slug": "networking/overview", "title": "Overview" },
+      { "slug": "networking/server-setup", "title": "Server Setup" },
+      { "slug": "networking/replication", "title": "State Replication" }
+    ]
+  },
+  {
+    "category": "Export",
+    "pages": [
+      { "slug": "export/overview", "title": "Overview" },
+      { "slug": "export/windows", "title": "Windows" },
+      { "slug": "export/linux", "title": "Linux" },
+      { "slug": "export/macos", "title": "macOS" },
+      { "slug": "export/android", "title": "Android" },
+      { "slug": "export/ios", "title": "iOS & tvOS" }
+    ]
+  },
+  {
+    "category": "Marketplace",
+    "pages": [
+      { "slug": "marketplace/browsing", "title": "Browsing & Installing" },
+      { "slug": "marketplace/publishing", "title": "Publishing Assets" },
+      { "slug": "marketplace/credits", "title": "Credits System" }
+    ]
+  },
+  {
+    "category": "Developer Guide",
+    "pages": [
+      { "slug": "dev/building-from-source", "title": "Building from Source" },
+      { "slug": "dev/architecture", "title": "Architecture" },
+      { "slug": "dev/plugins", "title": "Building Plugins" },
+      { "slug": "dev/custom-nodes", "title": "Custom Blueprint Nodes" },
+      { "slug": "dev/post-processing", "title": "Post-Processing Effects" },
+      { "slug": "dev/contributing", "title": "Contributing" }
+    ]
+  }
+]
