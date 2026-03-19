@@ -2,6 +2,7 @@ pub mod admin;
 pub mod articles;
 pub mod auth;
 pub mod creator;
+pub mod courses;
 pub mod credits;
 pub mod docs;
 pub mod error;
@@ -35,6 +36,7 @@ pub fn api_router(state: AppState) -> Router {
     Router::new()
         .nest("/auth", auth::router())
         .nest("/marketplace", marketplace::router())
+        .nest("/courses", courses::router())
         .nest("/credits", credits::router())
         .nest("/creator", creator::router())
         .nest("/docs", docs::router())

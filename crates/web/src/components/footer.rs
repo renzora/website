@@ -7,7 +7,7 @@ pub fn Footer() -> impl IntoView {
             <div class="max-w-[1200px] mx-auto px-6">
                 <div class="flex flex-col md:flex-row justify-between gap-8">
                     <div>
-                        <span class="text-lg font-bold">"Renzora"</span>
+                        <span class="text-lg font-bold">"Renzora Engine"</span>
                         <p class="text-zinc-500 text-sm mt-1">"A modern game engine built with Rust."</p>
                     </div>
                     <div class="flex gap-16">

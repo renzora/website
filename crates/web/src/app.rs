@@ -9,11 +9,12 @@ use crate::components::nav::Nav;
 use crate::components::footer::Footer;
 use crate::pages::{
     admin::AdminPage,
+    asset_detail::AssetDetailPage,
     community::CommunityPage,
     dashboard::DashboardPage,
     docs::{DocsPage, DocArticle},
+    courses::{CoursesPage, CourseDetailPage, ChapterViewPage, CreateCoursePage, EditCoursePage},
     download::DownloadPage,
-    engine::EnginePage,
     forum::{ForumPage, ForumCategoryPage, ForumThreadPage, NewThreadPage},
     home::HomePage,
     login::{LoginPage, RegisterPage},
@@ -30,15 +31,14 @@ pub fn App() -> impl IntoView {
 
     view! {
         <Stylesheet href="/assets/style/main.css" />
-        <Title text="Renzora — The Game Developer Hub" />
-        <Meta name="description" content="Browse and sell game assets for any engine. Community forum, marketplace, and the Renzora open-source game engine." />
+        <Title text="Renzora Engine — Open Source Game Engine" />
+        <Meta name="description" content="An open-source game engine built with Rust and Bevy. Visual editor, scripting, marketplace, and cross-platform export." />
 
         <Router>
             <Nav />
             <main>
                 <Routes fallback=|| view! { <p class="text-center text-zinc-500 py-20">"Page not found."</p> }>
                     <Route path=path!("/") view=HomePage />
-                    <Route path=path!("/engine") view=EnginePage />
                     <Route path=path!("/download") view=DownloadPage />
                     <Route path=path!("/login") view=LoginPage />
                     <Route path=path!("/register") view=RegisterPage />
@@ -46,7 +46,13 @@ pub fn App() -> impl IntoView {
                     <Route path=path!("/docs/:category/:slug") view=DocArticle />
                     <Route path=path!("/marketplace") view=MarketplacePage />
                     <Route path=path!("/marketplace/upload") view=UploadPage />
+                    <Route path=path!("/marketplace/asset/:slug") view=AssetDetailPage />
                     <Route path=path!("/wallet") view=WalletPage />
+                    <Route path=path!("/courses") view=CoursesPage />
+                    <Route path=path!("/courses/create") view=CreateCoursePage />
+                    <Route path=path!("/courses/:slug") view=CourseDetailPage />
+                    <Route path=path!("/courses/:slug/edit") view=EditCoursePage />
+                    <Route path=path!("/courses/:slug/chapter/:chapter") view=ChapterViewPage />
                     <Route path=path!("/community") view=CommunityPage />
                     <Route path=path!("/forum") view=ForumPage />
                     <Route path=path!("/forum/new") view=NewThreadPage />

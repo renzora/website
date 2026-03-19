@@ -24,11 +24,7 @@ pub fn UploadPage() -> impl IntoView {
                         <div>
                             <label class="block text-xs text-zinc-500 mb-1.5">"Category"</label>
                             <select name="category" id="upload-category" class="w-full px-3 py-2.5 bg-surface-card border border-zinc-800 rounded-lg text-zinc-50 text-sm outline-none focus:border-accent transition-colors">
-                                <option value="plugin">"Plugin"</option>
-                                <option value="theme">"Theme"</option>
-                                <option value="asset-pack">"Asset Pack"</option>
-                                <option value="script">"Script"</option>
-                                <option value="material">"Material"</option>
+                                <option value="">"Loading categories..."</option>
                             </select>
                         </div>
                         <div>
@@ -57,6 +53,15 @@ pub fn UploadPage() -> impl IntoView {
 
         <script>
             r#"
+            // Load categories from API
+            (async function() {
+                const res = await fetch('/api/marketplace/categories');
+                if (!res.ok) return;
+                const cats = await res.json();
+                const sel = document.getElementById('upload-category');
+                sel.innerHTML = cats.map(c => `<option value="${c.slug}">${c.name}</option>`).join('');
+            })();
+
             async function handleUpload(e) {
                 e.preventDefault();
                 const form = e.target;

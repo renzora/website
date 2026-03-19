@@ -210,9 +210,14 @@ async fn purchase_asset(
         return Err(ApiError::NotFound);
     }
 
-    // Can't buy your own asset
+    // Creator can always access their own asset
     if asset.creator_id == auth.user_id {
-        return Err(ApiError::Validation("Cannot purchase your own asset".into()));
+        asset::grant_asset_ownership(&state.db, auth.user_id, body.asset_id).await?;
+        let user = User::find_by_id(&state.db, auth.user_id).await?.ok_or(ApiError::NotFound)?;
+        return Ok(Json(PurchaseResponse {
+            message: "This is your asset".into(),
+            new_balance: user.credit_balance,
+        }));
     }
 
     // Check if already owned

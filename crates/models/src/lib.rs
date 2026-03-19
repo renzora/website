@@ -1,6 +1,7 @@
 pub mod article;
 pub mod asset;
 pub mod category;
+pub mod course;
 pub mod dispute;
 pub mod doc;
 pub mod forum;

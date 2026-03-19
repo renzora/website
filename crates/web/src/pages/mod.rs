@@ -1,9 +1,10 @@
 pub mod admin;
+pub mod asset_detail;
 pub mod community;
+pub mod courses;
 pub mod dashboard;
 pub mod docs;
 pub mod download;
-pub mod engine;
 pub mod forum;
 pub mod home;
 pub mod login;

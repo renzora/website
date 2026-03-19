@@ -5,9 +5,9 @@ use leptos_router::hooks::use_params_map;
 #[component]
 pub fn DocsPage() -> impl IntoView {
     view! {
-        <div class="flex min-h-[calc(100vh-56px)]">
+        <div class="flex min-h-[calc(100vh-56px)] max-w-[1200px] mx-auto">
             <DocsSidebar />
-            <div class="flex-1 min-w-0 px-8 py-10 lg:px-12 max-w-[860px]">
+            <div class="flex-1 min-w-0 px-8 py-10 lg:px-12">
                 <div class="mb-10">
                     <h1 class="text-4xl font-bold">"Documentation"</h1>
                     <p class="text-zinc-400 mt-2">"Everything you need to build games with Renzora Engine."</p>
@@ -53,9 +53,9 @@ pub fn DocArticle() -> impl IntoView {
     };
 
     view! {
-        <div class="flex min-h-[calc(100vh-56px)]">
+        <div class="flex min-h-[calc(100vh-56px)] max-w-[1200px] mx-auto">
             <DocsSidebar />
-            <div class="flex-1 min-w-0 px-8 py-10 lg:px-12 max-w-[860px]">
+            <div class="flex-1 min-w-0 px-8 py-10 lg:px-12">
                 <article class="doc-article">
                     {content}
                 </article>

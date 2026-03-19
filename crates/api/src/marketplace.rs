@@ -1,10 +1,13 @@
 use axum::{
     extract::{Extension, Multipart, Path, Query, State},
-    routing::{get, post, put},
+    routing::{delete, get, post, put},
     Json, Router,
 };
+use serde::Deserialize;
+use sqlx::Row;
 use renzora_common::types::*;
 use renzora_models::asset::{self, Asset};
+use renzora_models::category::Category;
 use renzora_models::user::User;
 use uuid::Uuid;
 
@@ -16,11 +19,15 @@ pub fn router() -> Router<AppState> {
         .route("/my-assets", get(my_assets))
         .route("/:id/update", put(update_asset))
         .route("/:id/download", get(download_asset))
+        .route("/:id/comments", post(add_comment))
+        .route("/comments/:comment_id", delete(delete_comment))
         .layer(axum::middleware::from_fn(middleware::require_auth));
 
     Router::new()
         .route("/", get(list_assets))
+        .route("/categories", get(list_categories))
         .route("/detail/:slug", get(get_asset))
+        .route("/:id/comments", get(list_comments))
         .merge(protected)
 }
 
@@ -65,6 +72,14 @@ async fn list_assets(
         page,
         per_page,
     }))
+}
+
+/// List all marketplace categories.
+async fn list_categories(
+    State(state): State<AppState>,
+) -> Result<Json<Vec<Category>>, ApiError> {
+    let cats = Category::list(&state.db).await?;
+    Ok(Json(cats))
 }
 
 /// Get a single asset by slug.
@@ -161,10 +176,10 @@ async fn upload_asset(
 
     let meta = metadata.ok_or(ApiError::Validation("Missing metadata field".into()))?;
 
-    // Validate category
-    match meta.category.as_str() {
-        "plugin" | "theme" | "asset" => {}
-        _ => return Err(ApiError::Validation("Category must be 'plugin', 'theme', or 'asset'".into())),
+    // Validate category exists in DB
+    let cat_exists = renzora_models::category::Category::find_by_slug(&state.db, &meta.category).await?;
+    if cat_exists.is_none() {
+        return Err(ApiError::Validation(format!("Unknown category: '{}'", meta.category)));
     }
 
     let asset = Asset::create(
@@ -285,6 +300,66 @@ async fn my_assets(
         .collect();
 
     Ok(Json(CreatorAssetsResponse { assets: details }))
+}
+
+// ── Comments ──
+
+async fn list_comments(
+    State(state): State<AppState>,
+    Path(id): Path<Uuid>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    let rows = sqlx::query("SELECT c.id, c.content, c.created_at, u.username as author_name, c.author_id FROM asset_comments c JOIN users u ON u.id=c.author_id WHERE c.asset_id=$1 ORDER BY c.created_at ASC")
+        .bind(id).fetch_all(&state.db).await?;
+    let comments: Vec<serde_json::Value> = rows.iter().map(|r| serde_json::json!({
+        "id": r.get::<Uuid, _>("id"),
+        "content": r.get::<String, _>("content"),
+        "author_name": r.get::<String, _>("author_name"),
+        "author_id": r.get::<Uuid, _>("author_id"),
+        "created_at": r.get::<time::OffsetDateTime, _>("created_at").to_string(),
+    })).collect();
+    Ok(Json(serde_json::json!({"comments": comments})))
+}
+
+#[derive(Deserialize)]
+struct CommentBody { content: String }
+
+async fn add_comment(
+    State(state): State<AppState>,
+    Extension(auth): Extension<AuthUser>,
+    Path(id): Path<Uuid>,
+    Json(body): Json<CommentBody>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    if body.content.is_empty() || body.content.len() > 2000 {
+        return Err(ApiError::Validation("Comment must be 1-2000 characters".into()));
+    }
+    Asset::find_by_id(&state.db, id).await?.ok_or(ApiError::NotFound)?;
+    let cid = Uuid::new_v4();
+    sqlx::query("INSERT INTO asset_comments (id,asset_id,author_id,content) VALUES ($1,$2,$3,$4)")
+        .bind(cid).bind(id).bind(auth.user_id).bind(&body.content)
+        .execute(&state.db).await?;
+    let user = User::find_by_id(&state.db, auth.user_id).await?.ok_or(ApiError::NotFound)?;
+    Ok(Json(serde_json::json!({
+        "id": cid, "content": body.content, "author_name": user.username, "author_id": auth.user_id,
+    })))
+}
+
+async fn delete_comment(
+    State(state): State<AppState>,
+    Extension(auth): Extension<AuthUser>,
+    Path(comment_id): Path<Uuid>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    // Get the comment to check permissions
+    let row = sqlx::query("SELECT c.author_id, a.creator_id FROM asset_comments c JOIN assets a ON a.id=c.asset_id WHERE c.id=$1")
+        .bind(comment_id).fetch_optional(&state.db).await?.ok_or(ApiError::NotFound)?;
+    let comment_author: Uuid = row.get("author_id");
+    let asset_creator: Uuid = row.get("creator_id");
+    // Allow deletion by comment author, asset creator, or admin
+    let user = User::find_by_id(&state.db, auth.user_id).await?.ok_or(ApiError::NotFound)?;
+    if auth.user_id != comment_author && auth.user_id != asset_creator && user.role != "admin" {
+        return Err(ApiError::Unauthorized);
+    }
+    sqlx::query("DELETE FROM asset_comments WHERE id=$1").bind(comment_id).execute(&state.db).await?;
+    Ok(Json(serde_json::json!({"message": "Deleted"})))
 }
 
 fn asset_to_detail(
