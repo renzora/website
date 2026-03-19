@@ -102,7 +102,7 @@ async fn main() {
         .route("/login", get(ssr.clone()))
         .route("/register", get(ssr.clone()))
         .route("/docs", get(ssr.clone()))
-        .route("/docs/:category/:slug", get(ssr.clone()))
+        .route("/docs/*slug", get(ssr.clone()))
         .route("/marketplace", get(ssr.clone()))
         .route("/marketplace/upload", get(ssr.clone()))
         .route("/marketplace/asset/:slug", get(ssr.clone()))

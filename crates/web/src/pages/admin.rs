@@ -3,6 +3,8 @@ use leptos::prelude::*;
 #[component]
 pub fn AdminPage() -> impl IntoView {
     view! {
+        <link rel="stylesheet" href="https://cdn.quilljs.com/1.3.7/quill.snow.css" />
+        <script src="https://cdn.quilljs.com/1.3.7/quill.min.js"></script>
         <section class="py-10 px-6">
             <div class="max-w-[1200px] mx-auto">
                 <div class="flex items-center gap-3 mb-8">
@@ -329,24 +331,133 @@ pub fn AdminPage() -> impl IntoView {
             async function saveSetting(k, v) { await api('/settings', { method: 'PUT', body: JSON.stringify({ key: k, value: v }) }); }
 
             // ── Docs ──
+            let docQuill = null;
             async function loadDocs() {
                 const el = document.getElementById('admin-content');
                 const data = await api('/docs');
-                el.innerHTML = '<div class="flex justify-between items-center mb-4"><h2 class="text-lg font-semibold">Docs</h2><button onclick="newDoc()" class="px-3 py-1.5 rounded-lg text-xs font-medium bg-accent text-white hover:bg-accent-hover"><i class="ph ph-plus"></i> New Page</button></div>' +
-                    ((data?.docs||[]).map(d => `
+                el.innerHTML = `
+                    <div class="flex justify-between items-center mb-4">
+                        <h2 class="text-lg font-semibold">Documentation Pages</h2>
+                        <button onclick="newDoc()" class="px-3 py-1.5 rounded-lg text-xs font-medium bg-accent text-white hover:bg-accent-hover"><i class="ph ph-plus"></i> New Page</button>
+                    </div>
+                    ${(data?.docs||[]).map(d => `
                     <div class="flex items-center justify-between p-3 bg-surface border border-zinc-800 rounded-lg mb-2">
-                        <div><span class="text-sm font-medium">${d.title}</span><span class="text-xs text-zinc-500 ml-2">/${d.slug} · ${d.category}</span></div>
-                        <div class="flex items-center gap-2"><span class="text-xs ${d.published ? 'text-green-400' : 'text-zinc-500'}">${d.published ? 'Published' : 'Draft'}</span>
-                        <button onclick="if(confirm('Delete?')) delDoc('${d.id}')" class="text-xs px-2 py-1 rounded bg-red-500/10 text-red-400 hover:bg-red-500/20">Delete</button></div>
-                    </div>`).join('') || '<p class="text-zinc-500 text-sm">No docs</p>');
+                        <div class="flex-1">
+                            <span class="text-sm font-medium">${d.title}</span>
+                            <span class="text-xs text-zinc-500 ml-2">/${d.slug} · ${d.category} · #${d.sort_order}</span>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <span class="text-xs ${d.published ? 'text-green-400' : 'text-zinc-500'}">${d.published ? 'Published' : 'Draft'}</span>
+                            <button onclick="toggleDocPublish('${d.id}', ${!d.published})" class="text-xs px-2 py-1 rounded bg-zinc-800 text-zinc-300 hover:bg-zinc-700">${d.published ? 'Unpublish' : 'Publish'}</button>
+                            <button onclick="editDoc('${d.id}')" class="text-xs px-2 py-1 rounded bg-zinc-800 text-zinc-300 hover:bg-zinc-700"><i class="ph ph-pencil-simple"></i></button>
+                            <button onclick="if(confirm('Delete?')) delDoc('${d.id}')" class="text-xs px-2 py-1 rounded bg-red-500/10 text-red-400 hover:bg-red-500/20"><i class="ph ph-trash"></i></button>
+                        </div>
+                    </div>`).join('') || '<p class="text-zinc-500 text-sm">No docs yet. Create your first page!</p>'}
+                `;
             }
-            function newDoc() { showModal(`<h3 class="text-base font-semibold mb-4">New Doc Page</h3><div class="space-y-3">
-                <div><label class="block text-xs text-zinc-500 mb-1">Slug</label><input id="nd-slug" class="w-full px-3 py-2 bg-surface border border-zinc-800 rounded-lg text-sm text-zinc-50" /></div>
-                <div><label class="block text-xs text-zinc-500 mb-1">Title</label><input id="nd-title" class="w-full px-3 py-2 bg-surface border border-zinc-800 rounded-lg text-sm text-zinc-50" /></div>
-                <div><label class="block text-xs text-zinc-500 mb-1">Category</label><input id="nd-cat" class="w-full px-3 py-2 bg-surface border border-zinc-800 rounded-lg text-sm text-zinc-50" /></div>
-                <div><label class="block text-xs text-zinc-500 mb-1">Content (markdown)</label><textarea id="nd-content" rows="6" class="w-full px-3 py-2 bg-surface border border-zinc-800 rounded-lg text-sm text-zinc-50"></textarea></div>
-                <button onclick="saveNewDoc()" class="px-4 py-2 rounded-lg text-sm font-medium bg-accent text-white hover:bg-accent-hover">Create</button></div>`); }
-            async function saveNewDoc() { await api('/docs', { method: 'POST', body: JSON.stringify({ slug: document.getElementById('nd-slug').value, title: document.getElementById('nd-title').value, category: document.getElementById('nd-cat').value, content: document.getElementById('nd-content').value }) }); hideModal(); loadDocs(); }
+
+            function initDocEditor(content) {
+                setTimeout(() => {
+                    docQuill = new Quill('#doc-editor', {
+                        theme: 'snow',
+                        placeholder: 'Write documentation content...',
+                        modules: {
+                            toolbar: [
+                                [{ header: [1, 2, 3, false] }],
+                                ['bold', 'italic', 'underline', 'strike'],
+                                [{ list: 'ordered' }, { list: 'bullet' }],
+                                ['blockquote', 'code-block'],
+                                ['link', 'image'],
+                                ['clean']
+                            ]
+                        }
+                    });
+                    if (content) docQuill.root.innerHTML = content;
+                }, 100);
+            }
+
+            function newDoc() {
+                showModal(`<h3 class="text-base font-semibold mb-4">New Documentation Page</h3>
+                    <div class="space-y-3">
+                        <div class="grid grid-cols-2 gap-3">
+                            <div><label class="block text-xs text-zinc-500 mb-1">Slug (URL path)</label>
+                            <input id="nd-slug" placeholder="getting-started/installation" class="w-full px-3 py-2 bg-surface border border-zinc-800 rounded-lg text-sm text-zinc-50" /></div>
+                            <div><label class="block text-xs text-zinc-500 mb-1">Category</label>
+                            <input id="nd-cat" placeholder="Getting Started" class="w-full px-3 py-2 bg-surface border border-zinc-800 rounded-lg text-sm text-zinc-50" /></div>
+                        </div>
+                        <div><label class="block text-xs text-zinc-500 mb-1">Title</label>
+                        <input id="nd-title" placeholder="Page title" class="w-full px-3 py-2 bg-surface border border-zinc-800 rounded-lg text-sm text-zinc-50" /></div>
+                        <div><label class="block text-xs text-zinc-500 mb-1">Sort Order</label>
+                        <input id="nd-sort" type="number" value="0" class="w-full px-3 py-2 bg-surface border border-zinc-800 rounded-lg text-sm text-zinc-50" /></div>
+                        <div><label class="block text-xs text-zinc-500 mb-1">Content</label>
+                        <div id="doc-editor" class="bg-surface border border-zinc-800 rounded-lg" style="min-height:300px"></div></div>
+                        <div class="flex gap-2">
+                            <button onclick="saveNewDoc(false)" class="px-4 py-2 rounded-lg text-sm font-medium bg-zinc-800 text-zinc-300 hover:bg-zinc-700">Save as Draft</button>
+                            <button onclick="saveNewDoc(true)" class="px-4 py-2 rounded-lg text-sm font-medium bg-accent text-white hover:bg-accent-hover">Save & Publish</button>
+                        </div>
+                    </div>`);
+                initDocEditor('');
+            }
+
+            async function saveNewDoc(publish) {
+                const content = docQuill ? docQuill.root.innerHTML : '';
+                await api('/docs', { method: 'POST', body: JSON.stringify({
+                    slug: document.getElementById('nd-slug').value,
+                    title: document.getElementById('nd-title').value,
+                    category: document.getElementById('nd-cat').value,
+                    content: content
+                })});
+                if (publish) {
+                    // Get the doc we just created and publish it
+                    const data = await api('/docs');
+                    const newest = data?.docs?.[data.docs.length - 1];
+                    if (newest) await api('/docs/' + newest.id, { method: 'PUT', body: JSON.stringify({ published: true, sort_order: parseInt(document.getElementById('nd-sort').value) || 0 }) });
+                }
+                hideModal(); loadDocs();
+            }
+
+            async function editDoc(id) {
+                // Fetch full doc content
+                const data = await api('/docs');
+                const doc = data?.docs?.find(d => d.id === id);
+                if (!doc) return;
+                // Need full content - fetch via public API
+                const res = await fetch('/api/docs/' + doc.slug);
+                const full = res.ok ? await res.json() : { content: '' };
+
+                showModal(`<h3 class="text-base font-semibold mb-4">Edit: ${doc.title}</h3>
+                    <div class="space-y-3">
+                        <div><label class="block text-xs text-zinc-500 mb-1">Title</label>
+                        <input id="ed-title" value="${doc.title}" class="w-full px-3 py-2 bg-surface border border-zinc-800 rounded-lg text-sm text-zinc-50" /></div>
+                        <div class="grid grid-cols-2 gap-3">
+                            <div><label class="block text-xs text-zinc-500 mb-1">Category</label>
+                            <input id="ed-cat" value="${doc.category}" class="w-full px-3 py-2 bg-surface border border-zinc-800 rounded-lg text-sm text-zinc-50" /></div>
+                            <div><label class="block text-xs text-zinc-500 mb-1">Sort Order</label>
+                            <input id="ed-sort" type="number" value="${doc.sort_order}" class="w-full px-3 py-2 bg-surface border border-zinc-800 rounded-lg text-sm text-zinc-50" /></div>
+                        </div>
+                        <div><label class="block text-xs text-zinc-500 mb-1">Content</label>
+                        <div id="doc-editor" class="bg-surface border border-zinc-800 rounded-lg" style="min-height:300px"></div></div>
+                        <button onclick="saveEditDoc('${id}')" class="px-4 py-2 rounded-lg text-sm font-medium bg-accent text-white hover:bg-accent-hover">Save Changes</button>
+                    </div>`);
+                initDocEditor(full.content || '');
+            }
+
+            async function saveEditDoc(id) {
+                const content = docQuill ? docQuill.root.innerHTML : '';
+                await api('/docs/' + id, { method: 'PUT', body: JSON.stringify({
+                    title: document.getElementById('ed-title').value,
+                    category: document.getElementById('ed-cat').value,
+                    content: content,
+                    sort_order: parseInt(document.getElementById('ed-sort').value) || 0,
+                })});
+                hideModal(); loadDocs();
+            }
+
+            async function toggleDocPublish(id, publish) {
+                await api('/docs/' + id, { method: 'PUT', body: JSON.stringify({ published: publish }) });
+                loadDocs();
+            }
+
             async function delDoc(id) { await api('/docs/'+id, { method: 'DELETE' }); loadDocs(); }
 
             // Init

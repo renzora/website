@@ -43,7 +43,7 @@ pub fn App() -> impl IntoView {
                     <Route path=path!("/login") view=LoginPage />
                     <Route path=path!("/register") view=RegisterPage />
                     <Route path=path!("/docs") view=DocsPage />
-                    <Route path=path!("/docs/:category/:slug") view=DocArticle />
+                    <Route path=path!("/docs/*slug") view=DocArticle />
                     <Route path=path!("/marketplace") view=MarketplacePage />
                     <Route path=path!("/marketplace/upload") view=UploadPage />
                     <Route path=path!("/marketplace/asset/:slug") view=AssetDetailPage />
