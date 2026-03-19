@@ -13,6 +13,7 @@ use crate::pages::{
     dashboard::DashboardPage,
     docs::{DocsPage, DocArticle},
     download::DownloadPage,
+    engine::EnginePage,
     forum::{ForumPage, ForumCategoryPage, ForumThreadPage, NewThreadPage},
     home::HomePage,
     login::{LoginPage, RegisterPage},
@@ -29,14 +30,15 @@ pub fn App() -> impl IntoView {
 
     view! {
         <Stylesheet href="/assets/style/main.css" />
-        <Title text="Renzora — Game Engine" />
-        <Meta name="description" content="Renzora is a modern game engine built with Rust and Bevy." />
+        <Title text="Renzora — The Game Developer Hub" />
+        <Meta name="description" content="Browse and sell game assets for any engine. Community forum, marketplace, and the Renzora open-source game engine." />
 
         <Router>
             <Nav />
             <main>
                 <Routes fallback=|| view! { <p class="text-center text-zinc-500 py-20">"Page not found."</p> }>
                     <Route path=path!("/") view=HomePage />
+                    <Route path=path!("/engine") view=EnginePage />
                     <Route path=path!("/download") view=DownloadPage />
                     <Route path=path!("/login") view=LoginPage />
                     <Route path=path!("/register") view=RegisterPage />

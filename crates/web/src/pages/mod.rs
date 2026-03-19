@@ -3,6 +3,7 @@ pub mod community;
 pub mod dashboard;
 pub mod docs;
 pub mod download;
+pub mod engine;
 pub mod forum;
 pub mod home;
 pub mod login;

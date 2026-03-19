@@ -98,6 +98,7 @@ async fn main() {
         .nest("/api", api_router(state))
         // Frontend pages — explicit SSR routes
         .route("/", get(ssr.clone()))
+        .route("/engine", get(ssr.clone()))
         .route("/download", get(ssr.clone()))
         .route("/login", get(ssr.clone()))
         .route("/register", get(ssr.clone()))

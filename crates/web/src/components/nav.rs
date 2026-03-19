@@ -7,17 +7,20 @@ pub fn Nav() -> impl IntoView {
             <div class="max-w-[1200px] mx-auto px-6 h-14 flex items-center gap-8">
                 <a href="/" class="text-lg font-bold tracking-tight">"Renzora"</a>
                 <div class="flex gap-6 flex-1">
-                    <a href="/docs" class="text-sm text-zinc-400 hover:text-zinc-50 transition-colors flex items-center gap-1.5">
-                        <i class="ph ph-book-open text-base"></i>"Docs"
-                    </a>
                     <a href="/marketplace" class="text-sm text-zinc-400 hover:text-zinc-50 transition-colors flex items-center gap-1.5">
                         <i class="ph ph-storefront text-base"></i>"Marketplace"
                     </a>
-                    <a href="/community" class="text-sm text-zinc-400 hover:text-zinc-50 transition-colors flex items-center gap-1.5">
-                        <i class="ph ph-users-three text-base"></i>"Community"
-                    </a>
                     <a href="/forum" class="text-sm text-zinc-400 hover:text-zinc-50 transition-colors flex items-center gap-1.5">
                         <i class="ph ph-chat-circle text-base"></i>"Forum"
+                    </a>
+                    <a href="/community" class="text-sm text-zinc-400 hover:text-zinc-50 transition-colors flex items-center gap-1.5">
+                        <i class="ph ph-pencil-line text-base"></i>"Articles"
+                    </a>
+                    <a href="/engine" class="text-sm text-zinc-400 hover:text-zinc-50 transition-colors flex items-center gap-1.5">
+                        <i class="ph ph-rocket-launch text-base"></i>"Engine"
+                    </a>
+                    <a href="/docs" class="text-sm text-zinc-400 hover:text-zinc-50 transition-colors flex items-center gap-1.5">
+                        <i class="ph ph-book-open text-base"></i>"Docs"
                     </a>
                 </div>
                 // Logged-out
