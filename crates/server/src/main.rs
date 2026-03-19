@@ -1,0 +1,102 @@
+use axum::{extract::DefaultBodyLimit, http::HeaderValue, routing::get, Extension, Json, Router};
+use renzora_api::{api_router, middleware::JwtSecret, AppState};
+use sqlx::postgres::PgPoolOptions;
+use tower_http::cors::CorsLayer;
+use tower_http::services::ServeDir;
+use tower_http::trace::TraceLayer;
+use tracing_subscriber::EnvFilter;
+
+#[tokio::main]
+async fn main() {
+    dotenvy::dotenv().ok();
+
+    tracing_subscriber::fmt()
+        .with_env_filter(EnvFilter::try_from_default_env().unwrap_or_else(|_| "info".into()))
+        .init();
+
+    let database_url = std::env::var("DATABASE_URL").expect("DATABASE_URL must be set");
+    let jwt_secret = std::env::var("JWT_SECRET").expect("JWT_SECRET must be set");
+    let host = std::env::var("HOST").unwrap_or_else(|_| "0.0.0.0".into());
+    let port = std::env::var("PORT").unwrap_or_else(|_| "3000".into());
+    let upload_dir = std::env::var("UPLOAD_DIR").unwrap_or_else(|_| "./uploads".into());
+    let upload_base_url =
+        std::env::var("UPLOAD_BASE_URL").unwrap_or_else(|_| "/uploads".into());
+    let stripe_secret_key = std::env::var("STRIPE_SECRET_KEY").ok();
+    let stripe_webhook_secret = std::env::var("STRIPE_WEBHOOK_SECRET").ok();
+    let site_url =
+        std::env::var("SITE_URL").unwrap_or_else(|_| "http://localhost:3000".into());
+    let allowed_origins = std::env::var("ALLOWED_ORIGINS")
+        .unwrap_or_else(|_| "http://localhost:3000".into());
+
+    // Ensure upload directories exist
+    tokio::fs::create_dir_all(format!("{upload_dir}/assets"))
+        .await
+        .expect("Failed to create upload/assets directory");
+    tokio::fs::create_dir_all(format!("{upload_dir}/thumbnails"))
+        .await
+        .expect("Failed to create upload/thumbnails directory");
+
+    let pool = PgPoolOptions::new()
+        .max_connections(20)
+        .connect(&database_url)
+        .await
+        .expect("Failed to connect to database");
+
+    // Run migrations
+    sqlx::migrate!("../../migrations")
+        .run(&pool)
+        .await
+        .expect("Failed to run migrations");
+
+    tracing::info!("Migrations applied successfully");
+
+    let state = AppState {
+        db: pool,
+        jwt_secret: jwt_secret.clone(),
+        upload_dir: upload_dir.clone(),
+        upload_base_url,
+        stripe_secret_key,
+        stripe_webhook_secret,
+        site_url,
+    };
+
+    // CORS: parse allowed origins from env
+    let origins: Vec<HeaderValue> = allowed_origins
+        .split(',')
+        .filter_map(|o| o.trim().parse().ok())
+        .collect();
+
+    let cors = CorsLayer::new()
+        .allow_origin(origins)
+        .allow_methods(tower_http::cors::Any)
+        .allow_headers(tower_http::cors::Any);
+
+    let app = Router::new()
+        // Health check (used by Docker, Nginx, and uptime monitors)
+        .route("/health", get(health_check))
+        // API routes
+        .merge(api_router(state))
+        // Serve uploaded files
+        .nest_service("/uploads", ServeDir::new(&upload_dir))
+        // Serve static assets (CSS, JS, images)
+        .nest_service("/assets", ServeDir::new("assets"))
+        // Layers
+        .layer(Extension(JwtSecret(jwt_secret)))
+        // 50 MB body limit (for asset uploads)
+        .layer(DefaultBodyLimit::max(50 * 1024 * 1024))
+        .layer(cors)
+        .layer(TraceLayer::new_for_http());
+
+    let addr = format!("{host}:{port}");
+    tracing::info!("Server listening on {addr}");
+
+    let listener = tokio::net::TcpListener::bind(&addr).await.unwrap();
+    axum::serve(listener, app).await.unwrap();
+}
+
+async fn health_check() -> Json<serde_json::Value> {
+    Json(serde_json::json!({
+        "status": "ok",
+        "version": env!("CARGO_PKG_VERSION"),
+    }))
+}

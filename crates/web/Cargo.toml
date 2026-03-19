@@ -1,0 +1,10 @@
+[package]
+name = "renzora-web"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+renzora-common = { path = "../common" }
+leptos = { workspace = true }
+leptos_router = { workspace = true }
+leptos_meta = { workspace = true }

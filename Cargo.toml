@@ -1,0 +1,36 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/server",
+    "crates/api",
+    "crates/models",
+    "crates/web",
+    "crates/common",
+]
+
+[workspace.dependencies]
+axum = { version = "0.8", features = ["multipart"] }
+axum-extra = { version = "0.10", features = ["typed-header"] }
+leptos = "0.7"
+leptos_axum = "0.7"
+leptos_router = "0.7"
+leptos_meta = "0.7"
+sqlx = { version = "0.8", features = ["runtime-tokio", "postgres", "uuid", "time", "migrate"] }
+redis = { version = "0.27", features = ["tokio-comp"] }
+jsonwebtoken = "9"
+argon2 = "0.5"
+tokio = { version = "1", features = ["full"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+uuid = { version = "1", features = ["v4", "serde"] }
+time = { version = "0.3", features = ["serde"] }
+tower = "0.5"
+tower-http = { version = "0.6", features = ["cors", "trace", "fs"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+thiserror = "2"
+dotenvy = "0.15"
+reqwest = { version = "0.12", features = ["json"] }
+hmac = "0.12"
+sha2 = "0.10"
+hex = "0.4"

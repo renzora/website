@@ -1,0 +1,27 @@
+[package]
+name = "renzora-api"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+renzora-common = { path = "../common" }
+renzora-models = { path = "../models" }
+axum = { workspace = true }
+axum-extra = { workspace = true }
+sqlx = { workspace = true }
+redis = { workspace = true }
+jsonwebtoken = { workspace = true }
+argon2 = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+uuid = { workspace = true }
+time = { workspace = true }
+tower = { workspace = true }
+tower-http = { workspace = true }
+tracing = { workspace = true }
+thiserror = { workspace = true }
+tokio = { workspace = true }
+reqwest = { workspace = true }
+hmac = { workspace = true }
+sha2 = { workspace = true }
+hex = { workspace = true }
