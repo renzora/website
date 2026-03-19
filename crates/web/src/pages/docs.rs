@@ -5,60 +5,37 @@ use leptos_router::hooks::use_params_map;
 #[component]
 pub fn DocsPage() -> impl IntoView {
     view! {
-        <div class="docs-layout">
+        <div class="flex min-h-[calc(100vh-56px)]">
             <DocsSidebar />
-            <div class="docs-content">
-                <div class="docs-hero">
-                    <h1>"Documentation"</h1>
-                    <p class="docs-hero-sub">"Everything you need to build games with Renzora Engine."</p>
+            <div class="flex-1 min-w-0 px-8 py-10 lg:px-12 max-w-[860px]">
+                <div class="mb-10">
+                    <h1 class="text-4xl font-bold">"Documentation"</h1>
+                    <p class="text-zinc-400 mt-2">"Everything you need to build games with Renzora Engine."</p>
                 </div>
 
-                <div class="docs-cards">
-                    <a href="/docs/getting-started/installation" class="docs-card-lg">
-                        <div class="docs-card-icon">"01"</div>
-                        <div>
-                            <h3>"Getting Started"</h3>
-                            <p>"Install the engine, create your first project, and learn the editor basics."</p>
-                        </div>
-                    </a>
-                    <a href="/docs/editor/scenes" class="docs-card-lg">
-                        <div class="docs-card-icon">"02"</div>
-                        <div>
-                            <h3>"Editor Guide"</h3>
-                            <p>"Master scenes, the inspector, materials, terrain, and the docking panel system."</p>
-                        </div>
-                    </a>
-                    <a href="/docs/scripting/overview" class="docs-card-lg">
-                        <div class="docs-card-icon">"03"</div>
-                        <div>
-                            <h3>"Scripting"</h3>
-                            <p>"Write game logic with Lua, Rhai, or visual blueprints. Full API reference included."</p>
-                        </div>
-                    </a>
-                    <a href="/docs/networking/overview" class="docs-card-lg">
-                        <div class="docs-card-icon">"04"</div>
-                        <div>
-                            <h3>"Multiplayer"</h3>
-                            <p>"Set up dedicated servers, replicate state, and handle player input."</p>
-                        </div>
-                    </a>
-                    <a href="/docs/export/overview" class="docs-card-lg">
-                        <div class="docs-card-icon">"05"</div>
-                        <div>
-                            <h3>"Export & Deploy"</h3>
-                            <p>"Build for Windows, macOS, Linux, Android, iOS, and tvOS."</p>
-                        </div>
-                    </a>
-                    <a href="/docs/extending/plugins" class="docs-card-lg">
-                        <div class="docs-card-icon">"06"</div>
-                        <div>
-                            <h3>"Extending the Engine"</h3>
-                            <p>"Build plugins, custom nodes, post-processing effects, and contribute to the source."</p>
-                        </div>
-                    </a>
+                <div class="flex flex-col gap-3">
+                    <DocCard num="01" title="Getting Started" desc="Install the engine, create your first project, and learn the editor basics." href="/docs/getting-started/installation" />
+                    <DocCard num="02" title="Editor Guide" desc="Master scenes, the inspector, materials, terrain, and the docking panel system." href="/docs/editor/scenes" />
+                    <DocCard num="03" title="Scripting" desc="Write game logic with Lua, Rhai, or visual blueprints. Full API reference included." href="/docs/scripting/overview" />
+                    <DocCard num="04" title="Multiplayer" desc="Set up dedicated servers, replicate state, and handle player input." href="/docs/networking/overview" />
+                    <DocCard num="05" title="Export & Deploy" desc="Build for Windows, macOS, Linux, Android, iOS, and tvOS." href="/docs/export/overview" />
+                    <DocCard num="06" title="Extending the Engine" desc="Build plugins, custom nodes, post-processing effects, and contribute to the source." href="/docs/extending/plugins" />
                 </div>
             </div>
         </div>
+    }
+}
+
+#[component]
+fn DocCard(num: &'static str, title: &'static str, desc: &'static str, href: &'static str) -> impl IntoView {
+    view! {
+        <a href=href class="flex items-center gap-5 p-5 bg-surface-card border border-zinc-800 rounded-lg hover:border-accent transition-colors">
+            <div class="w-12 h-12 flex items-center justify-center bg-accent-subtle rounded-lg text-accent font-extrabold text-xl shrink-0">{num}</div>
+            <div>
+                <h3 class="text-sm font-semibold mb-0.5">{title}</h3>
+                <p class="text-xs text-zinc-400 leading-relaxed">{desc}</p>
+            </div>
+        </a>
     }
 }
 
@@ -76,9 +53,9 @@ pub fn DocArticle() -> impl IntoView {
     };
 
     view! {
-        <div class="docs-layout">
+        <div class="flex min-h-[calc(100vh-56px)]">
             <DocsSidebar />
-            <div class="docs-content">
+            <div class="flex-1 min-w-0 px-8 py-10 lg:px-12 max-w-[860px]">
                 <article class="doc-article">
                     {content}
                 </article>
@@ -91,84 +68,63 @@ pub fn DocArticle() -> impl IntoView {
 #[component]
 fn DocsSidebar() -> impl IntoView {
     view! {
-        <aside class="docs-sidebar">
-            <div class="docs-sidebar-inner">
-                <SidebarSection
-                    title="Getting Started"
-                    links=vec![
-                        ("/docs/getting-started/installation", "Installation"),
-                        ("/docs/getting-started/first-project", "Your First Project"),
-                        ("/docs/getting-started/editor-overview", "Editor Overview"),
-                        ("/docs/getting-started/concepts", "Core Concepts"),
-                    ]
-                />
-                <SidebarSection
-                    title="Editor"
-                    links=vec![
-                        ("/docs/editor/scenes", "Scenes & Hierarchy"),
-                        ("/docs/editor/inspector", "Inspector"),
-                        ("/docs/editor/viewport", "Viewport & Camera"),
-                        ("/docs/editor/materials", "Material Editor"),
-                        ("/docs/editor/terrain", "Terrain"),
-                        ("/docs/editor/animation", "Animation"),
-                        ("/docs/editor/audio", "Audio"),
-                        ("/docs/editor/layouts", "Layouts & Panels"),
-                        ("/docs/editor/keybindings", "Keyboard Shortcuts"),
-                    ]
-                />
-                <SidebarSection
-                    title="Scripting"
-                    links=vec![
-                        ("/docs/scripting/overview", "Overview"),
-                        ("/docs/scripting/lua", "Lua"),
-                        ("/docs/scripting/rhai", "Rhai"),
-                        ("/docs/scripting/blueprints", "Visual Blueprints"),
-                        ("/docs/scripting/api-reference", "API Reference"),
-                        ("/docs/scripting/events", "Events & Lifecycle"),
-                        ("/docs/scripting/entities", "Entities & Components"),
-                        ("/docs/scripting/input", "Input Handling"),
-                        ("/docs/scripting/physics", "Physics"),
-                        ("/docs/scripting/ui", "Game UI"),
-                    ]
-                />
-                <SidebarSection
-                    title="Networking"
-                    links=vec![
-                        ("/docs/networking/overview", "Overview"),
-                        ("/docs/networking/server-setup", "Server Setup"),
-                        ("/docs/networking/replication", "State Replication"),
-                        ("/docs/networking/input", "Networked Input"),
-                        ("/docs/networking/rooms", "Rooms & Lobbies"),
-                    ]
-                />
-                <SidebarSection
-                    title="Export & Deploy"
-                    links=vec![
-                        ("/docs/export/overview", "Overview"),
-                        ("/docs/export/windows", "Windows"),
-                        ("/docs/export/linux", "Linux"),
-                        ("/docs/export/macos", "macOS"),
-                        ("/docs/export/android", "Android"),
-                        ("/docs/export/ios", "iOS & tvOS"),
-                    ]
-                />
-                <SidebarSection
-                    title="Extending"
-                    links=vec![
-                        ("/docs/extending/plugins", "Building Plugins"),
-                        ("/docs/extending/custom-nodes", "Custom Blueprint Nodes"),
-                        ("/docs/extending/post-processing", "Post-Processing Effects"),
-                        ("/docs/extending/contributing", "Contributing to Renzora"),
-                    ]
-                />
-                <SidebarSection
-                    title="Marketplace"
-                    links=vec![
-                        ("/docs/marketplace/browsing", "Browsing & Installing"),
-                        ("/docs/marketplace/publishing", "Publishing Assets"),
-                        ("/docs/marketplace/credits", "Credits System"),
-                    ]
-                />
+        <aside class="docs-sidebar w-64 shrink-0 border-r border-zinc-800 bg-surface sticky top-14 h-[calc(100vh-56px)] overflow-y-auto hidden lg:block">
+            <div class="p-4">
+                <SidebarSection title="Getting Started" links=vec![
+                    ("/docs/getting-started/installation", "Installation"),
+                    ("/docs/getting-started/first-project", "Your First Project"),
+                    ("/docs/getting-started/editor-overview", "Editor Overview"),
+                    ("/docs/getting-started/concepts", "Core Concepts"),
+                ] />
+                <SidebarSection title="Editor" links=vec![
+                    ("/docs/editor/scenes", "Scenes & Hierarchy"),
+                    ("/docs/editor/inspector", "Inspector"),
+                    ("/docs/editor/viewport", "Viewport & Camera"),
+                    ("/docs/editor/materials", "Material Editor"),
+                    ("/docs/editor/terrain", "Terrain"),
+                    ("/docs/editor/animation", "Animation"),
+                    ("/docs/editor/audio", "Audio"),
+                    ("/docs/editor/layouts", "Layouts & Panels"),
+                    ("/docs/editor/keybindings", "Keyboard Shortcuts"),
+                ] />
+                <SidebarSection title="Scripting" links=vec![
+                    ("/docs/scripting/overview", "Overview"),
+                    ("/docs/scripting/lua", "Lua"),
+                    ("/docs/scripting/rhai", "Rhai"),
+                    ("/docs/scripting/blueprints", "Visual Blueprints"),
+                    ("/docs/scripting/api-reference", "API Reference"),
+                    ("/docs/scripting/events", "Events & Lifecycle"),
+                    ("/docs/scripting/entities", "Entities & Components"),
+                    ("/docs/scripting/input", "Input Handling"),
+                    ("/docs/scripting/physics", "Physics"),
+                    ("/docs/scripting/ui", "Game UI"),
+                ] />
+                <SidebarSection title="Networking" links=vec![
+                    ("/docs/networking/overview", "Overview"),
+                    ("/docs/networking/server-setup", "Server Setup"),
+                    ("/docs/networking/replication", "State Replication"),
+                    ("/docs/networking/input", "Networked Input"),
+                    ("/docs/networking/rooms", "Rooms & Lobbies"),
+                ] />
+                <SidebarSection title="Export & Deploy" links=vec![
+                    ("/docs/export/overview", "Overview"),
+                    ("/docs/export/windows", "Windows"),
+                    ("/docs/export/linux", "Linux"),
+                    ("/docs/export/macos", "macOS"),
+                    ("/docs/export/android", "Android"),
+                    ("/docs/export/ios", "iOS & tvOS"),
+                ] />
+                <SidebarSection title="Extending" links=vec![
+                    ("/docs/extending/plugins", "Building Plugins"),
+                    ("/docs/extending/custom-nodes", "Custom Blueprint Nodes"),
+                    ("/docs/extending/post-processing", "Post-Processing Effects"),
+                    ("/docs/extending/contributing", "Contributing to Renzora"),
+                ] />
+                <SidebarSection title="Marketplace" links=vec![
+                    ("/docs/marketplace/browsing", "Browsing & Installing"),
+                    ("/docs/marketplace/publishing", "Publishing Assets"),
+                    ("/docs/marketplace/credits", "Credits System"),
+                ] />
             </div>
         </aside>
     }
@@ -177,12 +133,12 @@ fn DocsSidebar() -> impl IntoView {
 #[component]
 fn SidebarSection(title: &'static str, links: Vec<(&'static str, &'static str)>) -> impl IntoView {
     view! {
-        <div class="sidebar-section">
-            <h4 class="sidebar-heading">{title}</h4>
-            <ul class="sidebar-links">
+        <div class="mb-6">
+            <h4 class="text-[11px] font-semibold uppercase tracking-[0.08em] text-zinc-500 mb-2 px-2">{title}</h4>
+            <ul class="flex flex-col gap-px">
                 {links.into_iter().map(|(href, label)| {
                     view! {
-                        <li><a href=href class="sidebar-link">{label}</a></li>
+                        <li><a href=href class="block px-2 py-1.5 text-[13px] text-zinc-400 rounded hover:text-zinc-50 hover:bg-white/5 transition-all">{label}</a></li>
                     }
                 }).collect::<Vec<_>>()}
             </ul>
@@ -191,6 +147,18 @@ fn SidebarSection(title: &'static str, links: Vec<(&'static str, &'static str)>)
 }
 
 // ── Documentation Content ──
+// Article helper classes (reused across all doc pages):
+// h1: text-3xl font-bold mb-2
+// h2: text-xl font-semibold mt-10 mb-3 pb-2 border-b border-zinc-800
+// h3: text-base font-semibold mt-7 mb-2
+// p:  text-sm text-zinc-400 leading-relaxed mb-4
+// ul/ol: pl-6 mb-4 list-disc/decimal
+// li: text-sm text-zinc-400 leading-relaxed mb-1
+// pre: p-4 bg-surface-card border border-zinc-800 rounded-lg text-[13px] leading-relaxed mb-5 overflow-x-auto font-mono
+// code (inline): bg-surface-card px-1.5 py-0.5 rounded text-[13px] font-mono
+// blockquote: border-l-[3px] border-accent pl-4 py-3 my-4 bg-accent-subtle rounded-r-lg
+// breadcrumb: text-xs text-zinc-500 mb-6
+// a: text-accent hover:text-accent-hover
 
 fn render_doc_content(category: &str, slug: &str) -> impl IntoView {
     match (category, slug) {
@@ -216,530 +184,302 @@ fn doc_placeholder(category: &str, slug: &str) -> impl IntoView {
     let title = slug.replace('-', " ");
     let cat = category.to_string();
     view! {
-        <p class="doc-breadcrumb"><a href="/docs">"Docs"</a>" / "{cat}</p>
-        <h1>{title}</h1>
-        <p class="doc-lead">"This page is coming soon. Check back for updates."</p>
+        <p class="text-xs text-zinc-500 mb-6"><a href="/docs" class="text-accent">"Docs"</a>" / "{cat}</p>
+        <h1 class="text-3xl font-bold mb-2">{title}</h1>
+        <p class="text-sm text-zinc-400">"This page is coming soon. Check back for updates."</p>
     }
 }
 
 fn doc_installation() -> impl IntoView {
     view! {
-        <p class="doc-breadcrumb"><a href="/docs">"Docs"</a>" / Getting Started"</p>
-        <h1>"Installation"</h1>
-        <p class="doc-lead">"Get Renzora Engine running on your machine in a few minutes."</p>
+        <p class="text-xs text-zinc-500 mb-6"><a href="/docs" class="text-accent">"Docs"</a>" / Getting Started"</p>
+        <h1 class="text-3xl font-bold mb-2">"Installation"</h1>
+        <p class="text-sm text-zinc-400 leading-relaxed mb-8">"Get Renzora Engine running on your machine in a few minutes."</p>
 
-        <h2>"System Requirements"</h2>
-        <ul>
-            <li><strong>"OS:"</strong>" Windows 10+, macOS 12+, or Ubuntu 22.04+ (other Linux distros work too)"</li>
-            <li><strong>"GPU:"</strong>" Any GPU with Vulkan, Metal, or DX12 support"</li>
-            <li><strong>"RAM:"</strong>" 4 GB minimum, 8 GB recommended"</li>
-            <li><strong>"Disk:"</strong>" ~500 MB for the editor"</li>
+        <h2 class="text-xl font-semibold mt-10 mb-3 pb-2 border-b border-zinc-800">"System Requirements"</h2>
+        <ul class="pl-6 mb-4 list-disc">
+            <li class="text-sm text-zinc-400 leading-relaxed mb-1"><strong class="text-zinc-50">"OS:"</strong>" Windows 10+, macOS 12+, or Ubuntu 22.04+"</li>
+            <li class="text-sm text-zinc-400 leading-relaxed mb-1"><strong class="text-zinc-50">"GPU:"</strong>" Any GPU with Vulkan, Metal, or DX12 support"</li>
+            <li class="text-sm text-zinc-400 leading-relaxed mb-1"><strong class="text-zinc-50">"RAM:"</strong>" 4 GB minimum, 8 GB recommended"</li>
+            <li class="text-sm text-zinc-400 leading-relaxed mb-1"><strong class="text-zinc-50">"Disk:"</strong>" ~500 MB for the editor"</li>
         </ul>
 
-        <h2>"Download"</h2>
-        <p>"Head to the "<a href="/download">"download page"</a>" and grab the installer for your platform."</p>
+        <h2 class="text-xl font-semibold mt-10 mb-3 pb-2 border-b border-zinc-800">"Download"</h2>
+        <p class="text-sm text-zinc-400 leading-relaxed mb-4">"Head to the "<a href="/download" class="text-accent hover:text-accent-hover">"download page"</a>" and grab the installer for your platform."</p>
 
-        <h3>"Windows"</h3>
-        <p>"Download the "<code>".exe"</code>" installer and run it. The editor will be added to your Start menu."</p>
-        <p>"Alternatively, download the portable "<code>".zip"</code>" and extract it anywhere."</p>
+        <h3 class="text-base font-semibold mt-7 mb-2">"Windows"</h3>
+        <p class="text-sm text-zinc-400 leading-relaxed mb-4">"Download the "<code class="bg-surface-card px-1.5 py-0.5 rounded text-[13px] font-mono">".exe"</code>" installer and run it. The editor will be added to your Start menu. Alternatively, download the portable "<code class="bg-surface-card px-1.5 py-0.5 rounded text-[13px] font-mono">".zip"</code>" and extract it anywhere."</p>
 
-        <h3>"macOS"</h3>
-        <p>"Download the "<code>".dmg"</code>", open it, and drag Renzora to your Applications folder."</p>
-        <blockquote><p>"On first launch, you may need to right-click and choose Open, then confirm in the security dialog."</p></blockquote>
+        <h3 class="text-base font-semibold mt-7 mb-2">"macOS"</h3>
+        <p class="text-sm text-zinc-400 leading-relaxed mb-4">"Download the "<code class="bg-surface-card px-1.5 py-0.5 rounded text-[13px] font-mono">".dmg"</code>", open it, and drag Renzora to your Applications folder."</p>
+        <div class="border-l-[3px] border-accent pl-4 py-3 my-4 bg-accent-subtle rounded-r-lg">
+            <p class="text-sm text-zinc-300 mb-0">"On first launch, you may need to right-click and choose Open, then confirm in the security dialog."</p>
+        </div>
 
-        <h3>"Linux"</h3>
-        <p>"Download the "<code>".AppImage"</code>", make it executable, and run it:"</p>
-        <pre><code>"chmod +x Renzora-r1-alpha4.AppImage\n./Renzora-r1-alpha4.AppImage"</code></pre>
-        <p>"Debian/Ubuntu users can also use the "<code>".deb"</code>" package."</p>
+        <h3 class="text-base font-semibold mt-7 mb-2">"Linux"</h3>
+        <p class="text-sm text-zinc-400 leading-relaxed mb-4">"Download the "<code class="bg-surface-card px-1.5 py-0.5 rounded text-[13px] font-mono">".AppImage"</code>", make it executable, and run it:"</p>
+        <pre class="p-4 bg-surface-card border border-zinc-800 rounded-lg text-[13px] leading-relaxed mb-5 overflow-x-auto font-mono text-zinc-300">"chmod +x Renzora-r1-alpha4.AppImage\n./Renzora-r1-alpha4.AppImage"</pre>
 
-        <h3>"Build from source"</h3>
-        <p>"If you prefer to compile from source, you'll need Rust 1.85+ and Git:"</p>
-        <pre><code>"git clone https://github.com/renzora/engine.git\ncd engine\ncargo run --release"</code></pre>
+        <h3 class="text-base font-semibold mt-7 mb-2">"Build from source"</h3>
+        <p class="text-sm text-zinc-400 leading-relaxed mb-4">"If you prefer to compile from source, you'll need Rust 1.85+ and Git:"</p>
+        <pre class="p-4 bg-surface-card border border-zinc-800 rounded-lg text-[13px] leading-relaxed mb-5 overflow-x-auto font-mono text-zinc-300">"git clone https://github.com/renzora/engine.git\ncd engine\ncargo run --release"</pre>
 
-        <h2>"What's next?"</h2>
-        <p>"Now that you have the engine installed, "<a href="/docs/getting-started/first-project">"create your first project"</a>"."</p>
+        <h2 class="text-xl font-semibold mt-10 mb-3 pb-2 border-b border-zinc-800">"What's next?"</h2>
+        <p class="text-sm text-zinc-400 leading-relaxed mb-4">"Now that you have the engine installed, "<a href="/docs/getting-started/first-project" class="text-accent hover:text-accent-hover">"create your first project"</a>"."</p>
     }
 }
 
 fn doc_first_project() -> impl IntoView {
     view! {
-        <p class="doc-breadcrumb"><a href="/docs">"Docs"</a>" / Getting Started"</p>
-        <h1>"Your First Project"</h1>
-        <p class="doc-lead">"Create a new project, add some objects to your scene, and hit play."</p>
+        <p class="text-xs text-zinc-500 mb-6"><a href="/docs" class="text-accent">"Docs"</a>" / Getting Started"</p>
+        <h1 class="text-3xl font-bold mb-2">"Your First Project"</h1>
+        <p class="text-sm text-zinc-400 leading-relaxed mb-8">"Create a new project, add some objects to your scene, and hit play."</p>
 
-        <h2>"Creating a project"</h2>
-        <p>"When you launch Renzora, you'll see a project browser. Click "<strong>"New Project"</strong>", give it a name, and choose a location on disk."</p>
-        <p>"This creates a project folder with the following structure:"</p>
-        <pre><code>"my-game/\n├── project.toml      # project settings\n├── scenes/\n│   └── main.ron      # your startup scene\n├── scripts/          # Lua/Rhai scripts\n├── textures/         # images & sprites\n├── audio/            # sound effects & music\n└── materials/        # material graph files"</code></pre>
+        <h2 class="text-xl font-semibold mt-10 mb-3 pb-2 border-b border-zinc-800">"Creating a project"</h2>
+        <p class="text-sm text-zinc-400 leading-relaxed mb-4">"When you launch Renzora, you'll see a project browser. Click "<strong class="text-zinc-50">"New Project"</strong>", give it a name, and choose a location on disk."</p>
+        <pre class="p-4 bg-surface-card border border-zinc-800 rounded-lg text-[13px] leading-relaxed mb-5 overflow-x-auto font-mono text-zinc-300">"my-game/\n\u{251C}\u{2500}\u{2500} project.toml      # project settings\n\u{251C}\u{2500}\u{2500} scenes/\n\u{2502}   \u{2514}\u{2500}\u{2500} main.ron      # your startup scene\n\u{251C}\u{2500}\u{2500} scripts/          # Lua/Rhai scripts\n\u{251C}\u{2500}\u{2500} textures/         # images & sprites\n\u{251C}\u{2500}\u{2500} audio/            # sound effects & music\n\u{2514}\u{2500}\u{2500} materials/        # material graph files"</pre>
 
-        <h2>"The project.toml file"</h2>
-        <p>"This is your project's configuration. It looks like this:"</p>
-        <pre><code>"[project]\nname = \"my-game\"\nversion = \"0.1.0\"\n\n[window]\nresolution = [1280, 720]\nfullscreen = false\ntitle = \"My Game\"\n\n[scene]\nmain = \"scenes/main.ron\""</code></pre>
+        <h2 class="text-xl font-semibold mt-10 mb-3 pb-2 border-b border-zinc-800">"The project.toml file"</h2>
+        <pre class="p-4 bg-surface-card border border-zinc-800 rounded-lg text-[13px] leading-relaxed mb-5 overflow-x-auto font-mono text-zinc-300">"[project]\nname = \"my-game\"\nversion = \"0.1.0\"\n\n[window]\nresolution = [1280, 720]\nfullscreen = false\ntitle = \"My Game\"\n\n[scene]\nmain = \"scenes/main.ron\""</pre>
 
-        <h2>"Adding objects to the scene"</h2>
-        <p>"The editor opens with an empty scene. Let's add something:"</p>
-        <ol>
-            <li>"Click the "<strong>"+"</strong>" button in the Hierarchy panel (left side)"</li>
-            <li>"Choose "<strong>"3D → Cube"</strong>" from the menu"</li>
-            <li>"A cube appears in the viewport. Use the gizmo to move it around."</li>
-            <li>"Add a light: "<strong>"+ → Light → Directional Light"</strong></li>
+        <h2 class="text-xl font-semibold mt-10 mb-3 pb-2 border-b border-zinc-800">"Adding objects to the scene"</h2>
+        <ol class="pl-6 mb-4 list-decimal">
+            <li class="text-sm text-zinc-400 leading-relaxed mb-1">"Click the "<strong class="text-zinc-50">"+"</strong>" button in the Hierarchy panel (left side)"</li>
+            <li class="text-sm text-zinc-400 leading-relaxed mb-1">"Choose "<strong class="text-zinc-50">"3D \u{2192} Cube"</strong>" from the menu"</li>
+            <li class="text-sm text-zinc-400 leading-relaxed mb-1">"A cube appears in the viewport. Use the gizmo to move it around."</li>
+            <li class="text-sm text-zinc-400 leading-relaxed mb-1">"Add a light: "<strong class="text-zinc-50">"+ \u{2192} Light \u{2192} Directional Light"</strong></li>
         </ol>
 
-        <h2>"Running your game"</h2>
-        <p>"Press "<code>"F5"</code>" (or click the play button in the title bar) to enter play mode. The viewport switches to the game camera and your scripts start running."</p>
-        <p>"Press "<code>"F5"</code>" again to stop and return to the editor."</p>
-        <blockquote><p><strong>"Tip:"</strong>" Use "<code>"Shift+F5"</code>" to run scripts without switching to the game camera. This is useful for testing script logic while still having editor controls."</p></blockquote>
+        <h2 class="text-xl font-semibold mt-10 mb-3 pb-2 border-b border-zinc-800">"Running your game"</h2>
+        <p class="text-sm text-zinc-400 leading-relaxed mb-4">"Press "<code class="bg-surface-card px-1.5 py-0.5 rounded text-[13px] font-mono">"F5"</code>" to enter play mode. Press again to stop."</p>
+        <div class="border-l-[3px] border-accent pl-4 py-3 my-4 bg-accent-subtle rounded-r-lg">
+            <p class="text-sm text-zinc-300 mb-0"><strong>"Tip:"</strong>" Use "<code class="bg-surface-card px-1.5 py-0.5 rounded text-[13px] font-mono">"Shift+F5"</code>" to run scripts without switching to the game camera."</p>
+        </div>
 
-        <h2>"Saving"</h2>
-        <p>"Press "<code>"Ctrl+S"</code>" to save your scene. Scenes are stored as "<code>".ron"</code>" files in the "<code>"scenes/"</code>" folder."</p>
+        <h2 class="text-xl font-semibold mt-10 mb-3 pb-2 border-b border-zinc-800">"Saving"</h2>
+        <p class="text-sm text-zinc-400 leading-relaxed mb-4">"Press "<code class="bg-surface-card px-1.5 py-0.5 rounded text-[13px] font-mono">"Ctrl+S"</code>" to save. Scenes are stored as "<code class="bg-surface-card px-1.5 py-0.5 rounded text-[13px] font-mono">".ron"</code>" files."</p>
 
-        <h2>"What's next?"</h2>
-        <p>"Learn the editor interface in the "<a href="/docs/getting-started/editor-overview">"Editor Overview"</a>", or jump straight to "<a href="/docs/scripting/overview">"Scripting"</a>" to add game logic."</p>
+        <h2 class="text-xl font-semibold mt-10 mb-3 pb-2 border-b border-zinc-800">"What's next?"</h2>
+        <p class="text-sm text-zinc-400 leading-relaxed mb-4">"Learn the editor in the "<a href="/docs/getting-started/editor-overview" class="text-accent hover:text-accent-hover">"Editor Overview"</a>", or jump to "<a href="/docs/scripting/overview" class="text-accent hover:text-accent-hover">"Scripting"</a>"."</p>
     }
 }
 
 fn doc_editor_overview() -> impl IntoView {
     view! {
-        <p class="doc-breadcrumb"><a href="/docs">"Docs"</a>" / Getting Started"</p>
-        <h1>"Editor Overview"</h1>
-        <p class="doc-lead">"A tour of the Renzora editor interface and its main panels."</p>
+        <p class="text-xs text-zinc-500 mb-6"><a href="/docs" class="text-accent">"Docs"</a>" / Getting Started"</p>
+        <h1 class="text-3xl font-bold mb-2">"Editor Overview"</h1>
+        <p class="text-sm text-zinc-400 leading-relaxed mb-8">"A tour of the Renzora editor interface and its main panels."</p>
 
-        <h2>"Layout"</h2>
-        <p>"The editor uses a dockable panel system. You can drag panels, split them, and arrange them however you like. The default layout has:"</p>
-        <ul>
-            <li><strong>"Title bar"</strong>" — file menu, workspace tabs, play controls, settings, and sign-in"</li>
-            <li><strong>"Viewport"</strong>" (center) — your 3D/2D scene view"</li>
-            <li><strong>"Hierarchy"</strong>" (left) — tree of all entities in the scene"</li>
-            <li><strong>"Inspector"</strong>" (right) — properties of the selected entity"</li>
-            <li><strong>"Asset browser"</strong>" (bottom) — browse and manage project files"</li>
-            <li><strong>"Console"</strong>" (bottom) — logs and script output"</li>
+        <h2 class="text-xl font-semibold mt-10 mb-3 pb-2 border-b border-zinc-800">"Layout"</h2>
+        <p class="text-sm text-zinc-400 leading-relaxed mb-4">"The editor uses a dockable panel system. The default layout:"</p>
+        <ul class="pl-6 mb-4 list-disc">
+            <li class="text-sm text-zinc-400 leading-relaxed mb-1"><strong class="text-zinc-50">"Title bar"</strong>" \u{2014} file menu, workspace tabs, play controls, settings"</li>
+            <li class="text-sm text-zinc-400 leading-relaxed mb-1"><strong class="text-zinc-50">"Viewport"</strong>" (center) \u{2014} your 3D/2D scene view"</li>
+            <li class="text-sm text-zinc-400 leading-relaxed mb-1"><strong class="text-zinc-50">"Hierarchy"</strong>" (left) \u{2014} tree of all entities"</li>
+            <li class="text-sm text-zinc-400 leading-relaxed mb-1"><strong class="text-zinc-50">"Inspector"</strong>" (right) \u{2014} properties of selected entity"</li>
+            <li class="text-sm text-zinc-400 leading-relaxed mb-1"><strong class="text-zinc-50">"Asset browser"</strong>" (bottom) \u{2014} project files"</li>
+            <li class="text-sm text-zinc-400 leading-relaxed mb-1"><strong class="text-zinc-50">"Console"</strong>" (bottom) \u{2014} logs and script output"</li>
         </ul>
 
-        <h2>"Workspaces"</h2>
-        <p>"The title bar has workspace tabs at the top. Each workspace is a different panel arrangement optimized for a task:"</p>
-        <ul>
-            <li><strong>"Scene"</strong>" — default layout for level editing"</li>
-            <li><strong>"Materials"</strong>" — material graph editor with preview"</li>
-            <li><strong>"Animation"</strong>" — timeline and keyframe editor"</li>
-            <li><strong>"Audio"</strong>" — audio mixer (DAW-style)"</li>
-            <li><strong>"UI"</strong>" — game UI canvas editor"</li>
-            <li><strong>"Network"</strong>" — multiplayer configuration"</li>
+        <h2 class="text-xl font-semibold mt-10 mb-3 pb-2 border-b border-zinc-800">"Workspaces"</h2>
+        <p class="text-sm text-zinc-400 leading-relaxed mb-4">"Workspace tabs at the top switch between panel arrangements:"</p>
+        <ul class="pl-6 mb-4 list-disc">
+            <li class="text-sm text-zinc-400 leading-relaxed mb-1"><strong class="text-zinc-50">"Scene"</strong>" \u{2014} default layout for level editing"</li>
+            <li class="text-sm text-zinc-400 leading-relaxed mb-1"><strong class="text-zinc-50">"Materials"</strong>" \u{2014} material graph editor with preview"</li>
+            <li class="text-sm text-zinc-400 leading-relaxed mb-1"><strong class="text-zinc-50">"Animation"</strong>" \u{2014} timeline and keyframe editor"</li>
+            <li class="text-sm text-zinc-400 leading-relaxed mb-1"><strong class="text-zinc-50">"Audio"</strong>" \u{2014} audio mixer (DAW-style)"</li>
+            <li class="text-sm text-zinc-400 leading-relaxed mb-1"><strong class="text-zinc-50">"UI"</strong>" \u{2014} game UI canvas editor"</li>
+            <li class="text-sm text-zinc-400 leading-relaxed mb-1"><strong class="text-zinc-50">"Network"</strong>" \u{2014} multiplayer configuration"</li>
         </ul>
-        <p>"You can create custom workspaces and save your own layouts."</p>
 
-        <h2>"Key panels"</h2>
-        <p>"Renzora has 30+ panels. Here are the most important ones:"</p>
-
-        <h3>"Viewport"</h3>
-        <p>"The main scene view. Navigate with WASD to fly, Alt+left-click to orbit, and scroll to zoom. It automatically switches between 3D and 2D mode based on the selected entity."</p>
-
-        <h3>"Hierarchy"</h3>
-        <p>"Shows every entity in the scene as a tree. Drag entities to reparent them. Right-click for options like duplicate, delete, and rename. Use the + button to add new entities."</p>
-
-        <h3>"Inspector"</h3>
-        <p>"Shows all components on the selected entity: transform, mesh, material, physics, scripts, and more. Click \"Add Component\" to attach new functionality."</p>
-
-        <h3>"Asset Browser"</h3>
-        <p>"A file browser for your project. Drag textures onto materials, scripts onto entities, and scenes into the hierarchy. Supports thumbnails for images and models."</p>
-
-        <h2>"What's next?"</h2>
-        <p>"Learn about "<a href="/docs/getting-started/concepts">"Core Concepts"</a>" like entities, components, and scenes."</p>
+        <h2 class="text-xl font-semibold mt-10 mb-3 pb-2 border-b border-zinc-800">"What's next?"</h2>
+        <p class="text-sm text-zinc-400 leading-relaxed mb-4">"Learn about "<a href="/docs/getting-started/concepts" class="text-accent hover:text-accent-hover">"Core Concepts"</a>"."</p>
     }
 }
 
 fn doc_concepts() -> impl IntoView {
     view! {
-        <p class="doc-breadcrumb"><a href="/docs">"Docs"</a>" / Getting Started"</p>
-        <h1>"Core Concepts"</h1>
-        <p class="doc-lead">"The fundamental building blocks of Renzora — entities, components, scenes, and scripts."</p>
+        <p class="text-xs text-zinc-500 mb-6"><a href="/docs" class="text-accent">"Docs"</a>" / Getting Started"</p>
+        <h1 class="text-3xl font-bold mb-2">"Core Concepts"</h1>
+        <p class="text-sm text-zinc-400 leading-relaxed mb-8">"Entities, components, scenes, and scripts \u{2014} the building blocks of Renzora."</p>
 
-        <h2>"Entities"</h2>
-        <p>"An entity is a thing in your game world. A character, a light, a tree, a camera — they're all entities. By themselves, entities are empty containers. They only gain behavior through components."</p>
+        <h2 class="text-xl font-semibold mt-10 mb-3 pb-2 border-b border-zinc-800">"Entities"</h2>
+        <p class="text-sm text-zinc-400 leading-relaxed mb-4">"An entity is a thing in your game world. By themselves, entities are empty containers. They gain behavior through components."</p>
 
-        <h2>"Components"</h2>
-        <p>"Components are data attached to entities. A "<strong>"Transform"</strong>" component gives an entity a position, rotation, and scale. A "<strong>"Mesh"</strong>" component gives it a 3D shape. A "<strong>"Rigid Body"</strong>" gives it physics."</p>
-        <p>"You build game objects by combining components. A player character might have:"</p>
-        <ul>
-            <li>"Transform — position in the world"</li>
-            <li>"Mesh — the 3D model"</li>
-            <li>"Material — the visual appearance"</li>
-            <li>"Rigid Body — physics simulation"</li>
-            <li>"Collider — collision detection"</li>
-            <li>"Script — game logic (movement, health, etc.)"</li>
+        <h2 class="text-xl font-semibold mt-10 mb-3 pb-2 border-b border-zinc-800">"Components"</h2>
+        <p class="text-sm text-zinc-400 leading-relaxed mb-4">"Components are data attached to entities. A player character might have:"</p>
+        <ul class="pl-6 mb-4 list-disc">
+            <li class="text-sm text-zinc-400 leading-relaxed mb-1">"Transform \u{2014} position in the world"</li>
+            <li class="text-sm text-zinc-400 leading-relaxed mb-1">"Mesh \u{2014} the 3D model"</li>
+            <li class="text-sm text-zinc-400 leading-relaxed mb-1">"Material \u{2014} visual appearance"</li>
+            <li class="text-sm text-zinc-400 leading-relaxed mb-1">"Rigid Body \u{2014} physics simulation"</li>
+            <li class="text-sm text-zinc-400 leading-relaxed mb-1">"Script \u{2014} game logic"</li>
         </ul>
 
-        <h2>"Scenes"</h2>
-        <p>"A scene is a collection of entities saved as a "<code>".ron"</code>" file. Your game can have multiple scenes — a main menu, a gameplay level, a settings screen."</p>
-        <p>"The startup scene is defined in "<code>"project.toml"</code>" and loads automatically when the game runs."</p>
+        <h2 class="text-xl font-semibold mt-10 mb-3 pb-2 border-b border-zinc-800">"Scenes"</h2>
+        <p class="text-sm text-zinc-400 leading-relaxed mb-4">"A scene is a collection of entities saved as a "<code class="bg-surface-card px-1.5 py-0.5 rounded text-[13px] font-mono">".ron"</code>" file. Your game can have multiple scenes. The startup scene is defined in "<code class="bg-surface-card px-1.5 py-0.5 rounded text-[13px] font-mono">"project.toml"</code>"."</p>
 
-        <h2>"Scripts"</h2>
-        <p>"Scripts add custom behavior to entities. Renzora supports three scripting approaches:"</p>
-        <ul>
-            <li><strong>"Rhai"</strong>" — a lightweight scripting language designed for Rust. Great for gameplay logic."</li>
-            <li><strong>"Lua"</strong>" — the industry-standard game scripting language. Familiar to most game developers."</li>
-            <li><strong>"Blueprints"</strong>" — visual node graphs for logic. No coding required."</li>
-        </ul>
-        <p>"Scripts run two key functions: "<code>"on_ready()"</code>" when the entity spawns, and "<code>"on_update()"</code>" every frame."</p>
+        <h2 class="text-xl font-semibold mt-10 mb-3 pb-2 border-b border-zinc-800">"Scripts"</h2>
+        <p class="text-sm text-zinc-400 leading-relaxed mb-4">"Three scripting approaches: "<strong class="text-zinc-50">"Rhai"</strong>", "<strong class="text-zinc-50">"Lua"</strong>", and "<strong class="text-zinc-50">"Visual Blueprints"</strong>". Scripts run "<code class="bg-surface-card px-1.5 py-0.5 rounded text-[13px] font-mono">"on_ready()"</code>" when spawned and "<code class="bg-surface-card px-1.5 py-0.5 rounded text-[13px] font-mono">"on_update()"</code>" every frame."</p>
 
-        <h2>"Materials"</h2>
-        <p>"Materials define how surfaces look. Renzora uses a node-based material editor — you connect texture nodes, math nodes, and shader properties in a visual graph. Materials are saved as "<code>".material"</code>" files."</p>
-
-        <h2>"The game loop"</h2>
-        <p>"Every frame, the engine:"</p>
-        <ol>
-            <li>"Processes input (keyboard, mouse, gamepad)"</li>
-            <li>"Runs scripts ("<code>"on_update"</code>" on every active script)"</li>
-            <li>"Steps the physics simulation"</li>
-            <li>"Updates transforms and animations"</li>
-            <li>"Renders the frame"</li>
-        </ol>
-        <p>"You don't need to manage this loop yourself — just write your script logic and the engine handles the rest."</p>
-
-        <h2>"What's next?"</h2>
-        <p>"Dive into the "<a href="/docs/editor/scenes">"Editor Guide"</a>" to learn the tools, or start "<a href="/docs/scripting/overview">"Scripting"</a>" to add game logic."</p>
+        <h2 class="text-xl font-semibold mt-10 mb-3 pb-2 border-b border-zinc-800">"What's next?"</h2>
+        <p class="text-sm text-zinc-400 leading-relaxed mb-4">"Dive into the "<a href="/docs/editor/scenes" class="text-accent hover:text-accent-hover">"Editor Guide"</a>" or start "<a href="/docs/scripting/overview" class="text-accent hover:text-accent-hover">"Scripting"</a>"."</p>
     }
 }
 
-fn doc_scenes() -> impl IntoView {
-    view! {
-        <p class="doc-breadcrumb"><a href="/docs">"Docs"</a>" / Editor"</p>
-        <h1>"Scenes & Hierarchy"</h1>
-        <p class="doc-lead">"Organize your game world with the scene hierarchy."</p>
-
-        <h2>"The Hierarchy panel"</h2>
-        <p>"The Hierarchy panel (left side of the editor) shows a tree of every entity in the current scene. Entities can be nested inside other entities to create parent-child relationships."</p>
-
-        <h2>"Adding entities"</h2>
-        <p>"Click the "<strong>"+"</strong>" button at the top of the Hierarchy to add new entities:"</p>
-        <ul>
-            <li><strong>"3D"</strong>" — Cube, Sphere, Plane, Cylinder, Capsule, and more"</li>
-            <li><strong>"2D"</strong>" — Sprite, TileMap"</li>
-            <li><strong>"Light"</strong>" — Directional, Point, Spot"</li>
-            <li><strong>"Camera"</strong>" — 3D or 2D camera"</li>
-            <li><strong>"Audio"</strong>" — Audio emitter, listener"</li>
-            <li><strong>"Physics"</strong>" — Rigid body, collider"</li>
-            <li><strong>"UI"</strong>" — Game UI canvas"</li>
-            <li><strong>"Empty"</strong>" — an empty entity (use as an organizer)"</li>
-        </ul>
-
-        <h2>"Selecting and transforming"</h2>
-        <p>"Click an entity in the Hierarchy or viewport to select it. The gizmo appears for moving, rotating, and scaling:"</p>
-        <ul>
-            <li><code>"W"</code>" — Translate (move)"</li>
-            <li><code>"E"</code>" — Rotate"</li>
-            <li><code>"R"</code>" — Scale"</li>
-            <li><code>"Q"</code>" — Select mode (no gizmo)"</li>
-        </ul>
-        <p>"You can also use Blender-style modal transforms: press "<code>"G"</code>" to grab, "<code>"R"</code>" to rotate, or "<code>"S"</code>" to scale, then move the mouse."</p>
-
-        <h2>"Parenting"</h2>
-        <p>"Drag an entity onto another in the Hierarchy to make it a child. Children inherit their parent's transform — if you move the parent, the children move too."</p>
-        <p>"This is useful for:"</p>
-        <ul>
-            <li>"Attaching a weapon to a character's hand"</li>
-            <li>"Grouping objects together (e.g. a building made of parts)"</li>
-            <li>"Creating pivot points for rotation"</li>
-        </ul>
-
-        <h2>"Multi-selection"</h2>
-        <ul>
-            <li><code>"Ctrl+Click"</code>" — toggle an entity in the selection"</li>
-            <li><code>"Shift+Click"</code>" — add to selection"</li>
-            <li><code>"Escape"</code>" — deselect all"</li>
-        </ul>
-
-        <h2>"Scene operations"</h2>
-        <ul>
-            <li><code>"Ctrl+N"</code>" — new scene"</li>
-            <li><code>"Ctrl+O"</code>" — open scene"</li>
-            <li><code>"Ctrl+S"</code>" — save scene"</li>
-            <li><code>"Ctrl+Shift+S"</code>" — save scene as"</li>
-            <li><code>"Ctrl+D"</code>" — duplicate selected entities"</li>
-            <li><code>"Delete"</code>" — delete selected entities"</li>
-        </ul>
-    }
-}
-
-fn doc_inspector() -> impl IntoView {
-    view! {
-        <p class="doc-breadcrumb"><a href="/docs">"Docs"</a>" / Editor"</p>
-        <h1>"Inspector"</h1>
-        <p class="doc-lead">"View and edit the components attached to the selected entity."</p>
-
-        <h2>"Using the Inspector"</h2>
-        <p>"Select an entity in the Hierarchy or viewport. The Inspector panel (right side) shows all its components with editable fields."</p>
-
-        <h2>"Common components"</h2>
-
-        <h3>"Transform"</h3>
-        <p>"Every entity has a Transform with position (X, Y, Z), rotation (degrees), and scale. Type values directly or drag the number fields."</p>
-
-        <h3>"Mesh"</h3>
-        <p>"3D entities have a Mesh component defining their shape. Change the mesh type or assign a custom model file."</p>
-
-        <h3>"Material"</h3>
-        <p>"Controls the visual appearance. Click the material slot to open the Material Editor, or drag a "<code>".material"</code>" file from the Asset Browser."</p>
-
-        <h3>"Script"</h3>
-        <p>"Attach a script file to run game logic on this entity. Scripts can expose properties that appear as editable fields in the Inspector."</p>
-
-        <h3>"Rigid Body & Collider"</h3>
-        <p>"Add physics simulation. The rigid body controls mass and gravity, while the collider defines the shape used for collision detection."</p>
-
-        <h2>"Adding components"</h2>
-        <p>"Click \"Add Component\" at the bottom of the Inspector to see all available component types. You can search by name."</p>
-
-        <h2>"Script properties"</h2>
-        <p>"When a script defines a "<code>"props()"</code>" function, those properties appear in the Inspector as editable fields with sliders, checkboxes, or color pickers depending on the type."</p>
-    }
-}
-
-fn doc_viewport() -> impl IntoView {
-    view! {
-        <p class="doc-breadcrumb"><a href="/docs">"Docs"</a>" / Editor"</p>
-        <h1>"Viewport & Camera"</h1>
-        <p class="doc-lead">"Navigate the 3D scene and control the editor camera."</p>
-
-        <h2>"Navigation"</h2>
-        <ul>
-            <li><strong>"Fly mode:"</strong>" Hold right-click and use "<code>"W/A/S/D/E/Q"</code>" to fly. Hold "<code>"Shift"</code>" to move faster."</li>
-            <li><strong>"Orbit:"</strong>" Alt + left-click to orbit around the focus point."</li>
-            <li><strong>"Pan:"</strong>" Middle-click and drag to pan."</li>
-            <li><strong>"Zoom:"</strong>" Scroll wheel to zoom in/out."</li>
-            <li><strong>"Focus:"</strong>" Press "<code>"F"</code>" to focus the camera on the selected entity."</li>
-        </ul>
-
-        <h2>"View presets"</h2>
-        <p>"Quick camera angles using the numpad:"</p>
-        <ul>
-            <li><code>"Numpad 1"</code>" — Front view"</li>
-            <li><code>"Numpad 3"</code>" — Right view"</li>
-            <li><code>"Numpad 7"</code>" — Top view"</li>
-            <li><code>"Ctrl+Numpad 1/3/7"</code>" — Back / Left / Bottom view"</li>
-            <li><code>"Numpad 5"</code>" — Toggle perspective / orthographic"</li>
-        </ul>
-
-        <h2>"Display options"</h2>
-        <ul>
-            <li><code>"Z"</code>" — Toggle wireframe mode"</li>
-            <li><code>"Shift+Z"</code>" — Toggle lighting"</li>
-            <li><code>"H"</code>" — Toggle grid"</li>
-        </ul>
-
-        <h2>"2D mode"</h2>
-        <p>"The viewport automatically switches to 2D mode when you select a 2D entity (sprite, tilemap, UI canvas). In 2D mode, the camera is locked to an orthographic top-down view."</p>
-    }
-}
-
-fn doc_keybindings() -> impl IntoView {
-    view! {
-        <p class="doc-breadcrumb"><a href="/docs">"Docs"</a>" / Editor"</p>
-        <h1>"Keyboard Shortcuts"</h1>
-        <p class="doc-lead">"Quick reference for all editor keyboard shortcuts."</p>
-
-        <h2>"Camera"</h2>
-        <pre><code>"W/A/S/D/E/Q    Fly camera (hold right-click)\nShift           Move faster\nF               Focus selected\nNumpad 1/3/7    Front / Right / Top view\nCtrl+Numpad     Opposite views\nNumpad 5        Toggle perspective/ortho"</code></pre>
-
-        <h2>"Tools"</h2>
-        <pre><code>"Q               Select mode\nW               Translate (move)\nE               Rotate\nR               Scale\nG               Grab (Blender-style)\nR               Rotate (Blender-style)\nS               Scale (Blender-style)"</code></pre>
-
-        <h2>"Selection"</h2>
-        <pre><code>"Left Click      Select\nCtrl+Click      Toggle selection\nShift+Click     Add to selection\nEscape          Deselect all\nCtrl+D          Duplicate\nDelete          Delete"</code></pre>
-
-        <h2>"File"</h2>
-        <pre><code>"Ctrl+N          New scene\nCtrl+O          Open scene\nCtrl+S          Save scene\nCtrl+Shift+S    Save as\nCtrl+Z          Undo\nCtrl+Y          Redo"</code></pre>
-
-        <h2>"View"</h2>
-        <pre><code>"Z               Wireframe\nShift+Z         Toggle lighting\nH               Toggle grid\nCtrl+`          Toggle bottom panel"</code></pre>
-
-        <h2>"Play"</h2>
-        <pre><code>"F5              Play / Stop\nShift+F5        Run scripts only"</code></pre>
-    }
-}
-
-fn doc_scripting_overview() -> impl IntoView {
-    view! {
-        <p class="doc-breadcrumb"><a href="/docs">"Docs"</a>" / Scripting"</p>
-        <h1>"Scripting Overview"</h1>
-        <p class="doc-lead">"Add game logic to your entities with Rhai, Lua, or visual blueprints."</p>
-
-        <h2>"Three ways to script"</h2>
-        <p>"Renzora supports three scripting approaches. You can mix and match them in the same project:"</p>
-        <ul>
-            <li><strong><a href="/docs/scripting/rhai">"Rhai"</a></strong>" — a lightweight scripting language designed for Rust. Simple syntax, great for gameplay logic."</li>
-            <li><strong><a href="/docs/scripting/lua">"Lua"</a></strong>" — the industry-standard game scripting language. Use if you're coming from other engines."</li>
-            <li><strong><a href="/docs/scripting/blueprints">"Visual Blueprints"</a></strong>" — node-based visual scripting. No coding required."</li>
-        </ul>
-
-        <h2>"Script lifecycle"</h2>
-        <p>"Every script has two key functions:"</p>
-        <ul>
-            <li><code>"on_ready()"</code>" — called once when the entity spawns"</li>
-            <li><code>"on_update()"</code>" — called every frame"</li>
-        </ul>
-
-        <h2>"Attaching scripts"</h2>
-        <ol>
-            <li>"Create a script file in your project's "<code>"scripts/"</code>" folder"</li>
-            <li>"Select an entity in the editor"</li>
-            <li>"In the Inspector, click \"Add Component\" → Script"</li>
-            <li>"Choose your script file"</li>
-        </ol>
-
-        <h2>"Built-in variables"</h2>
-        <p>"Every frame, your script has access to these globals:"</p>
-
-        <h3>"Time"</h3>
-        <pre><code>"delta           Seconds since last frame (use for smooth movement)\nelapsed         Total seconds since game started"</code></pre>
-
-        <h3>"Transform"</h3>
-        <pre><code>"position_x      Entity X position (read/write)\nposition_y      Entity Y position\nposition_z      Entity Z position\nrotation_x/y/z  Entity rotation\nscale_x/y/z     Entity scale"</code></pre>
-
-        <h3>"Input"</h3>
-        <pre><code>"input_x         Horizontal axis (-1 to 1, from A/D keys)\ninput_y         Vertical axis (-1 to 1, from W/S keys)\nmouse_x/y       Mouse position\nmouse_delta_x/y Mouse movement since last frame\nmouse_button_left/right/middle  Mouse button state"</code></pre>
-
-        <h3>"Gamepad"</h3>
-        <pre><code>"gamepad_left_x/y     Left stick\ngamepad_right_x/y    Right stick\ngamepad_south/east/north/west  Face buttons\ngamepad_left_trigger/right_trigger  Triggers"</code></pre>
-
-        <h2>"What's next?"</h2>
-        <p>"Pick your language: "<a href="/docs/scripting/rhai">"Rhai"</a>", "<a href="/docs/scripting/lua">"Lua"</a>", or "<a href="/docs/scripting/blueprints">"Blueprints"</a>"."</p>
-    }
-}
-
-fn doc_rhai() -> impl IntoView {
-    view! {
-        <p class="doc-breadcrumb"><a href="/docs">"Docs"</a>" / Scripting"</p>
-        <h1>"Rhai Scripting"</h1>
-        <p class="doc-lead">"Write game logic with Rhai — a lightweight, Rust-native scripting language."</p>
-
-        <h2>"Your first script"</h2>
-        <p>"Create a file called "<code>"player.rhai"</code>" in your project's "<code>"scripts/"</code>" folder:"</p>
-        <pre><code>"fn on_ready() {\n    print(\"Player spawned!\");\n}\n\nfn on_update() {\n    // Move the entity based on input\n    let speed = 5.0;\n    position_x += input_x * speed * delta;\n    position_z += input_y * speed * delta;\n}"</code></pre>
-        <p>"Attach it to an entity in the Inspector. When you hit play, the entity moves with WASD."</p>
-
-        <h2>"Script properties"</h2>
-        <p>"Expose variables to the Inspector so designers can tweak values without editing code:"</p>
-        <pre><code>"fn props() {\n    #{\n        speed: #{ default: 5.0, min: 0.0, max: 100.0 },\n        jump_force: #{ default: 10.0, min: 0.0, max: 50.0 },\n        can_fly: #{ default: false }\n    }\n}\n\nfn on_update() {\n    position_x += input_x * speed * delta;\n}"</code></pre>
-        <p>"The "<code>"speed"</code>", "<code>"jump_force"</code>", and "<code>"can_fly"</code>" properties appear as editable fields in the Inspector with appropriate widgets (sliders, checkboxes)."</p>
-
-        <h2>"Working with collisions"</h2>
-        <pre><code>"fn on_update() {\n    // Check if we collided with something this frame\n    if collisions_entered > 0 {\n        print(\"Hit something!\");\n    }\n\n    // Number of things currently overlapping\n    if active_collisions > 0 {\n        print(\"Still touching\");\n    }\n}"</code></pre>
-
-        <h2>"Entity hierarchy"</h2>
-        <pre><code>"fn on_ready() {\n    // Access hierarchy info\n    print(self_entity_name);\n    print(\"Children: \" + children_count);\n    print(\"Parent: \" + parent_entity_id);\n}"</code></pre>
-
-        <h2>"Rhai syntax basics"</h2>
-        <p>"Rhai is similar to Rust and JavaScript:"</p>
-        <pre><code>"// Variables\nlet x = 42;\nlet name = \"hello\";\n\n// Functions\nfn add(a, b) {\n    a + b\n}\n\n// Control flow\nif x > 10 {\n    print(\"big\");\n} else {\n    print(\"small\");\n}\n\n// Loops\nfor i in 0..10 {\n    print(i);\n}\n\nwhile x > 0 {\n    x -= 1;\n}"</code></pre>
-    }
-}
-
-fn doc_input() -> impl IntoView {
-    view! {
-        <p class="doc-breadcrumb"><a href="/docs">"Docs"</a>" / Scripting"</p>
-        <h1>"Input Handling"</h1>
-        <p class="doc-lead">"Read keyboard, mouse, and gamepad input in your scripts."</p>
-
-        <h2>"Keyboard"</h2>
-        <p>"The "<code>"input_x"</code>" and "<code>"input_y"</code>" globals give you axis values from WASD/arrow keys:"</p>
-        <pre><code>"fn on_update() {\n    let speed = 5.0;\n    position_x += input_x * speed * delta;  // A/D or Left/Right\n    position_z += input_y * speed * delta;  // W/S or Up/Down\n}"</code></pre>
-
-        <h2>"Mouse"</h2>
-        <pre><code>"fn on_update() {\n    // Mouse position (screen coordinates)\n    let mx = mouse_x;\n    let my = mouse_y;\n\n    // Mouse movement since last frame (great for camera look)\n    let dx = mouse_delta_x;\n    let dy = mouse_delta_y;\n\n    // Mouse buttons (true while held)\n    if mouse_button_left {\n        print(\"Shooting!\");\n    }\n}"</code></pre>
-
-        <h2>"Gamepad"</h2>
-        <pre><code>"fn on_update() {\n    // Left stick — movement\n    position_x += gamepad_left_x * 5.0 * delta;\n    position_z += gamepad_left_y * 5.0 * delta;\n\n    // Right stick — camera\n    rotation_y += gamepad_right_x * 2.0 * delta;\n\n    // Face buttons\n    if gamepad_south {  // A button / X button\n        print(\"Jump!\");\n    }\n\n    // Triggers (0.0 to 1.0)\n    if gamepad_right_trigger > 0.5 {\n        print(\"Firing!\");\n    }\n}"</code></pre>
-    }
-}
-
-fn doc_game_ui() -> impl IntoView {
-    view! {
-        <p class="doc-breadcrumb"><a href="/docs">"Docs"</a>" / Scripting"</p>
-        <h1>"Game UI"</h1>
-        <p class="doc-lead">"Control in-game UI elements from your scripts."</p>
-
-        <h2>"Overview"</h2>
-        <p>"Renzora has a built-in UI system with 19 widget types. You create UI in the editor's UI workspace, then control it from scripts."</p>
-
-        <h2>"Script functions"</h2>
-        <pre><code>"// Show, hide, or toggle a UI element by name\nui_show(\"health_bar\");\nui_hide(\"main_menu\");\nui_toggle(\"inventory\");\n\n// Set text content\nui_set_text(\"score_label\", \"Score: 1500\");\n\n// Progress bars (0.0 to 1.0)\nui_set_progress(\"loading_bar\", 0.75);\n\n// Health bars\nui_set_health(\"player_health\", 80, 100);  // current, max\n\n// Sliders\nui_set_slider(\"volume\", 0.5);\n\n// Checkboxes and toggles\nui_set_checkbox(\"vsync\", true);\nui_set_toggle(\"mute\", false);\n\n// Visibility\nui_set_visible(\"tooltip\", true);\n\n// Colors (RGBA, 0-255)\nui_set_color(\"damage_flash\", 255, 0, 0, 128);\n\n// Themes\nui_set_theme(\"dark\");    // dark, light, high_contrast"</code></pre>
-
-        <h2>"Widget types"</h2>
-        <p>"Available in the UI workspace palette:"</p>
-        <ul>
-            <li><strong>"Layout:"</strong>" Canvas, Panel, Scroll Area, Grid"</li>
-            <li><strong>"Basic:"</strong>" Text, Image, Button"</li>
-            <li><strong>"Input:"</strong>" Slider, Checkbox, Toggle, Radio Button, Dropdown, Text Input"</li>
-            <li><strong>"Display:"</strong>" Progress Bar, Health Bar, Tab Bar, Spinner"</li>
-            <li><strong>"Overlay:"</strong>" Tooltip, Modal, Draggable Window"</li>
-        </ul>
-
-        <h2>"Example: HUD"</h2>
-        <pre><code>"fn on_update() {\n    // Update health bar based on player health\n    let health = 80;  // from your game logic\n    let max_health = 100;\n    ui_set_health(\"player_health\", health, max_health);\n    ui_set_text(\"health_text\", health + \" / \" + max_health);\n\n    // Show damage flash when hit\n    if collisions_entered > 0 {\n        ui_show(\"damage_flash\");\n    }\n}"</code></pre>
-    }
-}
-
-fn doc_export_overview() -> impl IntoView {
-    view! {
-        <p class="doc-breadcrumb"><a href="/docs">"Docs"</a>" / Export & Deploy"</p>
-        <h1>"Export Overview"</h1>
-        <p class="doc-lead">"Build your game for 10 platforms from a single project."</p>
-
-        <h2>"Supported platforms"</h2>
-        <ul>
-            <li><strong>"Windows"</strong>" (x64) → "<code>".exe"</code></li>
-            <li><strong>"Linux"</strong>" (x64) → executable"</li>
-            <li><strong>"macOS"</strong>" (Intel x64 and Apple Silicon ARM64) → "<code>".app"</code></li>
-            <li><strong>"Android"</strong>" (ARM64 and x86_64) → "<code>".apk"</code></li>
-            <li><strong>"Fire TV"</strong>" (ARM64) → "<code>".apk"</code></li>
-            <li><strong>"iOS"</strong>" (ARM64) → "<code>".ipa"</code></li>
-            <li><strong>"tvOS"</strong>" (ARM64) → "<code>".ipa"</code></li>
-            <li><strong>"Web"</strong>" (WASM/WebGL) → "<code>".wasm"</code></li>
-        </ul>
-
-        <h2>"How to export"</h2>
-        <ol>
-            <li>"Open your project in the editor"</li>
-            <li>"Go to "<strong>"File → Export"</strong>" (or use the export button in the title bar)"</li>
-            <li>"Select your target platform"</li>
-            <li>"Configure export settings (window size, icon, etc.)"</li>
-            <li>"Click Export"</li>
-        </ol>
-        <p>"The engine packs your assets into a "<code>".rpak"</code>" archive and bundles them with a pre-built runtime template."</p>
-
-        <h2>"Export templates"</h2>
-        <p>"Each platform requires a pre-compiled runtime template. These are downloaded automatically on first export and cached for future builds."</p>
-
-        <h2>"Multiplayer exports"</h2>
-        <p>"If your project uses networking, the export includes an optional server binary alongside the game client. You can deploy the server to any Linux host."</p>
-    }
-}
-
-fn doc_networking_overview() -> impl IntoView {
-    view! {
-        <p class="doc-breadcrumb"><a href="/docs">"Docs"</a>" / Networking"</p>
-        <h1>"Networking Overview"</h1>
-        <p class="doc-lead">"Build multiplayer games with dedicated server support."</p>
-
-        <h2>"Architecture"</h2>
-        <p>"Renzora uses a "<strong>"dedicated server"</strong>" model — the server runs the authoritative game simulation, and clients send input and receive state updates. This prevents cheating and ensures a consistent experience."</p>
-
-        <h2>"Transport"</h2>
-        <p>"Three transport layers are supported:"</p>
-        <ul>
-            <li><strong>"UDP"</strong>" — lowest latency, best for desktop games"</li>
-            <li><strong>"WebTransport"</strong>" — modern web protocol, works in browsers"</li>
-            <li><strong>"WebSocket"</strong>" — widest compatibility, works everywhere"</li>
-        </ul>
-
-        <h2>"Configuration"</h2>
-        <p>"Network settings are defined in "<code>"project.toml"</code>":"</p>
-        <pre><code>"[network]\nserver_addr = \"127.0.0.1\"\nport = 5000\ntransport = \"udp\"\ntick_rate = 60\nmax_clients = 16"</code></pre>
-
-        <h2>"State replication"</h2>
-        <p>"Mark components for replication in the editor, and the server automatically syncs their state to connected clients. The engine handles interpolation and prediction to keep gameplay smooth even with latency."</p>
-
-        <h2>"What's next?"</h2>
-        <p>"Follow the "<a href="/docs/networking/server-setup">"Server Setup"</a>" guide to create your first multiplayer project."</p>
-    }
-}
+fn doc_scenes() -> impl IntoView { view! {
+    <p class="text-xs text-zinc-500 mb-6"><a href="/docs" class="text-accent">"Docs"</a>" / Editor"</p>
+    <h1 class="text-3xl font-bold mb-2">"Scenes & Hierarchy"</h1>
+    <p class="text-sm text-zinc-400 leading-relaxed mb-8">"Organize your game world with the scene hierarchy."</p>
+    <h2 class="text-xl font-semibold mt-10 mb-3 pb-2 border-b border-zinc-800">"Adding entities"</h2>
+    <p class="text-sm text-zinc-400 leading-relaxed mb-4">"Click + in the Hierarchy to add: 3D objects, 2D sprites, lights, cameras, audio, physics, UI, or empty entities."</p>
+    <h2 class="text-xl font-semibold mt-10 mb-3 pb-2 border-b border-zinc-800">"Transform tools"</h2>
+    <pre class="p-4 bg-surface-card border border-zinc-800 rounded-lg text-[13px] leading-relaxed mb-5 overflow-x-auto font-mono text-zinc-300">"W   Translate\nE   Rotate\nR   Scale\nG   Grab (Blender-style)\nQ   Select mode"</pre>
+    <h2 class="text-xl font-semibold mt-10 mb-3 pb-2 border-b border-zinc-800">"Parenting"</h2>
+    <p class="text-sm text-zinc-400 leading-relaxed mb-4">"Drag an entity onto another to make it a child. Children inherit their parent's transform."</p>
+    <h2 class="text-xl font-semibold mt-10 mb-3 pb-2 border-b border-zinc-800">"Scene operations"</h2>
+    <pre class="p-4 bg-surface-card border border-zinc-800 rounded-lg text-[13px] leading-relaxed mb-5 overflow-x-auto font-mono text-zinc-300">"Ctrl+N   New scene\nCtrl+O   Open scene\nCtrl+S   Save\nCtrl+D   Duplicate\nDelete   Delete"</pre>
+}}
+
+fn doc_inspector() -> impl IntoView { view! {
+    <p class="text-xs text-zinc-500 mb-6"><a href="/docs" class="text-accent">"Docs"</a>" / Editor"</p>
+    <h1 class="text-3xl font-bold mb-2">"Inspector"</h1>
+    <p class="text-sm text-zinc-400 leading-relaxed mb-8">"View and edit components on the selected entity."</p>
+    <h2 class="text-xl font-semibold mt-10 mb-3 pb-2 border-b border-zinc-800">"Common components"</h2>
+    <ul class="pl-6 mb-4 list-disc">
+        <li class="text-sm text-zinc-400 leading-relaxed mb-1"><strong class="text-zinc-50">"Transform"</strong>" \u{2014} position, rotation, scale"</li>
+        <li class="text-sm text-zinc-400 leading-relaxed mb-1"><strong class="text-zinc-50">"Mesh"</strong>" \u{2014} 3D shape"</li>
+        <li class="text-sm text-zinc-400 leading-relaxed mb-1"><strong class="text-zinc-50">"Material"</strong>" \u{2014} visual appearance"</li>
+        <li class="text-sm text-zinc-400 leading-relaxed mb-1"><strong class="text-zinc-50">"Script"</strong>" \u{2014} game logic with exposed properties"</li>
+        <li class="text-sm text-zinc-400 leading-relaxed mb-1"><strong class="text-zinc-50">"Rigid Body & Collider"</strong>" \u{2014} physics"</li>
+    </ul>
+    <p class="text-sm text-zinc-400 leading-relaxed mb-4">"Click \"Add Component\" at the bottom to attach new components."</p>
+}}
+
+fn doc_viewport() -> impl IntoView { view! {
+    <p class="text-xs text-zinc-500 mb-6"><a href="/docs" class="text-accent">"Docs"</a>" / Editor"</p>
+    <h1 class="text-3xl font-bold mb-2">"Viewport & Camera"</h1>
+    <p class="text-sm text-zinc-400 leading-relaxed mb-8">"Navigate the 3D scene."</p>
+    <h2 class="text-xl font-semibold mt-10 mb-3 pb-2 border-b border-zinc-800">"Navigation"</h2>
+    <pre class="p-4 bg-surface-card border border-zinc-800 rounded-lg text-[13px] leading-relaxed mb-5 overflow-x-auto font-mono text-zinc-300">"Right-click + WASDQE   Fly\nAlt + Left-click       Orbit\nMiddle-click drag      Pan\nScroll wheel           Zoom\nF                      Focus selected\nShift                  Move faster"</pre>
+    <h2 class="text-xl font-semibold mt-10 mb-3 pb-2 border-b border-zinc-800">"View presets"</h2>
+    <pre class="p-4 bg-surface-card border border-zinc-800 rounded-lg text-[13px] leading-relaxed mb-5 overflow-x-auto font-mono text-zinc-300">"Numpad 1/3/7       Front / Right / Top\nCtrl+Numpad 1/3/7  Back / Left / Bottom\nNumpad 5            Toggle perspective/ortho\nZ                   Wireframe\nShift+Z             Toggle lighting\nH                   Toggle grid"</pre>
+}}
+
+fn doc_keybindings() -> impl IntoView { view! {
+    <p class="text-xs text-zinc-500 mb-6"><a href="/docs" class="text-accent">"Docs"</a>" / Editor"</p>
+    <h1 class="text-3xl font-bold mb-2">"Keyboard Shortcuts"</h1>
+    <p class="text-sm text-zinc-400 leading-relaxed mb-8">"Quick reference for all editor shortcuts."</p>
+    <h2 class="text-xl font-semibold mt-10 mb-3 pb-2 border-b border-zinc-800">"Tools"</h2>
+    <pre class="p-4 bg-surface-card border border-zinc-800 rounded-lg text-[13px] leading-relaxed mb-5 overflow-x-auto font-mono text-zinc-300">"Q   Select\nW   Translate\nE   Rotate\nR   Scale\nG   Grab (Blender-style)"</pre>
+    <h2 class="text-xl font-semibold mt-10 mb-3 pb-2 border-b border-zinc-800">"Selection"</h2>
+    <pre class="p-4 bg-surface-card border border-zinc-800 rounded-lg text-[13px] leading-relaxed mb-5 overflow-x-auto font-mono text-zinc-300">"Click          Select\nCtrl+Click     Toggle\nShift+Click    Add\nEscape         Deselect\nCtrl+D         Duplicate\nDelete         Delete"</pre>
+    <h2 class="text-xl font-semibold mt-10 mb-3 pb-2 border-b border-zinc-800">"File"</h2>
+    <pre class="p-4 bg-surface-card border border-zinc-800 rounded-lg text-[13px] leading-relaxed mb-5 overflow-x-auto font-mono text-zinc-300">"Ctrl+N         New scene\nCtrl+O         Open\nCtrl+S         Save\nCtrl+Shift+S   Save as\nCtrl+Z         Undo\nCtrl+Y         Redo"</pre>
+    <h2 class="text-xl font-semibold mt-10 mb-3 pb-2 border-b border-zinc-800">"Play"</h2>
+    <pre class="p-4 bg-surface-card border border-zinc-800 rounded-lg text-[13px] leading-relaxed mb-5 overflow-x-auto font-mono text-zinc-300">"F5             Play / Stop\nShift+F5       Scripts only"</pre>
+}}
+
+fn doc_scripting_overview() -> impl IntoView { view! {
+    <p class="text-xs text-zinc-500 mb-6"><a href="/docs" class="text-accent">"Docs"</a>" / Scripting"</p>
+    <h1 class="text-3xl font-bold mb-2">"Scripting Overview"</h1>
+    <p class="text-sm text-zinc-400 leading-relaxed mb-8">"Add game logic with Rhai, Lua, or visual blueprints."</p>
+    <h2 class="text-xl font-semibold mt-10 mb-3 pb-2 border-b border-zinc-800">"Three ways to script"</h2>
+    <ul class="pl-6 mb-4 list-disc">
+        <li class="text-sm text-zinc-400 leading-relaxed mb-1"><a href="/docs/scripting/rhai" class="text-accent hover:text-accent-hover font-medium">"Rhai"</a>" \u{2014} lightweight, Rust-native scripting"</li>
+        <li class="text-sm text-zinc-400 leading-relaxed mb-1"><a href="/docs/scripting/lua" class="text-accent hover:text-accent-hover font-medium">"Lua"</a>" \u{2014} industry-standard game scripting"</li>
+        <li class="text-sm text-zinc-400 leading-relaxed mb-1"><a href="/docs/scripting/blueprints" class="text-accent hover:text-accent-hover font-medium">"Blueprints"</a>" \u{2014} visual node graphs, no coding"</li>
+    </ul>
+    <h2 class="text-xl font-semibold mt-10 mb-3 pb-2 border-b border-zinc-800">"Built-in variables"</h2>
+    <h3 class="text-base font-semibold mt-7 mb-2">"Time"</h3>
+    <pre class="p-4 bg-surface-card border border-zinc-800 rounded-lg text-[13px] leading-relaxed mb-5 overflow-x-auto font-mono text-zinc-300">"delta      Seconds since last frame\nelapsed    Total seconds since start"</pre>
+    <h3 class="text-base font-semibold mt-7 mb-2">"Transform"</h3>
+    <pre class="p-4 bg-surface-card border border-zinc-800 rounded-lg text-[13px] leading-relaxed mb-5 overflow-x-auto font-mono text-zinc-300">"position_x/y/z   Entity position (read/write)\nrotation_x/y/z   Entity rotation\nscale_x/y/z      Entity scale"</pre>
+    <h3 class="text-base font-semibold mt-7 mb-2">"Input"</h3>
+    <pre class="p-4 bg-surface-card border border-zinc-800 rounded-lg text-[13px] leading-relaxed mb-5 overflow-x-auto font-mono text-zinc-300">"input_x/y                     WASD axes (-1 to 1)\nmouse_x/y                     Mouse position\nmouse_delta_x/y               Mouse movement\nmouse_button_left/right/middle Mouse buttons"</pre>
+    <h3 class="text-base font-semibold mt-7 mb-2">"Gamepad"</h3>
+    <pre class="p-4 bg-surface-card border border-zinc-800 rounded-lg text-[13px] leading-relaxed mb-5 overflow-x-auto font-mono text-zinc-300">"gamepad_left_x/y    Left stick\ngamepad_right_x/y   Right stick\ngamepad_south/east   Face buttons\ngamepad_left/right_trigger Triggers"</pre>
+}}
+
+fn doc_rhai() -> impl IntoView { view! {
+    <p class="text-xs text-zinc-500 mb-6"><a href="/docs" class="text-accent">"Docs"</a>" / Scripting"</p>
+    <h1 class="text-3xl font-bold mb-2">"Rhai Scripting"</h1>
+    <p class="text-sm text-zinc-400 leading-relaxed mb-8">"Write game logic with Rhai \u{2014} a lightweight, Rust-native scripting language."</p>
+    <h2 class="text-xl font-semibold mt-10 mb-3 pb-2 border-b border-zinc-800">"Your first script"</h2>
+    <p class="text-sm text-zinc-400 leading-relaxed mb-4">"Create "<code class="bg-surface-card px-1.5 py-0.5 rounded text-[13px] font-mono">"scripts/player.rhai"</code>":"</p>
+    <pre class="p-4 bg-surface-card border border-zinc-800 rounded-lg text-[13px] leading-relaxed mb-5 overflow-x-auto font-mono text-zinc-300">"fn on_ready() {\n    print(\"Player spawned!\");\n}\n\nfn on_update() {\n    let speed = 5.0;\n    position_x += input_x * speed * delta;\n    position_z += input_y * speed * delta;\n}"</pre>
+    <h2 class="text-xl font-semibold mt-10 mb-3 pb-2 border-b border-zinc-800">"Script properties"</h2>
+    <p class="text-sm text-zinc-400 leading-relaxed mb-4">"Expose variables to the Inspector:"</p>
+    <pre class="p-4 bg-surface-card border border-zinc-800 rounded-lg text-[13px] leading-relaxed mb-5 overflow-x-auto font-mono text-zinc-300">"fn props() {\n    #{\n        speed: #{ default: 5.0, min: 0.0, max: 100.0 },\n        jump_force: #{ default: 10.0, min: 0.0, max: 50.0 },\n        can_fly: #{ default: false }\n    }\n}"</pre>
+    <h2 class="text-xl font-semibold mt-10 mb-3 pb-2 border-b border-zinc-800">"Collisions"</h2>
+    <pre class="p-4 bg-surface-card border border-zinc-800 rounded-lg text-[13px] leading-relaxed mb-5 overflow-x-auto font-mono text-zinc-300">"fn on_update() {\n    if collisions_entered > 0 {\n        print(\"Hit something!\");\n    }\n}"</pre>
+    <h2 class="text-xl font-semibold mt-10 mb-3 pb-2 border-b border-zinc-800">"Syntax basics"</h2>
+    <pre class="p-4 bg-surface-card border border-zinc-800 rounded-lg text-[13px] leading-relaxed mb-5 overflow-x-auto font-mono text-zinc-300">"let x = 42;\nlet name = \"hello\";\n\nfn add(a, b) { a + b }\n\nif x > 10 { print(\"big\"); }\n\nfor i in 0..10 { print(i); }"</pre>
+}}
+
+fn doc_input() -> impl IntoView { view! {
+    <p class="text-xs text-zinc-500 mb-6"><a href="/docs" class="text-accent">"Docs"</a>" / Scripting"</p>
+    <h1 class="text-3xl font-bold mb-2">"Input Handling"</h1>
+    <p class="text-sm text-zinc-400 leading-relaxed mb-8">"Read keyboard, mouse, and gamepad input."</p>
+    <h2 class="text-xl font-semibold mt-10 mb-3 pb-2 border-b border-zinc-800">"Keyboard"</h2>
+    <pre class="p-4 bg-surface-card border border-zinc-800 rounded-lg text-[13px] leading-relaxed mb-5 overflow-x-auto font-mono text-zinc-300">"fn on_update() {\n    let speed = 5.0;\n    position_x += input_x * speed * delta;\n    position_z += input_y * speed * delta;\n}"</pre>
+    <h2 class="text-xl font-semibold mt-10 mb-3 pb-2 border-b border-zinc-800">"Mouse"</h2>
+    <pre class="p-4 bg-surface-card border border-zinc-800 rounded-lg text-[13px] leading-relaxed mb-5 overflow-x-auto font-mono text-zinc-300">"fn on_update() {\n    let dx = mouse_delta_x;\n    let dy = mouse_delta_y;\n    if mouse_button_left {\n        print(\"Shooting!\");\n    }\n}"</pre>
+    <h2 class="text-xl font-semibold mt-10 mb-3 pb-2 border-b border-zinc-800">"Gamepad"</h2>
+    <pre class="p-4 bg-surface-card border border-zinc-800 rounded-lg text-[13px] leading-relaxed mb-5 overflow-x-auto font-mono text-zinc-300">"fn on_update() {\n    position_x += gamepad_left_x * 5.0 * delta;\n    if gamepad_south { print(\"Jump!\"); }\n    if gamepad_right_trigger > 0.5 { print(\"Fire!\"); }\n}"</pre>
+}}
+
+fn doc_game_ui() -> impl IntoView { view! {
+    <p class="text-xs text-zinc-500 mb-6"><a href="/docs" class="text-accent">"Docs"</a>" / Scripting"</p>
+    <h1 class="text-3xl font-bold mb-2">"Game UI"</h1>
+    <p class="text-sm text-zinc-400 leading-relaxed mb-8">"Control in-game UI elements from scripts."</p>
+    <h2 class="text-xl font-semibold mt-10 mb-3 pb-2 border-b border-zinc-800">"Script functions"</h2>
+    <pre class="p-4 bg-surface-card border border-zinc-800 rounded-lg text-[13px] leading-relaxed mb-5 overflow-x-auto font-mono text-zinc-300">"ui_show(\"health_bar\");\nui_hide(\"main_menu\");\nui_toggle(\"inventory\");\nui_set_text(\"score\", \"Score: 1500\");\nui_set_progress(\"loading\", 0.75);\nui_set_health(\"hp\", 80, 100);\nui_set_slider(\"volume\", 0.5);\nui_set_checkbox(\"vsync\", true);\nui_set_color(\"flash\", 255, 0, 0, 128);\nui_set_theme(\"dark\");"</pre>
+    <h2 class="text-xl font-semibold mt-10 mb-3 pb-2 border-b border-zinc-800">"Widget types"</h2>
+    <ul class="pl-6 mb-4 list-disc">
+        <li class="text-sm text-zinc-400 leading-relaxed mb-1"><strong class="text-zinc-50">"Layout:"</strong>" Canvas, Panel, Scroll Area, Grid"</li>
+        <li class="text-sm text-zinc-400 leading-relaxed mb-1"><strong class="text-zinc-50">"Basic:"</strong>" Text, Image, Button"</li>
+        <li class="text-sm text-zinc-400 leading-relaxed mb-1"><strong class="text-zinc-50">"Input:"</strong>" Slider, Checkbox, Toggle, Radio, Dropdown, Text Input"</li>
+        <li class="text-sm text-zinc-400 leading-relaxed mb-1"><strong class="text-zinc-50">"Display:"</strong>" Progress Bar, Health Bar, Tab Bar, Spinner"</li>
+        <li class="text-sm text-zinc-400 leading-relaxed mb-1"><strong class="text-zinc-50">"Overlay:"</strong>" Tooltip, Modal, Draggable Window"</li>
+    </ul>
+}}
+
+fn doc_export_overview() -> impl IntoView { view! {
+    <p class="text-xs text-zinc-500 mb-6"><a href="/docs" class="text-accent">"Docs"</a>" / Export & Deploy"</p>
+    <h1 class="text-3xl font-bold mb-2">"Export Overview"</h1>
+    <p class="text-sm text-zinc-400 leading-relaxed mb-8">"Build your game for 10 platforms from a single project."</p>
+    <h2 class="text-xl font-semibold mt-10 mb-3 pb-2 border-b border-zinc-800">"Supported platforms"</h2>
+    <ul class="pl-6 mb-4 list-disc">
+        <li class="text-sm text-zinc-400 leading-relaxed mb-1"><strong class="text-zinc-50">"Windows"</strong>" (x64) \u{2192} .exe"</li>
+        <li class="text-sm text-zinc-400 leading-relaxed mb-1"><strong class="text-zinc-50">"Linux"</strong>" (x64) \u{2192} executable"</li>
+        <li class="text-sm text-zinc-400 leading-relaxed mb-1"><strong class="text-zinc-50">"macOS"</strong>" (Intel + Apple Silicon) \u{2192} .app"</li>
+        <li class="text-sm text-zinc-400 leading-relaxed mb-1"><strong class="text-zinc-50">"Android"</strong>" (ARM64, x86_64) \u{2192} .apk"</li>
+        <li class="text-sm text-zinc-400 leading-relaxed mb-1"><strong class="text-zinc-50">"iOS"</strong>" (ARM64) \u{2192} .ipa"</li>
+        <li class="text-sm text-zinc-400 leading-relaxed mb-1"><strong class="text-zinc-50">"tvOS"</strong>" (ARM64) \u{2192} .ipa"</li>
+        <li class="text-sm text-zinc-400 leading-relaxed mb-1"><strong class="text-zinc-50">"Web"</strong>" (WASM) \u{2192} .wasm"</li>
+    </ul>
+    <h2 class="text-xl font-semibold mt-10 mb-3 pb-2 border-b border-zinc-800">"How to export"</h2>
+    <ol class="pl-6 mb-4 list-decimal">
+        <li class="text-sm text-zinc-400 leading-relaxed mb-1">"Open your project"</li>
+        <li class="text-sm text-zinc-400 leading-relaxed mb-1">"File \u{2192} Export"</li>
+        <li class="text-sm text-zinc-400 leading-relaxed mb-1">"Select platform, configure settings"</li>
+        <li class="text-sm text-zinc-400 leading-relaxed mb-1">"Click Export \u{2014} assets are packed into a .rpak archive"</li>
+    </ol>
+}}
+
+fn doc_networking_overview() -> impl IntoView { view! {
+    <p class="text-xs text-zinc-500 mb-6"><a href="/docs" class="text-accent">"Docs"</a>" / Networking"</p>
+    <h1 class="text-3xl font-bold mb-2">"Networking Overview"</h1>
+    <p class="text-sm text-zinc-400 leading-relaxed mb-8">"Build multiplayer games with dedicated server support."</p>
+    <h2 class="text-xl font-semibold mt-10 mb-3 pb-2 border-b border-zinc-800">"Architecture"</h2>
+    <p class="text-sm text-zinc-400 leading-relaxed mb-4">"Dedicated server model \u{2014} the server runs the authoritative simulation, clients send input and receive state."</p>
+    <h2 class="text-xl font-semibold mt-10 mb-3 pb-2 border-b border-zinc-800">"Transport"</h2>
+    <ul class="pl-6 mb-4 list-disc">
+        <li class="text-sm text-zinc-400 leading-relaxed mb-1"><strong class="text-zinc-50">"UDP"</strong>" \u{2014} lowest latency"</li>
+        <li class="text-sm text-zinc-400 leading-relaxed mb-1"><strong class="text-zinc-50">"WebTransport"</strong>" \u{2014} modern web protocol"</li>
+        <li class="text-sm text-zinc-400 leading-relaxed mb-1"><strong class="text-zinc-50">"WebSocket"</strong>" \u{2014} widest compatibility"</li>
+    </ul>
+    <h2 class="text-xl font-semibold mt-10 mb-3 pb-2 border-b border-zinc-800">"Configuration"</h2>
+    <pre class="p-4 bg-surface-card border border-zinc-800 rounded-lg text-[13px] leading-relaxed mb-5 overflow-x-auto font-mono text-zinc-300">"[network]\nserver_addr = \"127.0.0.1\"\nport = 5000\ntransport = \"udp\"\ntick_rate = 60\nmax_clients = 16"</pre>
+}}

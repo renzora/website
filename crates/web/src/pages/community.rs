@@ -2,25 +2,21 @@ use leptos::prelude::*;
 
 #[component]
 pub fn CommunityPage() -> impl IntoView {
-    let tags = vec![
-        "all", "tutorial", "guide", "tip", "showcase", "resource",
-    ];
+    let tags = vec!["all", "tutorial", "guide", "tip", "showcase", "resource"];
     let (active_tag, set_active_tag) = signal("all".to_string());
 
     view! {
-        <section class="community-page">
-            <div class="container">
-                <div class="community-header">
+        <section class="py-20 px-6">
+            <div class="max-w-[1200px] mx-auto">
+                <div class="flex justify-between items-start mb-8">
                     <div>
-                        <h1>"Community"</h1>
-                        <p class="community-intro">
-                            "Tutorials, guides, and resources from the Renzora community."
-                        </p>
+                        <h1 class="text-4xl font-bold">"Community"</h1>
+                        <p class="text-zinc-400 mt-2">"Tutorials, guides, and resources from the Renzora community."</p>
                     </div>
-                    <a href="/community/write" class="btn btn-primary">"Write an Article"</a>
+                    <a href="/community/write" class="inline-flex items-center justify-center px-5 py-2.5 rounded-lg text-sm font-medium bg-accent text-white hover:bg-accent-hover transition-colors">"Write an Article"</a>
                 </div>
 
-                <div class="tag-filters">
+                <div class="flex gap-2 flex-wrap mb-8">
                     {tags.into_iter().map(|tag| {
                         let tag_str = tag.to_string();
                         let tag_clone = tag_str.clone();
@@ -33,7 +29,13 @@ pub fn CommunityPage() -> impl IntoView {
                         };
                         view! {
                             <button
-                                class=move || if active_tag.get() == tag_str { "tag active" } else { "tag" }
+                                class=move || {
+                                    if active_tag.get() == tag_str {
+                                        "px-3.5 py-1.5 rounded-full text-xs font-medium bg-accent border border-accent text-white transition-all"
+                                    } else {
+                                        "px-3.5 py-1.5 rounded-full text-xs font-medium bg-transparent border border-zinc-800 text-zinc-400 hover:bg-accent hover:border-accent hover:text-white transition-all"
+                                    }
+                                }
                                 on:click=move |_| set_active_tag.set(tag_clone.clone())
                             >
                                 {label}
@@ -42,9 +44,7 @@ pub fn CommunityPage() -> impl IntoView {
                     }).collect::<Vec<_>>()}
                 </div>
 
-                <div class="article-grid">
-                    <p class="empty-state">"No articles yet. Be the first to share your knowledge!"</p>
-                </div>
+                <p class="text-center text-zinc-500 py-20 text-sm">"No articles yet. Be the first to share your knowledge!"</p>
             </div>
         </section>
     }

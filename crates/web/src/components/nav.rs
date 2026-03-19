@@ -3,17 +3,17 @@ use leptos::prelude::*;
 #[component]
 pub fn Nav() -> impl IntoView {
     view! {
-        <nav class="site-nav">
-            <div class="nav-inner">
-                <a href="/" class="nav-logo">"Renzora"</a>
-                <div class="nav-links">
-                    <a href="/docs">"Docs"</a>
-                    <a href="/marketplace">"Marketplace"</a>
-                    <a href="/community">"Community"</a>
+        <nav class="sticky top-0 z-50 bg-[rgba(10,10,11,0.8)] backdrop-blur-xl border-b border-zinc-800">
+            <div class="max-w-[1200px] mx-auto px-6 h-14 flex items-center gap-8">
+                <a href="/" class="text-lg font-bold tracking-tight">"Renzora"</a>
+                <div class="flex gap-6 flex-1">
+                    <a href="/docs" class="text-sm text-zinc-400 hover:text-zinc-50 transition-colors">"Docs"</a>
+                    <a href="/marketplace" class="text-sm text-zinc-400 hover:text-zinc-50 transition-colors">"Marketplace"</a>
+                    <a href="/community" class="text-sm text-zinc-400 hover:text-zinc-50 transition-colors">"Community"</a>
                 </div>
-                <div class="nav-actions">
-                    <a href="/dashboard" class="btn btn-ghost">"Dashboard"</a>
-                    <a href="/login" class="btn btn-ghost">"Sign In"</a>
+                <div class="flex gap-2">
+                    <a href="/dashboard" class="text-sm text-zinc-400 hover:text-zinc-50 hover:bg-surface-card px-3 py-1.5 rounded-lg transition-all">"Dashboard"</a>
+                    <a href="/login" class="text-sm text-zinc-400 hover:text-zinc-50 hover:bg-surface-card px-3 py-1.5 rounded-lg transition-all">"Sign In"</a>
                 </div>
             </div>
         </nav>
