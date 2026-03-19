@@ -1,74 +1,136 @@
-[
-  {
-    "category": "Getting Started",
-    "pages": [
-      { "slug": "getting-started/installation", "title": "Installation" },
-      { "slug": "getting-started/first-project", "title": "Your First Project" },
-      { "slug": "getting-started/editor-overview", "title": "Editor Overview" },
-      { "slug": "getting-started/concepts", "title": "Core Concepts" }
+{
+  "game-dev": {
+    "label": "Game Developer Guide",
+    "description": "Learn how to use Renzora Engine to build your game.",
+    "categories": [
+      {
+        "category": "Getting Started",
+        "pages": [
+          { "slug": "game-dev/installation", "title": "Installation" },
+          { "slug": "game-dev/first-project", "title": "Your First Project" },
+          { "slug": "game-dev/editor-overview", "title": "Editor Overview" },
+          { "slug": "game-dev/concepts", "title": "Core Concepts" }
+        ]
+      },
+      {
+        "category": "Editor",
+        "pages": [
+          { "slug": "game-dev/scenes", "title": "Scenes & Hierarchy" },
+          { "slug": "game-dev/inspector", "title": "Inspector" },
+          { "slug": "game-dev/viewport", "title": "Viewport & Camera" },
+          { "slug": "game-dev/materials", "title": "Material Editor" },
+          { "slug": "game-dev/terrain", "title": "Terrain" },
+          { "slug": "game-dev/animation", "title": "Animation" },
+          { "slug": "game-dev/audio", "title": "Audio" },
+          { "slug": "game-dev/keybindings", "title": "Keyboard Shortcuts" }
+        ]
+      },
+      {
+        "category": "Scripting",
+        "pages": [
+          { "slug": "game-dev/scripting-overview", "title": "Overview" },
+          { "slug": "game-dev/rhai", "title": "Rhai" },
+          { "slug": "game-dev/lua", "title": "Lua" },
+          { "slug": "game-dev/blueprints", "title": "Visual Blueprints" },
+          { "slug": "game-dev/input", "title": "Input Handling" },
+          { "slug": "game-dev/physics", "title": "Physics" },
+          { "slug": "game-dev/game-ui", "title": "Game UI" }
+        ]
+      },
+      {
+        "category": "Multiplayer",
+        "pages": [
+          { "slug": "game-dev/networking-overview", "title": "Overview" },
+          { "slug": "game-dev/server-setup", "title": "Server Setup" },
+          { "slug": "game-dev/replication", "title": "State Replication" }
+        ]
+      },
+      {
+        "category": "Exporting",
+        "pages": [
+          { "slug": "game-dev/export-overview", "title": "Overview" },
+          { "slug": "game-dev/export-windows", "title": "Windows" },
+          { "slug": "game-dev/export-linux", "title": "Linux" },
+          { "slug": "game-dev/export-macos", "title": "macOS" },
+          { "slug": "game-dev/export-android", "title": "Android" },
+          { "slug": "game-dev/export-ios", "title": "iOS & tvOS" }
+        ]
+      },
+      {
+        "category": "Marketplace",
+        "pages": [
+          { "slug": "game-dev/browsing-assets", "title": "Browsing & Installing" },
+          { "slug": "game-dev/publishing-assets", "title": "Publishing Assets" },
+          { "slug": "game-dev/credits", "title": "Credits System" }
+        ]
+      }
     ]
   },
-  {
-    "category": "Editor",
-    "pages": [
-      { "slug": "editor/scenes", "title": "Scenes & Hierarchy" },
-      { "slug": "editor/inspector", "title": "Inspector" },
-      { "slug": "editor/viewport", "title": "Viewport & Camera" },
-      { "slug": "editor/materials", "title": "Material Editor" },
-      { "slug": "editor/terrain", "title": "Terrain" },
-      { "slug": "editor/animation", "title": "Animation" },
-      { "slug": "editor/audio", "title": "Audio" },
-      { "slug": "editor/keybindings", "title": "Keyboard Shortcuts" }
-    ]
-  },
-  {
-    "category": "Scripting",
-    "pages": [
-      { "slug": "scripting/overview", "title": "Overview" },
-      { "slug": "scripting/rhai", "title": "Rhai" },
-      { "slug": "scripting/lua", "title": "Lua" },
-      { "slug": "scripting/blueprints", "title": "Visual Blueprints" },
-      { "slug": "scripting/input", "title": "Input Handling" },
-      { "slug": "scripting/physics", "title": "Physics" },
-      { "slug": "scripting/ui", "title": "Game UI" }
-    ]
-  },
-  {
-    "category": "Networking",
-    "pages": [
-      { "slug": "networking/overview", "title": "Overview" },
-      { "slug": "networking/server-setup", "title": "Server Setup" },
-      { "slug": "networking/replication", "title": "State Replication" }
-    ]
-  },
-  {
-    "category": "Export",
-    "pages": [
-      { "slug": "export/overview", "title": "Overview" },
-      { "slug": "export/windows", "title": "Windows" },
-      { "slug": "export/linux", "title": "Linux" },
-      { "slug": "export/macos", "title": "macOS" },
-      { "slug": "export/android", "title": "Android" },
-      { "slug": "export/ios", "title": "iOS & tvOS" }
-    ]
-  },
-  {
-    "category": "Marketplace",
-    "pages": [
-      { "slug": "marketplace/browsing", "title": "Browsing & Installing" },
-      { "slug": "marketplace/publishing", "title": "Publishing Assets" },
-      { "slug": "marketplace/credits", "title": "Credits System" }
-    ]
-  },
-  {
-    "category": "Developer Guide",
-    "pages": [
-      { "slug": "dev/building-from-source", "title": "Building from Source" },
-      { "slug": "dev/architecture", "title": "Architecture" },
-      { "slug": "dev/plugins", "title": "Building Plugins" },
-      { "slug": "dev/custom-nodes", "title": "Custom Blueprint Nodes" },
-      { "slug": "dev/post-processing", "title": "Post-Processing Effects" },
-      { "slug": "dev/contributing", "title": "Contributing" }
+  "developer": {
+    "label": "Engine Developer Guide",
+    "description": "Build, extend, and contribute to Renzora Engine.",
+    "categories": [
+      {
+        "category": "Setup",
+        "pages": [
+          { "slug": "developer/building-from-source", "title": "Building from Source" },
+          { "slug": "developer/project-structure", "title": "Project Structure" },
+          { "slug": "developer/architecture", "title": "Architecture" }
+        ]
+      },
+      {
+        "category": "Engine Core",
+        "pages": [
+          { "slug": "developer/ecs", "title": "ECS & Bevy" },
+          { "slug": "developer/components", "title": "Creating Components" },
+          { "slug": "developer/systems", "title": "Writing Systems" },
+          { "slug": "developer/resources", "title": "Resources & State" },
+          { "slug": "developer/asset-pipeline", "title": "Asset Pipeline" }
+        ]
+      },
+      {
+        "category": "Editor",
+        "pages": [
+          { "slug": "developer/panels", "title": "Building Editor Panels" },
+          { "slug": "developer/widgets", "title": "Custom Widgets" },
+          { "slug": "developer/themes", "title": "Theming System" },
+          { "slug": "developer/inspector-fields", "title": "Custom Inspector Fields" }
+        ]
+      },
+      {
+        "category": "Extending",
+        "pages": [
+          { "slug": "developer/plugins", "title": "Building Plugins" },
+          { "slug": "developer/custom-nodes", "title": "Custom Blueprint Nodes" },
+          { "slug": "developer/script-bindings", "title": "Script API Bindings" },
+          { "slug": "developer/post-processing", "title": "Post-Processing Effects" },
+          { "slug": "developer/materials-dev", "title": "Custom Material Nodes" }
+        ]
+      },
+      {
+        "category": "Rendering",
+        "pages": [
+          { "slug": "developer/render-pipeline", "title": "Render Pipeline" },
+          { "slug": "developer/shaders", "title": "WGSL Shaders" },
+          { "slug": "developer/camera-system", "title": "Camera System" }
+        ]
+      },
+      {
+        "category": "Export & Packaging",
+        "pages": [
+          { "slug": "developer/export-templates", "title": "Building Export Templates" },
+          { "slug": "developer/cross-compilation", "title": "Cross-Compilation" },
+          { "slug": "developer/asset-packing", "title": "Asset Packing (rpak)" }
+        ]
+      },
+      {
+        "category": "Contributing",
+        "pages": [
+          { "slug": "developer/contributing", "title": "Contributing Guide" },
+          { "slug": "developer/code-style", "title": "Code Style" },
+          { "slug": "developer/testing", "title": "Testing" }
+        ]
+      }
     ]
   }
-]
+}

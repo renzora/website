@@ -51,6 +51,7 @@ async fn main() {
             .region(aws_sdk_s3::config::Region::new("us-east-1"))
             .credentials_provider(creds)
             .force_path_style(true)
+            .behavior_version_latest()
             .build();
         let client = aws_sdk_s3::Client::from_conf(config);
         tracing::info!("S3 storage configured: {s3_bucket}");
@@ -131,6 +132,8 @@ async fn main() {
         .route("/login", get(ssr.clone()))
         .route("/register", get(ssr.clone()))
         .route("/docs", get(ssr.clone()))
+        .route("/docs/game-dev", get(ssr.clone()))
+        .route("/docs/developer", get(ssr.clone()))
         .route("/docs/*slug", get(ssr.clone()))
         .route("/marketplace", get(ssr.clone()))
         .route("/marketplace/upload", get(ssr.clone()))

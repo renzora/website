@@ -18,7 +18,7 @@ jobs:
 
       - name: Deploy to DigitalOcean
         run: |
-          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no ${{ secrets.DO_USER }}@${{ secrets.DO_HOST }} << 'DEPLOY'
+          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no -o ServerAliveInterval=30 -o ServerAliveCountMax=60 ${{ secrets.DO_USER }}@${{ secrets.DO_HOST }} << 'DEPLOY'
             set -e
             cd /opt/renzora-website
 
