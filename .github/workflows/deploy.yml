@@ -9,14 +9,16 @@ jobs:
     runs-on: ubuntu-latest
     environment: production
     steps:
+      - name: Setup SSH key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.DO_SSH_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H ${{ secrets.DO_HOST }} >> ~/.ssh/known_hosts
+
       - name: Deploy to DigitalOcean
-        uses: appleboy/ssh-action@v1
-        with:
-          host: ${{ secrets.DO_HOST }}
-          username: ${{ secrets.DO_USER }}
-          key: ${{ secrets.DO_SSH_KEY }}
-          command_timeout: 30m
-          script: |
+        run: |
+          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no ${{ secrets.DO_USER }}@${{ secrets.DO_HOST }} << 'DEPLOY'
             set -e
             cd /opt/renzora-website
 
@@ -46,3 +48,5 @@ jobs:
             # Cleanup old images
             docker image prune -f
             echo "Deploy successful"
+          DEPLOY
+        timeout-minutes: 30
