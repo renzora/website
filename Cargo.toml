@@ -9,12 +9,12 @@ members = [
 ]
 
 [workspace.dependencies]
-axum = { version = "0.8", features = ["multipart"] }
-axum-extra = { version = "0.10", features = ["typed-header"] }
-leptos = "0.7"
+axum = { version = "0.7", features = ["multipart"] }
+axum-extra = { version = "0.9", features = ["typed-header"] }
+leptos = { version = "0.7", features = ["ssr"] }
 leptos_axum = "0.7"
-leptos_router = "0.7"
-leptos_meta = "0.7"
+leptos_router = { version = "0.7", features = ["ssr"] }
+leptos_meta = { version = "0.7", features = ["ssr"] }
 sqlx = { version = "0.8", features = ["runtime-tokio", "postgres", "uuid", "time", "migrate"] }
 redis = { version = "0.27", features = ["tokio-comp"] }
 jsonwebtoken = "9"

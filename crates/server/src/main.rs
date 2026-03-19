@@ -1,5 +1,13 @@
-use axum::{extract::DefaultBodyLimit, http::HeaderValue, routing::get, Extension, Json, Router};
+use axum::{
+    body::Body,
+    extract::DefaultBodyLimit,
+    http::{HeaderValue, Request},
+    response::Response,
+    routing::get,
+    Extension, Json, Router,
+};
 use renzora_api::{api_router, middleware::JwtSecret, AppState};
+use renzora_web::shell::Shell;
 use sqlx::postgres::PgPoolOptions;
 use tower_http::cors::CorsLayer;
 use tower_http::services::ServeDir;
@@ -71,8 +79,17 @@ async fn main() {
         .allow_methods(tower_http::cors::Any)
         .allow_headers(tower_http::cors::Any);
 
+    // Leptos SSR handler
+    let render = leptos_axum::render_app_to_stream(Shell);
+
+    // Wrap the Leptos renderer as a tower Service for use with fallback_service
+    let leptos_service = tower::service_fn(move |req: Request<Body>| {
+        let render = render.clone();
+        async move { Ok::<Response<Body>, std::convert::Infallible>(render(req).await) }
+    });
+
     let app = Router::new()
-        // Health check (used by Docker, Nginx, and uptime monitors)
+        // Health check
         .route("/health", get(health_check))
         // API routes
         .merge(api_router(state))
@@ -80,9 +97,10 @@ async fn main() {
         .nest_service("/uploads", ServeDir::new(&upload_dir))
         // Serve static assets (CSS, JS, images)
         .nest_service("/assets", ServeDir::new("assets"))
+        // Leptos SSR fallback for all frontend routes
+        .fallback_service(leptos_service)
         // Layers
         .layer(Extension(JwtSecret(jwt_secret)))
-        // 50 MB body limit (for asset uploads)
         .layer(DefaultBodyLimit::max(50 * 1024 * 1024))
         .layer(cors)
         .layer(TraceLayer::new_for_http());
