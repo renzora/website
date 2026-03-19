@@ -14,7 +14,7 @@ pub fn DownloadPage() -> impl IntoView {
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-12">
                     <DownloadCard
                         platform="Windows"
-                        icon="\u{1F5B5}"
+                        icon="ph-windows-logo"
                         requirements="Windows 10 or later, 64-bit"
                         primary_label="Download .exe"
                         primary_href="https://github.com/renzora/engine/releases/latest"
@@ -23,7 +23,7 @@ pub fn DownloadPage() -> impl IntoView {
                     />
                     <DownloadCard
                         platform="macOS"
-                        icon="\u{F8FF}"
+                        icon="ph-apple-logo"
                         requirements="macOS 12 Monterey or later"
                         primary_label="Download .dmg"
                         primary_href="https://github.com/renzora/engine/releases/latest"
@@ -32,7 +32,7 @@ pub fn DownloadPage() -> impl IntoView {
                     />
                     <DownloadCard
                         platform="Linux"
-                        icon="\u{1F427}"
+                        icon="ph-linux-logo"
                         requirements="Ubuntu 22.04+, Fedora 38+, or Arch"
                         primary_label="Download .AppImage"
                         primary_href="https://github.com/renzora/engine/releases/latest"
@@ -44,13 +44,19 @@ pub fn DownloadPage() -> impl IntoView {
                 <div class="mb-10">
                     <h3 class="text-base font-semibold mb-3">"Other options"</h3>
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
-                        <a href="https://github.com/renzora/engine" class="p-5 bg-surface-card border border-zinc-800 rounded-lg hover:border-accent transition-colors">
-                            <h4 class="text-sm font-semibold mb-1">"Build from source"</h4>
-                            <p class="text-xs text-zinc-400">"Clone the repo and compile with Cargo. Requires Rust 1.85+."</p>
+                        <a href="https://github.com/renzora/engine" class="p-5 bg-surface-card border border-zinc-800 rounded-lg hover:border-accent transition-colors flex items-center gap-4">
+                            <i class="ph ph-terminal text-2xl text-zinc-400"></i>
+                            <div>
+                                <h4 class="text-sm font-semibold mb-0.5">"Build from source"</h4>
+                                <p class="text-xs text-zinc-400">"Clone the repo and compile with Cargo. Requires Rust 1.85+."</p>
+                            </div>
                         </a>
-                        <a href="https://github.com/renzora/engine/releases" class="p-5 bg-surface-card border border-zinc-800 rounded-lg hover:border-accent transition-colors">
-                            <h4 class="text-sm font-semibold mb-1">"All releases"</h4>
-                            <p class="text-xs text-zinc-400">"Browse previous versions and pre-release builds on GitHub."</p>
+                        <a href="https://github.com/renzora/engine/releases" class="p-5 bg-surface-card border border-zinc-800 rounded-lg hover:border-accent transition-colors flex items-center gap-4">
+                            <i class="ph ph-git-branch text-2xl text-zinc-400"></i>
+                            <div>
+                                <h4 class="text-sm font-semibold mb-0.5">"All releases"</h4>
+                                <p class="text-xs text-zinc-400">"Browse previous versions and pre-release builds on GitHub."</p>
+                            </div>
                         </a>
                     </div>
                 </div>
@@ -75,12 +81,15 @@ fn DownloadCard(
     alt_label: &'static str,
     alt_href: &'static str,
 ) -> impl IntoView {
+    let icon_class = format!("ph {} text-4xl text-zinc-300", icon);
     view! {
         <div class="p-8 bg-surface-card border border-zinc-800 rounded-lg text-center flex flex-col items-center gap-2 hover:border-accent transition-colors">
-            <div class="text-4xl mb-1">{icon}</div>
+            <i class=icon_class></i>
             <h2 class="text-xl font-semibold">{platform}</h2>
             <p class="text-xs text-zinc-400 mb-3">{requirements}</p>
-            <a href=primary_href class="w-full inline-flex items-center justify-center px-5 py-2.5 rounded-lg text-sm font-medium bg-accent text-white hover:bg-accent-hover transition-colors">{primary_label}</a>
+            <a href=primary_href class="w-full inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-lg text-sm font-medium bg-accent text-white hover:bg-accent-hover transition-colors">
+                <i class="ph ph-download-simple"></i>{primary_label}
+            </a>
             {if !alt_href.is_empty() {
                 view! { <a href=alt_href class="text-xs text-zinc-400 hover:text-zinc-50 mt-1">{alt_label}</a> }.into_any()
             } else {

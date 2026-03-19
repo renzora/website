@@ -13,14 +13,24 @@ pub fn Footer() -> impl IntoView {
                     <div class="flex gap-16">
                         <div class="flex flex-col gap-2">
                             <h4 class="text-xs font-semibold uppercase tracking-wider text-zinc-500 mb-1">"Product"</h4>
-                            <a href="/download" class="text-sm text-zinc-400 hover:text-zinc-50 transition-colors">"Download"</a>
-                            <a href="/docs" class="text-sm text-zinc-400 hover:text-zinc-50 transition-colors">"Documentation"</a>
-                            <a href="/marketplace" class="text-sm text-zinc-400 hover:text-zinc-50 transition-colors">"Marketplace"</a>
+                            <a href="/download" class="text-sm text-zinc-400 hover:text-zinc-50 transition-colors flex items-center gap-1.5">
+                                <i class="ph ph-download-simple text-sm"></i>"Download"
+                            </a>
+                            <a href="/docs" class="text-sm text-zinc-400 hover:text-zinc-50 transition-colors flex items-center gap-1.5">
+                                <i class="ph ph-book-open text-sm"></i>"Documentation"
+                            </a>
+                            <a href="/marketplace" class="text-sm text-zinc-400 hover:text-zinc-50 transition-colors flex items-center gap-1.5">
+                                <i class="ph ph-storefront text-sm"></i>"Marketplace"
+                            </a>
                         </div>
                         <div class="flex flex-col gap-2">
                             <h4 class="text-xs font-semibold uppercase tracking-wider text-zinc-500 mb-1">"Community"</h4>
-                            <a href="https://github.com/renzora" class="text-sm text-zinc-400 hover:text-zinc-50 transition-colors">"GitHub"</a>
-                            <a href="https://discord.gg/renzora" class="text-sm text-zinc-400 hover:text-zinc-50 transition-colors">"Discord"</a>
+                            <a href="https://github.com/renzora" class="text-sm text-zinc-400 hover:text-zinc-50 transition-colors flex items-center gap-1.5">
+                                <i class="ph ph-github-logo text-sm"></i>"GitHub"
+                            </a>
+                            <a href="https://discord.gg/renzora" class="text-sm text-zinc-400 hover:text-zinc-50 transition-colors flex items-center gap-1.5">
+                                <i class="ph ph-discord-logo text-sm"></i>"Discord"
+                            </a>
                         </div>
                     </div>
                 </div>
