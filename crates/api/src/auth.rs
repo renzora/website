@@ -5,12 +5,13 @@ use axum::{
 };
 use renzora_common::types::*;
 use renzora_models::user::User;
+use serde::Deserialize;
 
 use crate::{error::ApiError, jwt, middleware, middleware::AuthUser, AppState};
 
 pub fn router() -> Router<AppState> {
     let protected = Router::new()
-        .route("/me", get(me))
+        .route("/me", get(me).put(update_me))
         .layer(axum::middleware::from_fn(middleware::require_auth));
 
     Router::new()
@@ -125,6 +126,45 @@ async fn me(
     State(state): State<AppState>,
     Extension(auth): Extension<AuthUser>,
 ) -> Result<Json<UserProfile>, ApiError> {
+    let user = User::find_by_id(&state.db, auth.user_id)
+        .await?
+        .ok_or(ApiError::NotFound)?;
+
+    Ok(Json(user_to_profile(&user)))
+}
+
+#[derive(Deserialize)]
+struct UpdateProfileRequest {
+    username: Option<String>,
+    email: Option<String>,
+    bio: Option<String>,
+    location: Option<String>,
+    gender: Option<String>,
+    website: Option<String>,
+    profile_color: Option<String>,
+    banner_color: Option<String>,
+}
+
+async fn update_me(
+    State(state): State<AppState>,
+    Extension(auth): Extension<AuthUser>,
+    Json(body): Json<UpdateProfileRequest>,
+) -> Result<Json<UserProfile>, ApiError> {
+    sqlx::query(
+        "UPDATE users SET username=COALESCE($2,username), email=COALESCE($3,email), bio=COALESCE($4,bio), location=COALESCE($5,location), gender=COALESCE($6,gender), website=COALESCE($7,website), profile_color=COALESCE($8,profile_color), banner_color=COALESCE($9,banner_color), updated_at=NOW() WHERE id=$1"
+    )
+    .bind(auth.user_id)
+    .bind(body.username.as_deref())
+    .bind(body.email.as_deref())
+    .bind(body.bio.as_deref())
+    .bind(body.location.as_deref())
+    .bind(body.gender.as_deref())
+    .bind(body.website.as_deref())
+    .bind(body.profile_color.as_deref())
+    .bind(body.banner_color.as_deref())
+    .execute(&state.db)
+    .await?;
+
     let user = User::find_by_id(&state.db, auth.user_id)
         .await?
         .ok_or(ApiError::NotFound)?;

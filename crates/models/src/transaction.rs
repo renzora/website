@@ -102,7 +102,7 @@ impl Transaction {
         .await?;
 
         let total: (i64,) =
-            sqlx::query_as("SELECT COUNT(*) FROM transactions WHERE user_id = $1")
+            sqlx::query_as("SELECT COUNT(*)::bigint FROM transactions WHERE user_id = $1")
                 .bind(user_id)
                 .fetch_one(pool)
                 .await?;

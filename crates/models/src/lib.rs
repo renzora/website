@@ -1,5 +1,11 @@
 pub mod article;
 pub mod asset;
+pub mod category;
+pub mod dispute;
 pub mod doc;
+pub mod forum;
+pub mod notification;
+pub mod profile;
+pub mod role;
 pub mod transaction;
 pub mod user;

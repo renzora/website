@@ -12,7 +12,7 @@ pub fn router() -> Router<AppState> {
     Router::new()
         .route("/", get(list_docs))
         .route("/search", get(search_docs))
-        .route("/{slug}", get(get_doc))
+        .route("/:slug", get(get_doc))
 }
 
 /// List all published docs grouped by category.

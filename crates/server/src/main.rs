@@ -66,9 +66,10 @@ async fn main() {
         stripe_secret_key,
         stripe_webhook_secret,
         site_url,
+        ws_broadcast: std::sync::Arc::new(renzora_api::WsBroadcast::new()),
     };
 
-    // CORS: parse allowed origins from env
+    // CORS
     let origins: Vec<HeaderValue> = allowed_origins
         .split(',')
         .filter_map(|o| o.trim().parse().ok())
@@ -79,26 +80,41 @@ async fn main() {
         .allow_methods(tower_http::cors::Any)
         .allow_headers(tower_http::cors::Any);
 
-    // Leptos SSR handler
+    // Leptos SSR handler for frontend pages
     let render = leptos_axum::render_app_to_stream(Shell);
-
-    // Wrap the Leptos renderer as a tower Service for use with fallback_service
-    let leptos_service = tower::service_fn(move |req: Request<Body>| {
+    let ssr = move |req: Request<Body>| {
         let render = render.clone();
-        async move { Ok::<Response<Body>, std::convert::Infallible>(render(req).await) }
-    });
+        async move { render(req).await }
+    };
 
     let app = Router::new()
         // Health check
         .route("/health", get(health_check))
-        // API routes
-        .merge(api_router(state))
         // Serve uploaded files
         .nest_service("/uploads", ServeDir::new(&upload_dir))
         // Serve static assets (CSS, JS, images)
         .nest_service("/assets", ServeDir::new("assets"))
-        // Leptos SSR fallback for all frontend routes
-        .fallback_service(leptos_service)
+        // API routes — nested under /api, takes priority
+        .nest("/api", api_router(state))
+        // Frontend pages — explicit SSR routes
+        .route("/", get(ssr.clone()))
+        .route("/download", get(ssr.clone()))
+        .route("/login", get(ssr.clone()))
+        .route("/register", get(ssr.clone()))
+        .route("/docs", get(ssr.clone()))
+        .route("/docs/:category/:slug", get(ssr.clone()))
+        .route("/marketplace", get(ssr.clone()))
+        .route("/marketplace/upload", get(ssr.clone()))
+        .route("/wallet", get(ssr.clone()))
+        .route("/community", get(ssr.clone()))
+        .route("/forum", get(ssr.clone()))
+        .route("/forum/new", get(ssr.clone()))
+        .route("/forum/thread/:slug", get(ssr.clone()))
+        .route("/forum/:slug", get(ssr.clone()))
+        .route("/profile/:username", get(ssr.clone()))
+        .route("/dashboard", get(ssr.clone()))
+        .route("/settings", get(ssr.clone()))
+        .route("/admin", get(ssr.clone()))
         // Layers
         .layer(Extension(JwtSecret(jwt_secret)))
         .layer(DefaultBodyLimit::max(50 * 1024 * 1024))

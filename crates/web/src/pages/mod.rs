@@ -1,7 +1,13 @@
+pub mod admin;
 pub mod community;
 pub mod dashboard;
 pub mod docs;
 pub mod download;
+pub mod forum;
 pub mod home;
+pub mod login;
 pub mod marketplace;
+pub mod profile;
+pub mod settings;
+pub mod upload;
 pub mod wallet;

@@ -141,7 +141,7 @@ impl Asset {
 
         let total: (i64,) = sqlx::query_as(
             r#"
-            SELECT COUNT(*)
+            SELECT COUNT(*)::bigint
             FROM assets a
             WHERE a.published = true
               AND ($1::text IS NULL OR a.name ILIKE '%' || $1 || '%' OR a.description ILIKE '%' || $1 || '%')

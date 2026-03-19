@@ -8,12 +8,18 @@ use leptos_router::{
 use crate::components::nav::Nav;
 use crate::components::footer::Footer;
 use crate::pages::{
+    admin::AdminPage,
     community::CommunityPage,
     dashboard::DashboardPage,
     docs::{DocsPage, DocArticle},
     download::DownloadPage,
+    forum::{ForumPage, ForumCategoryPage, ForumThreadPage, NewThreadPage},
     home::HomePage,
+    login::{LoginPage, RegisterPage},
     marketplace::MarketplacePage,
+    profile::ProfilePage,
+    settings::SettingsPage,
+    upload::UploadPage,
     wallet::WalletPage,
 };
 
@@ -29,15 +35,25 @@ pub fn App() -> impl IntoView {
         <Router>
             <Nav />
             <main>
-                <Routes fallback=|| view! { <p>"Page not found."</p> }>
+                <Routes fallback=|| view! { <p class="text-center text-zinc-500 py-20">"Page not found."</p> }>
                     <Route path=path!("/") view=HomePage />
                     <Route path=path!("/download") view=DownloadPage />
+                    <Route path=path!("/login") view=LoginPage />
+                    <Route path=path!("/register") view=RegisterPage />
                     <Route path=path!("/docs") view=DocsPage />
                     <Route path=path!("/docs/:category/:slug") view=DocArticle />
                     <Route path=path!("/marketplace") view=MarketplacePage />
+                    <Route path=path!("/marketplace/upload") view=UploadPage />
                     <Route path=path!("/wallet") view=WalletPage />
                     <Route path=path!("/community") view=CommunityPage />
+                    <Route path=path!("/forum") view=ForumPage />
+                    <Route path=path!("/forum/new") view=NewThreadPage />
+                    <Route path=path!("/forum/thread/:slug") view=ForumThreadPage />
+                    <Route path=path!("/forum/:slug") view=ForumCategoryPage />
+                    <Route path=path!("/profile/:username") view=ProfilePage />
                     <Route path=path!("/dashboard") view=DashboardPage />
+                    <Route path=path!("/settings") view=SettingsPage />
+                    <Route path=path!("/admin") view=AdminPage />
                 </Routes>
             </main>
             <Footer />

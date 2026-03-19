@@ -17,7 +17,7 @@ pub fn create_access_token(user_id: Uuid, secret: &str) -> Result<String, jsonwe
     let claims = Claims {
         sub: user_id,
         iat: now.unix_timestamp(),
-        exp: (now + Duration::minutes(15)).unix_timestamp(),
+        exp: (now + Duration::days(30)).unix_timestamp(),
         token_type: "access".to_string(),
     };
     encode(

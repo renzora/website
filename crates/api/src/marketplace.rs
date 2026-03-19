@@ -14,13 +14,13 @@ pub fn router() -> Router<AppState> {
     let protected = Router::new()
         .route("/upload", post(upload_asset))
         .route("/my-assets", get(my_assets))
-        .route("/{id}/update", put(update_asset))
-        .route("/{id}/download", get(download_asset))
+        .route("/:id/update", put(update_asset))
+        .route("/:id/download", get(download_asset))
         .layer(axum::middleware::from_fn(middleware::require_auth));
 
     Router::new()
         .route("/", get(list_assets))
-        .route("/detail/{slug}", get(get_asset))
+        .route("/detail/:slug", get(get_asset))
         .merge(protected)
 }
 

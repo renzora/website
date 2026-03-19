@@ -33,7 +33,7 @@ async fn stats(
 
     // Sum earnings from transactions
     let earnings_row: (i64,) = sqlx::query_as(
-        "SELECT COALESCE(SUM(amount), 0) FROM transactions WHERE user_id = $1 AND type = 'earning'",
+        "SELECT COALESCE(SUM(amount), 0)::bigint FROM transactions WHERE user_id = $1 AND type = 'earning'",
     )
     .bind(auth.user_id)
     .fetch_one(&state.db)
@@ -105,7 +105,7 @@ async fn earnings(
         .collect();
 
     let total: (i64,) = sqlx::query_as(
-        "SELECT COUNT(*) FROM transactions WHERE user_id = $1 AND type = 'earning'",
+        "SELECT COUNT(*)::bigint FROM transactions WHERE user_id = $1 AND type = 'earning'",
     )
     .bind(auth.user_id)
     .fetch_one(&state.db)

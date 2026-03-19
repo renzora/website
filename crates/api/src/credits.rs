@@ -153,6 +153,12 @@ async fn stripe_webhook(
                 .map_err(|e| ApiError::Internal(format!("Failed to add credits: {e}")))?;
 
             tracing::info!("Added {credits} credits to user {user_id}");
+
+            // Live credit update
+            state.ws_broadcast.send_to_user(user_id, "credit_update", serde_json::json!({
+                "amount": credits,
+                "type": "topup",
+            }));
         }
     }
 

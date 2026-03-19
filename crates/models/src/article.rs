@@ -132,7 +132,7 @@ impl Article {
 
         let total: (i64,) = sqlx::query_as(
             r#"
-            SELECT COUNT(*) FROM articles a
+            SELECT COUNT(*)::bigint FROM articles a
             WHERE a.published = true
               AND ($1::text IS NULL OR $1 = ANY(a.tags))
             "#,

@@ -14,15 +14,15 @@ pub fn router() -> Router<AppState> {
     let protected = Router::new()
         .route("/create", post(create_article))
         .route("/my-articles", get(my_articles))
-        .route("/{id}/update", put(update_article))
-        .route("/{id}/like", post(toggle_like))
-        .route("/{id}/comment", post(add_comment))
-        .route("/comment/{id}", delete(delete_comment))
+        .route("/:id/update", put(update_article))
+        .route("/:id/like", post(toggle_like))
+        .route("/:id/comment", post(add_comment))
+        .route("/comment/:id", delete(delete_comment))
         .layer(axum::middleware::from_fn(middleware::require_auth));
 
     Router::new()
         .route("/", get(list_articles))
-        .route("/detail/{slug}", get(get_article))
+        .route("/detail/:slug", get(get_article))
         .merge(protected)
 }
 

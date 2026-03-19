@@ -1,41 +1,48 @@
+pub mod admin;
 pub mod articles;
 pub mod auth;
 pub mod creator;
 pub mod credits;
 pub mod docs;
 pub mod error;
+pub mod forum;
 pub mod jwt;
 pub mod marketplace;
 pub mod middleware;
+pub mod notifications;
+pub mod profiles;
+pub mod ws;
 
 use axum::Router;
 use sqlx::PgPool;
+use std::sync::Arc;
 
-/// Application state shared across all handlers.
+pub use ws::WsBroadcast;
+
 #[derive(Clone)]
 pub struct AppState {
     pub db: PgPool,
     pub jwt_secret: String,
-    /// Base path for asset file storage (local uploads directory).
     pub upload_dir: String,
-    /// Public base URL for serving uploaded files.
     pub upload_base_url: String,
-    /// Stripe secret API key.
     pub stripe_secret_key: Option<String>,
-    /// Stripe webhook signing secret.
     pub stripe_webhook_secret: Option<String>,
-    /// Public site URL (for Stripe redirect URLs).
     pub site_url: String,
+    pub ws_broadcast: Arc<WsBroadcast>,
 }
 
-/// Build the API router with all routes.
 pub fn api_router(state: AppState) -> Router {
     Router::new()
-        .nest("/api/auth", auth::router())
-        .nest("/api/marketplace", marketplace::router())
-        .nest("/api/credits", credits::router())
-        .nest("/api/creator", creator::router())
-        .nest("/api/docs", docs::router())
-        .nest("/api/articles", articles::router())
+        .nest("/auth", auth::router())
+        .nest("/marketplace", marketplace::router())
+        .nest("/credits", credits::router())
+        .nest("/creator", creator::router())
+        .nest("/docs", docs::router())
+        .nest("/articles", articles::router())
+        .nest("/forum", forum::router())
+        .nest("/notifications", notifications::router())
+        .nest("/profiles", profiles::router())
+        .nest("/admin", admin::router())
+        .nest("/ws", ws::router())
         .with_state(state)
 }
