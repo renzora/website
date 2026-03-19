@@ -10,7 +10,7 @@ pub fn MarketplacePage() -> impl IntoView {
                         <h1 class="text-2xl font-bold">"Marketplace"</h1>
                         <p class="text-zinc-500 text-sm mt-1">"Assets for every engine and every workflow."</p>
                     </div>
-                    <a href="/marketplace/upload" class="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-accent text-white hover:bg-accent-hover transition-colors">
+                    <a id="publish-btn" href="/login" class="hidden inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-accent text-white hover:bg-accent-hover transition-colors">
                         <i class="ph ph-upload-simple text-base"></i>"Publish an Asset"
                     </a>
                 </div>
@@ -45,6 +45,11 @@ pub fn MarketplacePage() -> impl IntoView {
             let currentPage = 1;
 
             (async function() {
+                // Show publish button if signed in
+                const token = document.cookie.match('(^|;)\\s*token\\s*=\\s*([^;]+)')?.pop();
+                const pubBtn = document.getElementById('publish-btn');
+                if (pubBtn) { pubBtn.classList.remove('hidden'); pubBtn.href = token ? '/marketplace/upload' : '/login'; }
+
                 // Fetch categories from API
                 const catRes = await fetch('/api/marketplace/categories');
                 const dbCats = catRes.ok ? await catRes.json() : [];

@@ -28,8 +28,11 @@ pub fn Footer() -> impl IntoView {
                             <a href="https://github.com/renzora" class="text-sm text-zinc-400 hover:text-zinc-50 transition-colors flex items-center gap-1.5">
                                 <i class="ph ph-github-logo text-sm"></i>"GitHub"
                             </a>
-                            <a href="https://discord.gg/renzora" class="text-sm text-zinc-400 hover:text-zinc-50 transition-colors flex items-center gap-1.5">
+                            <a href="https://discord.gg/9UHUGUyDJv" class="text-sm text-zinc-400 hover:text-zinc-50 transition-colors flex items-center gap-1.5">
                                 <i class="ph ph-discord-logo text-sm"></i>"Discord"
+                            </a>
+                            <a href="https://youtube.com/@renzoragame" class="text-sm text-zinc-400 hover:text-zinc-50 transition-colors flex items-center gap-1.5">
+                                <i class="ph ph-youtube-logo text-sm"></i>"YouTube"
                             </a>
                         </div>
                     </div>
