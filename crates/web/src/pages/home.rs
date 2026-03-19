@@ -12,29 +12,20 @@ pub fn HomePage() -> impl IntoView {
                     "visual scripting, and a thriving marketplace."
                 </p>
                 <div class="hero-actions">
-                    <a href="https://github.com/renzora/engine/releases" class="btn btn-primary">"Download for Windows"</a>
+                    <a href="/download" class="btn btn-primary">"Download for Windows"</a>
                     <a href="/docs" class="btn btn-secondary">"Documentation"</a>
                 </div>
-                <p class="hero-version">"v0.1.0 — Early Access"</p>
+                <p class="hero-version">"r1-alpha4 — Early Access"</p>
             </div>
         </section>
 
         <section class="hero-preview">
-            <div class="container">
-                <div class="preview-window">
-                    <div class="preview-chrome">
-                        <span class="preview-dot red"></span>
-                        <span class="preview-dot yellow"></span>
-                        <span class="preview-dot green"></span>
-                    </div>
-                    <img
-                        src="/assets/images/interface.png"
-                        alt="Renzora Engine editor showing a 3D scene of Times Square"
-                        class="preview-img"
-                        loading="lazy"
-                    />
-                </div>
-            </div>
+            <img
+                src="/assets/images/interface.png"
+                alt="Renzora Engine editor showing a 3D scene of Times Square"
+                class="preview-img"
+                loading="lazy"
+            />
         </section>
 
         <section class="features">
@@ -75,7 +66,7 @@ pub fn HomePage() -> impl IntoView {
                     <h2>"Ready to build?"</h2>
                     <p>"Download the engine and follow the getting started guide to create your first project in minutes."</p>
                     <div class="hero-actions">
-                        <a href="https://github.com/renzora/engine/releases" class="btn btn-primary">"Download"</a>
+                        <a href="/download" class="btn btn-primary">"Download"</a>
                         <a href="/docs/getting-started/installation" class="btn btn-secondary">"Getting Started Guide"</a>
                     </div>
                 </div>

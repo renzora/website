@@ -11,6 +11,7 @@ use crate::pages::{
     community::CommunityPage,
     dashboard::DashboardPage,
     docs::{DocsPage, DocArticle},
+    download::DownloadPage,
     home::HomePage,
     marketplace::MarketplacePage,
     wallet::WalletPage,
@@ -30,6 +31,7 @@ pub fn App() -> impl IntoView {
             <main>
                 <Routes fallback=|| view! { <p>"Page not found."</p> }>
                     <Route path=path!("/") view=HomePage />
+                    <Route path=path!("/download") view=DownloadPage />
                     <Route path=path!("/docs") view=DocsPage />
                     <Route path=path!("/docs/:category/:slug") view=DocArticle />
                     <Route path=path!("/marketplace") view=MarketplacePage />
