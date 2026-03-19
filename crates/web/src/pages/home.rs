@@ -9,7 +9,7 @@ pub fn HomePage() -> impl IntoView {
                 <p class="hero-subtitle">
                     "A modern game engine built with Rust and Bevy. "
                     "Create stunning 2D and 3D games with a powerful editor, "
-                    "visual scripting, and a thriving marketplace."
+                    "visual scripting, and a thriving community."
                 </p>
                 <div class="hero-actions">
                     <a href="/download" class="btn btn-primary">"Download for Windows"</a>
