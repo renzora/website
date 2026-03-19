@@ -22,6 +22,7 @@ tracing = { workspace = true }
 thiserror = { workspace = true }
 tokio = { workspace = true }
 reqwest = { workspace = true }
+aws-sdk-s3 = { workspace = true }
 hmac = { workspace = true }
 sha2 = { workspace = true }
 hex = { workspace = true }

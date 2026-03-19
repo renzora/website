@@ -37,6 +37,28 @@ async fn main() {
         std::env::var("SITE_URL").unwrap_or_else(|_| "http://localhost:3000".into());
     let allowed_origins = std::env::var("ALLOWED_ORIGINS")
         .unwrap_or_else(|_| "http://localhost:3000".into());
+    let s3_access_key = std::env::var("S3_ACCESS_KEY").ok();
+    let s3_secret_key = std::env::var("S3_SECRET_KEY").ok();
+    let s3_endpoint = std::env::var("S3_ENDPOINT").unwrap_or_default();
+    let s3_bucket = std::env::var("S3_BUCKET").unwrap_or_else(|_| "renzora-assets".into());
+    let s3_public_url = std::env::var("S3_PUBLIC_URL").unwrap_or_default();
+
+    // Set up S3 client (DigitalOcean Spaces)
+    let s3_client = if let (Some(access), Some(secret)) = (&s3_access_key, &s3_secret_key) {
+        let creds = aws_credential_types::Credentials::new(access, secret, None, None, "env");
+        let config = aws_sdk_s3::Config::builder()
+            .endpoint_url(&s3_endpoint)
+            .region(aws_sdk_s3::config::Region::new("us-east-1"))
+            .credentials_provider(creds)
+            .force_path_style(true)
+            .build();
+        let client = aws_sdk_s3::Client::from_conf(config);
+        tracing::info!("S3 storage configured: {s3_bucket}");
+        Some(client)
+    } else {
+        tracing::warn!("S3 not configured — using local storage");
+        None
+    };
 
     // Ensure upload directories exist
     tokio::fs::create_dir_all(format!("{upload_dir}/assets"))
@@ -65,6 +87,9 @@ async fn main() {
         jwt_secret: jwt_secret.clone(),
         upload_dir: upload_dir.clone(),
         upload_base_url,
+        s3_client,
+        s3_bucket,
+        s3_public_url,
         stripe_secret_key,
         stripe_webhook_secret,
         site_url,

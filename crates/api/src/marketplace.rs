@@ -135,17 +135,8 @@ async fn upload_asset(
                     .map_err(|e| ApiError::Validation(format!("Failed to read file: {e}")))?;
 
                 let stored_name = format!("{}-{}", Uuid::new_v4(), filename);
-                let path = format!("{}/assets/{}", state.upload_dir, stored_name);
-
-                tokio::fs::create_dir_all(format!("{}/assets", state.upload_dir))
-                    .await
-                    .map_err(|e| ApiError::Internal(format!("Failed to create upload dir: {e}")))?;
-
-                tokio::fs::write(&path, &data)
-                    .await
-                    .map_err(|e| ApiError::Internal(format!("Failed to write file: {e}")))?;
-
-                file_path = Some(format!("{}/assets/{}", state.upload_base_url, stored_name));
+                let s3_key = format!("assets/{}", stored_name);
+                file_path = Some(upload_to_storage(&state, &s3_key, data.to_vec()).await?);
             }
             "thumbnail" => {
                 let filename = field
@@ -158,17 +149,8 @@ async fn upload_asset(
                     .map_err(|e| ApiError::Validation(format!("Failed to read thumbnail: {e}")))?;
 
                 let stored_name = format!("{}-{}", Uuid::new_v4(), filename);
-                let path = format!("{}/thumbnails/{}", state.upload_dir, stored_name);
-
-                tokio::fs::create_dir_all(format!("{}/thumbnails", state.upload_dir))
-                    .await
-                    .map_err(|e| ApiError::Internal(format!("Failed to create thumbnail dir: {e}")))?;
-
-                tokio::fs::write(&path, &data)
-                    .await
-                    .map_err(|e| ApiError::Internal(format!("Failed to write thumbnail: {e}")))?;
-
-                thumb_path = Some(format!("{}/thumbnails/{}", state.upload_base_url, stored_name));
+                let s3_key = format!("thumbnails/{}", stored_name);
+                thumb_path = Some(upload_to_storage(&state, &s3_key, data.to_vec()).await?);
             }
             _ => {}
         }
@@ -360,6 +342,35 @@ async fn delete_comment(
     }
     sqlx::query("DELETE FROM asset_comments WHERE id=$1").bind(comment_id).execute(&state.db).await?;
     Ok(Json(serde_json::json!({"message": "Deleted"})))
+}
+
+/// Upload a file to S3 (DigitalOcean Spaces) or fall back to local disk.
+async fn upload_to_storage(state: &AppState, key: &str, data: Vec<u8>) -> Result<String, ApiError> {
+    if let Some(s3) = &state.s3_client {
+        // Upload to S3
+        s3.put_object()
+            .bucket(&state.s3_bucket)
+            .key(key)
+            .body(data.into())
+            .acl(aws_sdk_s3::types::ObjectCannedAcl::PublicRead)
+            .send()
+            .await
+            .map_err(|e| ApiError::Internal(format!("S3 upload failed: {e}")))?;
+
+        Ok(format!("{}/{}", state.s3_public_url, key))
+    } else {
+        // Fallback to local storage
+        let path = format!("{}/{}", state.upload_dir, key);
+        if let Some(parent) = std::path::Path::new(&path).parent() {
+            tokio::fs::create_dir_all(parent)
+                .await
+                .map_err(|e| ApiError::Internal(format!("Failed to create dir: {e}")))?;
+        }
+        tokio::fs::write(&path, &data)
+            .await
+            .map_err(|e| ApiError::Internal(format!("Failed to write file: {e}")))?;
+        Ok(format!("{}/{}", state.upload_base_url, key))
+    }
 }
 
 fn asset_to_detail(
