@@ -10,7 +10,7 @@ use crate::components::footer::Footer;
 use crate::pages::{
     community::CommunityPage,
     dashboard::DashboardPage,
-    docs::DocsPage,
+    docs::{DocsPage, DocArticle},
     home::HomePage,
     marketplace::MarketplacePage,
     wallet::WalletPage,
@@ -31,6 +31,7 @@ pub fn App() -> impl IntoView {
                 <Routes fallback=|| view! { <p>"Page not found."</p> }>
                     <Route path=path!("/") view=HomePage />
                     <Route path=path!("/docs") view=DocsPage />
+                    <Route path=path!("/docs/:category/:slug") view=DocArticle />
                     <Route path=path!("/marketplace") view=MarketplacePage />
                     <Route path=path!("/wallet") view=WalletPage />
                     <Route path=path!("/community") view=CommunityPage />
