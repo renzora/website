@@ -54,6 +54,39 @@ pub fn SettingsPage() -> impl IntoView {
                     </div>
                 </div>
 
+                // Payouts section
+                <div class="mb-8">
+                    <h2 class="text-base font-semibold mb-4 flex items-center gap-2">
+                        <i class="ph ph-bank text-lg text-accent"></i>"Payouts"
+                    </h2>
+                    <div class="p-6 bg-surface-card border border-zinc-800 rounded-lg space-y-4">
+                        <div id="connect-status">"Loading payout status..."</div>
+
+                        // Withdrawal form (hidden until connected)
+                        <div id="withdraw-section" class="hidden">
+                            <div class="border-t border-zinc-800 pt-4 mt-4">
+                                <h3 class="text-sm font-semibold mb-3">"Withdraw Credits"</h3>
+                                <p class="text-xs text-zinc-500 mb-3">"Minimum 500 credits ($50). Credits are converted at $0.10 each."</p>
+                                <div class="flex gap-2">
+                                    <input type="number" id="withdraw-amount" min="500" step="100" placeholder="Amount in credits (min 500)"
+                                        class="flex-1 px-3 py-2.5 bg-surface border border-zinc-800 rounded-lg text-zinc-50 text-sm outline-none focus:border-accent" />
+                                    <button onclick="requestWithdrawal()" id="withdraw-btn"
+                                        class="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-medium bg-green-600 text-white hover:bg-green-500 transition-colors">
+                                        <i class="ph ph-arrow-up-right text-base"></i>"Withdraw"
+                                    </button>
+                                </div>
+                                <p id="withdraw-usd" class="text-xs text-zinc-500 mt-2"></p>
+                            </div>
+
+                            // Withdrawal history
+                            <div class="border-t border-zinc-800 pt-4 mt-4">
+                                <h3 class="text-sm font-semibold mb-3">"Withdrawal History"</h3>
+                                <div id="withdrawal-list"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
                 // Communication preferences
                 <div class="mb-8">
                     <h2 class="text-base font-semibold mb-4 flex items-center gap-2">
@@ -122,7 +155,7 @@ pub fn SettingsPage() -> impl IntoView {
                         const u = JSON.parse(decodeURIComponent(userCookie));
                         u.username = username;
                         u.email = email;
-                        document.cookie = `user=${encodeURIComponent(JSON.stringify(u))};path=/;max-age=604800;SameSite=Strict`;
+                        document.cookie = `user=${encodeURIComponent(JSON.stringify(u))};path=/;max-age=2592000;SameSite=Strict`;
                     }
                     showMsg('success', 'Profile updated!');
                 } catch(e) { showMsg('error', e.message); }
@@ -141,6 +174,136 @@ pub fn SettingsPage() -> impl IntoView {
 
             async function deleteAccount() {
                 showMsg('error', 'Account deletion coming soon. Contact support.');
+            }
+
+            // Payouts
+            (async function loadConnectStatus() {
+                const token = getToken();
+                if (!token) return;
+                try {
+                    const res = await fetch('/api/credits/connect/status', { headers: { 'Authorization': 'Bearer ' + token } });
+                    if (!res.ok) { document.getElementById('connect-status').innerHTML = '<p class="text-xs text-zinc-500">Payouts unavailable.</p>'; return; }
+                    const data = await res.json();
+                    const el = document.getElementById('connect-status');
+
+                    if (data.onboarded) {
+                        el.innerHTML = `
+                            <div class="flex items-center gap-2">
+                                <span class="w-2 h-2 rounded-full bg-green-400"></span>
+                                <span class="text-sm text-green-400 font-medium">Bank account connected</span>
+                            </div>
+                            <p class="text-xs text-zinc-500 mt-1">Payouts are enabled. You can withdraw credits to your bank.</p>
+                        `;
+                        document.getElementById('withdraw-section').classList.remove('hidden');
+                        loadWithdrawals();
+                    } else if (data.connected) {
+                        el.innerHTML = `
+                            <div class="flex items-center gap-2">
+                                <span class="w-2 h-2 rounded-full bg-amber-400"></span>
+                                <span class="text-sm text-amber-400 font-medium">Onboarding incomplete</span>
+                            </div>
+                            <p class="text-xs text-zinc-500 mt-1">Please complete Stripe setup to enable withdrawals.</p>
+                            <button onclick="startOnboarding()" class="mt-3 inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-accent text-white hover:bg-accent-hover transition-colors">
+                                <i class="ph ph-arrow-square-out text-base"></i>Complete Setup
+                            </button>
+                        `;
+                    } else {
+                        el.innerHTML = `
+                            <p class="text-sm text-zinc-300 mb-1">Connect your bank account to withdraw earnings.</p>
+                            <p class="text-xs text-zinc-500 mb-3">We use Stripe for secure payouts. You'll be redirected to set up your account.</p>
+                            <button onclick="startOnboarding()" class="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-accent text-white hover:bg-accent-hover transition-colors">
+                                <i class="ph ph-bank text-base"></i>Connect Bank Account
+                            </button>
+                        `;
+                    }
+                } catch(e) { document.getElementById('connect-status').innerHTML = '<p class="text-xs text-zinc-500">Could not load payout status.</p>'; }
+            })();
+
+            async function startOnboarding() {
+                const token = getToken();
+                if (!token) return;
+                try {
+                    const res = await fetch('/api/credits/connect/onboard', {
+                        method: 'POST',
+                        headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' }
+                    });
+                    const data = await res.json();
+                    if (res.ok && data.url) window.location.href = data.url;
+                    else showMsg('error', data.error || 'Failed to start onboarding');
+                } catch(e) { showMsg('error', e.message); }
+            }
+
+            // Withdrawal amount preview
+            document.getElementById('withdraw-amount')?.addEventListener('input', function() {
+                const amount = parseInt(this.value) || 0;
+                const usd = (amount * 0.10).toFixed(2);
+                document.getElementById('withdraw-usd').textContent = amount >= 500 ? `= $${usd} USD` : 'Minimum 500 credits ($50)';
+            });
+
+            async function requestWithdrawal() {
+                const token = getToken();
+                if (!token) return;
+                const amount = parseInt(document.getElementById('withdraw-amount').value);
+                if (!amount || amount < 500) { showMsg('error', 'Minimum withdrawal is 500 credits ($50)'); return; }
+
+                const btn = document.getElementById('withdraw-btn');
+                btn.disabled = true;
+                btn.innerHTML = '<i class="ph ph-spinner animate-spin"></i> Processing...';
+
+                try {
+                    const res = await fetch('/api/credits/withdraw', {
+                        method: 'POST',
+                        headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ amount })
+                    });
+                    const data = await res.json();
+                    if (res.ok) {
+                        showMsg('success', data.message);
+                        document.getElementById('withdraw-amount').value = '';
+                        document.getElementById('withdraw-usd').textContent = '';
+                        loadWithdrawals();
+                    } else {
+                        showMsg('error', data.error || 'Withdrawal failed');
+                    }
+                } catch(e) { showMsg('error', e.message); }
+
+                btn.disabled = false;
+                btn.innerHTML = '<i class="ph ph-arrow-up-right text-base"></i> Withdraw';
+            }
+
+            async function loadWithdrawals() {
+                const token = getToken();
+                if (!token) return;
+                try {
+                    const res = await fetch('/api/credits/withdrawals', { headers: { 'Authorization': 'Bearer ' + token } });
+                    if (!res.ok) return;
+                    const data = await res.json();
+                    const el = document.getElementById('withdrawal-list');
+
+                    if (!data.length) { el.innerHTML = '<p class="text-xs text-zinc-500">No withdrawals yet.</p>'; return; }
+
+                    el.innerHTML = data.map(w => {
+                        const statusColors = { completed: 'text-green-400', pending: 'text-amber-400', processing: 'text-blue-400', failed: 'text-red-400', rejected: 'text-red-400' };
+                        const color = statusColors[w.status] || 'text-zinc-400';
+                        return `
+                            <div class="flex items-center justify-between py-2.5 border-b border-zinc-800/50 last:border-0">
+                                <div>
+                                    <span class="text-sm font-medium">${w.amount_credits.toLocaleString()} credits</span>
+                                    <span class="text-xs text-zinc-500 ml-2">($${(w.amount_usd_cents / 100).toFixed(2)})</span>
+                                </div>
+                                <div class="flex items-center gap-3">
+                                    <span class="text-xs ${color}">${w.status}</span>
+                                    <span class="text-[11px] text-zinc-600">${new Date(w.created_at).toLocaleDateString()}</span>
+                                </div>
+                            </div>`;
+                    }).join('');
+                } catch(e) {}
+            }
+
+            // Check for connect success redirect
+            if (new URLSearchParams(window.location.search).get('connect') === 'success') {
+                showMsg('success', 'Bank account connected! Payouts are now enabled.');
+                history.replaceState({}, '', '/settings');
             }
             "#
         </script>

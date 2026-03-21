@@ -1,5 +1,14 @@
 /* ── Custom styles that complement Tailwind ── */
 
+/* Fix select/option white background on dark theme */
+select, select option {
+    background-color: #18181b;
+    color: #fafafa;
+}
+select option:checked {
+    background-color: #27272a;
+}
+
 /* Gradient text */
 .gradient-text {
     background: linear-gradient(135deg, #fafafa, #6366f1);

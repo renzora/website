@@ -73,9 +73,9 @@ pub fn LoginPage() -> impl IntoView {
                     if (!res.ok) {
                         throw new Error(data.error || 'Login failed');
                     }
-                    document.cookie = `token=${data.access_token};path=/;max-age=900;SameSite=Strict`;
-                    document.cookie = `refresh_token=${data.refresh_token};path=/;max-age=604800;SameSite=Strict`;
-                    document.cookie = `user=${encodeURIComponent(JSON.stringify(data.user))};path=/;max-age=604800;SameSite=Strict`;
+                    document.cookie = `token=${data.access_token};path=/;max-age=2592000;SameSite=Strict`;
+                    document.cookie = `refresh_token=${data.refresh_token};path=/;max-age=2592000;SameSite=Strict`;
+                    document.cookie = `user=${encodeURIComponent(JSON.stringify(data.user))};path=/;max-age=2592000;SameSite=Strict`;
                     window.location.href = '/dashboard';
                 } catch (error) {
                     err.textContent = error.message;
@@ -181,22 +181,25 @@ pub fn RegisterPage() -> impl IntoView {
                 btn.innerHTML = '<i class="ph ph-spinner text-lg animate-spin"></i> Creating account...';
 
                 try {
+                    const refCode = new URLSearchParams(window.location.search).get('ref') || '';
+                    const body = {
+                        username: form.username.value,
+                        email: form.email.value,
+                        password: form.password.value
+                    };
+                    if (refCode) body.referral_code = refCode;
                     const res = await fetch('/api/auth/register', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            username: form.username.value,
-                            email: form.email.value,
-                            password: form.password.value
-                        })
+                        body: JSON.stringify(body)
                     });
                     const data = await res.json();
                     if (!res.ok) {
                         throw new Error(data.error || 'Registration failed');
                     }
-                    document.cookie = `token=${data.access_token};path=/;max-age=900;SameSite=Strict`;
-                    document.cookie = `refresh_token=${data.refresh_token};path=/;max-age=604800;SameSite=Strict`;
-                    document.cookie = `user=${encodeURIComponent(JSON.stringify(data.user))};path=/;max-age=604800;SameSite=Strict`;
+                    document.cookie = `token=${data.access_token};path=/;max-age=2592000;SameSite=Strict`;
+                    document.cookie = `refresh_token=${data.refresh_token};path=/;max-age=2592000;SameSite=Strict`;
+                    document.cookie = `user=${encodeURIComponent(JSON.stringify(data.user))};path=/;max-age=2592000;SameSite=Strict`;
                     window.location.href = '/dashboard';
                 } catch (error) {
                     err.textContent = error.message;

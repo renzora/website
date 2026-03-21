@@ -1,3 +1,6 @@
 /target
 .env
 *.pem
+/uploads/
+.claude/
+seed_test_data.sql

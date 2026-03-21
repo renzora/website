@@ -16,6 +16,8 @@ pub struct Asset {
     pub version: String,
     pub downloads: i64,
     pub published: bool,
+    pub rating_sum: i64,
+    pub rating_count: i32,
     pub created_at: OffsetDateTime,
     pub updated_at: OffsetDateTime,
 }
@@ -33,6 +35,8 @@ pub struct AssetWithCreator {
     pub version: String,
     pub downloads: i64,
     pub creator_name: String,
+    pub rating_sum: i64,
+    pub rating_count: i32,
 }
 
 impl Asset {
@@ -91,6 +95,20 @@ impl Asset {
         page: i64,
         per_page: i64,
     ) -> Result<(Vec<AssetWithCreator>, i64), sqlx::Error> {
+        Self::list_published_filtered(pool, query, category, sort, page, per_page, None, None, None).await
+    }
+
+    pub async fn list_published_filtered(
+        pool: &PgPool,
+        query: Option<&str>,
+        category: Option<&str>,
+        sort: &str,
+        page: i64,
+        per_page: i64,
+        free_only: Option<bool>,
+        min_rating: Option<i32>,
+        max_price: Option<i64>,
+    ) -> Result<(Vec<AssetWithCreator>, i64), sqlx::Error> {
         let offset = (page - 1) * per_page;
 
         let order_clause = match sort {
@@ -98,36 +116,27 @@ impl Asset {
             "popular" => "a.downloads DESC",
             "price_asc" => "a.price_credits ASC",
             "price_desc" => "a.price_credits DESC",
+            "top_rated" => "CASE WHEN a.rating_count > 0 THEN a.rating_sum::float / a.rating_count ELSE 0 END DESC",
             _ => "a.created_at DESC",
         };
 
-        // Build dynamic query
-        let mut conditions = vec!["a.published = true".to_string()];
-        if let Some(q) = query {
-            if !q.is_empty() {
-                conditions.push(format!(
-                    "(a.name ILIKE '%' || ${} || '%' OR a.description ILIKE '%' || ${} || '%')",
-                    conditions.len() + 1,
-                    conditions.len() + 1,
-                ));
-            }
-        }
-        if let Some(cat) = category {
-            if !cat.is_empty() && cat != "all" {
-                conditions.push(format!("a.category = ${}", conditions.len() + 1));
-            }
-        }
+        let free_filter = free_only.unwrap_or(false);
+        let min_r = min_rating.unwrap_or(0);
+        let max_p = max_price.unwrap_or(-1);
 
-        // For simplicity, use a straightforward query with optional filters
         let assets = sqlx::query_as::<_, AssetWithCreator>(&format!(
             r#"
             SELECT a.id, a.name, a.slug, a.description, a.category, a.price_credits,
-                   a.thumbnail_url, a.version, a.downloads, u.username AS creator_name
+                   a.thumbnail_url, a.version, a.downloads, u.username AS creator_name,
+                   a.rating_sum, a.rating_count
             FROM assets a
             JOIN users u ON u.id = a.creator_id
             WHERE a.published = true
               AND ($1::text IS NULL OR a.name ILIKE '%' || $1 || '%' OR a.description ILIKE '%' || $1 || '%')
               AND ($2::text IS NULL OR $2 = 'all' OR a.category = $2)
+              AND ($5::bool = false OR a.price_credits = 0)
+              AND ($6::int = 0 OR (a.rating_count > 0 AND a.rating_sum::float / a.rating_count >= $6::float))
+              AND ($7::bigint = -1 OR a.price_credits <= $7)
             ORDER BY {order_clause}
             LIMIT $3 OFFSET $4
             "#,
@@ -136,6 +145,9 @@ impl Asset {
         .bind(category)
         .bind(per_page)
         .bind(offset)
+        .bind(free_filter)
+        .bind(min_r)
+        .bind(max_p)
         .fetch_all(pool)
         .await?;
 
@@ -146,10 +158,16 @@ impl Asset {
             WHERE a.published = true
               AND ($1::text IS NULL OR a.name ILIKE '%' || $1 || '%' OR a.description ILIKE '%' || $1 || '%')
               AND ($2::text IS NULL OR $2 = 'all' OR a.category = $2)
+              AND ($3::bool = false OR a.price_credits = 0)
+              AND ($4::int = 0 OR (a.rating_count > 0 AND a.rating_sum::float / a.rating_count >= $4::float))
+              AND ($5::bigint = -1 OR a.price_credits <= $5)
             "#,
         )
         .bind(query)
         .bind(category)
+        .bind(free_filter)
+        .bind(min_r)
+        .bind(max_p)
         .fetch_one(pool)
         .await?;
 
@@ -224,6 +242,31 @@ impl Asset {
         .bind(published)
         .fetch_one(pool)
         .await
+    }
+
+    /// List all assets owned/purchased by a user (via user_assets table).
+    pub async fn list_purchased_by_user(
+        pool: &PgPool,
+        user_id: Uuid,
+    ) -> Result<(Vec<AssetWithCreator>, i64), sqlx::Error> {
+        let assets = sqlx::query_as::<_, AssetWithCreator>(
+            r#"
+            SELECT a.id, a.name, a.slug, a.description, a.category, a.price_credits,
+                   a.thumbnail_url, a.version, a.downloads, u.username AS creator_name,
+                   a.rating_sum, a.rating_count
+            FROM user_assets ua
+            JOIN assets a ON a.id = ua.asset_id
+            JOIN users u ON u.id = a.creator_id
+            WHERE ua.user_id = $1
+            ORDER BY ua.purchased_at DESC
+            "#,
+        )
+        .bind(user_id)
+        .fetch_all(pool)
+        .await?;
+
+        let total = assets.len() as i64;
+        Ok((assets, total))
     }
 
     pub async fn increment_downloads(pool: &PgPool, id: Uuid) -> Result<(), sqlx::Error> {

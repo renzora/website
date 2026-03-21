@@ -50,6 +50,20 @@ pub fn router() -> Router<AppState> {
         .route("/users/:id/roles", get(get_user_roles_handler))
         .route("/users/:user_id/roles/:role_id", post(assign_role_handler))
         .route("/users/:user_id/roles/:role_id", delete(remove_role_handler))
+        // Reviews
+        .route("/reviews/flagged", get(list_flagged_reviews))
+        .route("/reviews/:id/hide", put(hide_review))
+        .route("/reviews/:id/unhide", put(unhide_review))
+        .route("/reviews/:id/dismiss", put(dismiss_review_flag))
+        .route("/reviews/:id", delete(delete_review))
+        // Withdrawals
+        .route("/withdrawals", get(list_admin_withdrawals))
+        .route("/withdrawals/:id/reject", put(reject_withdrawal))
+        // Promo codes
+        .route("/promo-codes", get(list_promo_codes))
+        .route("/promo-codes", post(create_promo_code))
+        .route("/promo-codes/:id/toggle", put(toggle_promo_code))
+        .route("/promo-codes/:id", delete(delete_promo_code))
         // Bans
         .route("/users/:id/ban", post(ban_user_handler))
         .route("/users/:id/unban", post(unban_user_handler))
@@ -591,6 +605,169 @@ async fn delete_mod_note_handler(
 ) -> Result<Json<serde_json::Value>, ApiError> {
     verify_admin(&state, auth.user_id).await?;
     renzora_models::role::delete_mod_note(&state.db, id).await?;
+    Ok(Json(serde_json::json!({"message": "Deleted"})))
+}
+
+// ── Reviews Moderation ──
+
+async fn list_flagged_reviews(
+    State(state): State<AppState>,
+    Extension(auth): Extension<AuthUser>,
+) -> Result<Json<Vec<renzora_models::review::FlaggedReview>>, ApiError> {
+    verify_admin(&state, auth.user_id).await?;
+    let reviews = renzora_models::review::Review::list_flagged(&state.db).await?;
+    Ok(Json(reviews))
+}
+
+async fn hide_review(
+    State(state): State<AppState>,
+    Extension(auth): Extension<AuthUser>,
+    Path(id): Path<Uuid>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    verify_admin(&state, auth.user_id).await?;
+    renzora_models::review::Review::set_hidden(&state.db, id, true).await?;
+    Ok(Json(serde_json::json!({"message": "Review hidden"})))
+}
+
+async fn unhide_review(
+    State(state): State<AppState>,
+    Extension(auth): Extension<AuthUser>,
+    Path(id): Path<Uuid>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    verify_admin(&state, auth.user_id).await?;
+    renzora_models::review::Review::set_hidden(&state.db, id, false).await?;
+    Ok(Json(serde_json::json!({"message": "Review unhidden"})))
+}
+
+async fn dismiss_review_flag(
+    State(state): State<AppState>,
+    Extension(auth): Extension<AuthUser>,
+    Path(id): Path<Uuid>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    verify_admin(&state, auth.user_id).await?;
+    renzora_models::review::Review::dismiss_flag(&state.db, id).await?;
+    Ok(Json(serde_json::json!({"message": "Flag dismissed"})))
+}
+
+async fn delete_review(
+    State(state): State<AppState>,
+    Extension(auth): Extension<AuthUser>,
+    Path(id): Path<Uuid>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    verify_admin(&state, auth.user_id).await?;
+    renzora_models::review::Review::delete(&state.db, id)
+        .await
+        .map_err(|e| ApiError::Internal(e))?;
+    Ok(Json(serde_json::json!({"message": "Review deleted"})))
+}
+
+// ── Withdrawals ──
+
+async fn list_admin_withdrawals(
+    State(state): State<AppState>,
+    Extension(auth): Extension<AuthUser>,
+    Query(params): Query<DisputeQuery>,
+) -> Result<Json<Vec<renzora_models::withdrawal::WithdrawalWithUser>>, ApiError> {
+    verify_admin(&state, auth.user_id).await?;
+    let withdrawals = renzora_models::withdrawal::Withdrawal::list_all(&state.db, params.status.as_deref()).await?;
+    Ok(Json(withdrawals))
+}
+
+#[derive(Deserialize)]
+struct RejectWithdrawalBody { reason: String }
+
+async fn reject_withdrawal(
+    State(state): State<AppState>,
+    Extension(auth): Extension<AuthUser>,
+    Path(id): Path<Uuid>,
+    Json(body): Json<RejectWithdrawalBody>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    verify_admin(&state, auth.user_id).await?;
+    renzora_models::withdrawal::Withdrawal::mark_failed(&state.db, id, &body.reason)
+        .await
+        .map_err(|e| ApiError::Validation(e))?;
+    Ok(Json(serde_json::json!({"message": "Withdrawal rejected and credits refunded"})))
+}
+
+// ── Promo Codes ──
+
+async fn list_promo_codes(
+    State(state): State<AppState>,
+    Extension(auth): Extension<AuthUser>,
+) -> Result<Json<Vec<renzora_models::promo_code::PromoCode>>, ApiError> {
+    verify_admin(&state, auth.user_id).await?;
+    let codes = renzora_models::promo_code::PromoCode::list(&state.db).await?;
+    Ok(Json(codes))
+}
+
+#[derive(Deserialize)]
+struct CreatePromoCodeBody {
+    code: String,
+    discount_percent: i32,
+    max_uses: Option<i32>,
+    expires_hours: Option<i64>,
+}
+
+async fn create_promo_code(
+    State(state): State<AppState>,
+    Extension(auth): Extension<AuthUser>,
+    Json(body): Json<CreatePromoCodeBody>,
+) -> Result<Json<renzora_models::promo_code::PromoCode>, ApiError> {
+    verify_admin(&state, auth.user_id).await?;
+    if body.code.trim().is_empty() || body.code.len() > 32 {
+        return Err(ApiError::Validation("Code must be 1-32 characters".into()));
+    }
+    if body.discount_percent < 1 || body.discount_percent > 20 {
+        return Err(ApiError::Validation("Discount must be 1-20%".into()));
+    }
+    let expires_at = body.expires_hours.map(|h| {
+        time::OffsetDateTime::now_utc() + time::Duration::hours(h)
+    });
+    let code = renzora_models::promo_code::PromoCode::create(
+        &state.db,
+        &body.code,
+        body.discount_percent,
+        body.max_uses,
+        expires_at,
+        auth.user_id,
+    )
+    .await
+    .map_err(|e| {
+        if e.to_string().contains("duplicate") || e.to_string().contains("unique") {
+            ApiError::Validation("A promo code with that name already exists".into())
+        } else {
+            ApiError::Internal(e.to_string())
+        }
+    })?;
+    Ok(Json(code))
+}
+
+async fn toggle_promo_code(
+    State(state): State<AppState>,
+    Extension(auth): Extension<AuthUser>,
+    Path(id): Path<Uuid>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    verify_admin(&state, auth.user_id).await?;
+    // Toggle: fetch current, flip
+    let current = sqlx::query_as::<_, (bool,)>(
+        "SELECT active FROM promo_codes WHERE id = $1",
+    )
+    .bind(id)
+    .fetch_optional(&state.db)
+    .await?
+    .ok_or(ApiError::NotFound)?;
+
+    renzora_models::promo_code::PromoCode::set_active(&state.db, id, !current.0).await?;
+    Ok(Json(serde_json::json!({"message": "Toggled", "active": !current.0})))
+}
+
+async fn delete_promo_code(
+    State(state): State<AppState>,
+    Extension(auth): Extension<AuthUser>,
+    Path(id): Path<Uuid>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    verify_admin(&state, auth.user_id).await?;
+    renzora_models::promo_code::PromoCode::delete(&state.db, id).await?;
     Ok(Json(serde_json::json!({"message": "Deleted"})))
 }
 

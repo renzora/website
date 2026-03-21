@@ -11,12 +11,12 @@ pub fn DocsPage() -> impl IntoView {
                     <p class="text-zinc-400 mt-2 text-sm">"Choose your path."</p>
                 </div>
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <a href="/docs/game-dev" class="block p-8 bg-surface-card border border-zinc-800 rounded-xl hover:border-accent transition-all group text-center">
+                    <a href="/docs/game-dev/installation" class="block p-8 bg-surface-card border border-zinc-800 rounded-xl hover:border-accent transition-all group text-center">
                         <i class="ph ph-game-controller text-4xl text-accent mb-3"></i>
                         <h2 class="text-lg font-semibold group-hover:text-accent transition-colors">"Game Developer"</h2>
                         <p class="text-sm text-zinc-400 mt-2">"Learn how to use the engine: editor, scripting, exporting, and marketplace."</p>
                     </a>
-                    <a href="/docs/developer" class="block p-8 bg-surface-card border border-zinc-800 rounded-xl hover:border-accent transition-all group text-center">
+                    <a href="/docs/developer/building-from-source" class="block p-8 bg-surface-card border border-zinc-800 rounded-xl hover:border-accent transition-all group text-center">
                         <i class="ph ph-code text-4xl text-accent mb-3"></i>
                         <h2 class="text-lg font-semibold group-hover:text-accent transition-colors">"Engine Developer"</h2>
                         <p class="text-sm text-zinc-400 mt-2">"Build, extend, and contribute: architecture, components, plugins, and rendering."</p>
@@ -64,7 +64,7 @@ pub fn DocsSectionPage() -> impl IntoView {
                                 `).join('')}
                             </div>
                         </div>
-                    `).join('');
+                    `).join('')
                 `;
             })();
             "##
@@ -103,13 +103,142 @@ pub fn DocArticle() -> impl IntoView {
                         <i class="ph ph-caret-right text-[10px]"></i>
                         <span>${doc.category}</span>
                     </div>
-                    <h1 class="text-3xl font-bold mb-6">${doc.title}</h1>
                     <div class="doc-body">${doc.content}</div>
                 `;
-                document.querySelectorAll('.doc-body pre code').forEach(block => hljs.highlightElement(block));
+
+                // Highlight code and add copy buttons
+                document.querySelectorAll('.doc-body pre').forEach(pre => {
+                    const code = pre.querySelector('code');
+                    if (!code) return;
+
+                    // Detect language from class
+                    const langClass = [...code.classList].find(c => c.startsWith('language-'));
+                    const lang = langClass ? langClass.replace('language-', '') : '';
+
+                    // Highlight
+                    hljs.highlightElement(code);
+
+                    // Wrap in container
+                    const wrapper = document.createElement('div');
+                    wrapper.className = 'code-block-wrapper';
+
+                    // Header bar with language label + copy button
+                    const header = document.createElement('div');
+                    header.className = 'code-block-header';
+                    header.innerHTML = `
+                        <span class="code-lang">${lang || 'code'}</span>
+                        <button class="code-copy-btn" onclick="copyCode(this)">
+                            <i class="ph ph-copy"></i> Copy
+                        </button>
+                    `;
+
+                    pre.parentNode.insertBefore(wrapper, pre);
+                    wrapper.appendChild(header);
+                    wrapper.appendChild(pre);
+                });
             })();
+
+            function copyCode(btn) {
+                const wrapper = btn.closest('.code-block-wrapper');
+                const code = wrapper.querySelector('code');
+                const text = code.textContent;
+                navigator.clipboard.writeText(text).then(() => {
+                    btn.innerHTML = '<i class="ph ph-check"></i> Copied!';
+                    btn.classList.add('copied');
+                    setTimeout(() => {
+                        btn.innerHTML = '<i class="ph ph-copy"></i> Copy';
+                        btn.classList.remove('copied');
+                    }, 2000);
+                });
+            }
             "##
         </script>
+
+        <style>
+            r#"
+            .code-block-wrapper {
+                position: relative;
+                margin-bottom: 1.25rem;
+                border-radius: 10px;
+                border: 1px solid #27272a;
+                overflow: hidden;
+                background: #0d0d0f;
+            }
+            .code-block-header {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                padding: 6px 12px;
+                background: #18181b;
+                border-bottom: 1px solid #27272a;
+            }
+            .code-lang {
+                font-size: 11px;
+                font-weight: 500;
+                color: #71717a;
+                text-transform: uppercase;
+                letter-spacing: 0.05em;
+                font-family: 'Cascadia Code', 'Fira Code', monospace;
+            }
+            .code-copy-btn {
+                display: inline-flex;
+                align-items: center;
+                gap: 4px;
+                padding: 3px 10px;
+                border-radius: 6px;
+                font-size: 11px;
+                font-weight: 500;
+                color: #a1a1aa;
+                background: transparent;
+                border: 1px solid transparent;
+                cursor: pointer;
+                transition: all 0.15s;
+            }
+            .code-copy-btn:hover {
+                color: #fafafa;
+                background: rgba(255,255,255,0.05);
+                border-color: #3f3f46;
+            }
+            .code-copy-btn.copied {
+                color: #4ade80;
+            }
+            .code-block-wrapper pre {
+                margin: 0 !important;
+                border: none !important;
+                border-radius: 0 !important;
+                background: #0d0d0f !important;
+                padding: 1rem !important;
+            }
+            .code-block-wrapper pre code {
+                font-size: 13px !important;
+                line-height: 1.7 !important;
+                font-family: 'Cascadia Code', 'Fira Code', monospace !important;
+                tab-size: 4;
+            }
+
+            /* Override highlight.js background */
+            .code-block-wrapper .hljs {
+                background: transparent !important;
+                padding: 0 !important;
+            }
+
+            /* Inline code styling */
+            .doc-body code:not(pre code) {
+                background: #1e1e22;
+                padding: 2px 6px;
+                border-radius: 4px;
+                font-size: 0.8125rem;
+                font-family: 'Cascadia Code', 'Fira Code', monospace;
+                color: #c4b5fd;
+                border: 1px solid #27272a;
+            }
+
+            /* Line numbers effect via counter */
+            .code-block-wrapper pre code {
+                counter-reset: line;
+            }
+            "#
+        </style>
     }
 }
 

@@ -112,6 +112,8 @@ impl Transaction {
 }
 
 /// Atomically process a purchase: deduct buyer credits, credit creator, record transactions, grant ownership.
+/// `promo_discount` reduces the platform cut (0-20). Standard platform cut is 20%.
+/// E.g. promo_discount=10 means platform takes 10% instead of 20%, creator gets 90%.
 /// Returns an error if the buyer has insufficient credits.
 pub async fn process_purchase(
     pool: &PgPool,
@@ -120,8 +122,54 @@ pub async fn process_purchase(
     price: i64,
     creator_id: Uuid,
 ) -> Result<(), String> {
-    // Platform takes 20% cut, creator gets 80%
-    let creator_share = (price * 80) / 100;
+    process_purchase_with_promo(pool, buyer_id, asset_id, price, creator_id, 0).await
+}
+
+/// Same as `process_purchase` but with promo discount and optional referral payout.
+pub async fn process_purchase_with_promo(
+    pool: &PgPool,
+    buyer_id: Uuid,
+    asset_id: Uuid,
+    price: i64,
+    creator_id: Uuid,
+    promo_discount: i32,
+) -> Result<(), String> {
+    // Look up if the buyer was referred by someone
+    let referrer_id: Option<Uuid> = sqlx::query_as::<_, (Option<Uuid>,)>(
+        "SELECT referred_by FROM users WHERE id = $1",
+    )
+    .bind(buyer_id)
+    .fetch_one(pool)
+    .await
+    .map(|r| r.0)
+    .unwrap_or(None);
+
+    process_purchase_full(pool, buyer_id, asset_id, price, creator_id, promo_discount, referrer_id).await
+}
+
+/// Full purchase processing with promo and referral.
+pub async fn process_purchase_full(
+    pool: &PgPool,
+    buyer_id: Uuid,
+    asset_id: Uuid,
+    price: i64,
+    creator_id: Uuid,
+    promo_discount: i32,
+    referrer_id: Option<Uuid>,
+) -> Result<(), String> {
+    // Standard platform cut is 20%. Promo reduces it.
+    let platform_cut_percent = (20 - promo_discount.clamp(0, 20)) as i64;
+    let creator_share = (price * (100 - platform_cut_percent)) / 100;
+
+    // Referral: 5% of purchase price, capped by remaining platform margin
+    let platform_amount = price - creator_share;
+    let referral_share = if referrer_id.is_some() && referrer_id != Some(creator_id) && referrer_id != Some(buyer_id) {
+        let raw = (price * 5) / 100;
+        // Can't exceed what the platform keeps
+        raw.min(platform_amount)
+    } else {
+        0
+    };
 
     let mut tx = pool.begin().await.map_err(|e| e.to_string())?;
 
@@ -184,6 +232,49 @@ pub async fn process_purchase(
     .execute(&mut *tx)
     .await
     .map_err(|e| e.to_string())?;
+
+    // Referral payout (if applicable and > 0)
+    if let Some(ref_id) = referrer_id {
+        if referral_share > 0 {
+            // Credit referrer's balance
+            sqlx::query(
+                "UPDATE users SET credit_balance = credit_balance + $1, updated_at = NOW() WHERE id = $2",
+            )
+            .bind(referral_share)
+            .bind(ref_id)
+            .execute(&mut *tx)
+            .await
+            .map_err(|e| e.to_string())?;
+
+            // Record referral earning transaction
+            let ref_tx_id = Uuid::new_v4();
+            sqlx::query(
+                "INSERT INTO transactions (id, user_id, type, amount, asset_id) VALUES ($1, $2, 'referral', $3, $4)",
+            )
+            .bind(ref_tx_id)
+            .bind(ref_id)
+            .bind(referral_share)
+            .bind(asset_id)
+            .execute(&mut *tx)
+            .await
+            .map_err(|e| e.to_string())?;
+
+            // Record in referral_earnings for tracking
+            let re_id = Uuid::new_v4();
+            sqlx::query(
+                "INSERT INTO referral_earnings (id, referrer_id, referee_id, asset_id, purchase_amount, referral_amount) VALUES ($1, $2, $3, $4, $5, $6)",
+            )
+            .bind(re_id)
+            .bind(ref_id)
+            .bind(buyer_id)
+            .bind(asset_id)
+            .bind(price)
+            .bind(referral_share)
+            .execute(&mut *tx)
+            .await
+            .map_err(|e| e.to_string())?;
+        }
+    }
 
     tx.commit().await.map_err(|e| e.to_string())?;
 

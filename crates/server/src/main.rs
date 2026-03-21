@@ -1,3 +1,5 @@
+#![recursion_limit = "256"]
+
 mod docs_files;
 
 use axum::{
@@ -122,10 +124,8 @@ async fn main() {
         .nest_service("/uploads", ServeDir::new(&upload_dir))
         // Serve static assets (CSS, JS, images)
         .nest_service("/assets", ServeDir::new("assets"))
-        // API routes
-        .nest("/api", api_router(state))
-        // File-based docs API (overrides the DB-based /api/docs)
-        .nest("/api/docs", docs_files::router())
+        // API routes (includes file-based docs)
+        .nest("/api", api_router(state).merge(Router::new().nest("/docs", docs_files::router())))
         // Frontend pages — explicit SSR routes
         .route("/", get(ssr.clone()))
         .route("/download", get(ssr.clone()))
@@ -136,8 +136,10 @@ async fn main() {
         .route("/docs/developer", get(ssr.clone()))
         .route("/docs/*slug", get(ssr.clone()))
         .route("/marketplace", get(ssr.clone()))
+        .route("/marketplace/sell", get(ssr.clone()))
         .route("/marketplace/upload", get(ssr.clone()))
         .route("/marketplace/asset/:slug", get(ssr.clone()))
+        .route("/library", get(ssr.clone()))
         .route("/wallet", get(ssr.clone()))
         .route("/courses", get(ssr.clone()))
         .route("/courses/create", get(ssr.clone()))

@@ -43,6 +43,9 @@ pub fn AdminPage() -> impl IntoView {
                     <button onclick="showTab('roles')" class="admin-tab px-4 py-2 text-sm rounded-t-lg text-zinc-400" id="tab-roles">"Roles"</button>
                     <button onclick="showTab('forum')" class="admin-tab px-4 py-2 text-sm rounded-t-lg text-zinc-400" id="tab-forum">"Forum"</button>
                     <button onclick="showTab('badges')" class="admin-tab px-4 py-2 text-sm rounded-t-lg text-zinc-400" id="tab-badges">"Badges"</button>
+                    <button onclick="showTab('reviews')" class="admin-tab px-4 py-2 text-sm rounded-t-lg text-zinc-400" id="tab-reviews">"Reviews"</button>
+                    <button onclick="showTab('withdrawals')" class="admin-tab px-4 py-2 text-sm rounded-t-lg text-zinc-400" id="tab-withdrawals">"Withdrawals"</button>
+                    <button onclick="showTab('promos')" class="admin-tab px-4 py-2 text-sm rounded-t-lg text-zinc-400" id="tab-promos">"Promos"</button>
                     <button onclick="showTab('settings')" class="admin-tab px-4 py-2 text-sm rounded-t-lg text-zinc-400" id="tab-settings">"Settings"</button>
                     <button onclick="showTab('docs')" class="admin-tab px-4 py-2 text-sm rounded-t-lg text-zinc-400" id="tab-docs">"Docs"</button>
                 </div>
@@ -81,7 +84,7 @@ pub fn AdminPage() -> impl IntoView {
                 document.querySelectorAll('.admin-tab').forEach(t => { t.classList.remove('bg-surface-card', 'text-zinc-50'); t.classList.add('text-zinc-400'); });
                 document.getElementById('tab-' + name)?.classList.add('bg-surface-card', 'text-zinc-50');
                 document.getElementById('tab-' + name)?.classList.remove('text-zinc-400');
-                const loaders = { users: loadUsers, assets: loadAssets, categories: loadCategories, disputes: loadDisputes, roles: loadRoles, forum: loadForumCats, badges: loadBadges, settings: loadSettings, docs: loadDocs };
+                const loaders = { users: loadUsers, assets: loadAssets, categories: loadCategories, disputes: loadDisputes, roles: loadRoles, forum: loadForumCats, badges: loadBadges, reviews: loadFlaggedReviews, withdrawals: loadWithdrawals, promos: loadPromos, settings: loadSettings, docs: loadDocs };
                 if (loaders[name]) loaders[name]();
             }
 
@@ -459,6 +462,164 @@ pub fn AdminPage() -> impl IntoView {
             }
 
             async function delDoc(id) { await api('/docs/'+id, { method: 'DELETE' }); loadDocs(); }
+
+            // ── Reviews Moderation ──
+            async function loadFlaggedReviews() {
+                const el = document.getElementById('admin-content');
+                const data = await api('/reviews/flagged');
+                if (!data) return;
+                el.innerHTML = `<h2 class="text-lg font-semibold mb-4">Flagged Reviews <span class="text-zinc-500 text-sm font-normal">(${data.length})</span></h2>` +
+                (data.length ? data.map(r => {
+                    const stars = '★'.repeat(r.rating) + '☆'.repeat(5 - r.rating);
+                    return `
+                    <div class="p-4 bg-surface border border-zinc-800 rounded-lg mb-2 ${r.hidden ? 'opacity-50' : ''}">
+                        <div class="flex justify-between items-start mb-2">
+                            <div>
+                                <span class="text-amber-400 text-sm">${stars}</span>
+                                <span class="text-sm font-medium ml-2">${r.title || '(no title)'}</span>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <a href="/profile/${r.author_name}" class="text-xs text-accent">${r.author_name}</a>
+                                <span class="text-xs text-zinc-500">on</span>
+                                <span class="text-xs text-zinc-300">${r.asset_name}</span>
+                            </div>
+                        </div>
+                        <p class="text-sm text-zinc-400 mb-2">${r.content || '(no content)'}</p>
+                        ${r.flag_reason ? `<p class="text-xs text-red-400 mb-2"><i class="ph ph-flag"></i> Flag reason: ${r.flag_reason}</p>` : ''}
+                        <div class="flex gap-2">
+                            <button onclick="dismissFlag('${r.id}')" class="text-xs px-2 py-1 rounded bg-zinc-800 text-zinc-300 hover:bg-zinc-700">Dismiss Flag</button>
+                            <button onclick="hideReview('${r.id}')" class="text-xs px-2 py-1 rounded bg-amber-500/10 text-amber-400 hover:bg-amber-500/20">${r.hidden ? 'Unhide' : 'Hide'}</button>
+                            <button onclick="if(confirm('Delete this review permanently?')) delReview('${r.id}')" class="text-xs px-2 py-1 rounded bg-red-500/10 text-red-400 hover:bg-red-500/20">Delete</button>
+                        </div>
+                    </div>`;
+                }).join('') : '<p class="text-zinc-500 text-sm py-4">No flagged reviews.</p>');
+            }
+            async function dismissFlag(id) { await api('/reviews/' + id + '/dismiss', { method: 'PUT' }); loadFlaggedReviews(); }
+            async function hideReview(id) {
+                // Check if currently hidden by looking at the element
+                const data = await api('/reviews/flagged');
+                const review = data?.find(r => r.id === id);
+                if (review?.hidden) { await api('/reviews/' + id + '/unhide', { method: 'PUT' }); }
+                else { await api('/reviews/' + id + '/hide', { method: 'PUT' }); }
+                loadFlaggedReviews();
+            }
+            async function delReview(id) { await api('/reviews/' + id, { method: 'DELETE' }); loadFlaggedReviews(); }
+
+            // ── Withdrawals ──
+            async function loadWithdrawals() {
+                const el = document.getElementById('admin-content');
+                const data = await api('/withdrawals');
+                if (!data) return;
+                el.innerHTML = `<h2 class="text-lg font-semibold mb-4">Withdrawals</h2>` +
+                (data.length ? data.map(w => {
+                    const statusColors = { completed: 'text-green-400 bg-green-500/10', pending: 'text-amber-400 bg-amber-500/10', processing: 'text-blue-400 bg-blue-500/10', failed: 'text-red-400 bg-red-500/10' };
+                    const sc = statusColors[w.status] || 'text-zinc-400 bg-zinc-800';
+                    const usd = (w.amount_usd_cents / 100).toFixed(2);
+                    return `
+                    <div class="flex items-center justify-between p-3 bg-surface border border-zinc-800 rounded-lg mb-2">
+                        <div class="flex items-center gap-3">
+                            <a href="/profile/${w.username}" class="text-sm font-medium text-accent hover:text-accent-hover">${w.username}</a>
+                            <span class="text-sm font-semibold">${w.amount_credits.toLocaleString()} credits</span>
+                            <span class="text-xs text-zinc-500">$${usd}</span>
+                            <span class="text-[10px] px-2 py-0.5 rounded ${sc}">${w.status}</span>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <span class="text-xs text-zinc-500">${new Date(w.created_at).toLocaleDateString()}</span>
+                            ${w.status === 'pending' || w.status === 'processing' ? `<button onclick="rejectWithdrawal('${w.id}')" class="text-xs px-2 py-1 rounded bg-red-500/10 text-red-400 hover:bg-red-500/20">Reject & Refund</button>` : ''}
+                            ${w.failure_reason ? `<span class="text-[10px] text-red-400" title="${w.failure_reason}"><i class="ph ph-info"></i></span>` : ''}
+                        </div>
+                    </div>`;
+                }).join('') : '<p class="text-zinc-500 text-sm py-4">No withdrawals yet.</p>');
+            }
+
+            async function rejectWithdrawal(id) {
+                const reason = prompt('Rejection reason:');
+                if (!reason) return;
+                await api('/withdrawals/' + id + '/reject', { method: 'PUT', body: JSON.stringify({ reason }) });
+                loadWithdrawals();
+            }
+
+            // ── Promo Codes ──
+            async function loadPromos() {
+                const el = document.getElementById('admin-content');
+                const data = await api('/promo-codes');
+                if (!data) return;
+                el.innerHTML = `<div class="flex justify-between items-center mb-4">
+                    <h2 class="text-lg font-semibold">Promo Codes</h2>
+                    <button onclick="newPromo()" class="px-3 py-1.5 rounded-lg text-xs font-medium bg-accent text-white hover:bg-accent-hover"><i class="ph ph-plus"></i> New Code</button>
+                </div>
+                <p class="text-xs text-zinc-500 mb-4">Promo codes reduce the platform's 20% distribution fee. A code with 10% discount means the creator gets 90% instead of 80%.</p>` +
+                (data.length ? data.map(p => {
+                    const expired = p.expires_at && new Date(p.expires_at) < new Date();
+                    const maxed = p.max_uses && p.times_used >= p.max_uses;
+                    const statusColor = !p.active ? 'text-zinc-500' : expired || maxed ? 'text-amber-400' : 'text-green-400';
+                    const statusText = !p.active ? 'Inactive' : expired ? 'Expired' : maxed ? 'Max used' : 'Active';
+                    const usesText = p.max_uses ? `${p.times_used}/${p.max_uses}` : `${p.times_used}/∞`;
+                    const expiresText = p.expires_at ? new Date(p.expires_at).toLocaleDateString() : 'Never';
+                    return `
+                    <div class="flex items-center justify-between p-3 bg-surface border border-zinc-800 rounded-lg mb-2">
+                        <div class="flex items-center gap-3">
+                            <code class="text-sm font-mono font-bold text-accent bg-accent/10 px-2 py-0.5 rounded">${p.code}</code>
+                            <span class="text-xs text-zinc-400">-${p.discount_percent}% fee</span>
+                            <span class="text-xs ${statusColor}">${statusText}</span>
+                        </div>
+                        <div class="flex items-center gap-3">
+                            <span class="text-xs text-zinc-500">Uses: ${usesText}</span>
+                            <span class="text-xs text-zinc-500">Expires: ${expiresText}</span>
+                            <button onclick="togglePromo('${p.id}')" class="text-xs px-2 py-1 rounded bg-zinc-800 text-zinc-300 hover:bg-zinc-700">${p.active ? 'Disable' : 'Enable'}</button>
+                            <button onclick="if(confirm('Delete this promo code?')) delPromo('${p.id}')" class="text-xs px-2 py-1 rounded bg-red-500/10 text-red-400 hover:bg-red-500/20">Delete</button>
+                        </div>
+                    </div>`;
+                }).join('') : '<p class="text-zinc-500 text-sm py-4">No promo codes yet.</p>');
+            }
+
+            function newPromo() {
+                showModal(`<h3 class="text-base font-semibold mb-4">New Promo Code</h3>
+                    <div class="space-y-3">
+                        <div><label class="block text-xs text-zinc-500 mb-1">Code</label>
+                        <input id="np-code" placeholder="e.g. LAUNCH2026" maxlength="32" class="w-full px-3 py-2 bg-surface border border-zinc-800 rounded-lg text-sm text-zinc-50 uppercase" /></div>
+                        <div><label class="block text-xs text-zinc-500 mb-1">Discount (% off platform fee, 1-20)</label>
+                        <input id="np-discount" type="number" min="1" max="20" value="10" class="w-full px-3 py-2 bg-surface border border-zinc-800 rounded-lg text-sm text-zinc-50" />
+                        <p class="text-[10px] text-zinc-600 mt-1">Standard fee is 20%. A discount of 10 means platform takes 10%, creator gets 90%.</p></div>
+                        <div><label class="block text-xs text-zinc-500 mb-1">Max Uses</label>
+                        <select id="np-uses" class="w-full px-3 py-2 bg-surface border border-zinc-800 rounded-lg text-sm text-zinc-50">
+                            <option value="">Unlimited</option>
+                            <option value="1">Single use (1)</option>
+                            <option value="5">5 uses</option>
+                            <option value="10">10 uses</option>
+                            <option value="25">25 uses</option>
+                            <option value="50">50 uses</option>
+                            <option value="100">100 uses</option>
+                        </select></div>
+                        <div><label class="block text-xs text-zinc-500 mb-1">Expires</label>
+                        <select id="np-expires" class="w-full px-3 py-2 bg-surface border border-zinc-800 rounded-lg text-sm text-zinc-50">
+                            <option value="">Never</option>
+                            <option value="24">24 hours</option>
+                            <option value="168">7 days</option>
+                            <option value="720">30 days</option>
+                            <option value="2160">90 days</option>
+                        </select></div>
+                        <button onclick="savePromo()" class="px-4 py-2 rounded-lg text-sm font-medium bg-accent text-white hover:bg-accent-hover">Create</button>
+                    </div>`);
+            }
+
+            async function savePromo() {
+                const code = document.getElementById('np-code').value.trim();
+                const discount = parseInt(document.getElementById('np-discount').value);
+                const usesVal = document.getElementById('np-uses').value;
+                const expiresVal = document.getElementById('np-expires').value;
+                if (!code) { alert('Code is required'); return; }
+                await api('/promo-codes', { method: 'POST', body: JSON.stringify({
+                    code,
+                    discount_percent: discount,
+                    max_uses: usesVal ? parseInt(usesVal) : null,
+                    expires_hours: expiresVal ? parseInt(expiresVal) : null,
+                })});
+                hideModal(); loadPromos();
+            }
+
+            async function togglePromo(id) { await api('/promo-codes/'+id+'/toggle', { method: 'PUT' }); loadPromos(); }
+            async function delPromo(id) { await api('/promo-codes/'+id, { method: 'DELETE' }); loadPromos(); }
 
             // Init
             loadStats();

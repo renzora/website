@@ -33,8 +33,8 @@ RUN touch crates/server/src/main.rs crates/api/src/lib.rs crates/models/src/lib.
 # Build the application
 RUN cargo build --release
 
-# Stage 2: Runtime
-FROM debian:bookworm-slim
+# Stage 2: Runtime (must match builder's glibc — rust:latest uses Trixie)
+FROM debian:trixie-slim
 
 RUN apt-get update && \
     apt-get install -y ca-certificates curl && \
@@ -45,6 +45,7 @@ WORKDIR /app
 COPY --from=builder /app/target/release/renzora-server /app/renzora-server
 COPY --from=builder /app/migrations /app/migrations
 COPY assets/ /app/assets/
+COPY docs/ /app/docs/
 
 EXPOSE 3000
 

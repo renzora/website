@@ -47,7 +47,28 @@ async fn register(
         return Err(ApiError::UserAlreadyExists);
     }
 
-    let user = User::create(&state.db, &body.username, &body.email, &body.password).await?;
+    // Resolve referral code to referrer user ID
+    let referred_by = if let Some(ref code) = body.referral_code {
+        let code = code.trim();
+        if !code.is_empty() {
+            User::find_by_referral_code(&state.db, code)
+                .await?
+                .map(|u| u.id)
+        } else {
+            None
+        }
+    } else {
+        None
+    };
+
+    let user = User::create_with_referral(
+        &state.db,
+        &body.username,
+        &body.email,
+        &body.password,
+        referred_by,
+    )
+    .await?;
 
     let access_token =
         jwt::create_access_token(user.id, &state.jwt_secret).map_err(|e| ApiError::Internal(e.to_string()))?;

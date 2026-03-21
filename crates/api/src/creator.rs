@@ -1,6 +1,6 @@
 use axum::{
     extract::{Extension, Query, State},
-    routing::get,
+    routing::{get, post},
     Json, Router,
 };
 use renzora_common::types::*;
@@ -14,6 +14,8 @@ pub fn router() -> Router<AppState> {
     Router::new()
         .route("/stats", get(stats))
         .route("/earnings", get(earnings))
+        .route("/onboard-status", get(onboard_status))
+        .route("/accept-policy", post(accept_policy))
         .layer(axum::middleware::from_fn(middleware::require_auth))
 }
 
@@ -45,17 +47,22 @@ async fn stats(
     let top_assets: Vec<AssetSummary> = sorted
         .into_iter()
         .take(5)
-        .map(|a| AssetSummary {
-            id: a.id,
-            name: a.name,
-            slug: a.slug,
-            description: a.description,
-            category: a.category,
-            price_credits: a.price_credits,
-            thumbnail_url: a.thumbnail_url,
-            version: a.version,
-            downloads: a.downloads,
-            creator_name: user.username.clone(),
+        .map(|a| {
+            let rating_avg = if a.rating_count > 0 { a.rating_sum as f64 / a.rating_count as f64 } else { 0.0 };
+            AssetSummary {
+                id: a.id,
+                name: a.name,
+                slug: a.slug,
+                description: a.description,
+                category: a.category,
+                price_credits: a.price_credits,
+                thumbnail_url: a.thumbnail_url,
+                version: a.version,
+                downloads: a.downloads,
+                creator_name: user.username.clone(),
+                rating_avg,
+                rating_count: a.rating_count,
+            }
         })
         .collect();
 
@@ -116,4 +123,37 @@ async fn earnings(
         total: total.0,
         page,
     }))
+}
+
+/// Get creator onboarding status (policy accepted + Stripe connected).
+async fn onboard_status(
+    State(state): State<AppState>,
+    Extension(auth): Extension<AuthUser>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    let user = User::find_by_id(&state.db, auth.user_id)
+        .await?
+        .ok_or(ApiError::NotFound)?;
+
+    Ok(Json(serde_json::json!({
+        "policy_accepted": user.creator_policy_accepted_at.is_some(),
+        "stripe_connected": user.stripe_connect_id.is_some(),
+        "stripe_onboarded": user.stripe_connect_onboarded,
+    })))
+}
+
+/// Accept the creator/seller policy.
+async fn accept_policy(
+    State(state): State<AppState>,
+    Extension(auth): Extension<AuthUser>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    sqlx::query(
+        "UPDATE users SET creator_policy_accepted_at = NOW(), updated_at = NOW() WHERE id = $1",
+    )
+    .bind(auth.user_id)
+    .execute(&state.db)
+    .await?;
+
+    Ok(Json(serde_json::json!({
+        "message": "Policy accepted",
+    })))
 }

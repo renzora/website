@@ -8,7 +8,7 @@ pub fn Footer() -> impl IntoView {
                 <div class="flex flex-col md:flex-row justify-between gap-8">
                     <div>
                         <span class="text-lg font-bold">"Renzora Engine"</span>
-                        <p class="text-zinc-500 text-sm mt-1">"A modern game engine built with Rust."</p>
+                        <p class="text-zinc-500 text-sm mt-1">"Powered by Rust & Bevy 0.18"</p>
                     </div>
                     <div class="flex gap-16">
                         <div class="flex flex-col gap-2">
@@ -25,13 +25,13 @@ pub fn Footer() -> impl IntoView {
                         </div>
                         <div class="flex flex-col gap-2">
                             <h4 class="text-xs font-semibold uppercase tracking-wider text-zinc-500 mb-1">"Community"</h4>
-                            <a href="https://github.com/renzora" class="text-sm text-zinc-400 hover:text-zinc-50 transition-colors flex items-center gap-1.5">
+                            <a href="https://github.com/renzora" target="_blank" rel="noopener noreferrer" class="text-sm text-zinc-400 hover:text-zinc-50 transition-colors flex items-center gap-1.5">
                                 <i class="ph ph-github-logo text-sm"></i>"GitHub"
                             </a>
-                            <a href="https://discord.gg/9UHUGUyDJv" class="text-sm text-zinc-400 hover:text-zinc-50 transition-colors flex items-center gap-1.5">
+                            <a href="https://discord.gg/9UHUGUyDJv" target="_blank" rel="noopener noreferrer" class="text-sm text-zinc-400 hover:text-zinc-50 transition-colors flex items-center gap-1.5">
                                 <i class="ph ph-discord-logo text-sm"></i>"Discord"
                             </a>
-                            <a href="https://youtube.com/@renzoragame" class="text-sm text-zinc-400 hover:text-zinc-50 transition-colors flex items-center gap-1.5">
+                            <a href="https://youtube.com/@renzoragame" target="_blank" rel="noopener noreferrer" class="text-sm text-zinc-400 hover:text-zinc-50 transition-colors flex items-center gap-1.5">
                                 <i class="ph ph-youtube-logo text-sm"></i>"YouTube"
                             </a>
                         </div>

@@ -3,26 +3,45 @@ use leptos::prelude::*;
 #[component]
 pub fn DownloadPage() -> impl IntoView {
     view! {
-        <section class="py-12 px-6">
-            <div class="max-w-[1000px] mx-auto">
-                <div class="text-center mb-10">
-                    <h1 class="text-3xl font-bold">"Download Renzora Engine"</h1>
-                    <p class="text-zinc-400 mt-2 text-sm">"Free and open source."</p>
-                    <p id="release-version" class="mt-2 text-xs text-accent">"Loading latest release..."</p>
+        // Hero
+        <section class="relative pt-20 pb-12 px-6 overflow-hidden">
+            <div class="absolute inset-0 pointer-events-none">
+                <div class="absolute top-0 left-1/2 -translate-x-1/2 w-96 h-96 bg-accent/10 rounded-full blur-[120px]"></div>
+            </div>
+            <div class="relative z-10 max-w-[1000px] mx-auto text-center">
+                <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-accent/10 border border-accent/20 text-accent text-xs font-medium mb-5">
+                    <i class="ph ph-download-simple"></i>
+                    <span id="release-version">"Loading latest release..."</span>
                 </div>
+                <h1 class="text-4xl md:text-5xl font-extrabold tracking-tight">"Download Renzora Engine"</h1>
+                <p class="text-zinc-400 mt-3 text-base">"Free, open source, and ready to build."</p>
+            </div>
+        </section>
 
+        <section class="pb-20 px-6">
+            <div class="max-w-[1000px] mx-auto">
                 // Editor downloads
-                <h2 class="text-lg font-semibold mb-4">"Editor"</h2>
-                <div id="editor-downloads" class="grid grid-cols-1 md:grid-cols-3 gap-3 mb-12">
+                <h2 class="text-lg font-semibold mb-5 flex items-center gap-2">
+                    <div class="w-7 h-7 rounded-lg bg-accent/10 flex items-center justify-center">
+                        <i class="ph ph-desktop text-sm text-accent"></i>
+                    </div>
+                    "Editor"
+                </h2>
+                <div id="editor-downloads" class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-14">
                     <DownloadSkeleton />
                     <DownloadSkeleton />
                     <DownloadSkeleton />
                 </div>
 
                 // Export templates
-                <h2 class="text-lg font-semibold mb-2">"Export Templates"</h2>
-                <p class="text-xs text-zinc-500 mb-4">"Required for exporting your game to each platform. Downloaded automatically on first export, or grab them here."</p>
-                <div id="template-downloads" class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 mb-12">
+                <h2 class="text-lg font-semibold mb-2 flex items-center gap-2">
+                    <div class="w-7 h-7 rounded-lg bg-purple-500/10 flex items-center justify-center">
+                        <i class="ph ph-export text-sm text-purple-400"></i>
+                    </div>
+                    "Export Templates"
+                </h2>
+                <p class="text-xs text-zinc-500 mb-5 ml-9">"Required for exporting your game to each platform. Downloaded automatically on first export."</p>
+                <div id="template-downloads" class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 mb-14">
                     <TemplateSkeleton />
                     <TemplateSkeleton />
                     <TemplateSkeleton />
@@ -30,29 +49,38 @@ pub fn DownloadPage() -> impl IntoView {
                 </div>
 
                 // Other options
-                <div class="mb-10">
-                    <h2 class="text-lg font-semibold mb-3">"Other options"</h2>
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
-                        <a href="https://github.com/renzora/engine" class="p-5 bg-surface-card border border-zinc-800 rounded-xl hover:border-accent transition-colors flex items-center gap-4">
-                            <i class="ph ph-terminal text-2xl text-zinc-400"></i>
-                            <div>
-                                <h4 class="text-sm font-semibold mb-0.5">"Build from source"</h4>
-                                <p class="text-xs text-zinc-400">"Clone the repo and compile with Cargo. Requires Rust 1.85+."</p>
-                            </div>
-                        </a>
-                        <a href="https://github.com/renzora/engine/releases" class="p-5 bg-surface-card border border-zinc-800 rounded-xl hover:border-accent transition-colors flex items-center gap-4">
-                            <i class="ph ph-git-branch text-2xl text-zinc-400"></i>
-                            <div>
-                                <h4 class="text-sm font-semibold mb-0.5">"All releases"</h4>
-                                <p class="text-xs text-zinc-400">"Browse all versions and pre-release builds on GitHub."</p>
-                            </div>
-                        </a>
+                <h2 class="text-lg font-semibold mb-4 flex items-center gap-2">
+                    <div class="w-7 h-7 rounded-lg bg-emerald-500/10 flex items-center justify-center">
+                        <i class="ph ph-terminal text-sm text-emerald-400"></i>
                     </div>
+                    "Other Options"
+                </h2>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-12">
+                    <a href="https://github.com/renzora/engine" target="_blank" rel="noopener noreferrer" class="group p-5 bg-white/[0.02] border border-zinc-800/50 rounded-xl hover:border-zinc-600 hover:bg-white/[0.04] transition-all flex items-center gap-4">
+                        <div class="w-10 h-10 rounded-xl bg-zinc-800/80 flex items-center justify-center shrink-0 group-hover:scale-110 transition-transform">
+                            <i class="ph ph-terminal text-xl text-zinc-400"></i>
+                        </div>
+                        <div>
+                            <h4 class="text-sm font-semibold mb-0.5 group-hover:text-accent transition-colors">"Build from source"</h4>
+                            <p class="text-xs text-zinc-500">"Clone the repo and compile with Cargo. Requires Rust 1.85+."</p>
+                        </div>
+                        <i class="ph ph-arrow-up-right text-zinc-600 ml-auto group-hover:text-accent transition-colors"></i>
+                    </a>
+                    <a href="https://github.com/renzora/engine/releases" target="_blank" rel="noopener noreferrer" class="group p-5 bg-white/[0.02] border border-zinc-800/50 rounded-xl hover:border-zinc-600 hover:bg-white/[0.04] transition-all flex items-center gap-4">
+                        <div class="w-10 h-10 rounded-xl bg-zinc-800/80 flex items-center justify-center shrink-0 group-hover:scale-110 transition-transform">
+                            <i class="ph ph-git-branch text-xl text-zinc-400"></i>
+                        </div>
+                        <div>
+                            <h4 class="text-sm font-semibold mb-0.5 group-hover:text-accent transition-colors">"All releases"</h4>
+                            <p class="text-xs text-zinc-500">"Browse all versions and pre-release builds on GitHub."</p>
+                        </div>
+                        <i class="ph ph-arrow-up-right text-zinc-600 ml-auto group-hover:text-accent transition-colors"></i>
+                    </a>
                 </div>
 
-                <p class="text-center text-sm text-zinc-400">
+                <p class="text-center text-sm text-zinc-500">
                     "After installing, follow the "
-                    <a href="/docs/getting-started/installation" class="text-accent hover:text-accent-hover">"Getting Started guide"</a>
+                    <a href="/docs/getting-started/installation" class="text-accent hover:text-accent-hover transition-colors">"Getting Started guide"</a>
                     " to create your first project."
                 </p>
             </div>
@@ -60,9 +88,9 @@ pub fn DownloadPage() -> impl IntoView {
         <script>
             r##"
             const EDITOR_PLATFORMS = [
-                { key: 'windows', name: 'Windows', icon: 'ph-windows-logo', match: /windows.*x64|win64|\.exe$/i, req: 'Windows 10+, 64-bit' },
-                { key: 'macos', name: 'macOS', icon: 'ph-apple-logo', match: /macos|darwin|\.dmg$/i, req: 'macOS 12 Monterey+' },
-                { key: 'linux', name: 'Linux', icon: 'ph-linux-logo', match: /linux.*x64|\.appimage$/i, req: 'Ubuntu 22.04+, Fedora 38+' },
+                { key: 'windows', name: 'Windows', icon: 'ph-windows-logo', match: /windows.*x64|win64|\.exe$/i, req: 'Windows 10+, 64-bit', color: 'cyan' },
+                { key: 'macos', name: 'macOS', icon: 'ph-apple-logo', match: /macos|darwin|\.dmg$/i, req: 'macOS 12 Monterey+', color: 'zinc' },
+                { key: 'linux', name: 'Linux', icon: 'ph-linux-logo', match: /linux.*x64|\.appimage$/i, req: 'Ubuntu 22.04+, Fedora 38+', color: 'amber' },
             ];
 
             const TEMPLATE_PLATFORMS = [
@@ -82,80 +110,69 @@ pub fn DownloadPage() -> impl IntoView {
                 let assets = [];
                 try {
                     const res = await fetch('https://api.github.com/repos/renzora/engine/releases/latest');
-                    if (res.ok) {
-                        release = await res.json();
-                        assets = release.assets || [];
-                    }
+                    if (res.ok) { release = await res.json(); assets = release.assets || []; }
                 } catch(e) {}
 
-                // Fallback: try listing all releases
                 if (!release) {
                     try {
                         const res = await fetch('https://api.github.com/repos/renzora/engine/releases');
-                        if (res.ok) {
-                            const releases = await res.json();
-                            if (releases.length) { release = releases[0]; assets = release.assets || []; }
-                        }
+                        if (res.ok) { const releases = await res.json(); if (releases.length) { release = releases[0]; assets = release.assets || []; } }
                     } catch(e) {}
                 }
 
-                // Update version
                 const versionEl = document.getElementById('release-version');
                 if (release) {
-                    versionEl.innerHTML = `<a href="${release.html_url}" class="text-accent hover:text-accent-hover">${release.tag_name}</a> &mdash; ${new Date(release.published_at).toLocaleDateString()}`;
+                    versionEl.innerHTML = `<a href="${release.html_url}" target="_blank" rel="noopener noreferrer" class="text-accent hover:text-accent-hover">${release.tag_name}</a> — ${new Date(release.published_at).toLocaleDateString()}`;
                 } else {
                     versionEl.textContent = 'Could not fetch release info';
                 }
 
-                // Match assets to platforms
-                function findAsset(pattern) {
-                    return assets.find(a => pattern.test(a.name));
-                }
+                function findAsset(pattern) { return assets.find(a => pattern.test(a.name)); }
 
-                // Render editor downloads
                 const editorEl = document.getElementById('editor-downloads');
-                editorEl.innerHTML = EDITOR_PLATFORMS.map(p => {
+                editorEl.innerHTML = EDITOR_PLATFORMS.map((p, i) => {
                     const asset = findAsset(p.match);
                     const available = !!asset;
                     const url = asset ? asset.browser_download_url : '#';
                     const size = asset ? (asset.size / 1024 / 1024).toFixed(1) + ' MB' : '';
                     return `
-                        <div class="p-6 bg-surface-card border border-zinc-800 rounded-xl text-center flex flex-col items-center gap-2 ${available ? 'hover:border-accent' : 'opacity-40'} transition-colors">
-                            <i class="ph ${p.icon} text-3xl ${available ? 'text-zinc-300' : 'text-zinc-600'}"></i>
+                        <div class="relative p-6 bg-white/[0.02] border border-zinc-800/50 rounded-xl text-center flex flex-col items-center gap-3 ${available ? 'hover:border-accent/40 hover:bg-white/[0.04] hover:shadow-lg hover:shadow-accent/5' : 'opacity-40'} transition-all" style="animation: fadeSlideUp 0.5s ease both; animation-delay: ${i * 100}ms">
+                            <div class="w-14 h-14 rounded-2xl bg-white/[0.03] border border-zinc-800/30 flex items-center justify-center">
+                                <i class="ph ${p.icon} text-2xl ${available ? 'text-zinc-200' : 'text-zinc-600'}"></i>
+                            </div>
                             <h3 class="text-lg font-semibold">${p.name}</h3>
-                            <p class="text-xs text-zinc-500">${p.req}</p>
+                            <p class="text-[11px] text-zinc-500">${p.req}</p>
                             ${available ? `
-                                <a href="${url}" class="w-full mt-2 inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium bg-accent text-white hover:bg-accent-hover transition-colors">
+                                <a href="${url}" class="w-full mt-1 inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium bg-accent text-white hover:bg-accent-hover transition-all hover:shadow-[0_0_20px_rgba(99,102,241,0.2)]">
                                     <i class="ph ph-download-simple"></i>Download
                                 </a>
-                                <span class="text-[10px] text-zinc-500">${size}</span>
+                                <span class="text-[10px] text-zinc-600">${size}</span>
                             ` : `
-                                <span class="w-full mt-2 inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium bg-zinc-800 text-zinc-500 cursor-not-allowed">
-                                    Not available yet
+                                <span class="w-full mt-1 inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium bg-zinc-800/50 text-zinc-600 cursor-not-allowed">
+                                    Coming soon
                                 </span>
                             `}
                         </div>
                     `;
                 }).join('');
 
-                // Render export templates
                 const tplEl = document.getElementById('template-downloads');
-                tplEl.innerHTML = TEMPLATE_PLATFORMS.map(p => {
+                tplEl.innerHTML = TEMPLATE_PLATFORMS.map((p, i) => {
                     const asset = findAsset(p.match);
                     const available = !!asset;
                     const url = asset ? asset.browser_download_url : '#';
                     const size = asset ? (asset.size / 1024 / 1024).toFixed(1) + ' MB' : '';
                     return `
-                        <div class="p-4 bg-surface-card border border-zinc-800 rounded-xl flex flex-col items-center gap-2 ${available ? 'hover:border-accent' : 'opacity-40'} transition-colors">
+                        <div class="p-4 bg-white/[0.02] border border-zinc-800/50 rounded-xl flex flex-col items-center gap-2 ${available ? 'hover:border-zinc-600 hover:bg-white/[0.04]' : 'opacity-40'} transition-all" style="animation: fadeSlideUp 0.4s ease both; animation-delay: ${i * 60}ms">
                             <i class="ph ${p.icon} text-xl ${available ? 'text-zinc-300' : 'text-zinc-600'}"></i>
                             <span class="text-sm font-medium">${p.name}</span>
                             ${available ? `
                                 <a href="${url}" class="w-full inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-accent text-white hover:bg-accent-hover transition-colors">
                                     <i class="ph ph-download-simple"></i>Download
                                 </a>
-                                <span class="text-[10px] text-zinc-500">${size}</span>
+                                <span class="text-[10px] text-zinc-600">${size}</span>
                             ` : `
-                                <span class="text-[10px] text-zinc-500">Coming soon</span>
+                                <span class="text-[10px] text-zinc-600">Coming soon</span>
                             `}
                         </div>
                     `;
@@ -163,17 +180,26 @@ pub fn DownloadPage() -> impl IntoView {
             })();
             "##
         </script>
+
+        <style>
+            r#"
+            @keyframes fadeSlideUp {
+                from { opacity: 0; transform: translateY(16px); }
+                to { opacity: 1; transform: translateY(0); }
+            }
+            "#
+        </style>
     }
 }
 
 #[component]
 fn DownloadSkeleton() -> impl IntoView {
     view! {
-        <div class="p-6 bg-surface-card border border-zinc-800 rounded-xl animate-pulse">
-            <div class="h-8 w-8 bg-zinc-800 rounded mx-auto mb-3"></div>
-            <div class="h-4 w-20 bg-zinc-800 rounded mx-auto mb-2"></div>
-            <div class="h-3 w-32 bg-zinc-800 rounded mx-auto mb-4"></div>
-            <div class="h-10 bg-zinc-800 rounded"></div>
+        <div class="p-6 bg-white/[0.02] border border-zinc-800/50 rounded-xl animate-pulse">
+            <div class="w-14 h-14 bg-zinc-800/50 rounded-2xl mx-auto mb-3"></div>
+            <div class="h-4 w-20 bg-zinc-800/50 rounded mx-auto mb-2"></div>
+            <div class="h-3 w-32 bg-zinc-800/50 rounded mx-auto mb-4"></div>
+            <div class="h-10 bg-zinc-800/50 rounded-xl"></div>
         </div>
     }
 }
@@ -181,10 +207,10 @@ fn DownloadSkeleton() -> impl IntoView {
 #[component]
 fn TemplateSkeleton() -> impl IntoView {
     view! {
-        <div class="p-4 bg-surface-card border border-zinc-800 rounded-xl animate-pulse">
-            <div class="h-5 w-5 bg-zinc-800 rounded mx-auto mb-2"></div>
-            <div class="h-3 w-16 bg-zinc-800 rounded mx-auto mb-2"></div>
-            <div class="h-7 bg-zinc-800 rounded"></div>
+        <div class="p-4 bg-white/[0.02] border border-zinc-800/50 rounded-xl animate-pulse">
+            <div class="h-5 w-5 bg-zinc-800/50 rounded mx-auto mb-2"></div>
+            <div class="h-3 w-16 bg-zinc-800/50 rounded mx-auto mb-2"></div>
+            <div class="h-7 bg-zinc-800/50 rounded-lg"></div>
         </div>
     }
 }

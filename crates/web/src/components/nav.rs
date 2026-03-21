@@ -5,14 +5,33 @@ pub fn Nav() -> impl IntoView {
     view! {
         <nav class="sticky top-0 z-50 bg-[rgba(10,10,11,0.8)] backdrop-blur-xl border-b border-zinc-800">
             <div class="max-w-[1200px] mx-auto px-6 h-14 flex items-center gap-8">
-                <a href="/" class="text-lg font-bold tracking-tight">"Renzora Engine"</a>
+                <a href="/" class="text-lg font-bold tracking-tight">"Renzora"</a>
                 <div class="flex gap-6 flex-1">
+                    <a href="/download" class="text-sm text-zinc-400 hover:text-zinc-50 transition-colors flex items-center gap-1.5">
+                        <i class="ph ph-download-simple text-base"></i>"Download Engine"
+                    </a>
                     <a href="/marketplace" class="text-sm text-zinc-400 hover:text-zinc-50 transition-colors flex items-center gap-1.5">
                         <i class="ph ph-storefront text-base"></i>"Marketplace"
                     </a>
                     <a href="/docs" class="text-sm text-zinc-400 hover:text-zinc-50 transition-colors flex items-center gap-1.5">
                         <i class="ph ph-book-open text-base"></i>"Docs"
                     </a>
+                </div>
+                // Global search
+                <div class="relative" id="global-search-wrap">
+                    <button onclick="toggleGlobalSearch()" class="text-sm text-zinc-400 hover:text-zinc-50 hover:bg-surface-card p-1.5 rounded-lg transition-all" title="Search">
+                        <i class="ph ph-magnifying-glass text-lg"></i>
+                    </button>
+                    <div id="global-search-panel" class="hidden absolute right-0 top-full mt-2 w-[420px] bg-surface-card border border-zinc-800 rounded-xl shadow-2xl shadow-black/50 overflow-hidden z-50">
+                        <div class="flex items-center gap-2 px-4 py-3 border-b border-zinc-800">
+                            <i class="ph ph-magnifying-glass text-zinc-500"></i>
+                            <input type="text" id="global-search-input" placeholder="Search assets, users, docs..." oninput="globalSearch(this.value)" class="flex-1 bg-transparent text-sm text-zinc-50 outline-none placeholder:text-zinc-600" />
+                            <kbd class="text-[10px] text-zinc-600 border border-zinc-800 rounded px-1.5 py-0.5">"Esc"</kbd>
+                        </div>
+                        <div id="global-search-results" class="max-h-[400px] overflow-y-auto">
+                            <div class="px-4 py-8 text-center text-xs text-zinc-600">"Type to search across marketplace, users, and docs."</div>
+                        </div>
+                    </div>
                 </div>
                 // Logged-out
                 <div id="nav-guest" class="flex gap-2">
@@ -56,8 +75,14 @@ pub fn Nav() -> impl IntoView {
                             <a id="nav-profile-link" href="/profile" class="flex items-center gap-2 px-3 py-2.5 text-sm text-zinc-400 hover:text-zinc-50 hover:bg-white/5 transition-all">
                                 <i class="ph ph-user text-base"></i>"Profile"
                             </a>
+                            <a href="/library" class="flex items-center gap-2 px-3 py-2.5 text-sm text-zinc-400 hover:text-zinc-50 hover:bg-white/5 transition-all">
+                                <i class="ph ph-books text-base"></i>"My Library"
+                            </a>
                             <a href="/dashboard" class="flex items-center gap-2 px-3 py-2.5 text-sm text-zinc-400 hover:text-zinc-50 hover:bg-white/5 transition-all">
                                 <i class="ph ph-chart-bar text-base"></i>"Dashboard"
+                            </a>
+                            <a href="/marketplace/sell" class="flex items-center gap-2 px-3 py-2.5 text-sm text-zinc-400 hover:text-zinc-50 hover:bg-white/5 transition-all">
+                                <i class="ph ph-storefront text-base"></i>"Sell on Marketplace"
                             </a>
                             <a href="/settings" class="flex items-center gap-2 px-3 py-2.5 text-sm text-zinc-400 hover:text-zinc-50 hover:bg-white/5 transition-all">
                                 <i class="ph ph-gear text-base"></i>"Settings"
@@ -213,6 +238,148 @@ pub fn Nav() -> impl IntoView {
                 };
                 ws.onclose = function() { setTimeout(connectWs, 5000); };
                 ws.onerror = function() { ws.close(); };
+            }
+
+            // ── Auto-refresh tokens ──
+            async function refreshSession() {
+                const refreshToken = getCookie('refresh_token');
+                if (!refreshToken) return;
+                try {
+                    const res = await fetch('/api/auth/refresh', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ refresh_token: refreshToken })
+                    });
+                    if (!res.ok) return;
+                    const data = await res.json();
+                    document.cookie = `token=${data.access_token};path=/;max-age=2592000;SameSite=Strict`;
+                    document.cookie = `refresh_token=${data.refresh_token};path=/;max-age=2592000;SameSite=Strict`;
+                    document.cookie = `user=${encodeURIComponent(JSON.stringify(data.user))};path=/;max-age=2592000;SameSite=Strict`;
+                } catch(e) {}
+            }
+
+            // Check if access token is expiring soon (decode JWT exp)
+            function tokenExpiresSoon() {
+                const token = getCookie('token');
+                if (!token) return false;
+                try {
+                    const payload = JSON.parse(atob(token.split('.')[1]));
+                    const expiresIn = payload.exp - Math.floor(Date.now() / 1000);
+                    return expiresIn < 86400; // refresh if less than 1 day left
+                } catch(e) { return false; }
+            }
+
+            // Refresh on load if token is expiring soon, then periodically
+            if (getCookie('token')) {
+                if (tokenExpiresSoon()) refreshSession();
+                setInterval(() => { if (tokenExpiresSoon()) refreshSession(); }, 3600000); // check hourly
+            }
+
+            // ── Global search ──
+            let gsTimeout;
+            function toggleGlobalSearch() {
+                const panel = document.getElementById('global-search-panel');
+                panel.classList.toggle('hidden');
+                if (!panel.classList.contains('hidden')) {
+                    document.getElementById('global-search-input').focus();
+                }
+            }
+            document.addEventListener('click', function(e) {
+                const wrap = document.getElementById('global-search-wrap');
+                const panel = document.getElementById('global-search-panel');
+                if (wrap && panel && !wrap.contains(e.target)) panel.classList.add('hidden');
+            });
+            document.addEventListener('keydown', function(e) {
+                if (e.key === 'Escape') {
+                    document.getElementById('global-search-panel')?.classList.add('hidden');
+                }
+                // Ctrl+K or Cmd+K to open search
+                if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+                    e.preventDefault();
+                    toggleGlobalSearch();
+                }
+            });
+
+            async function globalSearch(query) {
+                clearTimeout(gsTimeout);
+                const el = document.getElementById('global-search-results');
+                if (!query || query.trim().length < 2) {
+                    el.innerHTML = '<div class="px-4 py-8 text-center text-xs text-zinc-600">Type to search across marketplace, users, and docs.</div>';
+                    return;
+                }
+                gsTimeout = setTimeout(async () => {
+                    el.innerHTML = '<div class="px-4 py-6 text-center"><div class="inline-block animate-spin w-4 h-4 border-2 border-zinc-700 border-t-accent rounded-full"></div></div>';
+                    const q = encodeURIComponent(query.trim());
+                    const [assetsRes, usersRes, docsRes] = await Promise.all([
+                        fetch('/api/marketplace?q=' + q + '&page=1').then(r => r.ok ? r.json() : { assets: [] }).catch(() => ({ assets: [] })),
+                        fetch('/api/profiles/search?q=' + q).then(r => r.ok ? r.json() : []).catch(() => []),
+                        fetch('/api/docs/search?q=' + q).then(r => r.ok ? r.json() : []).catch(() => []),
+                    ]);
+
+                    const assets = (assetsRes.assets || []).slice(0, 5);
+                    const users = (usersRes || []).slice(0, 5);
+                    const docs = (docsRes || []).slice(0, 5);
+
+                    if (!assets.length && !users.length && !docs.length) {
+                        el.innerHTML = '<div class="px-4 py-8 text-center text-xs text-zinc-500">No results found.</div>';
+                        return;
+                    }
+
+                    let html = '';
+
+                    if (assets.length) {
+                        html += '<div class="px-4 pt-3 pb-1"><span class="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">Marketplace</span></div>';
+                        html += assets.map(a => `
+                            <a href="/marketplace/asset/${a.slug}" class="flex items-center gap-3 px-4 py-2.5 hover:bg-white/[0.03] transition-all">
+                                <div class="w-8 h-8 rounded-lg bg-surface-panel border border-zinc-800/50 flex items-center justify-center shrink-0 overflow-hidden">
+                                    ${a.thumbnail_url ? `<img src="${a.thumbnail_url}" class="w-full h-full object-cover" />` : `<i class="ph ph-package text-sm text-zinc-600"></i>`}
+                                </div>
+                                <div class="flex-1 min-w-0">
+                                    <div class="text-sm text-zinc-200 truncate">${a.name}</div>
+                                    <div class="text-[11px] text-zinc-600">${a.category} · ${a.price_credits === 0 ? 'Free' : a.price_credits + ' cr'}</div>
+                                </div>
+                                ${a.rating_count > 0 ? `<span class="text-[11px] text-amber-400">${'★'.repeat(Math.round(a.rating_avg))}</span>` : ''}
+                            </a>
+                        `).join('');
+                    }
+
+                    if (users.length) {
+                        html += '<div class="px-4 pt-3 pb-1 border-t border-zinc-800/50"><span class="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">Users</span></div>';
+                        html += users.map(u => `
+                            <a href="/profile/${u.username}" class="flex items-center gap-3 px-4 py-2.5 hover:bg-white/[0.03] transition-all">
+                                <div class="w-8 h-8 rounded-full bg-surface-panel border border-zinc-800/50 flex items-center justify-center shrink-0 overflow-hidden">
+                                    ${u.avatar_url ? `<img src="${u.avatar_url}" class="w-full h-full object-cover" />` : `<i class="ph ph-user text-sm text-zinc-600"></i>`}
+                                </div>
+                                <div class="flex-1 min-w-0">
+                                    <div class="text-sm text-zinc-200">${u.username}</div>
+                                    <div class="text-[11px] text-zinc-600">${u.role}</div>
+                                </div>
+                            </a>
+                        `).join('');
+                    }
+
+                    if (docs.length) {
+                        html += '<div class="px-4 pt-3 pb-1 border-t border-zinc-800/50"><span class="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">Documentation</span></div>';
+                        html += docs.map(d => `
+                            <a href="/docs/${d.slug}" class="flex items-center gap-3 px-4 py-2.5 hover:bg-white/[0.03] transition-all">
+                                <div class="w-8 h-8 rounded-lg bg-accent/10 flex items-center justify-center shrink-0">
+                                    <i class="ph ph-book-open text-sm text-accent"></i>
+                                </div>
+                                <div class="flex-1 min-w-0">
+                                    <div class="text-sm text-zinc-200">${d.title}</div>
+                                    <div class="text-[11px] text-zinc-600">${d.section} · ${d.category}</div>
+                                </div>
+                            </a>
+                        `).join('');
+                    }
+
+                    // View all link
+                    html += `<div class="px-4 py-3 border-t border-zinc-800/50">
+                        <a href="/marketplace?q=${q}" class="text-xs text-accent hover:text-accent-hover transition-colors">View all marketplace results →</a>
+                    </div>`;
+
+                    el.innerHTML = html;
+                }, 250);
             }
 
             updateNav();

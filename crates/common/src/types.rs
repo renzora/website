@@ -8,6 +8,7 @@ pub struct RegisterRequest {
     pub username: String,
     pub email: String,
     pub password: String,
+    pub referral_code: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -69,6 +70,8 @@ pub struct AssetSummary {
     pub version: String,
     pub downloads: i64,
     pub creator_name: String,
+    pub rating_avg: f64,
+    pub rating_count: i32,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -97,6 +100,9 @@ pub struct MarketplaceQuery {
     pub category: Option<String>,
     pub sort: Option<String>,
     pub page: Option<i64>,
+    pub free: Option<bool>,
+    pub min_rating: Option<i32>,
+    pub max_price: Option<i64>,
 }
 
 #[derive(Debug, Serialize)]
@@ -178,6 +184,7 @@ pub struct PaginationQuery {
 #[derive(Debug, Deserialize)]
 pub struct PurchaseRequest {
     pub asset_id: Uuid,
+    pub promo_code: Option<String>,
 }
 
 #[derive(Debug, Serialize)]

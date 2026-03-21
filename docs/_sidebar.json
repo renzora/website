@@ -63,6 +63,14 @@
           { "slug": "game-dev/publishing-assets", "title": "Publishing Assets" },
           { "slug": "game-dev/credits", "title": "Credits System" }
         ]
+      },
+      {
+        "category": "API Reference",
+        "pages": [
+          { "slug": "game-dev/scripting-api", "title": "Scripting API" },
+          { "slug": "game-dev/blueprint-api", "title": "Blueprint Node API" },
+          { "slug": "game-dev/material-api", "title": "Material API" }
+        ]
       }
     ]
   },

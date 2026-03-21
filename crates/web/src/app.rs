@@ -17,9 +17,11 @@ use crate::pages::{
     download::DownloadPage,
     forum::{ForumPage, ForumCategoryPage, ForumThreadPage, NewThreadPage},
     home::HomePage,
+    library::LibraryPage,
     login::{LoginPage, RegisterPage},
     marketplace::MarketplacePage,
     profile::ProfilePage,
+    sell::SellOnboardingPage,
     settings::SettingsPage,
     upload::UploadPage,
     wallet::WalletPage,
@@ -47,8 +49,10 @@ pub fn App() -> impl IntoView {
                     <Route path=path!("/docs/developer") view=DocsSectionPage />
                     <Route path=path!("/docs/*slug") view=DocArticle />
                     <Route path=path!("/marketplace") view=MarketplacePage />
+                    <Route path=path!("/marketplace/sell") view=SellOnboardingPage />
                     <Route path=path!("/marketplace/upload") view=UploadPage />
                     <Route path=path!("/marketplace/asset/:slug") view=AssetDetailPage />
+                    <Route path=path!("/library") view=LibraryPage />
                     <Route path=path!("/wallet") view=WalletPage />
                     <Route path=path!("/courses") view=CoursesPage />
                     <Route path=path!("/courses/create") view=CreateCoursePage />
