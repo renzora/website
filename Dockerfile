@@ -19,8 +19,11 @@ RUN mkdir -p crates/server/src crates/api/src crates/models/src crates/web/src c
     echo "" > crates/web/src/lib.rs && \
     echo "" > crates/common/src/lib.rs
 
-# Build dependencies only (cached layer)
+# Limit codegen parallelism to reduce peak memory usage on small VPS
 ENV SQLX_OFFLINE=true
+ENV CARGO_BUILD_JOBS=2
+
+# Build dependencies only (cached layer)
 RUN cargo build --release 2>/dev/null || true
 
 # Copy real source code + migrations

@@ -552,16 +552,19 @@ async fn mark_review_helpful(
 
 /// Upload a file to S3 (DigitalOcean Spaces) or fall back to local disk.
 pub async fn upload_to_storage(state: &AppState, key: &str, data: Vec<u8>) -> Result<String, ApiError> {
-    if let Some(s3) = &state.s3_client {
+    if let Some(bucket) = &state.s3_bucket {
         // Upload to S3
-        s3.put_object()
-            .bucket(&state.s3_bucket)
-            .key(key)
-            .body(data.into())
-            .acl(aws_sdk_s3::types::ObjectCannedAcl::PublicRead)
-            .send()
+        let response = bucket
+            .put_object_with_content_type(key, &data, "application/octet-stream")
             .await
             .map_err(|e| ApiError::Internal(format!("S3 upload failed: {e}")))?;
+
+        if response.status_code() != 200 {
+            return Err(ApiError::Internal(format!(
+                "S3 upload returned status {}",
+                response.status_code()
+            )));
+        }
 
         Ok(format!("{}/{}", state.s3_public_url, key))
     } else {
