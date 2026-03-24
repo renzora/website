@@ -127,8 +127,6 @@ async fn login(
         "user": user_to_profile(&user),
         "needs_2fa_setup": needs_2fa_setup,
     })))
-        user: user_to_profile(&user),
-    }))
 }
 
 async fn refresh(
