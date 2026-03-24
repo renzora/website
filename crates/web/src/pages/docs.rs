@@ -222,6 +222,30 @@ pub fn DocArticle() -> impl IntoView {
                 padding: 0 !important;
             }
 
+            /* Typography */
+            .doc-body h1 { font-size: 1.75rem; font-weight: 800; margin-bottom: 1rem; margin-top: 2rem; color: #fafafa; letter-spacing: -0.02em; }
+            .doc-body h2 { font-size: 1.35rem; font-weight: 700; margin-bottom: 0.75rem; margin-top: 1.75rem; color: #fafafa; letter-spacing: -0.01em; padding-bottom: 0.5rem; border-bottom: 1px solid #27272a; }
+            .doc-body h3 { font-size: 1.1rem; font-weight: 600; margin-bottom: 0.5rem; margin-top: 1.5rem; color: #e4e4e7; }
+            .doc-body h4 { font-size: 0.95rem; font-weight: 600; margin-bottom: 0.5rem; margin-top: 1.25rem; color: #d4d4d8; }
+            .doc-body p { color: #a1a1aa; font-size: 0.875rem; line-height: 1.7; margin-bottom: 1rem; }
+            .doc-body ul { list-style-type: disc; padding-left: 1.5rem; margin-bottom: 1rem; color: #a1a1aa; }
+            .doc-body ol { list-style-type: decimal; padding-left: 1.5rem; margin-bottom: 1rem; color: #a1a1aa; }
+            .doc-body li { font-size: 0.875rem; line-height: 1.7; margin-bottom: 0.25rem; }
+            .doc-body li ul { margin-top: 0.25rem; margin-bottom: 0.25rem; }
+            .doc-body a { color: #818cf8; text-decoration: none; transition: color 0.15s; }
+            .doc-body a:hover { color: #a5b4fc; text-decoration: underline; }
+            .doc-body blockquote { border-left: 3px solid #3f3f46; padding: 0.5rem 1rem; margin: 1rem 0; background: rgba(255,255,255,0.02); border-radius: 0 8px 8px 0; }
+            .doc-body blockquote p { color: #71717a; margin-bottom: 0; }
+            .doc-body strong { color: #e4e4e7; font-weight: 600; }
+            .doc-body em { color: #a1a1aa; font-style: italic; }
+            .doc-body hr { border: none; border-top: 1px solid #27272a; margin: 2rem 0; }
+            .doc-body table { width: 100%; border-collapse: collapse; margin-bottom: 1rem; font-size: 0.8125rem; }
+            .doc-body th { text-align: left; padding: 0.5rem 0.75rem; border-bottom: 2px solid #27272a; color: #d4d4d8; font-weight: 600; }
+            .doc-body td { padding: 0.5rem 0.75rem; border-bottom: 1px solid #1e1e22; color: #a1a1aa; }
+            .doc-body tr:hover td { background: rgba(255,255,255,0.02); }
+            .doc-body img { max-width: 100%; border-radius: 8px; margin: 1rem 0; border: 1px solid #27272a; }
+            .doc-body h1:first-child { margin-top: 0; }
+
             /* Inline code styling */
             .doc-body code:not(pre code) {
                 background: #1e1e22;
