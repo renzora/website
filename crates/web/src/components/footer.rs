@@ -3,42 +3,19 @@ use leptos::prelude::*;
 #[component]
 pub fn Footer() -> impl IntoView {
     view! {
-        <footer class="border-t border-zinc-800 pt-12 pb-6 mt-20">
-            <div class="max-w-[1200px] mx-auto px-6">
-                <div class="flex flex-col md:flex-row justify-between gap-8">
-                    <div>
-                        <span class="text-lg font-bold">"Renzora Engine"</span>
-                        <p class="text-zinc-500 text-sm mt-1">"Powered by Rust & Bevy 0.18"</p>
-                    </div>
-                    <div class="flex gap-16">
-                        <div class="flex flex-col gap-2">
-                            <h4 class="text-xs font-semibold uppercase tracking-wider text-zinc-500 mb-1">"Product"</h4>
-                            <a href="/download" class="text-sm text-zinc-400 hover:text-zinc-50 transition-colors flex items-center gap-1.5">
-                                <i class="ph ph-download-simple text-sm"></i>"Download"
-                            </a>
-                            <a href="/docs" class="text-sm text-zinc-400 hover:text-zinc-50 transition-colors flex items-center gap-1.5">
-                                <i class="ph ph-book-open text-sm"></i>"Documentation"
-                            </a>
-                            <a href="/marketplace" class="text-sm text-zinc-400 hover:text-zinc-50 transition-colors flex items-center gap-1.5">
-                                <i class="ph ph-storefront text-sm"></i>"Marketplace"
-                            </a>
-                        </div>
-                        <div class="flex flex-col gap-2">
-                            <h4 class="text-xs font-semibold uppercase tracking-wider text-zinc-500 mb-1">"Community"</h4>
-                            <a href="https://github.com/renzora" target="_blank" rel="noopener noreferrer" class="text-sm text-zinc-400 hover:text-zinc-50 transition-colors flex items-center gap-1.5">
-                                <i class="ph ph-github-logo text-sm"></i>"GitHub"
-                            </a>
-                            <a href="https://discord.gg/9UHUGUyDJv" target="_blank" rel="noopener noreferrer" class="text-sm text-zinc-400 hover:text-zinc-50 transition-colors flex items-center gap-1.5">
-                                <i class="ph ph-discord-logo text-sm"></i>"Discord"
-                            </a>
-                            <a href="https://youtube.com/@renzoragame" target="_blank" rel="noopener noreferrer" class="text-sm text-zinc-400 hover:text-zinc-50 transition-colors flex items-center gap-1.5">
-                                <i class="ph ph-youtube-logo text-sm"></i>"YouTube"
-                            </a>
-                        </div>
-                    </div>
-                </div>
-                <div class="mt-12 pt-6 border-t border-zinc-800">
-                    <p class="text-xs text-zinc-500">"© 2026 Renzora. All rights reserved."</p>
+        <footer class="border-t border-zinc-800 py-4 mt-20">
+            <div class="max-w-[1200px] mx-auto px-6 flex items-center justify-between">
+                <p class="text-xs text-zinc-500">"© 2026 Renzora. All rights reserved."</p>
+                <div class="flex items-center gap-4">
+                    <a href="https://github.com/renzora" target="_blank" rel="noopener noreferrer" class="text-zinc-600 hover:text-zinc-100 transition-colors" title="GitHub">
+                        <i class="ph ph-github-logo text-lg"></i>
+                    </a>
+                    <a href="https://discord.gg/9UHUGUyDJv" target="_blank" rel="noopener noreferrer" class="text-zinc-600 hover:text-[#5865F2] transition-colors" title="Discord">
+                        <i class="ph ph-discord-logo text-lg"></i>
+                    </a>
+                    <a href="https://youtube.com/@renzoragame" target="_blank" rel="noopener noreferrer" class="text-zinc-600 hover:text-[#FF0000] transition-colors" title="YouTube">
+                        <i class="ph ph-youtube-logo text-lg"></i>
+                    </a>
                 </div>
             </div>
         </footer>

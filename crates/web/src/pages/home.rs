@@ -4,7 +4,7 @@ use leptos::prelude::*;
 pub fn HomePage() -> impl IntoView {
     view! {
         // Hero section with animated particle canvas
-        <section class="relative min-h-[90vh] flex items-center justify-center overflow-hidden">
+        <section class="relative min-h-[80vh] flex items-center justify-center overflow-hidden -mt-14">
             // Animated background
             <canvas id="hero-canvas" class="absolute inset-0 w-full h-full"></canvas>
 
