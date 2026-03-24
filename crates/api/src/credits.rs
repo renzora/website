@@ -341,14 +341,22 @@ async fn start_connect_onboarding(
             .await
             .map_err(|e| ApiError::Internal(format!("Stripe error: {e}")))?;
 
-        let account: serde_json::Value = res
-            .json()
+        let status = res.status();
+        let body = res
+            .text()
             .await
+            .map_err(|e| ApiError::Internal(format!("Stripe read error: {e}")))?;
+
+        if !status.is_success() {
+            return Err(ApiError::Internal(format!("Stripe Connect error ({}): {}", status, body)));
+        }
+
+        let account: serde_json::Value = serde_json::from_str(&body)
             .map_err(|e| ApiError::Internal(format!("Stripe parse error: {e}")))?;
 
         let account_id = account["id"]
             .as_str()
-            .ok_or_else(|| ApiError::Internal("Missing account id".into()))?
+            .ok_or_else(|| ApiError::Internal(format!("Missing account id. Stripe response: {}", body)))?
             .to_string();
 
         sqlx::query("UPDATE users SET stripe_connect_id = $1, updated_at = NOW() WHERE id = $2")
