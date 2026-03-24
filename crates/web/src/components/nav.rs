@@ -111,7 +111,7 @@ pub fn Nav() -> impl IntoView {
                 const v = document.cookie.match('(^|;)\\s*' + name + '\\s*=\\s*([^;]+)');
                 return v ? v.pop() : null;
             }
-            function updateNav() {
+            async function updateNav() {
                 const userCookie = getCookie('user');
                 const guest = document.getElementById('nav-guest');
                 const user = document.getElementById('nav-user');
@@ -126,10 +126,18 @@ pub fn Nav() -> impl IntoView {
                         if (username) username.textContent = u.username;
                         const profileLink = document.getElementById('nav-profile-link');
                         if (profileLink) profileLink.href = '/profile/' + u.username;
-                        const credits = document.getElementById('nav-credits');
-                        if (credits) credits.textContent = u.credit_balance || '0';
                         if (adminLink && u.role === 'admin') {
                             adminLink.classList.remove('hidden');
+                        }
+                    } catch(e) {}
+
+                    // Fetch live credit balance from API
+                    try {
+                        const res = await fetch('/api/credits/balance', { credentials: 'include' });
+                        if (res.ok) {
+                            const data = await res.json();
+                            const credits = document.getElementById('nav-credits');
+                            if (credits) credits.textContent = data.credit_balance || '0';
                         }
                     } catch(e) {}
                 }

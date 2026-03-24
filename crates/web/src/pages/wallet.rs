@@ -166,6 +166,7 @@ pub fn WalletPage() -> impl IntoView {
                 const params = new URLSearchParams(window.location.search);
                 if (params.get('success') === 'true') {
                     document.getElementById('wallet-success').classList.remove('hidden');
+                    fireConfetti();
                     history.replaceState({}, '', '/wallet');
                 }
                 if (params.get('cancelled') === 'true') {
@@ -175,6 +176,26 @@ pub fn WalletPage() -> impl IntoView {
 
                 await Promise.all([loadBalance(), loadHistory(), loadReferralStats()]);
             })();
+
+            function fireConfetti() {
+                const colors = ['#6366f1', '#818cf8', '#a78bfa', '#22c55e', '#f59e0b', '#ec4899', '#06b6d4'];
+                const container = document.createElement('div');
+                container.style.cssText = 'position:fixed;inset:0;pointer-events:none;z-index:9999;overflow:hidden';
+                document.body.appendChild(container);
+                for (let i = 0; i < 80; i++) {
+                    const p = document.createElement('div');
+                    const size = Math.random() * 8 + 4;
+                    const x = Math.random() * 100;
+                    const color = colors[Math.floor(Math.random() * colors.length)];
+                    const delay = Math.random() * 0.3;
+                    const drift = (Math.random() - 0.5) * 200;
+                    const shape = Math.random() > 0.5 ? '50%' : '0';
+                    p.style.cssText = `position:absolute;top:-10px;left:${x}%;width:${size}px;height:${size}px;background:${color};border-radius:${shape};opacity:0.9;animation:confettiFall ${1.5 + Math.random()}s ease-out ${delay}s forwards`;
+                    p.style.setProperty('--drift', drift + 'px');
+                    container.appendChild(p);
+                }
+                setTimeout(() => container.remove(), 3000);
+            }
 
             async function loadBalance() {
                 try {
@@ -321,6 +342,14 @@ pub fn WalletPage() -> impl IntoView {
             }
             "##
         </script>
+        <style>
+            r#"
+            @keyframes confettiFall {
+                0% { transform: translateY(0) translateX(0) rotate(0deg); opacity: 1; }
+                100% { transform: translateY(100vh) translateX(var(--drift, 0px)) rotate(720deg); opacity: 0; }
+            }
+            "#
+        </style>
     }
 }
 
