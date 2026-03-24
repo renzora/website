@@ -699,6 +699,8 @@ fn asset_to_detail(
             email: creator.email.clone(),
             role: creator.role.clone(),
             credit_balance: creator.credit_balance,
+            discord_username: creator.discord_username.clone(),
+            discord_avatar: creator.discord_avatar.clone(),
         },
         created_at: asset.created_at.to_string(),
         updated_at: asset.updated_at.to_string(),
