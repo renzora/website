@@ -8,7 +8,7 @@ pub fn Nav() -> impl IntoView {
                 <a href="/" class="text-lg font-bold tracking-tight">"Renzora"</a>
                 <div class="flex gap-6 flex-1">
                     <a href="/download" class="text-sm text-zinc-400 hover:text-zinc-50 transition-colors flex items-center gap-1.5">
-                        <i class="ph ph-download-simple text-base"></i>"Download Engine"
+                        <i class="ph ph-download-simple text-base"></i>"Download"
                     </a>
                     <a href="/games" class="text-sm text-zinc-400 hover:text-zinc-50 transition-colors flex items-center gap-1.5">
                         <i class="ph ph-game-controller text-base"></i>"Game Store"
