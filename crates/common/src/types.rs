@@ -49,6 +49,8 @@ pub struct UserProfile {
     pub email: String,
     pub role: String,
     pub credit_balance: i64,
+    pub discord_username: Option<String>,
+    pub discord_avatar: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -139,6 +141,90 @@ pub struct DownloadResponse {
 #[derive(Debug, Serialize)]
 pub struct CreatorAssetsResponse {
     pub assets: Vec<AssetDetail>,
+}
+
+// ── Game Store types ──
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct GameSummary {
+    pub id: Uuid,
+    pub name: String,
+    pub slug: String,
+    pub description: String,
+    pub category: String,
+    pub price_credits: i64,
+    pub thumbnail_url: Option<String>,
+    pub version: String,
+    pub downloads: i64,
+    pub creator_name: String,
+    pub rating_avg: f64,
+    pub rating_count: i32,
+}
+
+#[derive(Debug, Serialize, Clone)]
+pub struct GameDetail {
+    pub id: Uuid,
+    pub name: String,
+    pub slug: String,
+    pub description: String,
+    pub category: String,
+    pub price_credits: i64,
+    pub file_url: Option<String>,
+    pub thumbnail_url: Option<String>,
+    pub version: String,
+    pub downloads: i64,
+    pub published: bool,
+    pub creator: UserProfile,
+    pub created_at: String,
+    pub updated_at: String,
+    pub owned: Option<bool>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct GameStoreListResponse {
+    pub games: Vec<GameSummary>,
+    pub total: i64,
+    pub page: i64,
+    pub per_page: i64,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct GameStoreQuery {
+    pub q: Option<String>,
+    pub category: Option<String>,
+    pub sort: Option<String>,
+    pub page: Option<i64>,
+    pub free: Option<bool>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct CreatorGamesResponse {
+    pub games: Vec<GameDetail>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct PurchaseGameRequest {
+    pub game_id: Uuid,
+    pub promo_code: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct GameMediaResponse {
+    pub id: Uuid,
+    pub media_type: String,
+    pub url: String,
+    pub thumbnail_url: Option<String>,
+    pub sort_order: i32,
+}
+
+#[derive(Debug, Serialize)]
+pub struct GameCategoryResponse {
+    pub id: Uuid,
+    pub name: String,
+    pub slug: String,
+    pub description: String,
+    pub icon: String,
+    pub sort_order: i32,
 }
 
 // ── Credits types ──

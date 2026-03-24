@@ -7,6 +7,7 @@ pub mod credits;
 pub mod docs;
 pub mod error;
 pub mod forum;
+pub mod games;
 pub mod jwt;
 pub mod marketplace;
 pub mod middleware;
@@ -38,6 +39,7 @@ pub fn api_router(state: AppState) -> Router {
     Router::new()
         .nest("/auth", auth::router())
         .nest("/marketplace", marketplace::router())
+        .nest("/games", games::router())
         .nest("/courses", courses::router())
         .nest("/credits", credits::router())
         .nest("/creator", creator::router())

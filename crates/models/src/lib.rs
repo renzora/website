@@ -5,6 +5,7 @@ pub mod course;
 pub mod dispute;
 pub mod doc;
 pub mod forum;
+pub mod game;
 pub mod notification;
 pub mod profile;
 pub mod promo_code;

@@ -20,6 +20,10 @@ pub struct User {
     pub stripe_connect_id: Option<String>,
     pub stripe_connect_onboarded: bool,
     pub creator_policy_accepted_at: Option<OffsetDateTime>,
+    pub discord_id: Option<String>,
+    pub discord_username: Option<String>,
+    pub discord_avatar: Option<String>,
+    pub discord_linked_at: Option<OffsetDateTime>,
     pub created_at: OffsetDateTime,
     pub updated_at: OffsetDateTime,
 }
@@ -84,6 +88,52 @@ impl User {
     pub async fn find_by_id(pool: &PgPool, id: Uuid) -> Result<Option<Self>, sqlx::Error> {
         sqlx::query_as::<_, User>("SELECT * FROM users WHERE id = $1")
             .bind(id)
+            .fetch_optional(pool)
+            .await
+    }
+
+    pub async fn link_discord(
+        pool: &PgPool,
+        user_id: Uuid,
+        discord_id: &str,
+        discord_username: &str,
+        discord_avatar: Option<&str>,
+    ) -> Result<Self, sqlx::Error> {
+        sqlx::query_as::<_, User>(
+            r#"
+            UPDATE users
+            SET discord_id = $2, discord_username = $3, discord_avatar = $4, discord_linked_at = $5, updated_at = $5
+            WHERE id = $1
+            RETURNING *
+            "#,
+        )
+        .bind(user_id)
+        .bind(discord_id)
+        .bind(discord_username)
+        .bind(discord_avatar)
+        .bind(OffsetDateTime::now_utc())
+        .fetch_one(pool)
+        .await
+    }
+
+    pub async fn unlink_discord(pool: &PgPool, user_id: Uuid) -> Result<Self, sqlx::Error> {
+        sqlx::query_as::<_, User>(
+            r#"
+            UPDATE users
+            SET discord_id = NULL, discord_username = NULL, discord_avatar = NULL, discord_linked_at = NULL, updated_at = $2
+            WHERE id = $1
+            RETURNING *
+            "#,
+        )
+        .bind(user_id)
+        .bind(OffsetDateTime::now_utc())
+        .fetch_one(pool)
+        .await
+    }
+
+    pub async fn find_by_discord_id(pool: &PgPool, discord_id: &str) -> Result<Option<Self>, sqlx::Error> {
+        sqlx::query_as::<_, User>("SELECT * FROM users WHERE discord_id = $1")
+            .bind(discord_id)
             .fetch_optional(pool)
             .await
     }

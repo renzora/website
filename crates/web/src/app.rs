@@ -16,6 +16,9 @@ use crate::pages::{
     courses::{CoursesPage, CourseDetailPage, ChapterViewPage, CreateCoursePage, EditCoursePage},
     download::DownloadPage,
     forum::{ForumPage, ForumCategoryPage, ForumThreadPage, NewThreadPage},
+    game_store::GameStorePage,
+    game_detail::GameDetailPage,
+    game_upload::GameUploadPage,
     home::HomePage,
     library::LibraryPage,
     login::{LoginPage, RegisterPage},
@@ -52,6 +55,9 @@ pub fn App() -> impl IntoView {
                     <Route path=path!("/marketplace/sell") view=SellOnboardingPage />
                     <Route path=path!("/marketplace/upload") view=UploadPage />
                     <Route path=path!("/marketplace/asset/:slug") view=AssetDetailPage />
+                    <Route path=path!("/games") view=GameStorePage />
+                    <Route path=path!("/games/upload") view=GameUploadPage />
+                    <Route path=path!("/games/:slug") view=GameDetailPage />
                     <Route path=path!("/library") view=LibraryPage />
                     <Route path=path!("/wallet") view=WalletPage />
                     <Route path=path!("/courses") view=CoursesPage />
