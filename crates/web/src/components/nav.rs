@@ -10,6 +10,9 @@ pub fn Nav() -> impl IntoView {
                     <a href="/download" class="text-sm text-zinc-400 hover:text-zinc-50 transition-colors flex items-center gap-1.5">
                         <i class="ph ph-download-simple text-base"></i>"Download Engine"
                     </a>
+                    <a href="/games" class="text-sm text-zinc-400 hover:text-zinc-50 transition-colors flex items-center gap-1.5">
+                        <i class="ph ph-game-controller text-base"></i>"Game Store"
+                    </a>
                     <a href="/marketplace" class="text-sm text-zinc-400 hover:text-zinc-50 transition-colors flex items-center gap-1.5">
                         <i class="ph ph-storefront text-base"></i>"Marketplace"
                     </a>
