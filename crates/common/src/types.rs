@@ -51,6 +51,7 @@ pub struct UserProfile {
     pub credit_balance: i64,
     pub discord_username: Option<String>,
     pub discord_avatar: Option<String>,
+    pub totp_enabled: bool,
 }
 
 #[derive(Debug, Serialize)]

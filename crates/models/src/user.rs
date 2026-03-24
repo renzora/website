@@ -24,6 +24,10 @@ pub struct User {
     pub discord_username: Option<String>,
     pub discord_avatar: Option<String>,
     pub discord_linked_at: Option<OffsetDateTime>,
+    pub totp_secret: Option<String>,
+    pub totp_enabled: bool,
+    pub totp_backup_codes: Option<Vec<String>>,
+    pub totp_enforced_by_role: bool,
     pub created_at: OffsetDateTime,
     pub updated_at: OffsetDateTime,
 }
@@ -146,6 +150,51 @@ impl User {
         Argon2::default()
             .verify_password(password.as_bytes(), &parsed)
             .is_ok()
+    }
+
+    /// Check if this user's role requires 2FA
+    pub fn role_requires_2fa(&self) -> bool {
+        matches!(self.role.as_str(), "admin" | "moderator")
+    }
+
+    /// Save TOTP secret (during setup, before verification)
+    pub async fn set_totp_secret(pool: &PgPool, user_id: Uuid, secret: &str) -> Result<(), sqlx::Error> {
+        sqlx::query("UPDATE users SET totp_secret = $1, updated_at = NOW() WHERE id = $2")
+            .bind(secret).bind(user_id).execute(pool).await?;
+        Ok(())
+    }
+
+    /// Enable TOTP after successful verification, store backup codes
+    pub async fn enable_totp(pool: &PgPool, user_id: Uuid, backup_codes: &[String]) -> Result<(), sqlx::Error> {
+        sqlx::query(
+            "UPDATE users SET totp_enabled = true, totp_backup_codes = $1, totp_enforced_by_role = true, updated_at = NOW() WHERE id = $2"
+        )
+        .bind(backup_codes).bind(user_id).execute(pool).await?;
+        Ok(())
+    }
+
+    /// Disable TOTP and clear secret/backup codes
+    pub async fn disable_totp(pool: &PgPool, user_id: Uuid) -> Result<(), sqlx::Error> {
+        sqlx::query(
+            "UPDATE users SET totp_enabled = false, totp_secret = NULL, totp_backup_codes = NULL, totp_enforced_by_role = false, updated_at = NOW() WHERE id = $1"
+        )
+        .bind(user_id).execute(pool).await?;
+        Ok(())
+    }
+
+    /// Use a backup code (removes it from the list)
+    pub async fn use_backup_code(pool: &PgPool, user_id: Uuid, code: &str) -> Result<bool, sqlx::Error> {
+        let user = Self::find_by_id(pool, user_id).await?.ok_or(sqlx::Error::RowNotFound)?;
+        let codes = user.totp_backup_codes.unwrap_or_default();
+        if let Some(pos) = codes.iter().position(|c| c == code) {
+            let mut remaining = codes;
+            remaining.remove(pos);
+            sqlx::query("UPDATE users SET totp_backup_codes = $1, updated_at = NOW() WHERE id = $2")
+                .bind(&remaining).bind(user_id).execute(pool).await?;
+            Ok(true)
+        } else {
+            Ok(false)
+        }
     }
 }
 

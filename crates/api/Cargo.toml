@@ -26,3 +26,5 @@ rust-s3 = { workspace = true }
 hmac = { workspace = true }
 sha2 = { workspace = true }
 hex = { workspace = true }
+totp-rs = { workspace = true }
+rand = { workspace = true }

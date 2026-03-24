@@ -701,6 +701,7 @@ fn asset_to_detail(
             credit_balance: creator.credit_balance,
             discord_username: creator.discord_username.clone(),
             discord_avatar: creator.discord_avatar.clone(),
+            totp_enabled: creator.totp_enabled,
         },
         created_at: asset.created_at.to_string(),
         updated_at: asset.updated_at.to_string(),

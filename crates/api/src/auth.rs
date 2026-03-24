@@ -7,6 +7,7 @@ use axum::{
 use renzora_common::types::*;
 use renzora_models::user::User;
 use serde::Deserialize;
+use totp_rs::{Algorithm, TOTP, Secret};
 
 use crate::{error::ApiError, jwt, middleware, middleware::AuthUser, AppState};
 
@@ -16,11 +17,15 @@ pub fn router() -> Router<AppState> {
         .route("/discord/link", get(discord_link))
         .route("/discord/callback", get(discord_callback))
         .route("/discord/unlink", delete(discord_unlink))
+        .route("/2fa/setup", post(totp_setup))
+        .route("/2fa/verify", post(totp_verify_setup))
+        .route("/2fa/disable", post(totp_disable))
         .layer(axum::middleware::from_fn(middleware::require_auth));
 
     Router::new()
         .route("/register", post(register))
         .route("/login", post(login))
+        .route("/login/2fa", post(login_2fa))
         .route("/refresh", post(refresh))
         .route("/forgot", post(forgot_password))
         .merge(protected)
@@ -89,7 +94,7 @@ async fn register(
 async fn login(
     State(state): State<AppState>,
     Json(body): Json<LoginRequest>,
-) -> Result<Json<AuthResponse>, ApiError> {
+) -> Result<Json<serde_json::Value>, ApiError> {
     let user = User::find_by_email(&state.db, &body.email)
         .await?
         .ok_or(ApiError::InvalidCredentials)?;
@@ -98,14 +103,30 @@ async fn login(
         return Err(ApiError::InvalidCredentials);
     }
 
+    // If 2FA is enabled, return a temporary token instead of full auth
+    if user.totp_enabled {
+        let temp_token = jwt::create_access_token(user.id, &state.jwt_secret)
+            .map_err(|e| ApiError::Internal(e.to_string()))?;
+        return Ok(Json(serde_json::json!({
+            "requires_2fa": true,
+            "temp_token": temp_token,
+        })));
+    }
+
+    // If role requires 2FA but not set up yet, flag it but still allow login
+    let needs_2fa_setup = user.role_requires_2fa() && !user.totp_enabled;
+
     let access_token =
         jwt::create_access_token(user.id, &state.jwt_secret).map_err(|e| ApiError::Internal(e.to_string()))?;
     let refresh_token =
         jwt::create_refresh_token(user.id, &state.jwt_secret).map_err(|e| ApiError::Internal(e.to_string()))?;
 
-    Ok(Json(AuthResponse {
-        access_token,
-        refresh_token,
+    Ok(Json(serde_json::json!({
+        "access_token": access_token,
+        "refresh_token": refresh_token,
+        "user": user_to_profile(&user),
+        "needs_2fa_setup": needs_2fa_setup,
+    })))
         user: user_to_profile(&user),
     }))
 }
@@ -343,6 +364,173 @@ async fn discord_unlink(
     }))
 }
 
+// ── Two-Factor Authentication ──
+
+#[derive(Deserialize)]
+struct TotpVerifyRequest {
+    code: String,
+}
+
+#[derive(Deserialize)]
+struct Login2faRequest {
+    temp_token: String,
+    code: String,
+}
+
+/// POST /auth/login/2fa — Complete login with TOTP code
+async fn login_2fa(
+    State(state): State<AppState>,
+    Json(body): Json<Login2faRequest>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    // Validate temp token to get user
+    let claims = jwt::validate_token(&body.temp_token, &state.jwt_secret)
+        .map_err(|_| ApiError::Unauthorized)?;
+
+    let user = User::find_by_id(&state.db, claims.sub)
+        .await?
+        .ok_or(ApiError::NotFound)?;
+
+    if !user.totp_enabled {
+        return Err(ApiError::Validation("2FA is not enabled".into()));
+    }
+
+    let secret = user.totp_secret.as_ref().ok_or(ApiError::Internal("No TOTP secret".into()))?;
+
+    // Try TOTP code first
+    let totp = build_totp(secret, &user.email)?;
+    let valid = totp.check_current(&body.code).unwrap_or(false);
+
+    // If TOTP fails, try backup code
+    if !valid {
+        let used = User::use_backup_code(&state.db, user.id, &body.code).await?;
+        if !used {
+            return Err(ApiError::Validation("Invalid 2FA code".into()));
+        }
+    }
+
+    let access_token = jwt::create_access_token(user.id, &state.jwt_secret)
+        .map_err(|e| ApiError::Internal(e.to_string()))?;
+    let refresh_token = jwt::create_refresh_token(user.id, &state.jwt_secret)
+        .map_err(|e| ApiError::Internal(e.to_string()))?;
+
+    Ok(Json(serde_json::json!({
+        "access_token": access_token,
+        "refresh_token": refresh_token,
+        "user": user_to_profile(&user),
+    })))
+}
+
+/// POST /auth/2fa/setup — Generate TOTP secret and QR code URL
+async fn totp_setup(
+    State(state): State<AppState>,
+    Extension(auth): Extension<AuthUser>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    let user = User::find_by_id(&state.db, auth.user_id)
+        .await?
+        .ok_or(ApiError::NotFound)?;
+
+    if user.totp_enabled {
+        return Err(ApiError::Validation("2FA is already enabled".into()));
+    }
+
+    // Generate secret
+    let secret = Secret::generate_secret();
+    let secret_base32 = secret.to_encoded().to_string();
+
+    // Save secret (not yet enabled)
+    User::set_totp_secret(&state.db, auth.user_id, &secret_base32).await?;
+
+    // Generate QR code URL
+    let totp = build_totp(&secret_base32, &user.email)?;
+    let qr_url = totp.get_url();
+
+    Ok(Json(serde_json::json!({
+        "secret": secret_base32,
+        "qr_url": qr_url,
+    })))
+}
+
+/// POST /auth/2fa/verify — Verify TOTP code to enable 2FA
+async fn totp_verify_setup(
+    State(state): State<AppState>,
+    Extension(auth): Extension<AuthUser>,
+    Json(body): Json<TotpVerifyRequest>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    let user = User::find_by_id(&state.db, auth.user_id)
+        .await?
+        .ok_or(ApiError::NotFound)?;
+
+    let secret = user.totp_secret.as_ref()
+        .ok_or(ApiError::Validation("Run 2FA setup first".into()))?;
+
+    let totp = build_totp(secret, &user.email)?;
+
+    if !totp.check_current(&body.code).unwrap_or(false) {
+        return Err(ApiError::Validation("Invalid code. Try again.".into()));
+    }
+
+    // Generate backup codes
+    let backup_codes: Vec<String> = (0..8)
+        .map(|_| {
+            use rand::Rng;
+            let mut rng = rand::thread_rng();
+            format!("{:08}", rng.gen_range(10000000u32..99999999u32))
+        })
+        .collect();
+
+    User::enable_totp(&state.db, auth.user_id, &backup_codes).await?;
+
+    Ok(Json(serde_json::json!({
+        "enabled": true,
+        "backup_codes": backup_codes,
+    })))
+}
+
+/// POST /auth/2fa/disable — Disable 2FA (requires current TOTP code)
+async fn totp_disable(
+    State(state): State<AppState>,
+    Extension(auth): Extension<AuthUser>,
+    Json(body): Json<TotpVerifyRequest>,
+) -> Result<Json<MessageResponse>, ApiError> {
+    let user = User::find_by_id(&state.db, auth.user_id)
+        .await?
+        .ok_or(ApiError::NotFound)?;
+
+    if !user.totp_enabled {
+        return Err(ApiError::Validation("2FA is not enabled".into()));
+    }
+
+    // Must verify current code to disable
+    let secret = user.totp_secret.as_ref().ok_or(ApiError::Internal("No TOTP secret".into()))?;
+    let totp = build_totp(secret, &user.email)?;
+
+    if !totp.check_current(&body.code).unwrap_or(false) {
+        return Err(ApiError::Validation("Invalid code".into()));
+    }
+
+    // Check if role requires 2FA — prevent disabling if enforced
+    if user.role_requires_2fa() {
+        return Err(ApiError::Validation("2FA is required for your role and cannot be disabled".into()));
+    }
+
+    User::disable_totp(&state.db, auth.user_id).await?;
+
+    Ok(Json(MessageResponse { message: "2FA disabled".into() }))
+}
+
+fn build_totp(secret: &str, email: &str) -> Result<TOTP, ApiError> {
+    TOTP::new(
+        Algorithm::SHA1,
+        6,
+        1,
+        30,
+        Secret::Encoded(secret.to_string()).to_bytes().map_err(|e| ApiError::Internal(format!("Invalid TOTP secret: {}", e)))?,
+        Some("Renzora".to_string()),
+        email.to_string(),
+    )
+    .map_err(|e| ApiError::Internal(format!("TOTP error: {}", e)))
+}
+
 fn user_to_profile(user: &User) -> UserProfile {
     UserProfile {
         id: user.id,
@@ -352,5 +540,6 @@ fn user_to_profile(user: &User) -> UserProfile {
         credit_balance: user.credit_balance,
         discord_username: user.discord_username.clone(),
         discord_avatar: user.discord_avatar.clone(),
+        totp_enabled: user.totp_enabled,
     }
 }

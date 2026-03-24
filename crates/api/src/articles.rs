@@ -116,6 +116,7 @@ async fn get_article(
             credit_balance: author.credit_balance,
             discord_username: author.discord_username,
             discord_avatar: author.discord_avatar,
+            totp_enabled: author.totp_enabled,
         },
         created_at: article.created_at.to_string(),
         updated_at: article.updated_at.to_string(),
