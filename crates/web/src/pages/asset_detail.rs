@@ -60,9 +60,21 @@ pub fn AssetDetailPage() -> impl IntoView {
                 const mediaData = mediaRes.ok ? await mediaRes.json() : [];
 
                 // Build gallery: thumbnail first, then uploaded media
+                // If there's audio + image, merge them into a combined audio-with-artwork item
                 galleryItems = [];
-                if (a.thumbnail_url) galleryItems.push({ type: 'image', url: a.thumbnail_url });
-                mediaData.forEach(m => galleryItems.push({ type: m.media_type, url: m.url, thumb: m.thumbnail_url }));
+                const audioItems = mediaData.filter(m => m.media_type === 'audio');
+                const otherItems = mediaData.filter(m => m.media_type !== 'audio');
+                const coverImg = a.thumbnail_url || otherItems.find(m => m.media_type === 'image')?.url || '';
+
+                if (audioItems.length > 0 && coverImg) {
+                    // Combine: each audio track gets the cover image as background
+                    audioItems.forEach(m => galleryItems.push({ type: 'audio', url: m.url, cover: coverImg }));
+                    // Add remaining non-audio media
+                    otherItems.forEach(m => galleryItems.push({ type: m.media_type, url: m.url, thumb: m.thumbnail_url }));
+                } else {
+                    if (a.thumbnail_url) galleryItems.push({ type: 'image', url: a.thumbnail_url });
+                    mediaData.forEach(m => galleryItems.push({ type: m.media_type, url: m.url, thumb: m.thumbnail_url }));
+                }
                 if (!galleryItems.length) galleryItems.push({ type: 'placeholder' });
 
                 const ratingAvg = reviewsData.rating_avg || 0;
@@ -312,37 +324,32 @@ pub fn AssetDetailPage() -> impl IntoView {
                     return '<div class="aspect-video flex items-center justify-center"><i class="ph ph-package text-6xl text-zinc-700"></i></div>';
                 }
                 if (item.type === 'audio') {
-                    const ext = item.url.split('.').pop()?.toUpperCase() || 'AUDIO';
+                    const hasCover = item.cover;
+                    const coverBg = hasCover
+                        ? `<div class="absolute inset-0 bg-cover bg-center" style="background-image:url('${item.cover}')"></div><div class="absolute inset-0 bg-black/60 backdrop-blur-sm"></div>`
+                        : `<div class="absolute inset-0 bg-gradient-to-b from-zinc-900 to-[#0a0a0b]"></div>`;
                     return `
-                        <div class="aspect-video flex flex-col items-center justify-center bg-gradient-to-b from-zinc-900 to-[#0a0a0b] relative">
-                            <div class="absolute inset-0 flex items-center justify-center opacity-[0.03]">
-                                <i class="ph ph-waveform text-[200px]"></i>
-                            </div>
-                            <div class="relative z-10 flex flex-col items-center gap-4 w-full max-w-md px-6">
-                                <div class="w-20 h-20 rounded-full bg-accent/10 border border-accent/20 flex items-center justify-center mb-2">
-                                    <i class="ph ph-music-note text-3xl text-accent"></i>
-                                </div>
-                                <span class="text-xs text-zinc-500 font-mono">${ext}</span>
-                                <audio id="audio-player" src="${item.url}" preload="metadata" class="hidden"></audio>
-                                <div class="w-full">
-                                    <div class="flex items-center gap-3 w-full">
-                                        <button onclick="toggleAudioPlay()" id="audio-play-btn" class="w-10 h-10 rounded-full bg-accent hover:bg-accent-hover text-white flex items-center justify-center transition-colors shrink-0">
-                                            <i class="ph ph-play-fill text-lg" id="audio-play-icon"></i>
-                                        </button>
-                                        <div class="flex-1">
-                                            <div class="relative w-full h-1.5 bg-zinc-800 rounded-full cursor-pointer group" onclick="seekAudio(event)">
-                                                <div id="audio-progress" class="absolute left-0 top-0 h-full bg-accent rounded-full transition-all" style="width:0%"></div>
-                                                <div id="audio-buffered" class="absolute left-0 top-0 h-full bg-zinc-700 rounded-full -z-10" style="width:0%"></div>
-                                            </div>
-                                            <div class="flex justify-between mt-1">
-                                                <span id="audio-current" class="text-[10px] text-zinc-600 tabular-nums">0:00</span>
-                                                <span id="audio-duration" class="text-[10px] text-zinc-600 tabular-nums">0:00</span>
-                                            </div>
+                        <div class="aspect-video flex flex-col items-end justify-end relative overflow-hidden">
+                            ${coverBg}
+                            <audio id="audio-player" src="${item.url}" preload="metadata" class="hidden"></audio>
+                            <div class="relative z-10 w-full px-5 pb-5">
+                                <div class="flex items-center gap-3 w-full bg-black/40 backdrop-blur-md rounded-xl px-4 py-3">
+                                    <button onclick="toggleAudioPlay()" id="audio-play-btn" class="w-11 h-11 rounded-full bg-accent hover:bg-accent-hover text-white flex items-center justify-center transition-colors shrink-0 shadow-lg shadow-accent/20">
+                                        <i class="ph ph-play-fill text-lg" id="audio-play-icon"></i>
+                                    </button>
+                                    <div class="flex-1 min-w-0">
+                                        <div class="relative w-full h-1.5 bg-white/10 rounded-full cursor-pointer" onclick="seekAudio(event)">
+                                            <div id="audio-buffered" class="absolute left-0 top-0 h-full bg-white/10 rounded-full" style="width:0%"></div>
+                                            <div id="audio-progress" class="absolute left-0 top-0 h-full bg-accent rounded-full transition-all" style="width:0%"></div>
                                         </div>
-                                        <button onclick="toggleAudioVolume()" class="text-zinc-500 hover:text-zinc-300 transition-colors shrink-0">
-                                            <i class="ph ph-speaker-high text-lg" id="audio-vol-icon"></i>
-                                        </button>
+                                        <div class="flex justify-between mt-1.5">
+                                            <span id="audio-current" class="text-[11px] text-white/50 tabular-nums">0:00</span>
+                                            <span id="audio-duration" class="text-[11px] text-white/50 tabular-nums">0:00</span>
+                                        </div>
                                     </div>
+                                    <button onclick="toggleAudioVolume()" class="text-white/40 hover:text-white/80 transition-colors shrink-0">
+                                        <i class="ph ph-speaker-high text-lg" id="audio-vol-icon"></i>
+                                    </button>
                                 </div>
                             </div>
                         </div>`;

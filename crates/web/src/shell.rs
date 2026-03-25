@@ -33,13 +33,16 @@ pub fn Shell() -> impl IntoView {
                 </script>
                 <link rel="stylesheet" href="/assets/style/main.css" />
                 <style>
-                    "html{scrollbar-width:thin;scrollbar-color:#1a1a1e #060608}
-                    body{scrollbar-width:thin;scrollbar-color:#1a1a1e #060608}
-                    ::-webkit-scrollbar{width:8px;height:8px}
-                    ::-webkit-scrollbar-track{background:#060608}
-                    ::-webkit-scrollbar-thumb{background:#1a1a1e;border-radius:4px}
-                    ::-webkit-scrollbar-thumb:hover{background:#28282e}
-                    ::-webkit-scrollbar-corner{background:#060608}"
+                    "html,body{scrollbar-width:thin;scrollbar-color:#1a1a1e #060608}
+                    *{scrollbar-width:thin;scrollbar-color:#1a1a1e #060608}
+                    ::-webkit-scrollbar{width:8px!important;height:8px!important}
+                    ::-webkit-scrollbar-track{background:#060608!important}
+                    ::-webkit-scrollbar-thumb{background:#1a1a1e!important;border-radius:4px!important}
+                    ::-webkit-scrollbar-thumb:hover{background:#28282e!important}
+                    ::-webkit-scrollbar-corner{background:#060608!important}
+                    select,select option{background-color:#18181b!important;color:#fafafa!important}
+                    select option:checked{background-color:#27272a!important}
+                    select{-webkit-appearance:none;-moz-appearance:none;appearance:none;background-image:url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2371717a' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E\");background-repeat:no-repeat;background-position:right 8px center;padding-right:28px}"
                 </style>
                 <MetaTags />
             </head>
