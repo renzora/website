@@ -195,6 +195,7 @@ pub fn AssetDetailPage() -> impl IntoView {
                                     </a>
                                     <span class="text-sm text-zinc-600">·</span>
                                     <span class="px-2.5 py-1 rounded-full bg-white/[0.03] border border-zinc-800/50 text-xs text-zinc-400">${a.category}</span>
+                                    ${(a.tags || []).map(t => `<span class="px-2 py-0.5 rounded-full bg-accent/10 border border-accent/20 text-[11px] text-accent">${t}</span>`).join('')}
                                     <span class="text-sm text-zinc-500">v${a.version}</span>
                                     <span class="text-sm text-zinc-600">·</span>
                                     <span class="text-sm">${starsHtml}</span>
@@ -287,6 +288,7 @@ pub fn AssetDetailPage() -> impl IntoView {
                                     <div class="flex justify-between text-sm"><span class="text-zinc-500">Views</span><span class="text-zinc-300">${a.views.toLocaleString()}</span></div>
                                     <div class="flex justify-between text-sm"><span class="text-zinc-500">Downloads</span><span class="text-zinc-300">${a.downloads.toLocaleString()}</span></div>
                                     <div class="flex justify-between text-sm"><span class="text-zinc-500">Category</span><span class="text-zinc-300">${a.category}</span></div>
+                                    ${(a.tags || []).length ? `<div class="text-sm"><span class="text-zinc-500 block mb-1.5">Tags</span><div class="flex flex-wrap gap-1">${a.tags.map(t => `<span class="px-2 py-0.5 rounded-full bg-accent/10 border border-accent/20 text-[10px] text-accent">${t}</span>`).join('')}</div></div>` : ''}
                                     <div class="flex justify-between text-sm"><span class="text-zinc-500">Version</span><span class="text-zinc-300">${a.version}</span></div>
                                     <div class="flex justify-between text-sm"><span class="text-zinc-500">Comments</span><span class="text-zinc-300">${commentsData.comments?.length || 0}</span></div>
                                     <div class="flex justify-between text-sm"><span class="text-zinc-500">Published</span><span class="text-zinc-300">${fmtDate(a.created_at)}</span></div>

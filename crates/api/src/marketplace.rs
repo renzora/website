@@ -788,6 +788,9 @@ fn asset_to_detail(
         downloads: asset.downloads,
         views: asset.views,
         published: asset.published,
+        rating_sum: asset.rating_sum,
+        rating_count: asset.rating_count,
+        tags: asset.tags.clone(),
         creator: UserProfile {
             id: creator.id,
             username: creator.username.clone(),
