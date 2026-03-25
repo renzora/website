@@ -19,7 +19,8 @@ pub fn AssetEditPage() -> impl IntoView {
                 const token = document.cookie.match('(^|;)\\s*token\\s*=\\s*([^;]+)')?.pop();
                 if (!token) { window.location.href = '/login'; return; }
 
-                const slug = window.location.pathname.split('/').filter(Boolean).pop();
+                const parts = window.location.pathname.split('/').filter(Boolean);
+                const slug = parts[parts.length - 2]; // /marketplace/asset/:slug/edit
 
                 // Fetch asset detail
                 const res = await fetch('/api/marketplace/detail/' + slug, {
