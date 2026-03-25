@@ -19,6 +19,7 @@ pub fn router() -> Router<AppState> {
         .route("/my-assets", get(my_assets))
         .route("/purchased", get(purchased_assets))
         .route("/:id/update", put(update_asset))
+        .route("/:id/files", put(update_asset_files))
         .route("/:id/download", get(download_asset))
         .route("/:id/comments", post(add_comment))
         .route("/comments/:comment_id", delete(delete_comment))
@@ -256,6 +257,54 @@ async fn update_asset(
     )
     .await?;
 
+    let creator = User::find_by_id(&state.db, auth.user_id)
+        .await?
+        .ok_or(ApiError::Internal("Creator not found".into()))?;
+
+    Ok(Json(asset_to_detail(&updated, &creator, Some(true))))
+}
+
+/// Update asset file and/or thumbnail (multipart).
+async fn update_asset_files(
+    State(state): State<AppState>,
+    Extension(auth): Extension<AuthUser>,
+    Path(id): Path<Uuid>,
+    mut multipart: Multipart,
+) -> Result<Json<AssetDetail>, ApiError> {
+    let asset = Asset::find_by_id(&state.db, id)
+        .await?
+        .ok_or(ApiError::NotFound)?;
+
+    if asset.creator_id != auth.user_id {
+        return Err(ApiError::Unauthorized);
+    }
+
+    while let Some(field) = multipart.next_field().await.map_err(|e| {
+        ApiError::Validation(format!("Failed to read multipart field: {e}"))
+    })? {
+        let field_name = field.name().unwrap_or("").to_string();
+        match field_name.as_str() {
+            "file" => {
+                let filename = field.file_name().unwrap_or("asset.zip").to_string();
+                let data = field.bytes().await
+                    .map_err(|e| ApiError::Validation(format!("Failed to read file: {e}")))?;
+                let url = upload_to_storage(&state, "assets", &filename, data.to_vec()).await?;
+                Asset::update_file_url(&state.db, id, &url).await?;
+            }
+            "thumbnail" => {
+                let filename = field.file_name().unwrap_or("thumb.png").to_string();
+                let data = field.bytes().await
+                    .map_err(|e| ApiError::Validation(format!("Failed to read thumbnail: {e}")))?;
+                let url = upload_to_storage(&state, "thumbnails", &filename, data.to_vec()).await?;
+                Asset::update_thumbnail_url(&state.db, id, &url).await?;
+            }
+            _ => {}
+        }
+    }
+
+    let updated = Asset::find_by_id(&state.db, id)
+        .await?
+        .ok_or(ApiError::Internal("Asset not found after update".into()))?;
     let creator = User::find_by_id(&state.db, auth.user_id)
         .await?
         .ok_or(ApiError::Internal("Creator not found".into()))?;

@@ -146,7 +146,10 @@ pub fn AssetDetailPage() -> impl IntoView {
 
                             <!-- Title + meta -->
                             <div class="mt-8">
-                                <h1 class="text-3xl font-bold leading-tight">${a.name}</h1>
+                                <div class="flex items-center gap-3">
+                                    <h1 class="text-3xl font-bold leading-tight">${a.name}</h1>
+                                    ${isCreator ? `<a href="/marketplace/asset/${a.slug}/edit" class="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium bg-white/[0.03] border border-zinc-800/50 text-zinc-400 hover:border-zinc-600 hover:text-zinc-200 transition-colors"><i class="ph ph-pencil-simple"></i>Edit</a>` : ''}
+                                </div>
                                 <div class="flex items-center gap-4 mt-3 flex-wrap">
                                     <a href="/profile/${a.creator.username}" class="flex items-center gap-2 text-sm font-medium text-accent hover:text-accent-hover transition-colors">
                                         <div class="w-6 h-6 rounded-full bg-accent/10 flex items-center justify-center"><i class="ph ph-user text-xs text-accent"></i></div>

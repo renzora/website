@@ -126,11 +126,16 @@ pub fn DashboardPage() -> impl IntoView {
                                             <span>${a.downloads.toLocaleString()} downloads</span>
                                         </div>
                                     </div>
-                                    <div class="text-right shrink-0">
-                                        <span class="text-xs font-medium">${a.price_credits === 0 ? 'Free' : a.price_credits.toLocaleString() + ' cr'}</span>
-                                        <div class="mt-0.5">
-                                            <span class="text-[10px] px-1.5 py-0.5 rounded-full ${a.published ? 'bg-green-500/10 text-green-400' : 'bg-amber-500/10 text-amber-400'}">${a.published ? 'Live' : 'Draft'}</span>
+                                    <div class="flex items-center gap-3 shrink-0">
+                                        <div class="text-right">
+                                            <span class="text-xs font-medium">${a.price_credits === 0 ? 'Free' : a.price_credits.toLocaleString() + ' cr'}</span>
+                                            <div class="mt-0.5">
+                                                <span class="text-[10px] px-1.5 py-0.5 rounded-full ${a.published ? 'bg-green-500/10 text-green-400' : 'bg-amber-500/10 text-amber-400'}">${a.published ? 'Live' : 'Draft'}</span>
+                                            </div>
                                         </div>
+                                        <a href="/marketplace/asset/${a.slug}/edit" onclick="event.stopPropagation()" class="p-2 rounded-lg text-zinc-600 hover:text-zinc-300 hover:bg-white/[0.05] transition-colors" title="Edit">
+                                            <i class="ph ph-pencil-simple"></i>
+                                        </a>
                                     </div>
                                 </a>
                             `).join('')}</div>`;
