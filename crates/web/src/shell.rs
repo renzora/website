@@ -32,6 +32,15 @@ pub fn Shell() -> impl IntoView {
                     }"
                 </script>
                 <link rel="stylesheet" href="/assets/style/main.css" />
+                <style>
+                    "html{scrollbar-width:thin;scrollbar-color:#1a1a1e #060608}
+                    body{scrollbar-width:thin;scrollbar-color:#1a1a1e #060608}
+                    ::-webkit-scrollbar{width:8px;height:8px}
+                    ::-webkit-scrollbar-track{background:#060608}
+                    ::-webkit-scrollbar-thumb{background:#1a1a1e;border-radius:4px}
+                    ::-webkit-scrollbar-thumb:hover{background:#28282e}
+                    ::-webkit-scrollbar-corner{background:#060608}"
+                </style>
                 <MetaTags />
             </head>
             <body class="bg-[#060608] text-zinc-50 antialiased">

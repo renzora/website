@@ -216,12 +216,12 @@ pub fn MarketplacePage() -> impl IntoView {
 
                 el.innerHTML = data.assets.map((a, i) => {
                     const fullStars = a.rating_count > 0 ? Math.round(a.rating_avg) : 0;
-                    const starsHtml = `<span class="text-amber-400 text-[10px]">${'★'.repeat(fullStars)}</span><span class="text-zinc-600 text-[10px]">${'☆'.repeat(5 - fullStars)}</span><span class="text-[9px] text-zinc-500 ml-0.5">(${a.rating_count})</span>`;
+                    const starsHtml = `<span class="text-amber-400 text-sm">${'★'.repeat(fullStars)}</span><span class="text-zinc-700 text-sm">${'☆'.repeat(5 - fullStars)}</span><span class="text-[11px] text-zinc-500 ml-1">(${a.rating_count})</span>`;
                     const priceLabel = a.price_credits === 0 ? 'Free' : a.price_credits.toLocaleString() + ' cr';
                     const avatarHtml = a.creator_avatar_url
-                        ? `<img src="${a.creator_avatar_url}" class="w-4 h-4 rounded-full object-cover" />`
-                        : `<div class="w-4 h-4 rounded-full bg-zinc-800 flex items-center justify-center"><i class="ph ph-user text-[8px] text-zinc-500"></i></div>`;
-                    const tagsHtml = (a.tags || []).slice(0, 2).map(t => `<span class="px-1.5 py-[1px] rounded text-[8px] bg-white/[0.05] text-zinc-500">${t}</span>`).join('');
+                        ? `<img src="${a.creator_avatar_url}" class="w-5 h-5 rounded-full object-cover" />`
+                        : `<div class="w-5 h-5 rounded-full bg-zinc-800 flex items-center justify-center"><i class="ph ph-user text-[9px] text-zinc-500"></i></div>`;
+                    const tagsHtml = (a.tags || []).slice(0, 2).map(t => `<span class="px-1.5 py-0.5 rounded text-[10px] bg-white/[0.05] text-zinc-500">${t}</span>`).join('');
                     return `
                     <a href="/marketplace/asset/${a.slug}" class="block group" style="animation: fadeSlideUp 0.25s ease both; animation-delay: ${i * 20}ms">
                         <div class="bg-white/[0.02] border border-zinc-800/40 rounded-lg overflow-hidden hover:border-zinc-700/60 transition-all duration-200">
@@ -230,17 +230,17 @@ pub fn MarketplacePage() -> impl IntoView {
                                     ? `<img src="${a.thumbnail_url}" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 ease-out" loading="lazy" />`
                                     : `<div class="w-full h-full flex items-center justify-center"><i class="ph ph-package text-3xl text-zinc-800"></i></div>`}
                             </div>
-                            <div class="p-2.5">
-                                <h3 class="text-[12px] font-medium text-zinc-200 group-hover:text-white truncate">${a.name}</h3>
-                                <div class="flex items-center gap-1.5 mt-1.5">
+                            <div class="p-3">
+                                <h3 class="text-sm font-medium text-zinc-200 group-hover:text-white truncate">${a.name}</h3>
+                                <div class="flex items-center gap-1.5 mt-2">
                                     ${avatarHtml}
-                                    <span class="text-[11px] text-zinc-300 truncate">${a.creator_name}</span>
+                                    <span class="text-xs text-zinc-300 truncate">${a.creator_name}</span>
                                 </div>
-                                <div class="flex items-center justify-between mt-1.5">
-                                    <div class="flex items-center gap-1">${starsHtml}</div>
-                                    <span class="text-[11px] font-semibold ${a.price_credits === 0 ? 'text-emerald-400' : 'text-zinc-300'} shrink-0">${priceLabel}</span>
+                                <div class="flex items-center justify-between mt-2">
+                                    <div class="flex items-center">${starsHtml}</div>
+                                    <span class="text-xs font-semibold ${a.price_credits === 0 ? 'text-emerald-400' : 'text-zinc-300'} shrink-0">${priceLabel}</span>
                                 </div>
-                                ${tagsHtml ? `<div class="flex items-center gap-1 mt-1.5 overflow-hidden">${tagsHtml}<span class="text-[8px] text-zinc-600">${a.category}</span></div>` : `<div class="mt-1.5"><span class="px-1.5 py-[1px] rounded text-[8px] bg-white/[0.05] text-zinc-500">${a.category}</span></div>`}
+                                ${tagsHtml ? `<div class="flex items-center gap-1 mt-2 overflow-hidden">${tagsHtml}<span class="text-[10px] text-zinc-600">${a.category}</span></div>` : `<div class="mt-2"><span class="px-1.5 py-0.5 rounded text-[10px] bg-white/[0.05] text-zinc-500">${a.category}</span></div>`}
                             </div>
                         </div>
                     </a>`;

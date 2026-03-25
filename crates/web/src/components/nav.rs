@@ -3,7 +3,7 @@ use leptos::prelude::*;
 #[component]
 pub fn Nav() -> impl IntoView {
     view! {
-        <nav class="sticky top-0 z-50 bg-[rgba(10,10,11,0.8)] backdrop-blur-xl border-b border-zinc-800">
+        <nav class="sticky top-0 z-50 bg-[rgba(6,6,8,0.85)] backdrop-blur-xl border-b border-zinc-900 shadow-[0_1px_12px_rgba(0,0,0,0.6)]">
             <div class="px-6 h-14 flex items-center gap-8">
                 <a href="/" class="text-lg font-bold tracking-tight">"Renzora"</a>
                 <div class="flex gap-6 flex-1" id="nav-links">
