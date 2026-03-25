@@ -431,10 +431,12 @@ async fn add_comment(
     }
     let asset = Asset::find_by_id(&state.db, id).await?.ok_or(ApiError::NotFound)?;
 
-    // Only asset owners (purchasers) or the creator can comment
-    let owns = asset::user_owns_asset(&state.db, auth.user_id, id).await?;
-    if !owns && asset.creator_id != auth.user_id {
-        return Err(ApiError::Validation("You must own this asset to comment".into()));
+    // Free assets: anyone can comment. Paid assets: must own it or be the creator.
+    if asset.price_credits > 0 {
+        let owns = asset::user_owns_asset(&state.db, auth.user_id, id).await?;
+        if !owns && asset.creator_id != auth.user_id {
+            return Err(ApiError::Validation("You must own this asset to comment".into()));
+        }
     }
 
     let cid = Uuid::new_v4();
@@ -523,17 +525,19 @@ async fn submit_review(
     use renzora_models::review::Review;
     use renzora_models::asset;
 
-    // Must own the asset to review it
-    let owns = asset::user_owns_asset(&state.db, auth.user_id, id).await?;
     let asset = Asset::find_by_id(&state.db, id).await?.ok_or(ApiError::NotFound)?;
-
-    if !owns && asset.creator_id != auth.user_id {
-        return Err(ApiError::Validation("You must own this asset to review it".into()));
-    }
 
     // Can't review your own asset
     if asset.creator_id == auth.user_id {
         return Err(ApiError::Validation("You cannot review your own asset".into()));
+    }
+
+    // Free assets: anyone can review. Paid assets: must own it.
+    if asset.price_credits > 0 {
+        let owns = asset::user_owns_asset(&state.db, auth.user_id, id).await?;
+        if !owns {
+            return Err(ApiError::Validation("You must own this asset to review it".into()));
+        }
     }
 
     if body.rating < 1 || body.rating > 5 {

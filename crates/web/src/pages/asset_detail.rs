@@ -193,7 +193,7 @@ pub fn AssetDetailPage() -> impl IntoView {
                                 </div>
                                 <div class="space-y-3 mb-6">${reviewsHtml}</div>
 
-                                ${(token && !isCreator && a.owned) ? `
+                                ${(token && !isCreator && (a.owned || a.price_credits === 0)) ? `
                                     <div class="p-6 bg-white/[0.02] border border-zinc-800/50 rounded-xl">
                                         <h3 class="text-base font-semibold mb-4">Write a Review</h3>
                                         <div class="flex items-center gap-2 mb-4" id="star-picker">
@@ -204,19 +204,19 @@ pub fn AssetDetailPage() -> impl IntoView {
                                         <textarea id="review-content" rows="4" placeholder="Share your experience..." class="w-full px-4 py-3 bg-white/[0.02] border border-zinc-800/50 rounded-xl text-sm text-zinc-50 outline-none focus:border-accent/50 resize-y mb-3"></textarea>
                                         <button onclick="submitReview('${a.id}')" class="px-5 py-2.5 rounded-xl text-sm font-medium bg-accent text-white hover:bg-accent-hover transition-all hover:shadow-[0_0_20px_rgba(99,102,241,0.2)]">Submit Review</button>
                                     </div>
-                                ` : (!token ? '<p class="text-sm text-zinc-600"><a href="/login" class="text-accent">Sign in</a> and purchase to review.</p>' : '')}
+                                ` : (!token ? `<p class="text-sm text-zinc-600"><a href="/login" class="text-accent">Sign in</a>${a.price_credits === 0 ? '' : ' and purchase'} to review.</p>` : '')}
                             </div>
 
                             <!-- Comments -->
                             <div class="mt-12" id="comments">
                                 <h2 class="text-lg font-semibold mb-6">Comments <span class="text-zinc-600 font-normal">(${commentsData.comments?.length || 0})</span></h2>
                                 <div class="space-y-3 mb-6">${commentsHtml}</div>
-                                ${(token && (a.owned || isCreator)) ? `
+                                ${(token && (a.owned || isCreator || a.price_credits === 0)) ? `
                                     <div class="flex gap-3">
                                         <textarea id="comment-input" rows="2" placeholder="Leave a comment..." class="flex-1 px-4 py-3 bg-white/[0.02] border border-zinc-800/50 rounded-xl text-sm text-zinc-50 outline-none focus:border-accent/50 resize-y"></textarea>
                                         <button onclick="postComment('${a.id}')" class="px-5 py-2.5 rounded-xl text-sm font-medium bg-accent text-white hover:bg-accent-hover transition-all self-end">Post</button>
                                     </div>
-                                ` : (!token ? '<p class="text-sm text-zinc-600"><a href="/login" class="text-accent">Sign in</a> and purchase to comment.</p>' : (!a.owned && !isCreator ? '<p class="text-sm text-zinc-600">Purchase this asset to leave a comment.</p>' : ''))}
+                                ` : (!token ? `<p class="text-sm text-zinc-600"><a href="/login" class="text-accent">Sign in</a>${a.price_credits === 0 ? '' : ' and purchase'} to comment.</p>` : (!a.owned && !isCreator ? '<p class="text-sm text-zinc-600">Purchase this asset to leave a comment.</p>' : ''))}
                             </div>
                         </div>
 
