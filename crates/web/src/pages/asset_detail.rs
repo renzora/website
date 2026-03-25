@@ -138,9 +138,9 @@ pub fn AssetDetailPage() -> impl IntoView {
                 const el = document.getElementById('asset-detail');
                 el.innerHTML = `
                     ${heroImg ? `
-                    <div class="absolute inset-x-0 top-0 h-[500px] overflow-hidden pointer-events-none -z-10">
-                        <div class="absolute inset-0 bg-cover bg-center blur-3xl scale-125 opacity-20" style="background-image:url('${heroImg}')"></div>
-                        <div class="absolute inset-0 bg-gradient-to-b from-transparent via-[#0a0a0b]/70 to-[#0a0a0b]"></div>
+                    <div class="absolute inset-x-0 top-0 h-[600px] overflow-hidden pointer-events-none z-0">
+                        <div class="absolute inset-0 bg-cover bg-center blur-3xl scale-150 opacity-25" style="background-image:url('${heroImg}')"></div>
+                        <div class="absolute inset-0 bg-gradient-to-b from-transparent via-[#060608]/60 to-[#060608]"></div>
                     </div>` : ''}
 
                     <a href="/marketplace" class="inline-flex items-center gap-1.5 text-sm text-zinc-500 hover:text-zinc-300 transition-colors mb-6 relative z-10">
