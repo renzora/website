@@ -124,7 +124,10 @@ pub fn ProfilePage() -> impl IntoView {
                                     <h1 class="text-2xl font-bold">${p.username}</h1>
                                     <span class="text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full" style="background: ${roleColor}15; color: ${roleColor}; border: 1px solid ${roleColor}30">${p.role}</span>
                                     ${followBtn}
-                                    ${isOwnProfile ? `<button onclick="toggleEditProfile()" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-surface-card border border-zinc-800 text-zinc-400 hover:border-zinc-600 hover:text-zinc-200 transition-colors"><i class="ph ph-pencil-simple"></i>Edit</button>` : ''}
+                                    ${isOwnProfile ? `
+                                        <button onclick="toggleEditProfile()" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-surface-card border border-zinc-800 text-zinc-400 hover:border-zinc-600 hover:text-zinc-200 transition-colors"><i class="ph ph-pencil-simple"></i>Edit</button>
+                                        <button onclick="toggleStorefrontEditor()" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-surface-card border border-zinc-800 text-zinc-400 hover:border-zinc-600 hover:text-zinc-200 transition-colors"><i class="ph ph-storefront"></i>Storefront</button>
+                                    ` : ''}
                                 </div>
 
                                 ${p.bio ? `<p class="text-sm text-zinc-400 mb-3 max-w-lg">${p.bio}</p>` : ''}
@@ -186,6 +189,106 @@ pub fn ProfilePage() -> impl IntoView {
                         </div>
                     </div>
 
+                        <!-- Storefront editor (hidden) -->
+                        ${isOwnProfile ? `
+                        <div id="edit-storefront" class="hidden mt-6 p-6 bg-surface-card border border-zinc-800 rounded-xl">
+                            <div class="flex items-center justify-between mb-4">
+                                <h3 class="text-base font-semibold">Storefront Settings</h3>
+                                ${p.storefront_enabled ? `<a href="/shop/${p.username}" target="_blank" class="text-xs text-accent hover:underline"><i class="ph ph-arrow-square-out"></i> View Shop</a>` : ''}
+                            </div>
+                            <div class="mb-4">
+                                <label class="flex items-center gap-2 cursor-pointer">
+                                    <input type="checkbox" id="sf-enabled" ${p.storefront_enabled ? 'checked' : ''} class="accent-accent w-4 h-4" />
+                                    <span class="text-sm">Enable public storefront at <span class="text-accent">/shop/${p.username}</span></span>
+                                </label>
+                            </div>
+                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+                                <div>
+                                    <label class="block text-xs text-zinc-500 mb-1">Tagline</label>
+                                    <input id="sf-tagline" type="text" value="" placeholder="A short catchy tagline..." maxlength="128" class="w-full px-3 py-2 bg-surface border border-zinc-800 rounded-lg text-sm text-zinc-50 outline-none focus:border-accent" />
+                                </div>
+                                <div>
+                                    <label class="block text-xs text-zinc-500 mb-1">Layout</label>
+                                    <select id="sf-layout" class="w-full px-3 py-2 bg-surface border border-zinc-800 rounded-lg text-sm text-zinc-50 outline-none focus:border-accent">
+                                        <option value="grid">Grid</option>
+                                        <option value="list">List</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-4">
+                                <div>
+                                    <label class="block text-xs text-zinc-500 mb-1">Background</label>
+                                    <input id="sf-bg-color" type="color" value="#0a0a0b" class="w-full h-9 rounded cursor-pointer bg-transparent border border-zinc-800" />
+                                </div>
+                                <div>
+                                    <label class="block text-xs text-zinc-500 mb-1">Text Color</label>
+                                    <input id="sf-text-color" type="color" value="#e4e4e7" class="w-full h-9 rounded cursor-pointer bg-transparent border border-zinc-800" />
+                                </div>
+                                <div>
+                                    <label class="block text-xs text-zinc-500 mb-1">Accent</label>
+                                    <input id="sf-accent-color" type="color" value="#6366f1" class="w-full h-9 rounded cursor-pointer bg-transparent border border-zinc-800" />
+                                </div>
+                                <div>
+                                    <label class="block text-xs text-zinc-500 mb-1">Card Background</label>
+                                    <input id="sf-card-bg" type="color" value="#18181b" class="w-full h-9 rounded cursor-pointer bg-transparent border border-zinc-800" />
+                                </div>
+                            </div>
+                            <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-4">
+                                <div>
+                                    <label class="block text-xs text-zinc-500 mb-1">Card Border</label>
+                                    <input id="sf-card-border" type="color" value="#27272a" class="w-full h-9 rounded cursor-pointer bg-transparent border border-zinc-800" />
+                                </div>
+                                <div>
+                                    <label class="block text-xs text-zinc-500 mb-1">Font</label>
+                                    <select id="sf-font" class="w-full px-3 py-2 bg-surface border border-zinc-800 rounded-lg text-sm text-zinc-50 outline-none focus:border-accent">
+                                        <option value="Inter">Inter</option>
+                                        <option value="Roboto">Roboto</option>
+                                        <option value="Poppins">Poppins</option>
+                                        <option value="Space Grotesk">Space Grotesk</option>
+                                        <option value="JetBrains Mono">JetBrains Mono</option>
+                                        <option value="Outfit">Outfit</option>
+                                        <option value="Nunito">Nunito</option>
+                                        <option value="Lexend">Lexend</option>
+                                        <option value="DM Sans">DM Sans</option>
+                                        <option value="Playfair Display">Playfair Display</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="block text-xs text-zinc-500 mb-1">Font Size</label>
+                                    <select id="sf-font-size" class="w-full px-3 py-2 bg-surface border border-zinc-800 rounded-lg text-sm text-zinc-50 outline-none focus:border-accent">
+                                        <option value="12px">Small (12px)</option>
+                                        <option value="14px">Default (14px)</option>
+                                        <option value="16px">Large (16px)</option>
+                                        <option value="18px">Extra Large (18px)</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="block text-xs text-zinc-500 mb-1">Cursor</label>
+                                    <select id="sf-cursor" class="w-full px-3 py-2 bg-surface border border-zinc-800 rounded-lg text-sm text-zinc-50 outline-none focus:border-accent">
+                                        <option value="default">Default</option>
+                                        <option value="crosshair">Crosshair</option>
+                                        <option value="pointer">Pointer</option>
+                                        <option value="cell">Cell</option>
+                                        <option value="grab">Grab</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="mb-4">
+                                <label class="block text-xs text-zinc-500 mb-1">Background Image URL (optional)</label>
+                                <input id="sf-bg-image" type="url" value="" placeholder="https://..." class="w-full px-3 py-2 bg-surface border border-zinc-800 rounded-lg text-sm text-zinc-50 outline-none focus:border-accent" />
+                            </div>
+                            <div class="mb-4">
+                                <label class="block text-xs text-zinc-500 mb-1">Custom CSS <span class="text-zinc-600">(max 4KB)</span></label>
+                                <textarea id="sf-css" rows="3" placeholder="#shop-page .shop-card { border-radius: 1rem; }" class="w-full px-3 py-2 bg-surface border border-zinc-800 rounded-lg text-xs text-zinc-50 outline-none focus:border-accent resize-y font-mono"></textarea>
+                            </div>
+                            <div class="flex gap-2">
+                                <button onclick="saveStorefront()" class="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium bg-accent text-white hover:bg-accent-hover"><i class="ph ph-check"></i>Save Storefront</button>
+                                <button onclick="toggleStorefrontEditor()" class="px-4 py-2 rounded-lg text-sm text-zinc-400 hover:text-zinc-50">Cancel</button>
+                            </div>
+                        </div>
+                        ` : ''}
+                    </div>
+
                     <!-- Assets -->
                     ${assetsHtml}
                 `;
@@ -234,6 +337,70 @@ pub fn ProfilePage() -> impl IntoView {
 
                 if (res.ok) window.location.reload();
                 else { const d = await res.json().catch(() => ({})); alert(d.error || 'Upload failed'); }
+            }
+
+            function toggleStorefrontEditor() {
+                const el = document.getElementById('edit-storefront');
+                if (!el) return;
+                const wasHidden = el.classList.contains('hidden');
+                el.classList.toggle('hidden');
+                // Load current settings when opening
+                if (wasHidden) loadStorefrontSettings();
+            }
+
+            async function loadStorefrontSettings() {
+                const token = document.cookie.match('(^|;)\\s*token\\s*=\\s*([^;]+)')?.pop();
+                if (!token || !profileData) return;
+                const username = profileData.username;
+                // Try to fetch current storefront data (may 404 if not enabled)
+                const res = await fetch('/api/profiles/shop/' + username);
+                if (res.ok) {
+                    const sf = await res.json();
+                    const set = (id, val) => { const el = document.getElementById(id); if (el) el.value = val || ''; };
+                    set('sf-tagline', sf.tagline);
+                    set('sf-bg-color', sf.bg_color);
+                    set('sf-bg-image', sf.bg_image);
+                    set('sf-text-color', sf.text_color);
+                    set('sf-accent-color', sf.accent_color);
+                    set('sf-card-bg', sf.card_bg);
+                    set('sf-card-border', sf.card_border);
+                    set('sf-font', sf.font);
+                    set('sf-font-size', sf.font_size);
+                    set('sf-cursor', sf.cursor);
+                    set('sf-layout', sf.layout);
+                    set('sf-css', sf.css);
+                }
+            }
+
+            async function saveStorefront() {
+                const token = document.cookie.match('(^|;)\\s*token\\s*=\\s*([^;]+)')?.pop();
+                if (!token) return;
+                const body = {
+                    enabled: document.getElementById('sf-enabled')?.checked ?? false,
+                    tagline: document.getElementById('sf-tagline')?.value || '',
+                    bg_color: document.getElementById('sf-bg-color')?.value || '#0a0a0b',
+                    bg_image: document.getElementById('sf-bg-image')?.value || '',
+                    text_color: document.getElementById('sf-text-color')?.value || '#e4e4e7',
+                    accent_color: document.getElementById('sf-accent-color')?.value || '#6366f1',
+                    card_bg: document.getElementById('sf-card-bg')?.value || '#18181b',
+                    card_border: document.getElementById('sf-card-border')?.value || '#27272a',
+                    font: document.getElementById('sf-font')?.value || 'Inter',
+                    font_size: document.getElementById('sf-font-size')?.value || '14px',
+                    cursor: document.getElementById('sf-cursor')?.value || 'default',
+                    layout: document.getElementById('sf-layout')?.value || 'grid',
+                    css: document.getElementById('sf-css')?.value || '',
+                };
+                const res = await fetch('/api/profiles/storefront', {
+                    method: 'PUT',
+                    headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' },
+                    body: JSON.stringify(body)
+                });
+                if (res.ok) {
+                    window.location.reload();
+                } else {
+                    const d = await res.json().catch(() => ({}));
+                    alert(d.error || 'Failed to save');
+                }
             }
 
             async function toggleFollow(username) {

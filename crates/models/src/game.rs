@@ -15,6 +15,7 @@ pub struct Game {
     pub thumbnail_url: Option<String>,
     pub version: String,
     pub downloads: i64,
+    pub views: i64,
     pub published: bool,
     pub rating_sum: i64,
     pub rating_count: i32,
@@ -33,6 +34,7 @@ pub struct GameWithCreator {
     pub thumbnail_url: Option<String>,
     pub version: String,
     pub downloads: i64,
+    pub views: i64,
     pub creator_name: String,
     pub rating_sum: i64,
     pub rating_count: i32,
@@ -126,6 +128,7 @@ impl Game {
         let order_clause = match sort {
             "newest" => "g.created_at DESC",
             "popular" => "g.downloads DESC",
+            "most_viewed" => "g.views DESC",
             "price_asc" => "g.price_credits ASC",
             "price_desc" => "g.price_credits DESC",
             "top_rated" => "CASE WHEN g.rating_count > 0 THEN g.rating_sum::float / g.rating_count ELSE 0 END DESC",
@@ -139,7 +142,7 @@ impl Game {
         let games = sqlx::query_as::<_, GameWithCreator>(&format!(
             r#"
             SELECT g.id, g.name, g.slug, g.description, g.category, g.price_credits,
-                   g.thumbnail_url, g.version, g.downloads, u.username AS creator_name,
+                   g.thumbnail_url, g.version, g.downloads, g.views, u.username AS creator_name,
                    g.rating_sum, g.rating_count
             FROM games g
             JOIN users u ON u.id = g.creator_id
@@ -202,7 +205,7 @@ impl Game {
         let games = sqlx::query_as::<_, GameWithCreator>(
             r#"
             SELECT g.id, g.name, g.slug, g.description, g.category, g.price_credits,
-                   g.thumbnail_url, g.version, g.downloads, u.username AS creator_name,
+                   g.thumbnail_url, g.version, g.downloads, g.views, u.username AS creator_name,
                    g.rating_sum, g.rating_count
             FROM user_games ug
             JOIN games g ON g.id = ug.game_id
@@ -262,6 +265,31 @@ impl Game {
         sqlx::query("UPDATE games SET downloads = downloads + 1 WHERE id = $1")
             .bind(id).execute(pool).await?;
         Ok(())
+    }
+
+    pub async fn record_view(pool: &PgPool, id: Uuid, ip_hash: &str, user_id: Option<Uuid>) -> Result<bool, sqlx::Error> {
+        let result = sqlx::query(
+            r#"
+            INSERT INTO page_views (entity_type, entity_id, ip_hash, user_id)
+            VALUES ('game', $1, $2, $3)
+            ON CONFLICT (entity_type, entity_id, ip_hash)
+            DO UPDATE SET viewed_at = NOW(), user_id = COALESCE(EXCLUDED.user_id, page_views.user_id)
+            WHERE page_views.viewed_at < NOW() - INTERVAL '24 hours'
+            "#,
+        )
+        .bind(id)
+        .bind(ip_hash)
+        .bind(user_id)
+        .execute(pool)
+        .await?;
+
+        if result.rows_affected() > 0 {
+            sqlx::query("UPDATE games SET views = views + 1 WHERE id = $1")
+                .bind(id).execute(pool).await?;
+            Ok(true)
+        } else {
+            Ok(false)
+        }
     }
 }
 

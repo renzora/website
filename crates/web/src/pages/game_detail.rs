@@ -30,6 +30,7 @@ pub fn GameDetailPage() -> impl IntoView {
                             // Stats
                             <div class="flex items-center gap-4 mb-5">
                                 <div id="game-rating" class="flex items-center gap-1 text-amber-400"></div>
+                                <div id="game-views" class="text-xs text-zinc-500"></div>
                                 <div id="game-downloads" class="text-xs text-zinc-500"></div>
                             </div>
 
@@ -120,8 +121,9 @@ pub fn GameDetailPage() -> impl IntoView {
                         }
                     }
 
-                    // Downloads
-                    document.getElementById('game-downloads').innerHTML = `<i class="ph ph-download-simple"></i> ${gameData.downloads} downloads`;
+                    // Views & Downloads
+                    document.getElementById('game-views').innerHTML = `<i class="ph ph-eye"></i> ${gameData.views.toLocaleString()} views`;
+                    document.getElementById('game-downloads').innerHTML = `<i class="ph ph-download-simple"></i> ${gameData.downloads.toLocaleString()} downloads`;
 
                     // Price + action button
                     const priceEl = document.getElementById('game-price');

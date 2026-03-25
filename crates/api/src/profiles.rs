@@ -13,10 +13,12 @@ pub fn router() -> Router<AppState> {
     let protected = Router::new()
         .route("/follow/:username", post(toggle_follow))
         .route("/avatar", put(upload_avatar))
+        .route("/storefront", put(update_storefront))
         .layer(axum::middleware::from_fn(middleware::require_auth));
 
     Router::new()
         .route("/view/:username", get(get_profile))
+        .route("/shop/:username", get(get_storefront))
         .route("/search", get(search_users))
         .merge(protected)
 }
@@ -65,7 +67,7 @@ async fn get_profile(
         .and_then(|token| jwt::validate_token(token, &jwt_secret.0).ok())
         .filter(|c| c.token_type == "access")
         .map(|c| c.sub);
-    let row = sqlx::query("SELECT id, username, role, bio, website, location, gender, profile_color, banner_color, avatar_url, follower_count, following_count, post_count, credit_balance, created_at FROM users WHERE username=$1")
+    let row = sqlx::query("SELECT id, username, role, bio, website, location, gender, profile_color, banner_color, avatar_url, follower_count, following_count, post_count, credit_balance, created_at, storefront_enabled FROM users WHERE username=$1")
         .bind(&username)
         .fetch_optional(&state.db)
         .await?
@@ -134,6 +136,7 @@ async fn get_profile(
         "is_following": is_following,
         "badges": badges,
         "assets": assets,
+        "storefront_enabled": row.get::<bool, _>("storefront_enabled"),
         "created_at": row.get::<time::OffsetDateTime, _>("created_at").to_string(),
     })))
 }
@@ -161,9 +164,7 @@ async fn upload_avatar(
                 return Err(ApiError::Validation("Avatar must be under 2MB".into()));
             }
 
-            let stored_name = format!("{}-{}", Uuid::new_v4(), filename);
-            let s3_key = format!("avatars/{}", stored_name);
-            avatar_url = Some(marketplace::upload_to_storage(&state, &s3_key, data.to_vec()).await?);
+            avatar_url = Some(marketplace::upload_to_storage(&state, "avatars", &filename, data.to_vec()).await?);
         }
     }
 
@@ -200,4 +201,182 @@ async fn toggle_follow(
     }
 
     Ok(Json(serde_json::json!({"following": following})))
+}
+
+// ── Storefront ──
+
+async fn get_storefront(
+    State(state): State<AppState>,
+    Path(username): Path<String>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    let row = sqlx::query(
+        r#"SELECT id, username, role, bio, avatar_url, profile_color, banner_color,
+            storefront_enabled, storefront_tagline, storefront_bg_color, storefront_bg_image,
+            storefront_text_color, storefront_accent_color, storefront_card_bg, storefront_card_border,
+            storefront_font, storefront_font_size, storefront_cursor, storefront_layout, storefront_css
+           FROM users WHERE username=$1"#
+    )
+    .bind(&username)
+    .fetch_optional(&state.db)
+    .await?
+    .ok_or(ApiError::NotFound)?;
+
+    let id: Uuid = row.get("id");
+    let enabled: bool = row.get("storefront_enabled");
+    if !enabled {
+        return Err(ApiError::NotFound);
+    }
+
+    // Published assets
+    let asset_rows = sqlx::query(
+        "SELECT id, name, slug, description, category, price_credits, thumbnail_url, version, downloads, views FROM assets WHERE creator_id=$1 AND published=true ORDER BY created_at DESC"
+    )
+    .bind(id)
+    .fetch_all(&state.db)
+    .await?;
+
+    let assets: Vec<serde_json::Value> = asset_rows.iter().map(|r| serde_json::json!({
+        "id": r.get::<Uuid, _>("id"),
+        "name": r.get::<String, _>("name"),
+        "slug": r.get::<String, _>("slug"),
+        "description": r.get::<String, _>("description"),
+        "category": r.get::<String, _>("category"),
+        "price_credits": r.get::<i64, _>("price_credits"),
+        "thumbnail_url": r.get::<Option<String>, _>("thumbnail_url"),
+        "version": r.get::<String, _>("version"),
+        "downloads": r.get::<i64, _>("downloads"),
+        "views": r.get::<i64, _>("views"),
+    })).collect();
+
+    // Published games
+    let game_rows = sqlx::query(
+        "SELECT id, name, slug, description, category, price_credits, thumbnail_url, version, downloads, views FROM games WHERE creator_id=$1 AND published=true ORDER BY created_at DESC"
+    )
+    .bind(id)
+    .fetch_all(&state.db)
+    .await?;
+
+    let games: Vec<serde_json::Value> = game_rows.iter().map(|r| serde_json::json!({
+        "id": r.get::<Uuid, _>("id"),
+        "name": r.get::<String, _>("name"),
+        "slug": r.get::<String, _>("slug"),
+        "description": r.get::<String, _>("description"),
+        "category": r.get::<String, _>("category"),
+        "price_credits": r.get::<i64, _>("price_credits"),
+        "thumbnail_url": r.get::<Option<String>, _>("thumbnail_url"),
+        "version": r.get::<String, _>("version"),
+        "downloads": r.get::<i64, _>("downloads"),
+        "views": r.get::<i64, _>("views"),
+    })).collect();
+
+    // Badges
+    let badge_rows = sqlx::query("SELECT b.slug, b.name, b.description, b.icon, b.color FROM user_badges ub JOIN badges b ON b.id=ub.badge_id WHERE ub.user_id=$1")
+        .bind(id).fetch_all(&state.db).await?;
+    let badges: Vec<serde_json::Value> = badge_rows.iter().map(|r| serde_json::json!({
+        "slug": r.get::<String, _>("slug"),
+        "name": r.get::<String, _>("name"),
+        "icon": r.get::<String, _>("icon"),
+        "color": r.get::<String, _>("color"),
+    })).collect();
+
+    Ok(Json(serde_json::json!({
+        "username": row.get::<String, _>("username"),
+        "role": row.get::<String, _>("role"),
+        "bio": row.get::<String, _>("bio"),
+        "avatar_url": row.get::<Option<String>, _>("avatar_url"),
+        "profile_color": row.get::<String, _>("profile_color"),
+        "banner_color": row.get::<String, _>("banner_color"),
+        "tagline": row.get::<String, _>("storefront_tagline"),
+        "bg_color": row.get::<String, _>("storefront_bg_color"),
+        "bg_image": row.get::<String, _>("storefront_bg_image"),
+        "text_color": row.get::<String, _>("storefront_text_color"),
+        "accent_color": row.get::<String, _>("storefront_accent_color"),
+        "card_bg": row.get::<String, _>("storefront_card_bg"),
+        "card_border": row.get::<String, _>("storefront_card_border"),
+        "font": row.get::<String, _>("storefront_font"),
+        "font_size": row.get::<String, _>("storefront_font_size"),
+        "cursor": row.get::<String, _>("storefront_cursor"),
+        "layout": row.get::<String, _>("storefront_layout"),
+        "css": row.get::<String, _>("storefront_css"),
+        "badges": badges,
+        "assets": assets,
+        "games": games,
+    })))
+}
+
+#[derive(serde::Deserialize)]
+struct UpdateStorefrontRequest {
+    enabled: Option<bool>,
+    tagline: Option<String>,
+    bg_color: Option<String>,
+    bg_image: Option<String>,
+    text_color: Option<String>,
+    accent_color: Option<String>,
+    card_bg: Option<String>,
+    card_border: Option<String>,
+    font: Option<String>,
+    font_size: Option<String>,
+    cursor: Option<String>,
+    layout: Option<String>,
+    css: Option<String>,
+}
+
+async fn update_storefront(
+    State(state): State<AppState>,
+    Extension(auth): Extension<AuthUser>,
+    Json(body): Json<UpdateStorefrontRequest>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    // Sanitize custom CSS: strip anything that could be used for XSS
+    let safe_css = body.css.as_deref().map(|css| {
+        css.replace("javascript:", "")
+           .replace("expression(", "")
+           .replace("url(", "url(")  // keep url() but could further restrict
+           .chars()
+           .filter(|c| *c != '<' && *c != '>')
+           .collect::<String>()
+    });
+
+    // Limit custom CSS length
+    if let Some(ref css) = safe_css {
+        if css.len() > 4096 {
+            return Err(ApiError::Validation("Custom CSS must be under 4KB".into()));
+        }
+    }
+
+    sqlx::query(
+        r#"UPDATE users SET
+            storefront_enabled = COALESCE($2, storefront_enabled),
+            storefront_tagline = COALESCE($3, storefront_tagline),
+            storefront_bg_color = COALESCE($4, storefront_bg_color),
+            storefront_bg_image = COALESCE($5, storefront_bg_image),
+            storefront_text_color = COALESCE($6, storefront_text_color),
+            storefront_accent_color = COALESCE($7, storefront_accent_color),
+            storefront_card_bg = COALESCE($8, storefront_card_bg),
+            storefront_card_border = COALESCE($9, storefront_card_border),
+            storefront_font = COALESCE($10, storefront_font),
+            storefront_font_size = COALESCE($11, storefront_font_size),
+            storefront_cursor = COALESCE($12, storefront_cursor),
+            storefront_layout = COALESCE($13, storefront_layout),
+            storefront_css = COALESCE($14, storefront_css),
+            updated_at = NOW()
+        WHERE id = $1"#
+    )
+    .bind(auth.user_id)
+    .bind(body.enabled)
+    .bind(body.tagline.as_deref())
+    .bind(body.bg_color.as_deref())
+    .bind(body.bg_image.as_deref())
+    .bind(body.text_color.as_deref())
+    .bind(body.accent_color.as_deref())
+    .bind(body.card_bg.as_deref())
+    .bind(body.card_border.as_deref())
+    .bind(body.font.as_deref())
+    .bind(body.font_size.as_deref())
+    .bind(body.cursor.as_deref())
+    .bind(body.layout.as_deref())
+    .bind(safe_css.as_deref())
+    .execute(&state.db)
+    .await?;
+
+    Ok(Json(serde_json::json!({"message": "Storefront updated"})))
 }

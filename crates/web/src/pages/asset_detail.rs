@@ -172,6 +172,7 @@ pub fn AssetDetailPage() -> impl IntoView {
                             <div class="mt-6 flex items-center gap-4 text-sm text-zinc-600">
                                 <span><i class="ph ph-calendar-blank"></i> Published ${fmtDate(a.created_at)}</span>
                                 <span><i class="ph ph-clock-clockwise"></i> Updated ${fmtDate(a.updated_at)}</span>
+                                <span><i class="ph ph-eye"></i> ${a.views.toLocaleString()} views</span>
                                 <span><i class="ph ph-download-simple"></i> ${a.downloads.toLocaleString()} downloads</span>
                             </div>
 
@@ -244,6 +245,7 @@ pub fn AssetDetailPage() -> impl IntoView {
                                 <div class="mt-6 pt-6 border-t border-zinc-800/50 space-y-3">
                                     <div class="flex justify-between text-sm"><span class="text-zinc-500">Rating</span><span class="text-amber-400">${ratingCount > 0 ? starsStr + ' ' + ratingAvg.toFixed(1) : '—'}</span></div>
                                     <div class="flex justify-between text-sm"><span class="text-zinc-500">Reviews</span><span class="text-zinc-300">${ratingCount}</span></div>
+                                    <div class="flex justify-between text-sm"><span class="text-zinc-500">Views</span><span class="text-zinc-300">${a.views.toLocaleString()}</span></div>
                                     <div class="flex justify-between text-sm"><span class="text-zinc-500">Downloads</span><span class="text-zinc-300">${a.downloads.toLocaleString()}</span></div>
                                     <div class="flex justify-between text-sm"><span class="text-zinc-500">Category</span><span class="text-zinc-300">${a.category}</span></div>
                                     <div class="flex justify-between text-sm"><span class="text-zinc-500">Version</span><span class="text-zinc-300">${a.version}</span></div>

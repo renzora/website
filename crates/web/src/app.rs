@@ -25,6 +25,7 @@ use crate::pages::{
     marketplace::MarketplacePage,
     profile::ProfilePage,
     sell::SellOnboardingPage,
+    shop::ShopPage,
     settings::SettingsPage,
     upload::UploadPage,
     wallet::WalletPage,
@@ -71,6 +72,7 @@ pub fn App() -> impl IntoView {
                     <Route path=path!("/forum/thread/:slug") view=ForumThreadPage />
                     <Route path=path!("/forum/:slug") view=ForumCategoryPage />
                     <Route path=path!("/profile/:username") view=ProfilePage />
+                    <Route path=path!("/shop/:username") view=ShopPage />
                     <Route path=path!("/dashboard") view=DashboardPage />
                     <Route path=path!("/settings") view=SettingsPage />
                     <Route path=path!("/admin") view=AdminPage />

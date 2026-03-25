@@ -16,5 +16,6 @@ pub mod marketplace;
 pub mod profile;
 pub mod sell;
 pub mod settings;
+pub mod shop;
 pub mod upload;
 pub mod wallet;

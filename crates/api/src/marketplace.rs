@@ -75,6 +75,7 @@ async fn list_assets(
                 thumbnail_url: a.thumbnail_url,
                 version: a.version,
                 downloads: a.downloads,
+                views: a.views,
                 creator_name: a.creator_name,
                 rating_avg,
                 rating_count: a.rating_count,
@@ -103,32 +104,35 @@ async fn get_asset(
     State(state): State<AppState>,
     Path(slug): Path<String>,
     headers: axum::http::HeaderMap,
+    connect_info: axum::extract::ConnectInfo<std::net::SocketAddr>,
     Extension(jwt_secret): Extension<crate::middleware::JwtSecret>,
 ) -> Result<Json<AssetDetail>, ApiError> {
     let asset = Asset::find_by_slug(&state.db, &slug)
         .await?
         .ok_or(ApiError::NotFound)?;
 
-    let creator = User::find_by_id(&state.db, asset.creator_id)
-        .await?
-        .ok_or(ApiError::Internal("Creator not found".into()))?;
-
-    // Optionally check ownership if user is authenticated
-    let owned = if let Some(user_id) = headers
+    // Extract authenticated user (if any)
+    let user_id = headers
         .get("authorization")
         .and_then(|v| v.to_str().ok())
         .and_then(|h| h.strip_prefix("Bearer "))
         .and_then(|token| crate::jwt::validate_token(token, &jwt_secret.0).ok())
         .filter(|c| c.token_type == "access")
-        .map(|c| c.sub)
-    {
-        if user_id == asset.creator_id {
-            Some(true)
-        } else {
-            Some(asset::user_owns_asset(&state.db, user_id, asset.id).await?)
-        }
-    } else {
-        None
+        .map(|c| c.sub);
+
+    // Record view (deduplicated by IP, 24h cooldown)
+    let ip = client_ip(&headers, &connect_info);
+    let ip_hash = hash_ip(&ip);
+    let _ = Asset::record_view(&state.db, asset.id, &ip_hash, user_id).await;
+
+    let creator = User::find_by_id(&state.db, asset.creator_id)
+        .await?
+        .ok_or(ApiError::Internal("Creator not found".into()))?;
+
+    let owned = match user_id {
+        Some(uid) if uid == asset.creator_id => Some(true),
+        Some(uid) => Some(asset::user_owns_asset(&state.db, uid, asset.id).await?),
+        None => None,
     };
 
     Ok(Json(asset_to_detail(&asset, &creator, owned)))
@@ -161,32 +165,20 @@ async fn upload_asset(
                 );
             }
             "file" => {
-                let filename = field
-                    .file_name()
-                    .unwrap_or("asset.zip")
-                    .to_string();
+                let filename = field.file_name().unwrap_or("asset.zip").to_string();
                 let data = field
                     .bytes()
                     .await
                     .map_err(|e| ApiError::Validation(format!("Failed to read file: {e}")))?;
-
-                let stored_name = format!("{}-{}", Uuid::new_v4(), filename);
-                let s3_key = format!("assets/{}", stored_name);
-                file_path = Some(upload_to_storage(&state, &s3_key, data.to_vec()).await?);
+                file_path = Some(upload_to_storage(&state, "assets", &filename, data.to_vec()).await?);
             }
             "thumbnail" => {
-                let filename = field
-                    .file_name()
-                    .unwrap_or("thumb.png")
-                    .to_string();
+                let filename = field.file_name().unwrap_or("thumb.png").to_string();
                 let data = field
                     .bytes()
                     .await
                     .map_err(|e| ApiError::Validation(format!("Failed to read thumbnail: {e}")))?;
-
-                let stored_name = format!("{}-{}", Uuid::new_v4(), filename);
-                let s3_key = format!("thumbnails/{}", stored_name);
-                thumb_path = Some(upload_to_storage(&state, &s3_key, data.to_vec()).await?);
+                thumb_path = Some(upload_to_storage(&state, "thumbnails", &filename, data.to_vec()).await?);
             }
             _ => {}
         }
@@ -342,6 +334,7 @@ async fn purchased_assets(
                 thumbnail_url: a.thumbnail_url,
                 version: a.version,
                 downloads: a.downloads,
+                views: a.views,
                 creator_name: a.creator_name,
                 rating_avg,
                 rating_count: a.rating_count,
@@ -550,12 +543,55 @@ async fn mark_review_helpful(
     Ok(Json(serde_json::json!({"message": "Marked as helpful"})))
 }
 
+/// Generate a clean storage key from a folder and original filename.
+/// Returns `folder/uuid.ext` — strips the original name, keeps only the extension.
+fn storage_key(folder: &str, original_filename: &str) -> String {
+    let ext = original_filename
+        .rsplit('.')
+        .next()
+        .map(|e| e.to_lowercase())
+        .unwrap_or_default();
+    if ext.is_empty() {
+        format!("{}/{}", folder, Uuid::new_v4())
+    } else {
+        format!("{}/{}.{}", folder, Uuid::new_v4(), ext)
+    }
+}
+
+/// Detect content type from a file extension in the key.
+fn content_type_for_key(key: &str) -> &'static str {
+    match key.rsplit('.').next().map(|e| e.to_lowercase()).as_deref() {
+        Some("png") => "image/png",
+        Some("jpg" | "jpeg") => "image/jpeg",
+        Some("gif") => "image/gif",
+        Some("webp") => "image/webp",
+        Some("svg") => "image/svg+xml",
+        Some("mp4") => "video/mp4",
+        Some("webm") => "video/webm",
+        Some("zip") => "application/zip",
+        _ => "application/octet-stream",
+    }
+}
+
 /// Upload a file to S3 (DigitalOcean Spaces) or fall back to local disk.
-pub async fn upload_to_storage(state: &AppState, key: &str, data: Vec<u8>) -> Result<String, ApiError> {
+///
+/// Pass the folder (e.g. "thumbnails") and original filename (e.g. "Screenshot 2026.png").
+/// A clean key like `thumbnails/a04ea8f5-...-.ext` is generated automatically.
+pub async fn upload_to_storage(
+    state: &AppState,
+    folder: &str,
+    original_filename: &str,
+    data: Vec<u8>,
+) -> Result<String, ApiError> {
+    let key = storage_key(folder, original_filename);
+    let content_type = content_type_for_key(&key);
+
     if let Some(bucket) = &state.s3_bucket {
-        // Upload to S3
-        let response = bucket
-            .put_object_with_content_type(key, &data, "application/octet-stream")
+        // Upload to S3 with public-read ACL so files are accessible via CDN
+        let mut public_bucket = (**bucket).clone();
+        public_bucket.add_header("x-amz-acl", "public-read");
+        let response = public_bucket
+            .put_object_with_content_type(&key, &data, content_type)
             .await
             .map_err(|e| ApiError::Internal(format!("S3 upload failed: {e}")))?;
 
@@ -627,16 +663,12 @@ async fn upload_media(
             "file" => {
                 let filename = field.file_name().unwrap_or("media.png").to_string();
                 let data = field.bytes().await.map_err(|e| ApiError::Validation(e.to_string()))?;
-                let stored = format!("{}-{}", Uuid::new_v4(), filename);
-                let key = format!("gallery/{}", stored);
-                file_url = Some(upload_to_storage(&state, &key, data.to_vec()).await?);
+                file_url = Some(upload_to_storage(&state, "gallery", &filename, data.to_vec()).await?);
             }
             "thumbnail" => {
                 let filename = field.file_name().unwrap_or("thumb.png").to_string();
                 let data = field.bytes().await.map_err(|e| ApiError::Validation(e.to_string()))?;
-                let stored = format!("{}-{}", Uuid::new_v4(), filename);
-                let key = format!("gallery/thumbs/{}", stored);
-                thumb_url = Some(upload_to_storage(&state, &key, data.to_vec()).await?);
+                thumb_url = Some(upload_to_storage(&state, "gallery/thumbs", &filename, data.to_vec()).await?);
             }
             "video_url" => {
                 let val = field.text().await.unwrap_or_default();
@@ -692,6 +724,7 @@ fn asset_to_detail(
         thumbnail_url: asset.thumbnail_url.clone(),
         version: asset.version.clone(),
         downloads: asset.downloads,
+        views: asset.views,
         published: asset.published,
         creator: UserProfile {
             id: creator.id,
@@ -707,4 +740,31 @@ fn asset_to_detail(
         updated_at: asset.updated_at.to_string(),
         owned,
     }
+}
+
+/// Extract the real client IP, checking common proxy headers first.
+pub fn client_ip(
+    headers: &axum::http::HeaderMap,
+    connect_info: &axum::extract::ConnectInfo<std::net::SocketAddr>,
+) -> String {
+    headers
+        .get("x-forwarded-for")
+        .and_then(|v| v.to_str().ok())
+        .and_then(|s| s.split(',').next())
+        .map(|s| s.trim().to_string())
+        .or_else(|| {
+            headers
+                .get("x-real-ip")
+                .and_then(|v| v.to_str().ok())
+                .map(|s| s.to_string())
+        })
+        .unwrap_or_else(|| connect_info.0.ip().to_string())
+}
+
+/// Hash an IP address for privacy (we don't need to store raw IPs).
+pub fn hash_ip(ip: &str) -> String {
+    use sha2::{Sha256, Digest};
+    let mut hasher = Sha256::new();
+    hasher.update(ip.as_bytes());
+    format!("{:x}", hasher.finalize())
 }

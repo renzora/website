@@ -71,6 +71,7 @@ async fn list_games(
                 thumbnail_url: g.thumbnail_url,
                 version: g.version,
                 downloads: g.downloads,
+                views: g.views,
                 creator_name: g.creator_name,
                 rating_avg,
                 rating_count: g.rating_count,
@@ -107,11 +108,19 @@ async fn list_categories(
 async fn get_game(
     State(state): State<AppState>,
     Path(slug): Path<String>,
+    headers: axum::http::HeaderMap,
+    connect_info: axum::extract::ConnectInfo<std::net::SocketAddr>,
     auth: Option<Extension<AuthUser>>,
 ) -> Result<Json<GameDetail>, ApiError> {
     let game = Game::find_by_slug(&state.db, &slug)
         .await?
         .ok_or(ApiError::NotFound)?;
+
+    // Record view (deduplicated by IP, 24h cooldown)
+    let user_id = auth.as_ref().map(|Extension(a)| a.user_id);
+    let ip = crate::marketplace::client_ip(&headers, &connect_info);
+    let ip_hash = crate::marketplace::hash_ip(&ip);
+    let _ = Game::record_view(&state.db, game.id, &ip_hash, user_id).await;
 
     let creator = User::find_by_id(&state.db, game.creator_id)
         .await?
@@ -158,14 +167,12 @@ async fn upload_game(
             "file" => {
                 let filename = field.file_name().unwrap_or("game.zip").to_string();
                 let data = field.bytes().await.map_err(|e| ApiError::Validation(e.to_string()))?;
-                let stored = format!("{}-{}", Uuid::new_v4(), filename);
-                file_url = Some(upload_to_storage(&state, &format!("games/{}", stored), data.to_vec()).await?);
+                file_url = Some(upload_to_storage(&state, "games", &filename, data.to_vec()).await?);
             }
             "thumbnail" => {
                 let filename = field.file_name().unwrap_or("thumb.png").to_string();
                 let data = field.bytes().await.map_err(|e| ApiError::Validation(e.to_string()))?;
-                let stored = format!("{}-{}", Uuid::new_v4(), filename);
-                thumb_url = Some(upload_to_storage(&state, &format!("game_thumbnails/{}", stored), data.to_vec()).await?);
+                thumb_url = Some(upload_to_storage(&state, "game_thumbnails", &filename, data.to_vec()).await?);
             }
             _ => {}
         }
@@ -263,7 +270,7 @@ async fn user_library(
             GameSummary {
                 id: g.id, name: g.name, slug: g.slug, description: g.description,
                 category: g.category, price_credits: g.price_credits, thumbnail_url: g.thumbnail_url,
-                version: g.version, downloads: g.downloads, creator_name: g.creator_name,
+                version: g.version, downloads: g.downloads, views: g.views, creator_name: g.creator_name,
                 rating_avg, rating_count: g.rating_count,
             }
         })
@@ -417,14 +424,12 @@ async fn upload_media(
             "file" => {
                 let filename = field.file_name().unwrap_or("media.png").to_string();
                 let data = field.bytes().await.map_err(|e| ApiError::Validation(e.to_string()))?;
-                let stored = format!("{}-{}", Uuid::new_v4(), filename);
-                url = upload_to_storage(&state, &format!("game_media/{}", stored), data.to_vec()).await?;
+                url = upload_to_storage(&state, "game_media", &filename, data.to_vec()).await?;
             }
             "thumbnail" => {
                 let filename = field.file_name().unwrap_or("thumb.png").to_string();
                 let data = field.bytes().await.map_err(|e| ApiError::Validation(e.to_string()))?;
-                let stored = format!("{}-{}", Uuid::new_v4(), filename);
-                thumb = Some(upload_to_storage(&state, &format!("game_media_thumbs/{}", stored), data.to_vec()).await?);
+                thumb = Some(upload_to_storage(&state, "game_media_thumbs", &filename, data.to_vec()).await?);
             }
             _ => {}
         }
@@ -465,6 +470,7 @@ fn game_to_detail(game: &Game, creator: &User, owned: Option<bool>) -> GameDetai
         thumbnail_url: game.thumbnail_url.clone(),
         version: game.version.clone(),
         downloads: game.downloads,
+        views: game.views,
         published: game.published,
         creator: UserProfile {
             id: creator.id,
@@ -482,20 +488,6 @@ fn game_to_detail(game: &Game, creator: &User, owned: Option<bool>) -> GameDetai
     }
 }
 
-async fn upload_to_storage(state: &AppState, key: &str, data: Vec<u8>) -> Result<String, ApiError> {
-    if let Some(bucket) = &state.s3_bucket {
-        bucket
-            .put_object(key, &data)
-            .await
-            .map_err(|e| ApiError::Internal(format!("S3 upload failed: {}", e)))?;
-        Ok(format!("{}/{}", state.s3_public_url, key))
-    } else {
-        // Local fallback
-        let path = std::path::Path::new(&state.upload_dir).join(key);
-        if let Some(parent) = path.parent() {
-            tokio::fs::create_dir_all(parent).await.map_err(|e| ApiError::Internal(e.to_string()))?;
-        }
-        tokio::fs::write(&path, &data).await.map_err(|e| ApiError::Internal(e.to_string()))?;
-        Ok(format!("{}/{}", state.upload_base_url, key))
-    }
+async fn upload_to_storage(state: &AppState, folder: &str, original_filename: &str, data: Vec<u8>) -> Result<String, ApiError> {
+    crate::marketplace::upload_to_storage(state, folder, original_filename, data).await
 }

@@ -15,6 +15,7 @@ pub struct Asset {
     pub thumbnail_url: Option<String>,
     pub version: String,
     pub downloads: i64,
+    pub views: i64,
     pub published: bool,
     pub rating_sum: i64,
     pub rating_count: i32,
@@ -34,6 +35,7 @@ pub struct AssetWithCreator {
     pub thumbnail_url: Option<String>,
     pub version: String,
     pub downloads: i64,
+    pub views: i64,
     pub creator_name: String,
     pub rating_sum: i64,
     pub rating_count: i32,
@@ -114,6 +116,7 @@ impl Asset {
         let order_clause = match sort {
             "newest" => "a.created_at DESC",
             "popular" => "a.downloads DESC",
+            "most_viewed" => "a.views DESC",
             "price_asc" => "a.price_credits ASC",
             "price_desc" => "a.price_credits DESC",
             "top_rated" => "CASE WHEN a.rating_count > 0 THEN a.rating_sum::float / a.rating_count ELSE 0 END DESC",
@@ -127,7 +130,7 @@ impl Asset {
         let assets = sqlx::query_as::<_, AssetWithCreator>(&format!(
             r#"
             SELECT a.id, a.name, a.slug, a.description, a.category, a.price_credits,
-                   a.thumbnail_url, a.version, a.downloads, u.username AS creator_name,
+                   a.thumbnail_url, a.version, a.downloads, a.views, u.username AS creator_name,
                    a.rating_sum, a.rating_count
             FROM assets a
             JOIN users u ON u.id = a.creator_id
@@ -252,7 +255,7 @@ impl Asset {
         let assets = sqlx::query_as::<_, AssetWithCreator>(
             r#"
             SELECT a.id, a.name, a.slug, a.description, a.category, a.price_credits,
-                   a.thumbnail_url, a.version, a.downloads, u.username AS creator_name,
+                   a.thumbnail_url, a.version, a.downloads, a.views, u.username AS creator_name,
                    a.rating_sum, a.rating_count
             FROM user_assets ua
             JOIN assets a ON a.id = ua.asset_id
@@ -275,6 +278,36 @@ impl Asset {
             .execute(pool)
             .await?;
         Ok(())
+    }
+
+    /// Record a view. Returns true if this was a new unique view (incremented the counter).
+    pub async fn record_view(pool: &PgPool, id: Uuid, ip_hash: &str, user_id: Option<Uuid>) -> Result<bool, sqlx::Error> {
+        // Insert a view record; if the IP already viewed this entity, update the timestamp
+        // only if enough time has passed (24h cooldown).
+        let result = sqlx::query(
+            r#"
+            INSERT INTO page_views (entity_type, entity_id, ip_hash, user_id)
+            VALUES ('asset', $1, $2, $3)
+            ON CONFLICT (entity_type, entity_id, ip_hash)
+            DO UPDATE SET viewed_at = NOW(), user_id = COALESCE(EXCLUDED.user_id, page_views.user_id)
+            WHERE page_views.viewed_at < NOW() - INTERVAL '24 hours'
+            "#,
+        )
+        .bind(id)
+        .bind(ip_hash)
+        .bind(user_id)
+        .execute(pool)
+        .await?;
+
+        if result.rows_affected() > 0 {
+            sqlx::query("UPDATE assets SET views = views + 1 WHERE id = $1")
+                .bind(id)
+                .execute(pool)
+                .await?;
+            Ok(true)
+        } else {
+            Ok(false)
+        }
     }
 }
 

@@ -167,7 +167,7 @@ async fn main() {
     tracing::info!("Server listening on {addr}");
 
     let listener = tokio::net::TcpListener::bind(&addr).await.unwrap();
-    axum::serve(listener, app).await.unwrap();
+    axum::serve(listener, app.into_make_service_with_connect_info::<std::net::SocketAddr>()).await.unwrap();
 }
 
 async fn health_check() -> Json<serde_json::Value> {

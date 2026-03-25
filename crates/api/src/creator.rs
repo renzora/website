@@ -59,6 +59,7 @@ async fn stats(
                 thumbnail_url: a.thumbnail_url,
                 version: a.version,
                 downloads: a.downloads,
+                views: a.views,
                 creator_name: user.username.clone(),
                 rating_avg,
                 rating_count: a.rating_count,
