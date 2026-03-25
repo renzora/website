@@ -7,10 +7,10 @@ pub fn AssetDetailPage() -> impl IntoView {
             // Background layer — inside the section so it's part of the document flow
             <div class="fixed inset-0 pointer-events-none overflow-hidden" style="z-index:0" id="asset-bg-layer">
                 <canvas id="asset-canvas" class="absolute inset-0 w-full h-full" style="z-index:1"></canvas>
-                <div class="absolute top-[10%] left-[15%] w-80 h-80 bg-accent/10 rounded-full blur-[120px] animate-pulse" style="z-index:0"></div>
-                <div class="absolute bottom-[20%] right-[10%] w-72 h-72 bg-purple-600/8 rounded-full blur-[100px]" style="z-index:0;animation:pulse 4s ease-in-out infinite 1s"></div>
+                <div class="absolute top-[10%] left-[15%] w-96 h-96 bg-accent/20 rounded-full blur-[120px] animate-pulse" style="z-index:0"></div>
+                <div class="absolute bottom-[20%] right-[10%] w-80 h-80 bg-purple-600/15 rounded-full blur-[100px]" style="z-index:0;animation:pulse 4s ease-in-out infinite 1s"></div>
                 <div id="asset-thumb-bg" class="absolute inset-0" style="z-index:0"></div>
-                <div class="absolute inset-0 bg-[#060608]/30" style="z-index:2"></div>
+                <div class="absolute inset-0 bg-[#060608]/15" style="z-index:2"></div>
             </div>
             <div class="max-w-[1100px] mx-auto relative" style="z-index:10" id="asset-detail">
                 <div class="text-center py-20">
@@ -80,8 +80,8 @@ pub fn AssetDetailPage() -> impl IntoView {
                 const ratingAvg = reviewsData.rating_avg || 0;
                 const ratingCount = reviewsData.rating_count || 0;
                 const fullStars = Math.round(ratingAvg);
-                const starsStr = '★'.repeat(fullStars) + '☆'.repeat(5 - fullStars);
-                const ratingLabel = ratingCount === 0 ? 'No reviews yet' : `${ratingAvg.toFixed(1)} (${ratingCount} review${ratingCount !== 1 ? 's' : ''})`;
+                const starsHtml = `<span class="text-amber-400">${'★'.repeat(fullStars)}</span><span class="text-zinc-700">${'☆'.repeat(5 - fullStars)}</span>`;
+                const ratingLabel = `${ratingCount > 0 ? ratingAvg.toFixed(1) + ' ' : ''}(${ratingCount})`;
 
                 // Reviews HTML
                 let reviewsHtml = '';
@@ -196,11 +196,9 @@ pub fn AssetDetailPage() -> impl IntoView {
                                     <span class="text-sm text-zinc-600">·</span>
                                     <span class="px-2.5 py-1 rounded-full bg-white/[0.03] border border-zinc-800/50 text-xs text-zinc-400">${a.category}</span>
                                     <span class="text-sm text-zinc-500">v${a.version}</span>
-                                    ${ratingCount > 0 ? `
-                                        <span class="text-sm text-zinc-600">·</span>
-                                        <span class="text-amber-400 text-sm">${starsStr}</span>
-                                        <span class="text-sm text-zinc-500">${ratingLabel}</span>
-                                    ` : ''}
+                                    <span class="text-sm text-zinc-600">·</span>
+                                    <span class="text-sm">${starsHtml}</span>
+                                    <span class="text-sm text-zinc-500">${ratingLabel}</span>
                                 </div>
                             </div>
 
@@ -221,10 +219,10 @@ pub fn AssetDetailPage() -> impl IntoView {
                             <div class="mt-12" id="reviews">
                                 <div class="flex items-center justify-between mb-6">
                                     <h2 class="text-lg font-semibold">Reviews</h2>
-                                    ${ratingCount > 0 ? `
+                                    ${true ? `
                                         <div class="flex items-center gap-2">
-                                            <span class="text-amber-400 text-lg">${starsStr}</span>
-                                            <span class="text-sm text-zinc-400">${ratingAvg.toFixed(1)} out of 5</span>
+                                            <span class="text-lg">${starsHtml}</span>
+                                            <span class="text-sm text-zinc-400">${ratingCount > 0 ? ratingAvg.toFixed(1) + ' out of 5' : 'No ratings yet'}</span>
                                             <span class="text-sm text-zinc-600">(${ratingCount})</span>
                                         </div>
                                     ` : ''}
@@ -272,7 +270,7 @@ pub fn AssetDetailPage() -> impl IntoView {
                                         <a href="/library" class="w-full mt-2 px-4 py-2.5 rounded-xl text-sm font-medium bg-white/[0.03] border border-zinc-800/50 text-zinc-300 hover:border-zinc-600 hover:text-white transition-all flex items-center justify-center gap-2"><i class="ph ph-books text-lg"></i>Show in Library</a>
                                         <p class="text-xs text-green-400 text-center mt-2"><i class="ph ph-check-circle"></i> You own this asset</p>
                                     ` : a.price_credits === 0 ? `
-                                        <button onclick="purchaseAsset('${a.id}')" class="w-full mt-4 px-4 py-3 rounded-xl text-sm font-semibold bg-accent text-white hover:bg-accent-hover transition-all hover:shadow-[0_0_20px_rgba(99,102,241,0.2)] flex items-center justify-center gap-2"><i class="ph ph-download-simple text-lg"></i>Get Free</button>
+                                        <button onclick="purchaseAsset('${a.id}')" class="w-full mt-4 px-4 py-3 rounded-xl text-sm font-semibold bg-accent text-white hover:bg-accent-hover transition-all hover:shadow-[0_0_20px_rgba(99,102,241,0.2)] flex items-center justify-center gap-2"><i class="ph ph-plus-circle text-lg"></i>Add to Library</button>
                                     ` : `
                                         <div class="mt-4 flex gap-2">
                                             <input type="text" id="promo-input" placeholder="Promo code" maxlength="32" class="flex-1 px-3 py-2.5 bg-white/[0.02] border border-zinc-800/50 rounded-xl text-xs text-zinc-50 outline-none focus:border-accent/50 uppercase" />
@@ -284,7 +282,7 @@ pub fn AssetDetailPage() -> impl IntoView {
                                 `}
 
                                 <div class="mt-6 pt-6 border-t border-zinc-800/50 space-y-3">
-                                    <div class="flex justify-between text-sm"><span class="text-zinc-500">Rating</span><span class="text-amber-400">${ratingCount > 0 ? starsStr + ' ' + ratingAvg.toFixed(1) : '—'}</span></div>
+                                    <div class="flex justify-between text-sm"><span class="text-zinc-500">Rating</span><span>${starsHtml} <span class="text-zinc-500">(${ratingCount})</span></span></div>
                                     <div class="flex justify-between text-sm"><span class="text-zinc-500">Reviews</span><span class="text-zinc-300">${ratingCount}</span></div>
                                     <div class="flex justify-between text-sm"><span class="text-zinc-500">Views</span><span class="text-zinc-300">${a.views.toLocaleString()}</span></div>
                                     <div class="flex justify-between text-sm"><span class="text-zinc-500">Downloads</span><span class="text-zinc-300">${a.downloads.toLocaleString()}</span></div>
@@ -294,6 +292,15 @@ pub fn AssetDetailPage() -> impl IntoView {
                                     <div class="flex justify-between text-sm"><span class="text-zinc-500">Published</span><span class="text-zinc-300">${fmtDate(a.created_at)}</span></div>
                                     <div class="flex justify-between text-sm"><span class="text-zinc-500">Updated</span><span class="text-zinc-300">${fmtDate(a.updated_at)}</span></div>
                                 </div>
+
+                                <!-- Rate this asset -->
+                                ${token && !isCreator ? `
+                                <div class="mt-6 pt-6 border-t border-zinc-800/50">
+                                    <p class="text-xs text-zinc-500 mb-2">Rate this asset</p>
+                                    <div class="flex gap-1" id="rate-stars">
+                                        ${[1,2,3,4,5].map(n => `<button onclick="rateAsset('${a.id}',${n})" class="rate-star text-2xl text-zinc-700 hover:text-amber-400 transition-colors cursor-pointer" data-n="${n}" onmouseenter="hoverStar(${n})" onmouseleave="resetStars()">☆</button>`).join('')}
+                                    </div>
+                                </div>` : ''}
 
                                 <div class="mt-6 pt-6 border-t border-zinc-800/50">
                                     <a href="/profile/${a.creator.username}" class="flex items-center gap-3 group">
@@ -331,37 +338,80 @@ pub fn AssetDetailPage() -> impl IntoView {
                     return `
                         <div class="aspect-video flex flex-col items-end justify-end relative overflow-hidden">
                             ${coverBg}
-                            <audio id="audio-player" src="${item.url}" preload="metadata" class="hidden"></audio>
-                            <div class="relative z-10 w-full px-5 pb-5">
-                                <div class="flex items-center gap-3 w-full bg-black/40 backdrop-blur-md rounded-xl px-4 py-3">
-                                    <button onclick="toggleAudioPlay()" id="audio-play-btn" class="w-11 h-11 rounded-full bg-accent hover:bg-accent-hover text-white flex items-center justify-center transition-colors shrink-0 shadow-lg shadow-accent/20">
-                                        <i class="ph ph-play-fill text-lg" id="audio-play-icon"></i>
+                            <audio id="audio-player" src="${item.url}" preload="metadata" crossorigin="anonymous" class="hidden"></audio>
+                            <!-- Waveform canvas centered -->
+                            <div class="absolute inset-0 z-[5] flex items-center justify-center pointer-events-none">
+                                <canvas id="waveform-canvas" class="w-[85%] h-24 opacity-80 pointer-events-auto cursor-pointer" onclick="seekWaveform(event)"></canvas>
+                            </div>
+                            <div class="relative z-10 w-full px-5 pb-4">
+                                <div class="flex items-center gap-3 w-full bg-black/40 backdrop-blur-md rounded-xl px-4 py-2.5">
+                                    <button onclick="toggleAudioPlay()" id="audio-play-btn" class="w-10 h-10 rounded-full bg-accent hover:bg-accent-hover text-white flex items-center justify-center transition-colors shrink-0 shadow-lg shadow-accent/20">
+                                        <svg id="audio-icon-play" class="w-5 h-5" viewBox="0 0 24 24" fill="currentColor"><polygon points="6,3 20,12 6,21"></polygon></svg>
+                                        <svg id="audio-icon-pause" class="w-5 h-5 hidden" viewBox="0 0 24 24" fill="currentColor"><rect x="5" y="3" width="4" height="18"></rect><rect x="15" y="3" width="4" height="18"></rect></svg>
                                     </button>
                                     <div class="flex-1 min-w-0">
-                                        <div class="relative w-full h-1.5 bg-white/10 rounded-full cursor-pointer" onclick="seekAudio(event)">
-                                            <div id="audio-buffered" class="absolute left-0 top-0 h-full bg-white/10 rounded-full" style="width:0%"></div>
-                                            <div id="audio-progress" class="absolute left-0 top-0 h-full bg-accent rounded-full transition-all" style="width:0%"></div>
-                                        </div>
-                                        <div class="flex justify-between mt-1.5">
-                                            <span id="audio-current" class="text-[11px] text-white/50 tabular-nums">0:00</span>
-                                            <span id="audio-duration" class="text-[11px] text-white/50 tabular-nums">0:00</span>
+                                        <div class="flex justify-between">
+                                            <span id="audio-current" class="text-[11px] text-white/60 tabular-nums">0:00</span>
+                                            <span id="audio-duration" class="text-[11px] text-white/60 tabular-nums">0:00</span>
                                         </div>
                                     </div>
-                                    <button onclick="toggleAudioVolume()" class="text-white/40 hover:text-white/80 transition-colors shrink-0">
-                                        <i class="ph ph-speaker-high text-lg" id="audio-vol-icon"></i>
+                                    <div class="flex items-center gap-1.5 shrink-0 group/vol">
+                                        <button onclick="toggleAudioVolume()" class="text-white/40 hover:text-white/80 transition-colors">
+                                            <svg id="audio-vol-on" class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="11,5 6,9 2,9 2,15 6,15 11,19" fill="currentColor"></polygon><path d="M19.07 4.93a10 10 0 010 14.14M15.54 8.46a5 5 0 010 7.07"></path></svg>
+                                            <svg id="audio-vol-off" class="w-4 h-4 hidden" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="11,5 6,9 2,9 2,15 6,15 11,19" fill="currentColor"></polygon><line x1="23" y1="9" x2="17" y2="15"></line><line x1="17" y1="9" x2="23" y2="15"></line></svg>
+                                        </button>
+                                        <input type="range" min="0" max="100" value="100" id="audio-vol-slider" oninput="setAudioVolume(this.value)" class="w-16 h-1 accent-accent bg-white/10 rounded-full appearance-none cursor-pointer opacity-0 group-hover/vol:opacity-100 transition-opacity [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-2.5 [&::-webkit-slider-thumb]:h-2.5 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-white" />
+                                    </div>
                                     </button>
                                 </div>
                             </div>
                         </div>`;
                 }
                 if (item.type === 'video') {
-                    // YouTube/external embed or direct video
+                    // YouTube/external embed
                     if (item.url.includes('youtube.com') || item.url.includes('youtu.be')) {
                         const vid = item.url.match(/(?:v=|youtu\.be\/)([a-zA-Z0-9_-]+)/)?.[1];
                         return vid ? `<div class="aspect-video"><iframe src="https://www.youtube.com/embed/${vid}" class="w-full h-full" frameborder="0" allowfullscreen></iframe></div>` :
                             `<div class="aspect-video flex items-center justify-center text-zinc-600">Invalid video URL</div>`;
                     }
-                    return `<video src="${item.url}" controls ${item.thumb ? `poster="${item.thumb}"` : ''} class="w-full aspect-video object-contain bg-black" ondblclick="openAssetLightbox(activeGalleryIndex)"></video>`;
+                    // Custom video player
+                    return `
+                        <div class="aspect-video relative bg-black group/vp" id="video-container">
+                            <video id="video-player" src="${item.url}" ${item.thumb ? `poster="${item.thumb}"` : ''} preload="metadata" class="w-full h-full object-contain" onclick="toggleVideoPlay()" ondblclick="toggleVideoFullscreen()"></video>
+                            <!-- Big play button overlay -->
+                            <div id="video-big-play" class="absolute inset-0 flex items-center justify-center cursor-pointer" onclick="toggleVideoPlay()">
+                                <div class="w-16 h-16 rounded-full bg-black/50 backdrop-blur-sm flex items-center justify-center hover:bg-accent/80 transition-colors">
+                                    <svg class="w-7 h-7 text-white ml-1" viewBox="0 0 24 24" fill="currentColor"><polygon points="6,3 20,12 6,21"></polygon></svg>
+                                </div>
+                            </div>
+                            <!-- Controls bar -->
+                            <div id="video-controls" class="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/80 to-transparent pt-10 pb-3 px-4 opacity-0 group-hover/vp:opacity-100 transition-opacity duration-200">
+                                <!-- Progress bar -->
+                                <div class="relative w-full h-1 bg-white/10 rounded-full cursor-pointer mb-3 group/prog" onclick="seekVideo(event)" onmousemove="videoProgressHover(event)" onmouseleave="videoProgressLeave()">
+                                    <div id="video-buffered" class="absolute left-0 top-0 h-full bg-white/10 rounded-full" style="width:0%"></div>
+                                    <div id="video-progress" class="absolute left-0 top-0 h-full bg-accent rounded-full" style="width:0%"></div>
+                                    <div id="video-hover-time" class="hidden absolute -top-7 bg-black/80 text-white text-[10px] px-1.5 py-0.5 rounded pointer-events-none tabular-nums"></div>
+                                </div>
+                                <div class="flex items-center gap-3">
+                                    <button onclick="toggleVideoPlay()" class="text-white/80 hover:text-white transition-colors">
+                                        <svg id="video-icon-play" class="w-5 h-5" viewBox="0 0 24 24" fill="currentColor"><polygon points="6,3 20,12 6,21"></polygon></svg>
+                                        <svg id="video-icon-pause" class="w-5 h-5 hidden" viewBox="0 0 24 24" fill="currentColor"><rect x="5" y="3" width="4" height="18"></rect><rect x="15" y="3" width="4" height="18"></rect></svg>
+                                    </button>
+                                    <span id="video-time" class="text-[11px] text-white/60 tabular-nums">0:00 / 0:00</span>
+                                    <div class="flex-1"></div>
+                                    <div class="flex items-center gap-1.5 group/vvol">
+                                        <button onclick="toggleVideoVolume()" class="text-white/60 hover:text-white transition-colors">
+                                            <svg id="video-vol-on" class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="11,5 6,9 2,9 2,15 6,15 11,19" fill="currentColor"></polygon><path d="M19.07 4.93a10 10 0 010 14.14M15.54 8.46a5 5 0 010 7.07"></path></svg>
+                                            <svg id="video-vol-off" class="w-4 h-4 hidden" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="11,5 6,9 2,9 2,15 6,15 11,19" fill="currentColor"></polygon><line x1="23" y1="9" x2="17" y2="15"></line><line x1="17" y1="9" x2="23" y2="15"></line></svg>
+                                        </button>
+                                        <input type="range" min="0" max="100" value="100" id="video-vol-slider" oninput="setVideoVolume(this.value)" class="w-16 h-1 accent-accent bg-white/10 rounded-full appearance-none cursor-pointer opacity-0 group-hover/vvol:opacity-100 transition-opacity [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-2.5 [&::-webkit-slider-thumb]:h-2.5 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-white" />
+                                    </div>
+                                    <button onclick="toggleVideoFullscreen()" class="text-white/60 hover:text-white transition-colors">
+                                        <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 3H5a2 2 0 00-2 2v3m18 0V5a2 2 0 00-2-2h-3m0 18h3a2 2 0 002-2v-3M3 16v3a2 2 0 002 2h3"></path></svg>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>`;
                 }
                 return `<div class="relative group/preview"><img src="${item.url}" class="w-full aspect-video object-cover cursor-pointer" onclick="openAssetLightbox(activeGalleryIndex)" /><button onclick="openAssetLightbox(activeGalleryIndex)" class="absolute top-3 right-3 w-8 h-8 rounded-lg bg-black/50 hover:bg-black/70 flex items-center justify-center text-white/70 hover:text-white text-sm opacity-0 group-hover/preview:opacity-100 transition-all backdrop-blur-sm"><i class="ph ph-arrows-out"></i></button></div>`;
             }
@@ -373,8 +423,9 @@ pub fn AssetDetailPage() -> impl IntoView {
                 activeGalleryIndex = index;
                 const item = galleryItems[index];
                 document.getElementById('main-preview').innerHTML = renderMainPreview(item);
-                // Re-init audio player if the new item is audio
+                // Re-init players based on type
                 if (item.type === 'audio') initAudioPlayer();
+                if (item.type === 'video') initVideoPlayer();
                 document.querySelectorAll('.gallery-thumb').forEach(el => {
                     const i = parseInt(el.dataset.index);
                     el.className = el.className.replace(/border-accent|border-zinc-800\/50/g, '');
@@ -382,27 +433,133 @@ pub fn AssetDetailPage() -> impl IntoView {
                 });
             }
 
-            // ── Audio Player ──
+            // ── Audio Player with Real-time Waveform ──
+            let audioCtx = null;
+            let analyser = null;
+            let sourceNode = null;
+            let animFrameId = null;
+            let audioConnected = false;
+
             function initAudioPlayer() {
                 const audio = document.getElementById('audio-player');
                 if (!audio) return;
+
                 audio.addEventListener('loadedmetadata', () => {
                     document.getElementById('audio-duration').textContent = fmtTime(audio.duration);
                 });
                 audio.addEventListener('timeupdate', () => {
-                    const pct = audio.duration ? (audio.currentTime / audio.duration) * 100 : 0;
-                    document.getElementById('audio-progress').style.width = pct + '%';
                     document.getElementById('audio-current').textContent = fmtTime(audio.currentTime);
                 });
                 audio.addEventListener('ended', () => {
-                    document.getElementById('audio-play-icon').className = 'ph ph-play-fill text-lg';
+                    document.getElementById('audio-icon-play').classList.remove('hidden');
+                    document.getElementById('audio-icon-pause').classList.add('hidden');
+                    cancelAnimationFrame(animFrameId);
+                    // Draw idle state
+                    drawIdleWaveform();
                 });
-                audio.addEventListener('progress', () => {
-                    if (audio.buffered.length > 0) {
-                        const pct = (audio.buffered.end(audio.buffered.length - 1) / audio.duration) * 100;
-                        document.getElementById('audio-buffered').style.width = pct + '%';
-                    }
-                });
+
+                // Draw idle bars on load
+                drawIdleWaveform();
+            }
+
+            function connectAudioAnalyser() {
+                if (audioConnected) return;
+                const audio = document.getElementById('audio-player');
+                if (!audio) return;
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                analyser = audioCtx.createAnalyser();
+                analyser.fftSize = 256;
+                sourceNode = audioCtx.createMediaElementSource(audio);
+                sourceNode.connect(analyser);
+                analyser.connect(audioCtx.destination);
+                audioConnected = true;
+            }
+
+            function drawIdleWaveform() {
+                const canvas = document.getElementById('waveform-canvas');
+                if (!canvas) return;
+                const ctx = canvas.getContext('2d');
+                const dpr = window.devicePixelRatio || 1;
+                const w = canvas.offsetWidth;
+                const h = canvas.offsetHeight;
+                canvas.width = w * dpr;
+                canvas.height = h * dpr;
+                ctx.scale(dpr, dpr);
+                ctx.clearRect(0, 0, w, h);
+
+                const barW = 2, gap = 2, step = barW + gap;
+                const bars = Math.floor(w / step);
+                const mid = h / 2;
+
+                for (let i = 0; i < bars; i++) {
+                    const x = i * step;
+                    const barH = 4 + Math.sin(i * 0.15) * 2;
+                    ctx.fillStyle = 'rgba(255,255,255,0.08)';
+                    ctx.beginPath();
+                    ctx.roundRect(x, mid - barH / 2, barW, barH, 1);
+                    ctx.fill();
+                }
+            }
+
+            function drawRealtimeWaveform() {
+                const canvas = document.getElementById('waveform-canvas');
+                if (!canvas || !analyser) return;
+                const ctx = canvas.getContext('2d');
+                const dpr = window.devicePixelRatio || 1;
+                const w = canvas.offsetWidth;
+                const h = canvas.offsetHeight;
+                canvas.width = w * dpr;
+                canvas.height = h * dpr;
+                ctx.scale(dpr, dpr);
+                ctx.clearRect(0, 0, w, h);
+
+                const bufLen = analyser.frequencyBinCount;
+                const dataArray = new Uint8Array(bufLen);
+                analyser.getByteFrequencyData(dataArray);
+
+                const barW = 2, gap = 2, step = barW + gap;
+                const bars = Math.floor(w / step);
+                const mid = h / 2;
+
+                // Map frequency bins to bars
+                const binStep = Math.max(1, Math.floor(bufLen / bars));
+                for (let i = 0; i < bars; i++) {
+                    const x = i * step;
+                    const binIdx = Math.min(i * binStep, bufLen - 1);
+                    const val = dataArray[binIdx] / 255;
+                    const barH = Math.max(3, val * h * 0.85);
+                    const half = barH / 2;
+
+                    // Gradient: accent for active, white/dim for quiet
+                    const intensity = val;
+                    const r = Math.round(99 + (129 - 99) * intensity);
+                    const g = Math.round(102 + (140 - 102) * intensity);
+                    const b = Math.round(241);
+                    ctx.fillStyle = `rgba(${r},${g},${b},${0.3 + intensity * 0.7})`;
+
+                    ctx.beginPath();
+                    ctx.roundRect(x, mid - half, barW, barH, 1);
+                    ctx.fill();
+                }
+
+                // Progress overlay line
+                const audio = document.getElementById('audio-player');
+                if (audio && audio.duration) {
+                    const px = (audio.currentTime / audio.duration) * w;
+                    ctx.fillStyle = 'rgba(255,255,255,0.5)';
+                    ctx.fillRect(px - 0.5, 0, 1, h);
+                }
+
+                animFrameId = requestAnimationFrame(drawRealtimeWaveform);
+            }
+
+            function seekWaveform(e) {
+                const audio = document.getElementById('audio-player');
+                if (!audio || !audio.duration) return;
+                const canvas = e.currentTarget;
+                const rect = canvas.getBoundingClientRect();
+                const pct = (e.clientX - rect.left) / rect.width;
+                audio.currentTime = pct * audio.duration;
             }
 
             function fmtTime(sec) {
@@ -415,13 +572,20 @@ pub fn AssetDetailPage() -> impl IntoView {
             function toggleAudioPlay() {
                 const audio = document.getElementById('audio-player');
                 if (!audio) return;
-                const icon = document.getElementById('audio-play-icon');
+                // Connect analyser on first play (requires user gesture)
+                connectAudioAnalyser();
+                if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+
                 if (audio.paused) {
                     audio.play();
-                    icon.className = 'ph ph-pause-fill text-lg';
+                    document.getElementById('audio-icon-play').classList.add('hidden');
+                    document.getElementById('audio-icon-pause').classList.remove('hidden');
+                    drawRealtimeWaveform();
                 } else {
                     audio.pause();
-                    icon.className = 'ph ph-play-fill text-lg';
+                    document.getElementById('audio-icon-play').classList.remove('hidden');
+                    document.getElementById('audio-icon-pause').classList.add('hidden');
+                    cancelAnimationFrame(animFrameId);
                 }
             }
 
@@ -437,14 +601,114 @@ pub fn AssetDetailPage() -> impl IntoView {
             function toggleAudioVolume() {
                 const audio = document.getElementById('audio-player');
                 if (!audio) return;
-                const icon = document.getElementById('audio-vol-icon');
                 audio.muted = !audio.muted;
-                icon.className = audio.muted ? 'ph ph-speaker-slash text-lg' : 'ph ph-speaker-high text-lg';
+                document.getElementById('audio-vol-on').classList.toggle('hidden', audio.muted);
+                document.getElementById('audio-vol-off').classList.toggle('hidden', !audio.muted);
+                const slider = document.getElementById('audio-vol-slider');
+                if (slider) slider.value = audio.muted ? 0 : audio.volume * 100;
             }
 
-            // Auto-init audio player if first gallery item is audio
+            function setAudioVolume(val) {
+                const audio = document.getElementById('audio-player');
+                if (!audio) return;
+                audio.volume = val / 100;
+                audio.muted = val == 0;
+                document.getElementById('audio-vol-on').classList.toggle('hidden', audio.muted);
+                document.getElementById('audio-vol-off').classList.toggle('hidden', !audio.muted);
+            }
+
+            // ── Custom Video Player ──
+            function initVideoPlayer() {
+                const video = document.getElementById('video-player');
+                if (!video) return;
+                video.addEventListener('loadedmetadata', () => updateVideoTime());
+                video.addEventListener('timeupdate', () => {
+                    if (!video.duration) return;
+                    const pct = (video.currentTime / video.duration) * 100;
+                    document.getElementById('video-progress').style.width = pct + '%';
+                    updateVideoTime();
+                });
+                video.addEventListener('progress', () => {
+                    if (video.buffered.length > 0) {
+                        const pct = (video.buffered.end(video.buffered.length - 1) / video.duration) * 100;
+                        document.getElementById('video-buffered').style.width = pct + '%';
+                    }
+                });
+                video.addEventListener('play', () => {
+                    document.getElementById('video-big-play').classList.add('hidden');
+                    document.getElementById('video-icon-play').classList.add('hidden');
+                    document.getElementById('video-icon-pause').classList.remove('hidden');
+                });
+                video.addEventListener('pause', () => {
+                    document.getElementById('video-icon-play').classList.remove('hidden');
+                    document.getElementById('video-icon-pause').classList.add('hidden');
+                });
+                video.addEventListener('ended', () => {
+                    document.getElementById('video-big-play').classList.remove('hidden');
+                    document.getElementById('video-icon-play').classList.remove('hidden');
+                    document.getElementById('video-icon-pause').classList.add('hidden');
+                });
+            }
+            function updateVideoTime() {
+                const video = document.getElementById('video-player');
+                if (!video) return;
+                document.getElementById('video-time').textContent = fmtTime(video.currentTime) + ' / ' + fmtTime(video.duration);
+            }
+            function toggleVideoPlay() {
+                const video = document.getElementById('video-player');
+                if (!video) return;
+                if (video.paused) video.play(); else video.pause();
+            }
+            function seekVideo(e) {
+                const video = document.getElementById('video-player');
+                if (!video || !video.duration) return;
+                const rect = e.currentTarget.getBoundingClientRect();
+                const pct = (e.clientX - rect.left) / rect.width;
+                video.currentTime = pct * video.duration;
+            }
+            function videoProgressHover(e) {
+                const video = document.getElementById('video-player');
+                const tooltip = document.getElementById('video-hover-time');
+                if (!video || !video.duration || !tooltip) return;
+                const rect = e.currentTarget.getBoundingClientRect();
+                const pct = (e.clientX - rect.left) / rect.width;
+                tooltip.textContent = fmtTime(pct * video.duration);
+                tooltip.style.left = (pct * 100) + '%';
+                tooltip.style.transform = 'translateX(-50%)';
+                tooltip.classList.remove('hidden');
+            }
+            function videoProgressLeave() {
+                const tooltip = document.getElementById('video-hover-time');
+                if (tooltip) tooltip.classList.add('hidden');
+            }
+            function toggleVideoVolume() {
+                const video = document.getElementById('video-player');
+                if (!video) return;
+                video.muted = !video.muted;
+                document.getElementById('video-vol-on').classList.toggle('hidden', video.muted);
+                document.getElementById('video-vol-off').classList.toggle('hidden', !video.muted);
+                const slider = document.getElementById('video-vol-slider');
+                if (slider) slider.value = video.muted ? 0 : video.volume * 100;
+            }
+            function setVideoVolume(val) {
+                const video = document.getElementById('video-player');
+                if (!video) return;
+                video.volume = val / 100;
+                video.muted = val == 0;
+                document.getElementById('video-vol-on').classList.toggle('hidden', video.muted);
+                document.getElementById('video-vol-off').classList.toggle('hidden', !video.muted);
+            }
+            function toggleVideoFullscreen() {
+                const container = document.getElementById('video-container');
+                if (!container) return;
+                if (document.fullscreenElement) { document.exitFullscreen(); }
+                else { container.requestFullscreen().catch(() => {}); }
+            }
+
+            // Auto-init players based on first gallery item
             setTimeout(() => {
                 if (galleryItems[0]?.type === 'audio') initAudioPlayer();
+                if (galleryItems[0]?.type === 'video') initVideoPlayer();
             }, 500);
 
             let assetLbIndex = 0;
@@ -515,6 +779,33 @@ pub fn AssetDetailPage() -> impl IntoView {
                 if (e.key === 'ArrowLeft') assetLightboxNav(-1);
                 if (e.key === 'ArrowRight') assetLightboxNav(1);
             });
+
+            function hoverStar(n) {
+                document.querySelectorAll('.rate-star').forEach(s => {
+                    const sn = parseInt(s.dataset.n);
+                    s.textContent = sn <= n ? '★' : '☆';
+                    s.classList.toggle('text-amber-400', sn <= n);
+                    s.classList.toggle('text-zinc-700', sn > n);
+                });
+            }
+            function resetStars() {
+                document.querySelectorAll('.rate-star').forEach(s => {
+                    s.textContent = '☆';
+                    s.classList.remove('text-amber-400');
+                    s.classList.add('text-zinc-700');
+                });
+            }
+            async function rateAsset(id, rating) {
+                const token = document.cookie.match('(^|;)\\s*token\\s*=\\s*([^;]+)')?.pop();
+                if (!token) { window.location.href = '/login'; return; }
+                const res = await fetch('/api/marketplace/' + id + '/reviews', {
+                    method: 'POST',
+                    headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ rating, title: '', content: '' })
+                });
+                if (res.ok) { window.location.reload(); }
+                else { const d = await res.json().catch(() => ({})); alert(d.error || 'Failed to submit rating'); }
+            }
 
             async function purchaseAsset(id) {
                 const token = document.cookie.match('(^|;)\\s*token\\s*=\\s*([^;]+)')?.pop();
@@ -671,14 +962,14 @@ pub fn AssetDetailPage() -> impl IntoView {
                 document.addEventListener('mousemove', e => { mouse.x = e.clientX; mouse.y = e.clientY; });
                 document.addEventListener('mouseleave', () => { mouse.x = -1000; mouse.y = -1000; });
 
-                const count = Math.min(60, Math.floor(w * h / 20000));
+                const count = Math.min(100, Math.floor(w * h / 12000));
                 for (let i = 0; i < count; i++) {
                     particles.push({
                         x: Math.random() * w,
                         y: Math.random() * h,
-                        vx: (Math.random() - 0.5) * 0.2,
-                        vy: (Math.random() - 0.5) * 0.2,
-                        r: Math.random() * 1.2 + 0.3,
+                        vx: (Math.random() - 0.5) * 0.3,
+                        vy: (Math.random() - 0.5) * 0.3,
+                        r: Math.random() * 1.8 + 0.5,
                     });
                 }
 
@@ -692,27 +983,27 @@ pub fn AssetDetailPage() -> impl IntoView {
 
                         const dx = p.x - mouse.x, dy = p.y - mouse.y;
                         const dist = Math.sqrt(dx * dx + dy * dy);
-                        if (dist < 100) {
-                            const force = (100 - dist) / 100 * 0.6;
+                        if (dist < 140) {
+                            const force = (140 - dist) / 140 * 0.8;
                             p.x += dx / dist * force;
                             p.y += dy / dist * force;
                         }
 
                         ctx.beginPath();
                         ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
-                        ctx.fillStyle = 'rgba(99, 102, 241, 0.3)';
+                        ctx.fillStyle = 'rgba(99, 102, 241, 0.5)';
                         ctx.fill();
 
                         for (let j = i + 1; j < particles.length; j++) {
                             const p2 = particles[j];
                             const ddx = p.x - p2.x, ddy = p.y - p2.y;
                             const d = ddx * ddx + ddy * ddy;
-                            if (d < 15000) {
+                            if (d < 22000) {
                                 ctx.beginPath();
                                 ctx.moveTo(p.x, p.y);
                                 ctx.lineTo(p2.x, p2.y);
-                                ctx.strokeStyle = `rgba(99, 102, 241, ${(1 - d / 15000) * 0.1})`;
-                                ctx.lineWidth = 0.5;
+                                ctx.strokeStyle = `rgba(99, 102, 241, ${(1 - d / 22000) * 0.18})`;
+                                ctx.lineWidth = 0.6;
                                 ctx.stroke();
                             }
                         }
