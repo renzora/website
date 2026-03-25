@@ -119,12 +119,15 @@ pub fn AssetDetailPage() -> impl IntoView {
                     <div class="flex gap-2 mt-3 overflow-x-auto pb-1" id="gallery-thumbs">
                         ${galleryItems.map((item, i) => {
                             const isVideo = item.type === 'video';
+                            const isAudio = item.type === 'audio';
                             const thumbSrc = item.thumb || item.url;
                             return `<button onclick="setGalleryItem(${i})" class="gallery-thumb shrink-0 w-20 h-14 rounded-lg border-2 overflow-hidden relative transition-all ${i === 0 ? 'border-accent' : 'border-zinc-800/50 hover:border-zinc-600'}" data-index="${i}">
                                 ${item.type === 'placeholder' ? '<div class="w-full h-full bg-zinc-800 flex items-center justify-center"><i class="ph ph-image text-zinc-600"></i></div>' :
+                                  isAudio ? `<div class="w-full h-full bg-zinc-900 flex items-center justify-center"><i class="ph ph-music-note text-xl text-accent"></i></div>` :
                                   isVideo ? `<div class="w-full h-full bg-zinc-900 flex items-center justify-center"><i class="ph ph-play-circle text-xl text-zinc-400"></i></div>` :
                                   `<img src="${thumbSrc}" class="w-full h-full object-cover" />`}
                                 ${isVideo ? '<div class="absolute bottom-0.5 right-0.5 bg-black/70 rounded px-1 text-[8px] text-white">VIDEO</div>' : ''}
+                                ${isAudio ? '<div class="absolute bottom-0.5 right-0.5 bg-accent/80 rounded px-1 text-[8px] text-white">AUDIO</div>' : ''}
                             </button>`;
                         }).join('')}
                     </div>` : '';
@@ -285,6 +288,42 @@ pub fn AssetDetailPage() -> impl IntoView {
                 if (!item || item.type === 'placeholder') {
                     return '<div class="aspect-video flex items-center justify-center"><i class="ph ph-package text-6xl text-zinc-700"></i></div>';
                 }
+                if (item.type === 'audio') {
+                    const ext = item.url.split('.').pop()?.toUpperCase() || 'AUDIO';
+                    return `
+                        <div class="aspect-video flex flex-col items-center justify-center bg-gradient-to-b from-zinc-900 to-[#0a0a0b] relative">
+                            <div class="absolute inset-0 flex items-center justify-center opacity-[0.03]">
+                                <i class="ph ph-waveform text-[200px]"></i>
+                            </div>
+                            <div class="relative z-10 flex flex-col items-center gap-4 w-full max-w-md px-6">
+                                <div class="w-20 h-20 rounded-full bg-accent/10 border border-accent/20 flex items-center justify-center mb-2">
+                                    <i class="ph ph-music-note text-3xl text-accent"></i>
+                                </div>
+                                <span class="text-xs text-zinc-500 font-mono">${ext}</span>
+                                <audio id="audio-player" src="${item.url}" preload="metadata" class="hidden"></audio>
+                                <div class="w-full">
+                                    <div class="flex items-center gap-3 w-full">
+                                        <button onclick="toggleAudioPlay()" id="audio-play-btn" class="w-10 h-10 rounded-full bg-accent hover:bg-accent-hover text-white flex items-center justify-center transition-colors shrink-0">
+                                            <i class="ph ph-play-fill text-lg" id="audio-play-icon"></i>
+                                        </button>
+                                        <div class="flex-1">
+                                            <div class="relative w-full h-1.5 bg-zinc-800 rounded-full cursor-pointer group" onclick="seekAudio(event)">
+                                                <div id="audio-progress" class="absolute left-0 top-0 h-full bg-accent rounded-full transition-all" style="width:0%"></div>
+                                                <div id="audio-buffered" class="absolute left-0 top-0 h-full bg-zinc-700 rounded-full -z-10" style="width:0%"></div>
+                                            </div>
+                                            <div class="flex justify-between mt-1">
+                                                <span id="audio-current" class="text-[10px] text-zinc-600 tabular-nums">0:00</span>
+                                                <span id="audio-duration" class="text-[10px] text-zinc-600 tabular-nums">0:00</span>
+                                            </div>
+                                        </div>
+                                        <button onclick="toggleAudioVolume()" class="text-zinc-500 hover:text-zinc-300 transition-colors shrink-0">
+                                            <i class="ph ph-speaker-high text-lg" id="audio-vol-icon"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>`;
+                }
                 if (item.type === 'video') {
                     // YouTube/external embed or direct video
                     if (item.url.includes('youtube.com') || item.url.includes('youtu.be')) {
@@ -298,15 +337,85 @@ pub fn AssetDetailPage() -> impl IntoView {
             }
 
             function setGalleryItem(index) {
+                // Stop any playing audio before switching
+                const oldAudio = document.getElementById('audio-player');
+                if (oldAudio) { oldAudio.pause(); }
                 activeGalleryIndex = index;
                 const item = galleryItems[index];
                 document.getElementById('main-preview').innerHTML = renderMainPreview(item);
+                // Re-init audio player if the new item is audio
+                if (item.type === 'audio') initAudioPlayer();
                 document.querySelectorAll('.gallery-thumb').forEach(el => {
                     const i = parseInt(el.dataset.index);
                     el.className = el.className.replace(/border-accent|border-zinc-800\/50/g, '');
                     el.classList.add(i === index ? 'border-accent' : 'border-zinc-800/50');
                 });
             }
+
+            // ── Audio Player ──
+            function initAudioPlayer() {
+                const audio = document.getElementById('audio-player');
+                if (!audio) return;
+                audio.addEventListener('loadedmetadata', () => {
+                    document.getElementById('audio-duration').textContent = fmtTime(audio.duration);
+                });
+                audio.addEventListener('timeupdate', () => {
+                    const pct = audio.duration ? (audio.currentTime / audio.duration) * 100 : 0;
+                    document.getElementById('audio-progress').style.width = pct + '%';
+                    document.getElementById('audio-current').textContent = fmtTime(audio.currentTime);
+                });
+                audio.addEventListener('ended', () => {
+                    document.getElementById('audio-play-icon').className = 'ph ph-play-fill text-lg';
+                });
+                audio.addEventListener('progress', () => {
+                    if (audio.buffered.length > 0) {
+                        const pct = (audio.buffered.end(audio.buffered.length - 1) / audio.duration) * 100;
+                        document.getElementById('audio-buffered').style.width = pct + '%';
+                    }
+                });
+            }
+
+            function fmtTime(sec) {
+                if (!sec || isNaN(sec)) return '0:00';
+                const m = Math.floor(sec / 60);
+                const s = Math.floor(sec % 60);
+                return m + ':' + (s < 10 ? '0' : '') + s;
+            }
+
+            function toggleAudioPlay() {
+                const audio = document.getElementById('audio-player');
+                if (!audio) return;
+                const icon = document.getElementById('audio-play-icon');
+                if (audio.paused) {
+                    audio.play();
+                    icon.className = 'ph ph-pause-fill text-lg';
+                } else {
+                    audio.pause();
+                    icon.className = 'ph ph-play-fill text-lg';
+                }
+            }
+
+            function seekAudio(e) {
+                const audio = document.getElementById('audio-player');
+                if (!audio || !audio.duration) return;
+                const bar = e.currentTarget;
+                const rect = bar.getBoundingClientRect();
+                const pct = (e.clientX - rect.left) / rect.width;
+                audio.currentTime = pct * audio.duration;
+            }
+
+            function toggleAudioVolume() {
+                const audio = document.getElementById('audio-player');
+                if (!audio) return;
+                const icon = document.getElementById('audio-vol-icon');
+                audio.muted = !audio.muted;
+                icon.className = audio.muted ? 'ph ph-speaker-slash text-lg' : 'ph ph-speaker-high text-lg';
+            }
+
+            // Auto-init audio player if first gallery item is audio
+            setTimeout(() => {
+                if (galleryItems[0]?.type === 'audio') initAudioPlayer();
+            }, 500);
 
             let assetLbIndex = 0;
 

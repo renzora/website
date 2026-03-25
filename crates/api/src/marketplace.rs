@@ -621,6 +621,11 @@ fn content_type_for_key(key: &str) -> &'static str {
         Some("svg") => "image/svg+xml",
         Some("mp4") => "video/mp4",
         Some("webm") => "video/webm",
+        Some("mp3") => "audio/mpeg",
+        Some("wav") => "audio/wav",
+        Some("ogg") => "audio/ogg",
+        Some("flac") => "audio/flac",
+        Some("aac") => "audio/aac",
         Some("zip") => "application/zip",
         _ => "application/octet-stream",
     }
@@ -711,7 +716,7 @@ async fn upload_media(
         match name.as_str() {
             "media_type" => {
                 let val = field.text().await.unwrap_or_default();
-                if val == "video" || val == "image" { media_type = val; }
+                if val == "video" || val == "image" || val == "audio" { media_type = val; }
             }
             "file" => {
                 let filename = field.file_name().unwrap_or("media.png").to_string();

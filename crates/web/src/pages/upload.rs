@@ -130,6 +130,13 @@ pub fn UploadPage() -> impl IntoView {
                                 class="w-full px-4 py-3 bg-white/[0.02] border border-zinc-800/50 rounded-xl text-zinc-50 text-sm outline-none focus:border-accent/50 transition-all" />
                             <p class="text-xs text-zinc-600 mt-1">"YouTube links are automatically embedded. You can also use a direct video URL."</p>
                         </div>
+
+                        <div>
+                            <label class="block text-sm text-zinc-400 mb-1.5">"Audio Previews (optional)"</label>
+                            <input type="file" name="audio_previews" accept="audio/mpeg,audio/wav,audio/ogg,audio/flac,.mp3,.wav,.ogg,.flac" multiple id="audio-input"
+                                class="w-full text-sm text-zinc-400 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-sm file:font-medium file:bg-white/[0.05] file:text-zinc-300 hover:file:bg-white/[0.08] file:cursor-pointer file:transition-colors" />
+                            <p class="text-xs text-zinc-600 mt-1">"Upload audio samples for sound effects or music assets. MP3, WAV, OGG, or FLAC."</p>
+                        </div>
                     </div>
 
                     // ── Additional Info ──
@@ -319,6 +326,19 @@ pub fn UploadPage() -> impl IntoView {
                             method: 'POST',
                             headers: { 'Authorization': 'Bearer ' + token },
                             body: vfd
+                        });
+                    }
+
+                    // Upload audio previews as gallery media
+                    const audioFiles = document.getElementById('audio-input')?.files || [];
+                    for (let i = 0; i < Math.min(audioFiles.length, 10); i++) {
+                        const afd = new FormData();
+                        afd.append('media_type', 'audio');
+                        afd.append('file', audioFiles[i]);
+                        await fetch('/api/marketplace/' + assetId + '/media', {
+                            method: 'POST',
+                            headers: { 'Authorization': 'Bearer ' + token },
+                            body: afd
                         });
                     }
 
