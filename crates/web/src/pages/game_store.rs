@@ -97,11 +97,11 @@ pub fn GameStorePage() -> impl IntoView {
                             <a href="/games/${game.slug}" class="group rounded-xl overflow-hidden bg-white/[0.02] border border-zinc-800/50 hover:border-accent/30 transition-all" style="animation: fadeSlideUp 0.4s ease both; animation-delay: ${i * 50}ms">
                                 <div class="aspect-[16/9] bg-zinc-900 relative overflow-hidden">
                                     ${game.thumbnail_url
-                                        ? `<img src="${game.thumbnail_url}" alt="${game.name}" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" loading="lazy" />`
+                                        ? `<div class="absolute inset-0 bg-cover bg-center blur-2xl scale-110 opacity-50" style="background-image:url('${game.thumbnail_url}')"></div><img src="${game.thumbnail_url}" alt="${game.name}" class="relative z-10 w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" loading="lazy" />`
                                         : `<div class="w-full h-full flex items-center justify-center"><span class="text-3xl opacity-20">🎮</span></div>`
                                     }
-                                    ${isFree ? `<div class="absolute top-2 right-2 px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 text-[10px] font-bold backdrop-blur-sm">FREE</div>` : ''}
-                                    ${game.category ? `<div class="absolute top-2 left-2 px-2 py-0.5 rounded-full bg-black/40 text-white/70 text-[10px] font-medium backdrop-blur-sm">${game.category}</div>` : ''}
+                                    ${isFree ? `<div class="absolute top-2 right-2 z-20 px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 text-[10px] font-bold backdrop-blur-sm">FREE</div>` : ''}
+                                    ${game.category ? `<div class="absolute top-2 left-2 z-20 px-2 py-0.5 rounded-full bg-black/40 text-white/70 text-[10px] font-medium backdrop-blur-sm">${game.category}</div>` : ''}
                                 </div>
                                 <div class="p-3">
                                     <h3 class="text-sm font-semibold truncate mb-0.5">${game.name}</h3>

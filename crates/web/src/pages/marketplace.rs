@@ -220,9 +220,9 @@ pub fn MarketplacePage() -> impl IntoView {
                     <a href="/marketplace/asset/${a.slug}" class="block group asset-card" style="animation: fadeSlideUp 0.4s ease both; animation-delay: ${i * 50}ms">
                         <div class="bg-white/[0.02] border border-zinc-800/50 rounded-xl overflow-hidden hover:border-zinc-700 hover:bg-white/[0.04] transition-all hover:shadow-lg hover:shadow-black/20 hover:-translate-y-0.5">
                             <div class="h-40 bg-surface-panel flex items-center justify-center relative overflow-hidden">
-                                ${a.thumbnail_url ? `<img src="${a.thumbnail_url}" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />` : `<i class="ph ph-package text-3xl text-zinc-700"></i>`}
-                                <span class="absolute top-2 right-2 text-[10px] px-2 py-0.5 rounded-full bg-black/60 text-zinc-300 backdrop-blur-md border border-white/5">${a.category}</span>
-                                ${a.price_credits === 0 ? `<span class="absolute top-2 left-2 text-[10px] px-2 py-0.5 rounded-full bg-green-500/20 text-green-400 backdrop-blur-md border border-green-500/10">Free</span>` : ''}
+                                ${a.thumbnail_url ? `<div class="absolute inset-0 bg-cover bg-center blur-2xl scale-110 opacity-50" style="background-image:url('${a.thumbnail_url}')"></div><img src="${a.thumbnail_url}" class="relative z-10 w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />` : `<i class="ph ph-package text-3xl text-zinc-700"></i>`}
+                                <span class="absolute top-2 right-2 z-20 text-[10px] px-2 py-0.5 rounded-full bg-black/60 text-zinc-300 backdrop-blur-md border border-white/5">${a.category}</span>
+                                ${a.price_credits === 0 ? `<span class="absolute top-2 left-2 z-20 text-[10px] px-2 py-0.5 rounded-full bg-green-500/20 text-green-400 backdrop-blur-md border border-green-500/10">Free</span>` : ''}
                             </div>
                             <div class="p-4">
                                 <h3 class="text-sm font-semibold group-hover:text-accent transition-colors truncate">${a.name}</h3>
