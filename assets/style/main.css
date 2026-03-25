@@ -24,11 +24,15 @@ select:focus {
 }
 
 /* Global custom scrollbar */
-::-webkit-scrollbar { width: 6px; height: 6px; }
-::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: #27272a; border-radius: 3px; }
+html, body, * {
+    scrollbar-width: thin;
+    scrollbar-color: #27272a transparent;
+}
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: #0a0a0b; }
+::-webkit-scrollbar-thumb { background: #27272a; border-radius: 4px; border: 2px solid #0a0a0b; }
 ::-webkit-scrollbar-thumb:hover { background: #3f3f46; }
-* { scrollbar-width: thin; scrollbar-color: #27272a transparent; }
+::-webkit-scrollbar-corner { background: #0a0a0b; }
 
 /* Gradient text */
 .gradient-text {

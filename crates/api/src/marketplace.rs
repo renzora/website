@@ -78,8 +78,10 @@ async fn list_assets(
                 downloads: a.downloads,
                 views: a.views,
                 creator_name: a.creator_name,
+                creator_avatar_url: a.creator_avatar_url,
                 rating_avg,
                 rating_count: a.rating_count,
+                tags: a.tags,
             }
         })
         .collect();
@@ -385,8 +387,10 @@ async fn purchased_assets(
                 downloads: a.downloads,
                 views: a.views,
                 creator_name: a.creator_name,
+                creator_avatar_url: a.creator_avatar_url,
                 rating_avg,
                 rating_count: a.rating_count,
+                tags: a.tags,
             }
         })
         .collect();

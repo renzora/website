@@ -74,8 +74,10 @@ pub struct AssetSummary {
     pub downloads: i64,
     pub views: i64,
     pub creator_name: String,
+    pub creator_avatar_url: Option<String>,
     pub rating_avg: f64,
     pub rating_count: i32,
+    pub tags: Vec<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]

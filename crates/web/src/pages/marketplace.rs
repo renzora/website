@@ -216,7 +216,15 @@ pub fn MarketplacePage() -> impl IntoView {
 
                 el.innerHTML = data.assets.map((a, i) => {
                     const ratingAvg = a.rating_count > 0 ? a.rating_avg.toFixed(1) : '';
+                    const fullStars = a.rating_count > 0 ? Math.round(a.rating_avg) : 0;
+                    const starsHtml = a.rating_count > 0
+                        ? `<span class="text-amber-400 text-[10px]">${'★'.repeat(fullStars)}${'☆'.repeat(5 - fullStars)}</span><span class="text-[9px] text-zinc-500 ml-0.5">(${a.rating_count})</span>`
+                        : '';
                     const priceLabel = a.price_credits === 0 ? 'Free' : a.price_credits.toLocaleString() + ' cr';
+                    const avatarHtml = a.creator_avatar_url
+                        ? `<img src="${a.creator_avatar_url}" class="w-4 h-4 rounded-full object-cover" />`
+                        : `<div class="w-4 h-4 rounded-full bg-zinc-800 flex items-center justify-center"><i class="ph ph-user text-[8px] text-zinc-500"></i></div>`;
+                    const tagsHtml = (a.tags || []).slice(0, 2).map(t => `<span class="px-1.5 py-[1px] rounded text-[8px] bg-white/[0.05] text-zinc-500">${t}</span>`).join('');
                     return `
                     <a href="/marketplace/asset/${a.slug}" class="block group" style="animation: fadeSlideUp 0.25s ease both; animation-delay: ${i * 20}ms">
                         <div class="bg-white/[0.02] border border-zinc-800/40 rounded-lg overflow-hidden hover:border-zinc-700/60 transition-all duration-200">
@@ -224,18 +232,18 @@ pub fn MarketplacePage() -> impl IntoView {
                                 ${a.thumbnail_url
                                     ? `<img src="${a.thumbnail_url}" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 ease-out" loading="lazy" />`
                                     : `<div class="w-full h-full flex items-center justify-center"><i class="ph ph-package text-3xl text-zinc-800"></i></div>`}
-                                ${a.price_credits === 0 ? `<span class="absolute top-1.5 left-1.5 text-[9px] px-1.5 py-0.5 rounded bg-emerald-600 text-white font-semibold">FREE</span>` : ''}
                             </div>
                             <div class="p-2.5">
                                 <h3 class="text-[12px] font-medium text-zinc-200 group-hover:text-white truncate">${a.name}</h3>
-                                <div class="flex items-center justify-between mt-1">
-                                    <span class="text-[10px] text-zinc-500 truncate">${a.creator_name}</span>
-                                    <span class="text-[10px] font-semibold ${a.price_credits === 0 ? 'text-emerald-400' : 'text-zinc-300'} shrink-0 ml-1">${priceLabel}</span>
+                                <div class="flex items-center gap-1.5 mt-1.5">
+                                    ${avatarHtml}
+                                    <span class="text-[11px] text-zinc-300 truncate">${a.creator_name}</span>
                                 </div>
-                                <div class="flex items-center gap-2 mt-1 text-[9px] text-zinc-600">
-                                    <span>${a.category}</span>
-                                    ${ratingAvg ? `<span class="text-amber-400">${ratingAvg}★</span>` : ''}
+                                <div class="flex items-center justify-between mt-1.5">
+                                    <div class="flex items-center gap-1">${starsHtml}</div>
+                                    <span class="text-[11px] font-semibold ${a.price_credits === 0 ? 'text-emerald-400' : 'text-zinc-300'} shrink-0">${priceLabel}</span>
                                 </div>
+                                ${tagsHtml ? `<div class="flex items-center gap-1 mt-1.5 overflow-hidden">${tagsHtml}<span class="text-[8px] text-zinc-600">${a.category}</span></div>` : `<div class="mt-1.5"><span class="px-1.5 py-[1px] rounded text-[8px] bg-white/[0.05] text-zinc-500">${a.category}</span></div>`}
                             </div>
                         </div>
                     </a>`;

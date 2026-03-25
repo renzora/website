@@ -19,6 +19,7 @@ pub struct Asset {
     pub published: bool,
     pub rating_sum: i64,
     pub rating_count: i32,
+    pub tags: Vec<String>,
     pub created_at: OffsetDateTime,
     pub updated_at: OffsetDateTime,
 }
@@ -37,8 +38,10 @@ pub struct AssetWithCreator {
     pub downloads: i64,
     pub views: i64,
     pub creator_name: String,
+    pub creator_avatar_url: Option<String>,
     pub rating_sum: i64,
     pub rating_count: i32,
+    pub tags: Vec<String>,
 }
 
 impl Asset {
@@ -131,7 +134,7 @@ impl Asset {
             r#"
             SELECT a.id, a.name, a.slug, a.description, a.category, a.price_credits,
                    a.thumbnail_url, a.version, a.downloads, a.views, u.username AS creator_name,
-                   a.rating_sum, a.rating_count
+                   u.avatar_url AS creator_avatar_url, a.rating_sum, a.rating_count, a.tags
             FROM assets a
             JOIN users u ON u.id = a.creator_id
             WHERE a.published = true
@@ -256,7 +259,7 @@ impl Asset {
             r#"
             SELECT a.id, a.name, a.slug, a.description, a.category, a.price_credits,
                    a.thumbnail_url, a.version, a.downloads, a.views, u.username AS creator_name,
-                   a.rating_sum, a.rating_count
+                   u.avatar_url AS creator_avatar_url, a.rating_sum, a.rating_count, a.tags
             FROM user_assets ua
             JOIN assets a ON a.id = ua.asset_id
             JOIN users u ON u.id = a.creator_id

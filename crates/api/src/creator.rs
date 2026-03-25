@@ -61,8 +61,10 @@ async fn stats(
                 downloads: a.downloads,
                 views: a.views,
                 creator_name: user.username.clone(),
+                creator_avatar_url: user.avatar_url.clone(),
                 rating_avg,
                 rating_count: a.rating_count,
+                tags: a.tags,
             }
         })
         .collect();
