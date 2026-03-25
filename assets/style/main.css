@@ -25,14 +25,14 @@ select:focus {
 
 /* Global custom scrollbar */
 html, body, * {
-    scrollbar-width: thin;
-    scrollbar-color: #27272a transparent;
+    scrollbar-width: thin !important;
+    scrollbar-color: #1c1c20 #060608 !important;
 }
-::-webkit-scrollbar { width: 8px; height: 8px; }
-::-webkit-scrollbar-track { background: #0a0a0b; }
-::-webkit-scrollbar-thumb { background: #27272a; border-radius: 4px; border: 2px solid #0a0a0b; }
-::-webkit-scrollbar-thumb:hover { background: #3f3f46; }
-::-webkit-scrollbar-corner { background: #0a0a0b; }
+*::-webkit-scrollbar { width: 8px !important; height: 8px !important; }
+*::-webkit-scrollbar-track { background: #060608 !important; }
+*::-webkit-scrollbar-thumb { background: #1c1c20 !important; border-radius: 4px !important; }
+*::-webkit-scrollbar-thumb:hover { background: #2a2a30 !important; }
+*::-webkit-scrollbar-corner { background: #060608 !important; }
 
 /* Gradient text */
 .gradient-text {

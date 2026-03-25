@@ -3,8 +3,16 @@ use leptos::prelude::*;
 #[component]
 pub fn AssetDetailPage() -> impl IntoView {
     view! {
-        <section class="py-8 px-6 relative z-10">
-            <div class="max-w-[1100px] mx-auto relative" id="asset-detail">
+        <section class="py-8 px-6 relative min-h-screen">
+            // Background layer — inside the section so it's part of the document flow
+            <div class="fixed inset-0 pointer-events-none overflow-hidden" style="z-index:0" id="asset-bg-layer">
+                <canvas id="asset-canvas" class="absolute inset-0 w-full h-full" style="z-index:1"></canvas>
+                <div class="absolute top-[10%] left-[15%] w-80 h-80 bg-accent/10 rounded-full blur-[120px] animate-pulse" style="z-index:0"></div>
+                <div class="absolute bottom-[20%] right-[10%] w-72 h-72 bg-purple-600/8 rounded-full blur-[100px]" style="z-index:0;animation:pulse 4s ease-in-out infinite 1s"></div>
+                <div id="asset-thumb-bg" class="absolute inset-0" style="z-index:0"></div>
+                <div class="absolute inset-0 bg-[#060608]/30" style="z-index:2"></div>
+            </div>
+            <div class="max-w-[1100px] mx-auto relative" style="z-index:10" id="asset-detail">
                 <div class="text-center py-20">
                     <div class="inline-block animate-spin w-6 h-6 border-2 border-zinc-700 border-t-accent rounded-full"></div>
                 </div>
@@ -135,19 +143,15 @@ pub fn AssetDetailPage() -> impl IntoView {
                 // Blurred hero background from thumbnail
                 const heroImg = a.thumbnail_url || (galleryItems[0]?.type === 'image' ? galleryItems[0].url : '');
 
-                // Inject blurred background at page level (outside container)
+                // Inject blurred thumbnail into the background layer
                 if (heroImg) {
-                    const existing = document.getElementById('asset-hero-bg');
-                    if (existing) existing.remove();
-                    const bg = document.createElement('div');
-                    bg.id = 'asset-hero-bg';
-                    bg.className = 'fixed inset-0 pointer-events-none z-0';
-                    bg.innerHTML = `
-                        <div class="absolute inset-0 bg-cover bg-center blur-3xl scale-150 opacity-20" style="background-image:url('${heroImg}')"></div>
-                        <div class="absolute inset-0 bg-gradient-to-b from-transparent via-[#060608]/50 to-[#060608]"></div>
-                        <div class="absolute inset-0 bg-gradient-to-t from-[#060608] via-transparent to-transparent h-full"></div>
-                    `;
-                    document.body.prepend(bg);
+                    const thumbBg = document.getElementById('asset-thumb-bg');
+                    if (thumbBg) {
+                        thumbBg.innerHTML = `
+                            <div class="absolute inset-0 bg-cover bg-center blur-3xl scale-150 opacity-15" style="background-image:url('${heroImg}')"></div>
+                            <div class="absolute inset-0 bg-gradient-to-b from-transparent via-[#060608]/60 to-[#060608]"></div>
+                        `;
+                    }
                 }
 
                 const el = document.getElementById('asset-detail');
@@ -640,5 +644,83 @@ pub fn AssetDetailPage() -> impl IntoView {
             .gallery-thumb:hover { transform: scale(1.05); }
             "#
         </style>
+
+        // Particle canvas script
+        <script>
+            r#"
+            (function() {
+                const canvas = document.getElementById('asset-canvas');
+                if (!canvas) return;
+                const ctx = canvas.getContext('2d');
+                let w, h, particles = [], mouse = { x: -1000, y: -1000 };
+
+                function resize() {
+                    w = canvas.width = window.innerWidth;
+                    h = canvas.height = window.innerHeight;
+                }
+                resize();
+                window.addEventListener('resize', resize);
+
+                document.addEventListener('mousemove', e => { mouse.x = e.clientX; mouse.y = e.clientY; });
+                document.addEventListener('mouseleave', () => { mouse.x = -1000; mouse.y = -1000; });
+
+                const count = Math.min(60, Math.floor(w * h / 20000));
+                for (let i = 0; i < count; i++) {
+                    particles.push({
+                        x: Math.random() * w,
+                        y: Math.random() * h,
+                        vx: (Math.random() - 0.5) * 0.2,
+                        vy: (Math.random() - 0.5) * 0.2,
+                        r: Math.random() * 1.2 + 0.3,
+                    });
+                }
+
+                function draw() {
+                    ctx.clearRect(0, 0, w, h);
+                    for (let i = 0; i < particles.length; i++) {
+                        const p = particles[i];
+                        p.x += p.vx; p.y += p.vy;
+                        if (p.x < 0) p.x = w; if (p.x > w) p.x = 0;
+                        if (p.y < 0) p.y = h; if (p.y > h) p.y = 0;
+
+                        const dx = p.x - mouse.x, dy = p.y - mouse.y;
+                        const dist = Math.sqrt(dx * dx + dy * dy);
+                        if (dist < 100) {
+                            const force = (100 - dist) / 100 * 0.6;
+                            p.x += dx / dist * force;
+                            p.y += dy / dist * force;
+                        }
+
+                        ctx.beginPath();
+                        ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+                        ctx.fillStyle = 'rgba(99, 102, 241, 0.3)';
+                        ctx.fill();
+
+                        for (let j = i + 1; j < particles.length; j++) {
+                            const p2 = particles[j];
+                            const ddx = p.x - p2.x, ddy = p.y - p2.y;
+                            const d = ddx * ddx + ddy * ddy;
+                            if (d < 15000) {
+                                ctx.beginPath();
+                                ctx.moveTo(p.x, p.y);
+                                ctx.lineTo(p2.x, p2.y);
+                                ctx.strokeStyle = `rgba(99, 102, 241, ${(1 - d / 15000) * 0.1})`;
+                                ctx.lineWidth = 0.5;
+                                ctx.stroke();
+                            }
+                        }
+                    }
+                    requestAnimationFrame(draw);
+                }
+                draw();
+
+                // Cleanup on navigation
+                window.addEventListener('beforeunload', () => {
+                    const bg = document.getElementById('asset-bg-layer');
+                    if (bg) bg.remove();
+                });
+            })();
+            "#
+        </script>
     }
 }
