@@ -3,7 +3,7 @@ use leptos::prelude::*;
 #[component]
 pub fn GameStorePage() -> impl IntoView {
     view! {
-        <section class="relative py-8 px-6 min-h-[80vh]">
+        <section class="relative py-8 px-6 min-h-[80vh] bg-gradient-to-b from-[#0a0a12] via-[#060608] to-[#060608]">
             <div class="max-w-[1200px] mx-auto">
                 // Hero
                 <div class="relative mb-10 py-10 text-center overflow-hidden">

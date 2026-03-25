@@ -3,7 +3,7 @@ use leptos::prelude::*;
 #[component]
 pub fn WalletPage() -> impl IntoView {
     view! {
-        <section class="py-12 px-6 min-h-[80vh]">
+        <section class="py-12 px-6 min-h-[80vh] bg-gradient-to-b from-[#0a0c10] via-[#060608] to-[#060608]">
             <div class="max-w-[960px] mx-auto">
 
                 // Success / cancelled banners

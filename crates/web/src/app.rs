@@ -6,7 +6,6 @@ use leptos_router::{
 };
 
 use crate::components::nav::Nav;
-use crate::components::footer::Footer;
 use crate::pages::{
     admin::AdminPage,
     asset_detail::AssetDetailPage,
@@ -82,7 +81,6 @@ pub fn App() -> impl IntoView {
                     <Route path=path!("/admin") view=AdminPage />
                 </Routes>
             </main>
-            <Footer />
         </Router>
     }
 }

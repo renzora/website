@@ -4,7 +4,7 @@ use leptos::prelude::*;
 #[component]
 pub fn ForumPage() -> impl IntoView {
     view! {
-        <section class="py-8 px-6">
+        <section class="py-8 px-6 min-h-[80vh] bg-gradient-to-b from-[#0a0a0f] via-[#060608] to-[#060608]">
             <div class="max-w-[900px] mx-auto">
                 // Header
                 <div class="flex justify-between items-center mb-6">

@@ -34,7 +34,7 @@ pub fn Shell() -> impl IntoView {
                 <link rel="stylesheet" href="/assets/style/main.css" />
                 <MetaTags />
             </head>
-            <body class="bg-surface-panel text-zinc-50 antialiased">
+            <body class="bg-[#060608] text-zinc-50 antialiased">
                 <App />
             </body>
         </html>

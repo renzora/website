@@ -3,7 +3,7 @@ use leptos::prelude::*;
 #[component]
 pub fn LibraryPage() -> impl IntoView {
     view! {
-        <section class="py-8 px-6 min-h-[80vh]">
+        <section class="py-8 px-6 min-h-[80vh] bg-gradient-to-b from-[#090a0e] via-[#060608] to-[#060608]">
             <div class="max-w-[1200px] mx-auto">
                 <div class="flex justify-between items-center mb-8">
                     <div>

@@ -3,7 +3,7 @@ use leptos::prelude::*;
 #[component]
 pub fn MarketplacePage() -> impl IntoView {
     view! {
-        <section class="min-h-[calc(100vh-3.5rem)] flex">
+        <section class="min-h-[calc(100vh-3.5rem)] flex bg-[#08080a]">
             // ── Left Sidebar: Categories ──
             <aside class="w-56 shrink-0 bg-surface-card border-r border-zinc-800 sticky top-14 h-[calc(100vh-3.5rem)] overflow-y-auto hidden lg:block">
                 <div class="p-4 border-b border-zinc-800">
@@ -48,11 +48,7 @@ pub fn MarketplacePage() -> impl IntoView {
                         <span class="text-amber-400">"★★★★★"</span>"only"
                     </button>
                 </div>
-                <div class="p-4 border-t border-zinc-800">
-                    <a id="publish-btn" href="/login" class="hidden w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium bg-accent text-white hover:bg-accent-hover transition-all">
-                        <i class="ph ph-upload-simple text-base"></i>"Publish"
-                    </a>
-                </div>
+                <div class="flex-1"></div>
             </aside>
 
             // ── Main Content ──
@@ -77,6 +73,9 @@ pub fn MarketplacePage() -> impl IntoView {
                         </select>
                         // Result count
                         <span id="mp-result-count" class="text-xs text-zinc-600 shrink-0 hidden sm:block"></span>
+                        <a id="publish-btn-top" href="/login" class="hidden inline-flex items-center gap-1.5 px-4 py-2 bg-accent text-white text-sm font-medium hover:bg-accent-hover transition-all shrink-0">
+                            <i class="ph ph-upload-simple text-base"></i>"Publish"
+                        </a>
                     </div>
                     // Mobile categories (hidden by default)
                     <div id="mp-mobile-cats" class="hidden lg:hidden mt-3">
@@ -86,7 +85,7 @@ pub fn MarketplacePage() -> impl IntoView {
 
                 // Asset grid
                 <div class="px-0 py-0">
-                    <div id="mp-grid" class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-px bg-zinc-800/30">
+                    <div id="mp-grid" class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-[1px] bg-zinc-800/20">
                         <div class="col-span-full text-center py-16">
                             <div class="inline-block animate-spin w-5 h-5 border-2 border-zinc-700 border-t-accent rounded-full"></div>
                         </div>
@@ -111,7 +110,7 @@ pub fn MarketplacePage() -> impl IntoView {
 
             (async function() {
                 const token = document.cookie.match('(^|;)\\s*token\\s*=\\s*([^;]+)')?.pop();
-                const pubBtn = document.getElementById('publish-btn');
+                const pubBtn = document.getElementById('publish-btn-top');
                 if (pubBtn) { pubBtn.classList.remove('hidden'); pubBtn.href = token ? '/marketplace/sell' : '/login'; }
 
                 const catRes = await fetch('/api/marketplace/categories');

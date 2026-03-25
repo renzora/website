@@ -3,7 +3,7 @@ use leptos::prelude::*;
 #[component]
 pub fn DashboardPage() -> impl IntoView {
     view! {
-        <section class="py-12 px-6 min-h-[80vh]">
+        <section class="py-12 px-6 min-h-[80vh] bg-gradient-to-b from-[#0a0b10] via-[#060608] to-[#060608]">
             <div class="max-w-[1200px] mx-auto">
                 <div class="flex items-center justify-between mb-10">
                     <div>

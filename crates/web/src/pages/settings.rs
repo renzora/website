@@ -3,7 +3,7 @@ use leptos::prelude::*;
 #[component]
 pub fn SettingsPage() -> impl IntoView {
     view! {
-        <section class="py-20 px-6">
+        <section class="py-20 px-6 min-h-[80vh] bg-gradient-to-b from-[#0a0a0e] via-[#060608] to-[#060608]">
             <div class="max-w-2xl mx-auto">
                 <h1 class="text-2xl font-bold mb-8">"Account Settings"</h1>
 
