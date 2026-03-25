@@ -3,8 +3,8 @@ use leptos::prelude::*;
 #[component]
 pub fn AssetDetailPage() -> impl IntoView {
     view! {
-        <section class="py-8 px-6">
-            <div class="max-w-[1100px] mx-auto" id="asset-detail">
+        <section class="py-8 px-6 relative overflow-hidden">
+            <div class="max-w-[1100px] mx-auto relative" id="asset-detail">
                 <div class="text-center py-20">
                     <div class="inline-block animate-spin w-6 h-6 border-2 border-zinc-700 border-t-accent rounded-full"></div>
                 </div>
@@ -132,14 +132,23 @@ pub fn AssetDetailPage() -> impl IntoView {
                         }).join('')}
                     </div>` : '';
 
+                // Blurred hero background from thumbnail
+                const heroImg = a.thumbnail_url || (galleryItems[0]?.type === 'image' ? galleryItems[0].url : '');
+
                 const el = document.getElementById('asset-detail');
                 el.innerHTML = `
-                    <a href="/marketplace" class="inline-flex items-center gap-1.5 text-sm text-zinc-500 hover:text-zinc-300 transition-colors mb-6">
+                    ${heroImg ? `
+                    <div class="absolute inset-x-0 top-0 h-[500px] overflow-hidden pointer-events-none -z-10">
+                        <div class="absolute inset-0 bg-cover bg-center blur-3xl scale-125 opacity-20" style="background-image:url('${heroImg}')"></div>
+                        <div class="absolute inset-0 bg-gradient-to-b from-transparent via-[#0a0a0b]/70 to-[#0a0a0b]"></div>
+                    </div>` : ''}
+
+                    <a href="/marketplace" class="inline-flex items-center gap-1.5 text-sm text-zinc-500 hover:text-zinc-300 transition-colors mb-6 relative z-10">
                         <i class="ph ph-arrow-left"></i> Back to Marketplace
                     </a>
 
                     <!-- Gallery + Sidebar -->
-                    <div class="flex flex-col lg:flex-row gap-8">
+                    <div class="flex flex-col lg:flex-row gap-8 relative z-10">
                         <div class="flex-1 min-w-0">
                             <!-- Main preview -->
                             <div class="rounded-2xl overflow-hidden border border-zinc-800/50 bg-zinc-900 relative group/preview" id="main-preview">
