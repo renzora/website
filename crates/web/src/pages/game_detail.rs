@@ -40,6 +40,10 @@ pub fn GameDetailPage() -> impl IntoView {
                                 <button id="game-action-btn" onclick="handleGameAction()" class="inline-flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-medium bg-accent text-white hover:bg-accent-hover transition-all hover:shadow-[0_0_20px_rgba(99,102,241,0.2)]">
                                     "Loading..."
                                 </button>
+                                <button id="wishlist-btn" onclick="toggleWishlist()" class="hidden inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-sm font-medium border border-zinc-800 text-zinc-400 hover:border-pink-500 hover:text-pink-400 transition-all">
+                                    <i id="wishlist-icon" class="ph ph-heart text-base"></i>
+                                    <span id="wishlist-text">"Wishlist"</span>
+                                </button>
                             </div>
                             <p id="game-action-msg" class="hidden text-xs mt-2"></p>
                         </div>
@@ -156,6 +160,26 @@ pub fn GameDetailPage() -> impl IntoView {
                         actionBtn.innerHTML = '<i class="ph ph-shopping-cart"></i> Purchase';
                     }
 
+                    // Show wishlist button if logged in and not owned
+                    if (token && !gameOwned) {
+                        const wBtn = document.getElementById('wishlist-btn');
+                        wBtn.classList.remove('hidden');
+                        // Check if already wishlisted
+                        try {
+                            const wRes = await fetch('/api/games/wishlist', { headers: { 'Authorization': 'Bearer ' + token } });
+                            if (wRes.ok) {
+                                const wData = await wRes.json();
+                                const isWishlisted = wData.some(w => w.game_id === gameId);
+                                if (isWishlisted) {
+                                    document.getElementById('wishlist-icon').className = 'ph-fill ph-heart text-base text-pink-400';
+                                    document.getElementById('wishlist-text').textContent = 'Wishlisted';
+                                    wBtn.classList.add('border-pink-500', 'text-pink-400');
+                                    wBtn.classList.remove('border-zinc-800', 'text-zinc-400');
+                                }
+                            }
+                        } catch(e) {}
+                    }
+
                     // Load media
                     let gameMedia = [];
                     try {
@@ -233,6 +257,34 @@ pub fn GameDetailPage() -> impl IntoView {
                 if (e.key === 'ArrowLeft') gameLightboxNav(-1);
                 if (e.key === 'ArrowRight') gameLightboxNav(1);
             });
+
+            async function toggleWishlist() {
+                const token = document.cookie.match('(^|;)\\s*token\\s*=\\s*([^;]+)')?.pop();
+                if (!token) { window.location.href = '/login'; return; }
+                try {
+                    const res = await fetch('/api/games/wishlist/' + gameId, {
+                        method: 'POST',
+                        headers: { 'Authorization': 'Bearer ' + token }
+                    });
+                    if (res.ok) {
+                        const data = await res.json();
+                        const icon = document.getElementById('wishlist-icon');
+                        const text = document.getElementById('wishlist-text');
+                        const btn = document.getElementById('wishlist-btn');
+                        if (data.wishlisted) {
+                            icon.className = 'ph-fill ph-heart text-base text-pink-400';
+                            text.textContent = 'Wishlisted';
+                            btn.classList.add('border-pink-500', 'text-pink-400');
+                            btn.classList.remove('border-zinc-800', 'text-zinc-400');
+                        } else {
+                            icon.className = 'ph ph-heart text-base';
+                            text.textContent = 'Wishlist';
+                            btn.classList.remove('border-pink-500', 'text-pink-400');
+                            btn.classList.add('border-zinc-800', 'text-zinc-400');
+                        }
+                    }
+                } catch(e) {}
+            }
 
             async function handleGameAction() {
                 const btn = document.getElementById('game-action-btn');

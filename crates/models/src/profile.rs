@@ -73,7 +73,7 @@ pub async fn get_profile(pool: &PgPool, username: &str, viewer_id: Option<Uuid>)
         location: u.location, gender: u.gender, profile_color: u.profile_color, banner_color: u.banner_color,
         avatar_url: u.avatar_url, follower_count: u.follower_count, following_count: u.following_count,
         post_count: u.post_count, credit_balance: u.credit_balance, is_following, badges,
-        created_at: u.created_at.to_string(),
+        created_at: u.created_at.format(&time::format_description::well_known::Rfc3339).unwrap_or_else(|_| u.created_at.to_string()),
     }))
 }
 

@@ -189,13 +189,16 @@ pub fn ForumThreadPage() -> impl IntoView {
                 el.innerHTML = data.posts.map((p, i) => {
                     const timeAgo = getTimeAgo(new Date(p.created_at));
                     const isOP = p.is_first_post;
+                    const avatarHtml = p.author_avatar_url
+                        ? `<img src="${p.author_avatar_url}" class="w-full h-full object-cover rounded-full" />`
+                        : `<i class="ph ph-user-circle text-lg"></i>`;
                     return `
                     <div class="bg-surface-card border border-zinc-800 rounded-xl overflow-hidden ${isOP ? 'border-accent/20' : ''}">
                         <div class="flex gap-4 p-4">
                             <!-- Author sidebar -->
                             <div class="flex flex-col items-center gap-1 shrink-0 w-16">
-                                <a href="/profile/${p.author_name}" class="w-10 h-10 rounded-full bg-surface border border-zinc-800 flex items-center justify-center text-lg text-zinc-400 hover:border-accent transition-colors">
-                                    <i class="ph ph-user-circle"></i>
+                                <a href="/profile/${p.author_name}" class="w-10 h-10 rounded-full bg-surface border border-zinc-800 flex items-center justify-center text-zinc-400 hover:border-accent transition-colors overflow-hidden">
+                                    ${avatarHtml}
                                 </a>
                                 <a href="/profile/${p.author_name}" class="text-[11px] font-medium text-zinc-300 hover:text-accent transition-colors text-center truncate w-full">${p.author_name}</a>
                                 <span class="text-[9px] px-1.5 py-0.5 rounded-full ${p.author_role === 'admin' ? 'bg-red-500/10 text-red-400' : p.author_role === 'moderator' ? 'bg-amber-500/10 text-amber-400' : 'bg-zinc-800 text-zinc-500'}">${p.author_role}</span>

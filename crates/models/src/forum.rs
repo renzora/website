@@ -68,6 +68,7 @@ pub struct PostWithAuthor {
     pub author_name: String,
     pub author_role: String,
     pub author_post_count: i32,
+    pub author_avatar_url: Option<String>,
     pub created_at: OffsetDateTime,
 }
 
@@ -132,7 +133,7 @@ impl ForumPost {
         let per_page: i64 = 20;
         let offset = (page - 1) * per_page;
         let posts = sqlx::query_as::<_, PostWithAuthor>(
-            "SELECT p.id,p.content,p.is_first_post,p.edited,p.author_id,u.username as author_name,u.role as author_role,u.post_count as author_post_count,p.created_at FROM forum_posts p JOIN users u ON u.id=p.author_id WHERE p.thread_id=$1 ORDER BY p.created_at ASC LIMIT $2 OFFSET $3"
+            "SELECT p.id,p.content,p.is_first_post,p.edited,p.author_id,u.username as author_name,u.role as author_role,u.post_count as author_post_count,u.avatar_url as author_avatar_url,p.created_at FROM forum_posts p JOIN users u ON u.id=p.author_id WHERE p.thread_id=$1 ORDER BY p.created_at ASC LIMIT $2 OFFSET $3"
         ).bind(thread_id).bind(per_page).bind(offset).fetch_all(pool).await?;
         let total: (i64,) = sqlx::query_as("SELECT COUNT(*)::bigint FROM forum_posts WHERE thread_id=$1").bind(thread_id).fetch_one(pool).await?;
         Ok((posts, total.0))

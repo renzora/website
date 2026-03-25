@@ -20,6 +20,8 @@ pub fn router() -> Router<AppState> {
         .route("/{id}/purchase", post(purchase_game))
         .route("/{id}/media", post(upload_media))
         .route("/media/{media_id}", delete(delete_media))
+        .route("/wishlist", get(get_wishlist))
+        .route("/wishlist/{id}", post(toggle_wishlist))
         .layer(axum::middleware::from_fn(middleware::require_auth));
 
     Router::new()
@@ -490,4 +492,50 @@ fn game_to_detail(game: &Game, creator: &User, owned: Option<bool>) -> GameDetai
 
 async fn upload_to_storage(state: &AppState, folder: &str, original_filename: &str, data: Vec<u8>) -> Result<String, ApiError> {
     crate::marketplace::upload_to_storage(state, folder, original_filename, data).await
+}
+
+// ── Wishlists ──
+
+use serde::Serialize;
+
+#[derive(Serialize, sqlx::FromRow)]
+struct WishlistItem {
+    id: Uuid,
+    game_id: Uuid,
+    name: String,
+    slug: String,
+    thumbnail_url: Option<String>,
+    price_credits: i64,
+    category: String,
+    created_at: time::OffsetDateTime,
+}
+
+async fn get_wishlist(
+    State(state): State<AppState>,
+    Extension(auth): Extension<AuthUser>,
+) -> Result<Json<Vec<WishlistItem>>, ApiError> {
+    let items = sqlx::query_as::<_, WishlistItem>(
+        "SELECT w.id, w.game_id, g.name, g.slug, g.thumbnail_url, g.price_credits, g.category, w.created_at FROM wishlists w JOIN games g ON g.id=w.game_id WHERE w.user_id=$1 ORDER BY w.created_at DESC"
+    ).bind(auth.user_id).fetch_all(&state.db).await?;
+    Ok(Json(items))
+}
+
+async fn toggle_wishlist(
+    State(state): State<AppState>,
+    Extension(auth): Extension<AuthUser>,
+    Path(game_id): Path<Uuid>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    let existing: Option<(Uuid,)> = sqlx::query_as(
+        "SELECT id FROM wishlists WHERE user_id=$1 AND game_id=$2"
+    ).bind(auth.user_id).bind(game_id).fetch_optional(&state.db).await?;
+
+    if existing.is_some() {
+        sqlx::query("DELETE FROM wishlists WHERE user_id=$1 AND game_id=$2")
+            .bind(auth.user_id).bind(game_id).execute(&state.db).await?;
+        Ok(Json(serde_json::json!({"wishlisted": false, "message": "Removed from wishlist"})))
+    } else {
+        sqlx::query("INSERT INTO wishlists (user_id, game_id) VALUES ($1,$2) ON CONFLICT DO NOTHING")
+            .bind(auth.user_id).bind(game_id).execute(&state.db).await?;
+        Ok(Json(serde_json::json!({"wishlisted": true, "message": "Added to wishlist"})))
+    }
 }

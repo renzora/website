@@ -293,6 +293,22 @@ async fn purchase_asset(
         .await?
         .ok_or(ApiError::NotFound)?;
 
+    // Notify the seller about the sale
+    let _ = renzora_models::notification::Notification::create(
+        &state.db,
+        asset.creator_id,
+        "sale",
+        &format!("{} purchased your asset", user.username),
+        &format!("{} was sold for {} credits", asset.name, asset.price_credits),
+        Some(&format!("/marketplace/asset/{}", asset.slug)),
+    ).await;
+
+    // Send real-time notification to seller
+    state.ws_broadcast.send_to_user(asset.creator_id, "notification", serde_json::json!({
+        "title": format!("{} purchased your asset", user.username),
+        "body": format!("{} was sold for {} credits", asset.name, asset.price_credits),
+    }));
+
     let msg = if promo_discount > 0 {
         format!(
             "Purchased {} for {} credits (promo: {}% off platform fee)",

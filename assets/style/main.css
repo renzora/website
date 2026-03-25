@@ -2,11 +2,25 @@
 
 /* Fix select/option white background on dark theme */
 select, select option {
-    background-color: #18181b;
-    color: #fafafa;
+    background-color: #18181b !important;
+    color: #fafafa !important;
 }
 select option:checked {
-    background-color: #27272a;
+    background-color: #27272a !important;
+}
+select:focus {
+    background-color: #18181b !important;
+    color: #fafafa !important;
+}
+/* Ensure all dropdowns in modals and dynamic content are dark */
+[id*="modal"] select,
+[id*="modal"] select option,
+#admin-content select,
+#admin-content select option,
+.bg-surface select,
+.bg-surface select option {
+    background-color: #18181b !important;
+    color: #fafafa !important;
 }
 
 /* Gradient text */

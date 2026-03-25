@@ -11,7 +11,7 @@ use crate::pages::{
     admin::AdminPage,
     asset_detail::AssetDetailPage,
     asset_edit::AssetEditPage,
-    community::CommunityPage,
+    community::{CommunityPage, ArticleDetailPage, WriteArticlePage},
     dashboard::DashboardPage,
     docs::{DocsPage, DocsSectionPage, DocArticle},
     courses::{CoursesPage, CourseDetailPage, ChapterViewPage, CreateCoursePage, EditCoursePage},
@@ -69,6 +69,8 @@ pub fn App() -> impl IntoView {
                     <Route path=path!("/courses/:slug/edit") view=EditCoursePage />
                     <Route path=path!("/courses/:slug/chapter/:chapter") view=ChapterViewPage />
                     <Route path=path!("/community") view=CommunityPage />
+                    <Route path=path!("/community/write") view=WriteArticlePage />
+                    <Route path=path!("/community/:slug") view=ArticleDetailPage />
                     <Route path=path!("/forum") view=ForumPage />
                     <Route path=path!("/forum/new") view=NewThreadPage />
                     <Route path=path!("/forum/thread/:slug") view=ForumThreadPage />

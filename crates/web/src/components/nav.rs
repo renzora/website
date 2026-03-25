@@ -84,8 +84,8 @@ pub fn Nav() -> impl IntoView {
                             <a href="/dashboard" class="flex items-center gap-2 px-3 py-2.5 text-sm text-zinc-400 hover:text-zinc-50 hover:bg-white/5 transition-all">
                                 <i class="ph ph-chart-bar text-base"></i>"Dashboard"
                             </a>
-                            <a href="/marketplace/sell" class="flex items-center gap-2 px-3 py-2.5 text-sm text-zinc-400 hover:text-zinc-50 hover:bg-white/5 transition-all">
-                                <i class="ph ph-storefront text-base"></i>"Sell on Marketplace"
+                            <a id="nav-sell-link" href="/marketplace/sell" class="flex items-center gap-2 px-3 py-2.5 text-sm text-zinc-400 hover:text-zinc-50 hover:bg-white/5 transition-all">
+                                <i class="ph ph-storefront text-base" id="nav-sell-icon"></i><span id="nav-sell-text">"Sell on Marketplace"</span>
                             </a>
                             <a href="/settings" class="flex items-center gap-2 px-3 py-2.5 text-sm text-zinc-400 hover:text-zinc-50 hover:bg-white/5 transition-all">
                                 <i class="ph ph-gear text-base"></i>"Settings"
@@ -133,11 +133,14 @@ pub fn Nav() -> impl IntoView {
 
                     // Fetch live credit balance from API
                     try {
-                        const res = await fetch('/api/credits/balance', { credentials: 'include' });
-                        if (res.ok) {
-                            const data = await res.json();
-                            const credits = document.getElementById('nav-credits');
-                            if (credits) credits.textContent = data.credit_balance || '0';
+                        const t = getCookie('token');
+                        if (t) {
+                            const res = await fetch('/api/credits/balance', { headers: { 'Authorization': 'Bearer ' + t } });
+                            if (res.ok) {
+                                const data = await res.json();
+                                const credits = document.getElementById('nav-credits');
+                                if (credits) credits.textContent = (data.credit_balance ?? 0).toLocaleString();
+                            }
                         }
                     } catch(e) {}
                 }
@@ -393,9 +396,29 @@ pub fn Nav() -> impl IntoView {
                 }, 250);
             }
 
+            // Check creator onboard status to swap sell/dashboard link
+            async function checkCreatorStatus() {
+                const t = getCookie('token');
+                if (!t) return;
+                try {
+                    const res = await fetch('/api/creator/onboard-status', { headers: { 'Authorization': 'Bearer ' + t } });
+                    if (!res.ok) return;
+                    const data = await res.json();
+                    if (data.policy_accepted) {
+                        const link = document.getElementById('nav-sell-link');
+                        const icon = document.getElementById('nav-sell-icon');
+                        const text = document.getElementById('nav-sell-text');
+                        if (link) { link.href = '/dashboard'; }
+                        if (icon) { icon.className = 'ph ph-chart-pie text-base'; }
+                        if (text) { text.textContent = 'Creator Dashboard'; }
+                    }
+                } catch(e) {}
+            }
+
             updateNav();
             loadNotifs(); // Initial load only
             connectWs();  // Live updates from here on
+            checkCreatorStatus();
             "#
         </script>
     }

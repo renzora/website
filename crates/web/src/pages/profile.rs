@@ -14,6 +14,18 @@ pub fn ProfilePage() -> impl IntoView {
             r##"
             let profileData = null;
             let isOwnProfile = false;
+            let isStaff = false;
+
+            function parseDate(s) {
+                if (!s) return null;
+                // Try direct parse first (ISO 8601 / RFC 3339)
+                let d = new Date(s);
+                if (!isNaN(d.getTime())) return d;
+                // Fallback: Rust OffsetDateTime format "2024-01-15 10:30:00.123 +00:00:00"
+                const iso = s.replace(/^(\d{4}-\d{2}-\d{2})\s+(\d{2}:\d{2}:\d{2}).*?\s*([+-]\d{2}):?(\d{2}).*$/, '$1T$2$3:$4');
+                d = new Date(iso);
+                return isNaN(d.getTime()) ? null : d;
+            }
 
             (async function() {
                 const username = window.location.pathname.split('/').pop();
@@ -36,7 +48,13 @@ pub fn ProfilePage() -> impl IntoView {
                 const p = profileData;
 
                 const userCookie = document.cookie.match('(^|;)\\s*user\\s*=\\s*([^;]+)')?.pop();
-                if (userCookie) { try { isOwnProfile = JSON.parse(decodeURIComponent(userCookie)).username === username; } catch(e) {} }
+                if (userCookie) {
+                    try {
+                        const u = JSON.parse(decodeURIComponent(userCookie));
+                        isOwnProfile = u.username === username;
+                        isStaff = u.role === 'admin' || u.role === 'moderator';
+                    } catch(e) {}
+                }
 
                 // Badges
                 const badges = p.badges.map(b => `
@@ -67,10 +85,12 @@ pub fn ProfilePage() -> impl IntoView {
                     </label>` : '';
 
                 // Info pills
+                const joinedDate = parseDate(p.created_at);
+                const joinedStr = joinedDate ? joinedDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' }) : 'Unknown';
                 const infoPills = [
                     p.location ? `<span class="inline-flex items-center gap-1 text-xs text-zinc-400"><i class="ph ph-map-pin"></i>${p.location}</span>` : '',
                     p.website ? `<a href="${p.website}" target="_blank" class="inline-flex items-center gap-1 text-xs text-accent hover:text-accent-hover"><i class="ph ph-link"></i>${p.website.replace(/^https?:\/\//, '')}</a>` : '',
-                    `<span class="inline-flex items-center gap-1 text-xs text-zinc-500"><i class="ph ph-calendar"></i>Joined ${new Date(p.created_at).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}</span>`,
+                    `<span class="inline-flex items-center gap-1 text-xs text-zinc-500"><i class="ph ph-calendar"></i>Joined ${joinedStr}</span>`,
                 ].filter(Boolean).join('');
 
                 // Role badge
@@ -78,27 +98,35 @@ pub fn ProfilePage() -> impl IntoView {
                 const roleColor = roleColors[p.role] || roleColors.user;
 
                 // Assets grid
-                const assetsHtml = (p.assets && p.assets.length) ? `
-                    <div class="max-w-[1000px] mx-auto px-6 mt-8 mb-12">
-                        <h2 class="text-lg font-semibold mb-4">Published Assets <span class="text-zinc-500 text-sm font-normal">(${p.assets.length})</span></h2>
-                        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                            ${p.assets.map(a => `
-                                <a href="/marketplace/asset/${a.slug}" class="block group">
-                                    <div class="bg-surface-card border border-zinc-800 rounded-xl overflow-hidden hover:border-zinc-700 transition-all">
-                                        <div class="h-32 bg-surface flex items-center justify-center relative">
-                                            ${a.thumbnail_url ? `<img src="${a.thumbnail_url}" class="w-full h-full object-cover" />` : `<i class="ph ph-package text-3xl text-zinc-700"></i>`}
-                                            <span class="absolute top-2 right-2 text-[10px] px-1.5 py-0.5 rounded bg-black/50 text-zinc-300 backdrop-blur-sm">${a.category}</span>
-                                        </div>
-                                        <div class="p-3">
-                                            <h3 class="text-sm font-semibold group-hover:text-accent transition-colors truncate">${a.name}</h3>
-                                            <div class="flex items-center justify-between mt-2">
-                                                <span class="text-xs text-zinc-500"><i class="ph ph-download-simple"></i> ${a.downloads}</span>
-                                                <span class="text-xs font-semibold ${a.price_credits === 0 ? 'text-green-400' : 'text-zinc-50'}">${a.price_credits === 0 ? 'Free' : a.price_credits + ' credits'}</span>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </a>
-                            `).join('')}
+                const assetsHtml = (p.assets && p.assets.length) ? p.assets.map(a => `
+                    <a href="/marketplace/asset/${a.slug}" class="block group">
+                        <div class="bg-surface-card border border-zinc-800 rounded-xl overflow-hidden hover:border-zinc-700 transition-all">
+                            <div class="h-32 bg-surface flex items-center justify-center relative">
+                                ${a.thumbnail_url ? `<img src="${a.thumbnail_url}" class="w-full h-full object-cover" />` : `<i class="ph ph-package text-3xl text-zinc-700"></i>`}
+                                <span class="absolute top-2 right-2 text-[10px] px-1.5 py-0.5 rounded bg-black/50 text-zinc-300 backdrop-blur-sm">${a.category}</span>
+                            </div>
+                            <div class="p-3">
+                                <h3 class="text-sm font-semibold group-hover:text-accent transition-colors truncate">${a.name}</h3>
+                                <div class="flex items-center justify-between mt-2">
+                                    <span class="text-xs text-zinc-500"><i class="ph ph-download-simple"></i> ${a.downloads}</span>
+                                    <span class="text-xs font-semibold ${a.price_credits === 0 ? 'text-green-400' : 'text-zinc-50'}">${a.price_credits === 0 ? 'Free' : a.price_credits + ' credits'}</span>
+                                </div>
+                            </div>
+                        </div>
+                    </a>
+                `).join('') : '<p class="text-zinc-500 text-sm py-8 text-center">No published assets yet.</p>';
+
+                // Staff notes section (only for staff viewing other profiles)
+                const staffNotesHtml = isStaff ? `
+                    <div class="bg-surface-card border border-amber-500/20 rounded-xl p-4">
+                        <div class="flex items-center gap-2 mb-3">
+                            <i class="ph ph-shield-check text-amber-400"></i>
+                            <h3 class="text-sm font-semibold text-amber-400">Staff Notes</h3>
+                        </div>
+                        <div id="profile-notes-list" class="space-y-2 mb-3"><p class="text-xs text-zinc-500">Loading...</p></div>
+                        <div class="flex gap-2">
+                            <input type="text" id="profile-note-input" placeholder="Add a staff note..." class="flex-1 px-3 py-2 bg-surface border border-zinc-800 rounded-lg text-sm text-zinc-50 outline-none focus:border-accent" />
+                            <button onclick="addProfileNote()" class="px-3 py-2 rounded-lg text-xs font-medium bg-accent text-white hover:bg-accent-hover">Add</button>
                         </div>
                     </div>` : '';
 
@@ -126,7 +154,6 @@ pub fn ProfilePage() -> impl IntoView {
                                     ${followBtn}
                                     ${isOwnProfile ? `
                                         <button onclick="toggleEditProfile()" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-surface-card border border-zinc-800 text-zinc-400 hover:border-zinc-600 hover:text-zinc-200 transition-colors"><i class="ph ph-pencil-simple"></i>Edit</button>
-                                        <button onclick="toggleStorefrontEditor()" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-surface-card border border-zinc-800 text-zinc-400 hover:border-zinc-600 hover:text-zinc-200 transition-colors"><i class="ph ph-storefront"></i>Storefront</button>
                                     ` : ''}
                                 </div>
 
@@ -155,11 +182,11 @@ pub fn ProfilePage() -> impl IntoView {
                                 <div class="space-y-3">
                                     <div>
                                         <label class="block text-xs text-zinc-500 mb-1">Location</label>
-                                        <input id="edit-location" type="text" value="${p.location || ''}" placeholder="City, Country" class="w-full px-3 py-2 bg-surface border border-zinc-800 rounded-lg text-sm text-zinc-50 outline-none focus:border-accent" />
+                                        <input id="edit-location" type="text" value="${p.location || ''}" class="w-full px-3 py-2 bg-surface border border-zinc-800 rounded-lg text-sm text-zinc-50 outline-none focus:border-accent" />
                                     </div>
                                     <div>
                                         <label class="block text-xs text-zinc-500 mb-1">Website</label>
-                                        <input id="edit-website" type="url" value="${p.website || ''}" placeholder="https://..." class="w-full px-3 py-2 bg-surface border border-zinc-800 rounded-lg text-sm text-zinc-50 outline-none focus:border-accent" />
+                                        <input id="edit-website" type="url" value="${p.website || ''}" class="w-full px-3 py-2 bg-surface border border-zinc-800 rounded-lg text-sm text-zinc-50 outline-none focus:border-accent" />
                                     </div>
                                 </div>
                             </div>
@@ -189,110 +216,73 @@ pub fn ProfilePage() -> impl IntoView {
                         </div>
                     </div>
 
-                        <!-- Storefront editor (hidden) -->
-                        ${isOwnProfile ? `
-                        <div id="edit-storefront" class="hidden mt-6 p-6 bg-surface-card border border-zinc-800 rounded-xl">
-                            <div class="flex items-center justify-between mb-4">
-                                <h3 class="text-base font-semibold">Storefront Settings</h3>
-                                ${p.storefront_enabled ? `<a href="/shop/${p.username}" target="_blank" class="text-xs text-accent hover:underline"><i class="ph ph-arrow-square-out"></i> View Shop</a>` : ''}
-                            </div>
-                            <div class="mb-4">
-                                <label class="flex items-center gap-2 cursor-pointer">
-                                    <input type="checkbox" id="sf-enabled" ${p.storefront_enabled ? 'checked' : ''} class="accent-accent w-4 h-4" />
-                                    <span class="text-sm">Enable public storefront at <span class="text-accent">/shop/${p.username}</span></span>
-                                </label>
-                            </div>
-                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
-                                <div>
-                                    <label class="block text-xs text-zinc-500 mb-1">Tagline</label>
-                                    <input id="sf-tagline" type="text" value="" placeholder="A short catchy tagline..." maxlength="128" class="w-full px-3 py-2 bg-surface border border-zinc-800 rounded-lg text-sm text-zinc-50 outline-none focus:border-accent" />
-                                </div>
-                                <div>
-                                    <label class="block text-xs text-zinc-500 mb-1">Layout</label>
-                                    <select id="sf-layout" class="w-full px-3 py-2 bg-surface border border-zinc-800 rounded-lg text-sm text-zinc-50 outline-none focus:border-accent">
-                                        <option value="grid">Grid</option>
-                                        <option value="list">List</option>
-                                    </select>
-                                </div>
-                            </div>
-                            <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-4">
-                                <div>
-                                    <label class="block text-xs text-zinc-500 mb-1">Background</label>
-                                    <input id="sf-bg-color" type="color" value="#0a0a0b" class="w-full h-9 rounded cursor-pointer bg-transparent border border-zinc-800" />
-                                </div>
-                                <div>
-                                    <label class="block text-xs text-zinc-500 mb-1">Text Color</label>
-                                    <input id="sf-text-color" type="color" value="#e4e4e7" class="w-full h-9 rounded cursor-pointer bg-transparent border border-zinc-800" />
-                                </div>
-                                <div>
-                                    <label class="block text-xs text-zinc-500 mb-1">Accent</label>
-                                    <input id="sf-accent-color" type="color" value="#6366f1" class="w-full h-9 rounded cursor-pointer bg-transparent border border-zinc-800" />
-                                </div>
-                                <div>
-                                    <label class="block text-xs text-zinc-500 mb-1">Card Background</label>
-                                    <input id="sf-card-bg" type="color" value="#18181b" class="w-full h-9 rounded cursor-pointer bg-transparent border border-zinc-800" />
-                                </div>
-                            </div>
-                            <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-4">
-                                <div>
-                                    <label class="block text-xs text-zinc-500 mb-1">Card Border</label>
-                                    <input id="sf-card-border" type="color" value="#27272a" class="w-full h-9 rounded cursor-pointer bg-transparent border border-zinc-800" />
-                                </div>
-                                <div>
-                                    <label class="block text-xs text-zinc-500 mb-1">Font</label>
-                                    <select id="sf-font" class="w-full px-3 py-2 bg-surface border border-zinc-800 rounded-lg text-sm text-zinc-50 outline-none focus:border-accent">
-                                        <option value="Inter">Inter</option>
-                                        <option value="Roboto">Roboto</option>
-                                        <option value="Poppins">Poppins</option>
-                                        <option value="Space Grotesk">Space Grotesk</option>
-                                        <option value="JetBrains Mono">JetBrains Mono</option>
-                                        <option value="Outfit">Outfit</option>
-                                        <option value="Nunito">Nunito</option>
-                                        <option value="Lexend">Lexend</option>
-                                        <option value="DM Sans">DM Sans</option>
-                                        <option value="Playfair Display">Playfair Display</option>
-                                    </select>
-                                </div>
-                                <div>
-                                    <label class="block text-xs text-zinc-500 mb-1">Font Size</label>
-                                    <select id="sf-font-size" class="w-full px-3 py-2 bg-surface border border-zinc-800 rounded-lg text-sm text-zinc-50 outline-none focus:border-accent">
-                                        <option value="12px">Small (12px)</option>
-                                        <option value="14px">Default (14px)</option>
-                                        <option value="16px">Large (16px)</option>
-                                        <option value="18px">Extra Large (18px)</option>
-                                    </select>
-                                </div>
-                                <div>
-                                    <label class="block text-xs text-zinc-500 mb-1">Cursor</label>
-                                    <select id="sf-cursor" class="w-full px-3 py-2 bg-surface border border-zinc-800 rounded-lg text-sm text-zinc-50 outline-none focus:border-accent">
-                                        <option value="default">Default</option>
-                                        <option value="crosshair">Crosshair</option>
-                                        <option value="pointer">Pointer</option>
-                                        <option value="cell">Cell</option>
-                                        <option value="grab">Grab</option>
-                                    </select>
-                                </div>
-                            </div>
-                            <div class="mb-4">
-                                <label class="block text-xs text-zinc-500 mb-1">Background Image URL (optional)</label>
-                                <input id="sf-bg-image" type="url" value="" placeholder="https://..." class="w-full px-3 py-2 bg-surface border border-zinc-800 rounded-lg text-sm text-zinc-50 outline-none focus:border-accent" />
-                            </div>
-                            <div class="mb-4">
-                                <label class="block text-xs text-zinc-500 mb-1">Custom CSS <span class="text-zinc-600">(max 4KB)</span></label>
-                                <textarea id="sf-css" rows="3" placeholder="#shop-page .shop-card { border-radius: 1rem; }" class="w-full px-3 py-2 bg-surface border border-zinc-800 rounded-lg text-xs text-zinc-50 outline-none focus:border-accent resize-y font-mono"></textarea>
-                            </div>
-                            <div class="flex gap-2">
-                                <button onclick="saveStorefront()" class="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium bg-accent text-white hover:bg-accent-hover"><i class="ph ph-check"></i>Save Storefront</button>
-                                <button onclick="toggleStorefrontEditor()" class="px-4 py-2 rounded-lg text-sm text-zinc-400 hover:text-zinc-50">Cancel</button>
+                    <!-- Tabbed content area -->
+                    <div class="max-w-[1000px] mx-auto px-6 mt-8 mb-12">
+                        <div class="flex gap-1 border-b border-zinc-800 mb-6">
+                            <button onclick="showProfileTab('assets')" id="ptab-assets" class="profile-tab px-4 py-2.5 text-sm font-medium border-b-2 border-accent text-zinc-50">
+                                <i class="ph ph-package"></i> Assets
+                            </button>
+                            <button onclick="showProfileTab('badges')" id="ptab-badges" class="profile-tab px-4 py-2.5 text-sm font-medium border-b-2 border-transparent text-zinc-400 hover:text-zinc-200">
+                                <i class="ph ph-medal"></i> Badges
+                            </button>
+                            ${isStaff ? `<button onclick="showProfileTab('staff')" id="ptab-staff" class="profile-tab px-4 py-2.5 text-sm font-medium border-b-2 border-transparent text-amber-400 hover:text-amber-300">
+                                <i class="ph ph-shield-check"></i> Staff
+                            </button>` : ''}
+                        </div>
+
+                        <div id="ptab-content-assets">
+                            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                                ${assetsHtml}
                             </div>
                         </div>
-                        ` : ''}
-                    </div>
 
-                    <!-- Assets -->
-                    ${assetsHtml}
+                        <div id="ptab-content-badges" class="hidden">
+                            ${p.badges.length ? `
+                                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                    ${p.badges.map(b => `
+                                        <div class="flex items-center gap-3 p-4 bg-surface-card border border-zinc-800 rounded-xl">
+                                            <div class="w-10 h-10 rounded-full flex items-center justify-center" style="background: ${b.color}15; border: 1px solid ${b.color}30">
+                                                <i class="ph ${b.icon} text-xl" style="color: ${b.color}"></i>
+                                            </div>
+                                            <div>
+                                                <div class="text-sm font-semibold" style="color: ${b.color}">${b.name}</div>
+                                                <div class="text-xs text-zinc-500">${b.description}</div>
+                                            </div>
+                                        </div>
+                                    `).join('')}
+                                </div>
+                            ` : '<p class="text-zinc-500 text-sm py-8 text-center">No badges earned yet.</p>'}
+                        </div>
+
+                        <div id="ptab-content-staff" class="hidden">
+                            ${staffNotesHtml}
+                        </div>
+                    </div>
                 `;
+
+                // Load staff notes if staff
+                if (isStaff && p.id) loadProfileNotes(p.id);
             })();
+
+            function showProfileTab(name) {
+                document.querySelectorAll('.profile-tab').forEach(t => {
+                    t.classList.remove('border-accent', 'text-zinc-50', 'border-amber-400', 'text-amber-400');
+                    t.classList.add('border-transparent', 'text-zinc-400');
+                });
+                const tab = document.getElementById('ptab-' + name);
+                if (tab) {
+                    if (name === 'staff') {
+                        tab.classList.add('border-amber-400', 'text-amber-400');
+                    } else {
+                        tab.classList.add('border-accent', 'text-zinc-50');
+                    }
+                    tab.classList.remove('border-transparent', 'text-zinc-400');
+                }
+                ['assets', 'badges', 'staff'].forEach(n => {
+                    const el = document.getElementById('ptab-content-' + n);
+                    if (el) el.classList.toggle('hidden', n !== name);
+                });
+            }
 
             function toggleEditProfile() {
                 document.getElementById('edit-profile')?.classList.toggle('hidden');
@@ -322,85 +312,13 @@ pub fn ProfilePage() -> impl IntoView {
                 const file = input.files[0];
                 if (!file) return;
                 if (file.size > 2 * 1024 * 1024) { alert('Avatar must be under 2MB'); return; }
-
                 const token = document.cookie.match('(^|;)\\s*token\\s*=\\s*([^;]+)')?.pop();
                 if (!token) return;
-
                 const form = new FormData();
                 form.append('avatar', file);
-
-                const res = await fetch('/api/profiles/avatar', {
-                    method: 'PUT',
-                    headers: { 'Authorization': 'Bearer ' + token },
-                    body: form
-                });
-
+                const res = await fetch('/api/profiles/avatar', { method: 'PUT', headers: { 'Authorization': 'Bearer ' + token }, body: form });
                 if (res.ok) window.location.reload();
                 else { const d = await res.json().catch(() => ({})); alert(d.error || 'Upload failed'); }
-            }
-
-            function toggleStorefrontEditor() {
-                const el = document.getElementById('edit-storefront');
-                if (!el) return;
-                const wasHidden = el.classList.contains('hidden');
-                el.classList.toggle('hidden');
-                // Load current settings when opening
-                if (wasHidden) loadStorefrontSettings();
-            }
-
-            async function loadStorefrontSettings() {
-                const token = document.cookie.match('(^|;)\\s*token\\s*=\\s*([^;]+)')?.pop();
-                if (!token || !profileData) return;
-                const username = profileData.username;
-                // Try to fetch current storefront data (may 404 if not enabled)
-                const res = await fetch('/api/profiles/shop/' + username);
-                if (res.ok) {
-                    const sf = await res.json();
-                    const set = (id, val) => { const el = document.getElementById(id); if (el) el.value = val || ''; };
-                    set('sf-tagline', sf.tagline);
-                    set('sf-bg-color', sf.bg_color);
-                    set('sf-bg-image', sf.bg_image);
-                    set('sf-text-color', sf.text_color);
-                    set('sf-accent-color', sf.accent_color);
-                    set('sf-card-bg', sf.card_bg);
-                    set('sf-card-border', sf.card_border);
-                    set('sf-font', sf.font);
-                    set('sf-font-size', sf.font_size);
-                    set('sf-cursor', sf.cursor);
-                    set('sf-layout', sf.layout);
-                    set('sf-css', sf.css);
-                }
-            }
-
-            async function saveStorefront() {
-                const token = document.cookie.match('(^|;)\\s*token\\s*=\\s*([^;]+)')?.pop();
-                if (!token) return;
-                const body = {
-                    enabled: document.getElementById('sf-enabled')?.checked ?? false,
-                    tagline: document.getElementById('sf-tagline')?.value || '',
-                    bg_color: document.getElementById('sf-bg-color')?.value || '#0a0a0b',
-                    bg_image: document.getElementById('sf-bg-image')?.value || '',
-                    text_color: document.getElementById('sf-text-color')?.value || '#e4e4e7',
-                    accent_color: document.getElementById('sf-accent-color')?.value || '#6366f1',
-                    card_bg: document.getElementById('sf-card-bg')?.value || '#18181b',
-                    card_border: document.getElementById('sf-card-border')?.value || '#27272a',
-                    font: document.getElementById('sf-font')?.value || 'Inter',
-                    font_size: document.getElementById('sf-font-size')?.value || '14px',
-                    cursor: document.getElementById('sf-cursor')?.value || 'default',
-                    layout: document.getElementById('sf-layout')?.value || 'grid',
-                    css: document.getElementById('sf-css')?.value || '',
-                };
-                const res = await fetch('/api/profiles/storefront', {
-                    method: 'PUT',
-                    headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' },
-                    body: JSON.stringify(body)
-                });
-                if (res.ok) {
-                    window.location.reload();
-                } else {
-                    const d = await res.json().catch(() => ({}));
-                    alert(d.error || 'Failed to save');
-                }
             }
 
             async function toggleFollow(username) {
@@ -408,6 +326,43 @@ pub fn ProfilePage() -> impl IntoView {
                 if (!token) { window.location.href = '/login'; return; }
                 await fetch('/api/profiles/follow/' + username, { method: 'POST', headers: { 'Authorization': 'Bearer ' + token } });
                 window.location.reload();
+            }
+
+            // ── Staff notes on profile ──
+            async function loadProfileNotes(userId) {
+                const token = document.cookie.match('(^|;)\\s*token\\s*=\\s*([^;]+)')?.pop();
+                if (!token) return;
+                try {
+                    const res = await fetch('/api/admin/users/' + userId + '/notes', { headers: { 'Authorization': 'Bearer ' + token } });
+                    if (!res.ok) return;
+                    const notes = await res.json();
+                    const el = document.getElementById('profile-notes-list');
+                    if (!el) return;
+                    el.innerHTML = notes.length ? notes.map(n => `
+                        <div class="p-2.5 bg-surface border border-zinc-800 rounded-lg">
+                            <div class="flex justify-between items-center">
+                                <span class="text-xs text-accent">${n.author_name}</span>
+                                <span class="text-[10px] text-zinc-600">${new Date(n.created_at).toLocaleString()}</span>
+                            </div>
+                            <p class="text-xs text-zinc-300 mt-1">${n.content}</p>
+                        </div>
+                    `).join('') : '<p class="text-xs text-zinc-600">No notes yet.</p>';
+                } catch(e) {}
+            }
+
+            async function addProfileNote() {
+                const token = document.cookie.match('(^|;)\\s*token\\s*=\\s*([^;]+)')?.pop();
+                if (!token || !profileData?.id) return;
+                const input = document.getElementById('profile-note-input');
+                const content = input.value.trim();
+                if (!content) return;
+                await fetch('/api/admin/users/' + profileData.id + '/notes', {
+                    method: 'POST',
+                    headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ content })
+                });
+                input.value = '';
+                loadProfileNotes(profileData.id);
             }
             "##
         </script>

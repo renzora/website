@@ -64,6 +64,17 @@ pub fn router() -> Router<AppState> {
         .route("/promo-codes", post(create_promo_code))
         .route("/promo-codes/:id/toggle", put(toggle_promo_code))
         .route("/promo-codes/:id", delete(delete_promo_code))
+        // Full user edit
+        .route("/users/:id/edit", put(edit_user_full))
+        // Analytics
+        .route("/analytics", get(admin_analytics))
+        // Accept withdrawal
+        .route("/withdrawals/:id/accept", put(accept_withdrawal))
+        // Investigate withdrawal
+        .route("/withdrawals/:id/transactions", get(withdrawal_transactions))
+        // Badge creation
+        .route("/badges/create", post(create_badge))
+        .route("/badges/:id", delete(delete_badge))
         // Bans
         .route("/users/:id/ban", post(ban_user_handler))
         .route("/users/:id/unban", post(unban_user_handler))
@@ -769,6 +780,191 @@ async fn delete_promo_code(
     verify_admin(&state, auth.user_id).await?;
     renzora_models::promo_code::PromoCode::delete(&state.db, id).await?;
     Ok(Json(serde_json::json!({"message": "Deleted"})))
+}
+
+// ── Full user edit ──
+
+#[derive(Deserialize)]
+struct EditUserBody {
+    username: Option<String>,
+    email: Option<String>,
+    role: Option<String>,
+    bio: Option<String>,
+    location: Option<String>,
+    website: Option<String>,
+    gender: Option<String>,
+    profile_color: Option<String>,
+    banner_color: Option<String>,
+    credit_balance: Option<i64>,
+}
+
+async fn edit_user_full(
+    State(state): State<AppState>,
+    Extension(auth): Extension<AuthUser>,
+    Path(id): Path<Uuid>,
+    Json(body): Json<EditUserBody>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    verify_admin(&state, auth.user_id).await?;
+    sqlx::query(
+        "UPDATE users SET username=COALESCE($2,username), email=COALESCE($3,email), role=COALESCE($4,role), bio=COALESCE($5,bio), location=COALESCE($6,location), website=COALESCE($7,website), gender=COALESCE($8,gender), profile_color=COALESCE($9,profile_color), banner_color=COALESCE($10,banner_color), credit_balance=COALESCE($11,credit_balance), updated_at=NOW() WHERE id=$1"
+    )
+    .bind(id).bind(&body.username).bind(&body.email).bind(&body.role)
+    .bind(&body.bio).bind(&body.location).bind(&body.website).bind(&body.gender)
+    .bind(&body.profile_color).bind(&body.banner_color).bind(body.credit_balance)
+    .execute(&state.db).await?;
+    Ok(Json(serde_json::json!({"message": "User updated"})))
+}
+
+// ── Analytics ──
+
+async fn admin_analytics(
+    State(state): State<AppState>,
+    Extension(auth): Extension<AuthUser>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    verify_admin(&state, auth.user_id).await?;
+
+    // Total revenue (all topups)
+    let revenue: (i64,) = sqlx::query_as("SELECT COALESCE(SUM(amount),0)::bigint FROM transactions WHERE type='topup'").fetch_one(&state.db).await?;
+    // Total purchases
+    let purchases: (i64,) = sqlx::query_as("SELECT COALESCE(SUM(ABS(amount)),0)::bigint FROM transactions WHERE type='purchase'").fetch_one(&state.db).await?;
+    // Total earnings paid to creators
+    let creator_earnings: (i64,) = sqlx::query_as("SELECT COALESCE(SUM(amount),0)::bigint FROM transactions WHERE type='earning'").fetch_one(&state.db).await?;
+    // Platform commission = purchases - creator_earnings
+    let commission = purchases.0 - creator_earnings.0;
+    // Completed withdrawals
+    let withdrawn: (i64,) = sqlx::query_as("SELECT COALESCE(SUM(amount_credits),0)::bigint FROM withdrawals WHERE status='completed'").fetch_one(&state.db).await?;
+    // Pending withdrawals
+    let pending_withdrawals: (i64,) = sqlx::query_as("SELECT COALESCE(SUM(amount_credits),0)::bigint FROM withdrawals WHERE status IN ('pending','processing')").fetch_one(&state.db).await?;
+    // Total sales count
+    let sales_count: (i64,) = sqlx::query_as("SELECT COUNT(*)::bigint FROM transactions WHERE type='purchase'").fetch_one(&state.db).await?;
+    // Referral earnings
+    let referral_total: (i64,) = sqlx::query_as("SELECT COALESCE(SUM(referral_amount),0)::bigint FROM referral_earnings").fetch_one(&state.db).await?;
+    // Monthly revenue (last 12 months)
+    let monthly_rows = sqlx::query(
+        "SELECT date_trunc('month', created_at) as month, type, COALESCE(SUM(ABS(amount)),0)::bigint as total FROM transactions WHERE created_at > NOW() - INTERVAL '12 months' GROUP BY month, type ORDER BY month"
+    ).fetch_all(&state.db).await?;
+
+    let mut monthly: Vec<serde_json::Value> = Vec::new();
+    for row in &monthly_rows {
+        monthly.push(serde_json::json!({
+            "month": row.get::<time::OffsetDateTime, _>("month").format(&time::format_description::well_known::Rfc3339).unwrap_or_default(),
+            "type": row.get::<String, _>("type"),
+            "total": row.get::<i64, _>("total"),
+        }));
+    }
+
+    // Top selling assets
+    let top_assets = sqlx::query(
+        "SELECT a.name, a.slug, COUNT(t.id)::bigint as sales, COALESCE(SUM(ABS(t.amount)),0)::bigint as revenue FROM transactions t JOIN assets a ON a.id=t.asset_id WHERE t.type='purchase' GROUP BY a.id, a.name, a.slug ORDER BY sales DESC LIMIT 10"
+    ).fetch_all(&state.db).await?;
+
+    let top: Vec<serde_json::Value> = top_assets.iter().map(|r| serde_json::json!({
+        "name": r.get::<String, _>("name"),
+        "slug": r.get::<String, _>("slug"),
+        "sales": r.get::<i64, _>("sales"),
+        "revenue": r.get::<i64, _>("revenue"),
+    })).collect();
+
+    Ok(Json(serde_json::json!({
+        "total_revenue": revenue.0,
+        "total_purchases": purchases.0,
+        "creator_earnings": creator_earnings.0,
+        "platform_commission": commission,
+        "withdrawn": withdrawn.0,
+        "pending_withdrawals": pending_withdrawals.0,
+        "sales_count": sales_count.0,
+        "referral_total": referral_total.0,
+        "monthly": monthly,
+        "top_assets": top,
+    })))
+}
+
+// ── Accept Withdrawal ──
+
+async fn accept_withdrawal(
+    State(state): State<AppState>,
+    Extension(auth): Extension<AuthUser>,
+    Path(id): Path<Uuid>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    verify_admin(&state, auth.user_id).await?;
+    sqlx::query("UPDATE withdrawals SET status='completed', updated_at=NOW() WHERE id=$1 AND status IN ('pending','processing')")
+        .bind(id).execute(&state.db).await?;
+    Ok(Json(serde_json::json!({"message": "Withdrawal accepted"})))
+}
+
+// ── Investigate Withdrawal Transactions ──
+
+async fn withdrawal_transactions(
+    State(state): State<AppState>,
+    Extension(auth): Extension<AuthUser>,
+    Path(id): Path<Uuid>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    verify_admin(&state, auth.user_id).await?;
+    // Get the withdrawal's user
+    let w = sqlx::query("SELECT user_id, amount_credits FROM withdrawals WHERE id=$1")
+        .bind(id).fetch_optional(&state.db).await?.ok_or(ApiError::NotFound)?;
+    let uid: Uuid = w.get("user_id");
+    let amount: i64 = w.get("amount_credits");
+    // Get recent transactions for this user
+    let txns = sqlx::query(
+        "SELECT id, type, amount, asset_id, created_at FROM transactions WHERE user_id=$1 ORDER BY created_at DESC LIMIT 50"
+    ).bind(uid).fetch_all(&state.db).await?;
+    let entries: Vec<serde_json::Value> = txns.iter().map(|r| serde_json::json!({
+        "id": r.get::<Uuid, _>("id"),
+        "type": r.get::<String, _>("type"),
+        "amount": r.get::<i64, _>("amount"),
+        "asset_id": r.get::<Option<Uuid>, _>("asset_id"),
+        "created_at": r.get::<time::OffsetDateTime, _>("created_at").format(&time::format_description::well_known::Rfc3339).unwrap_or_default(),
+    })).collect();
+    Ok(Json(serde_json::json!({
+        "withdrawal_amount": amount,
+        "transactions": entries,
+    })))
+}
+
+// ── Badge Creation ──
+
+#[derive(Deserialize)]
+struct CreateBadgeBody {
+    slug: String,
+    name: String,
+    description: String,
+    icon: String,
+    color: String,
+    auto_rule: Option<String>,
+    auto_threshold: Option<i64>,
+}
+
+async fn create_badge(
+    State(state): State<AppState>,
+    Extension(auth): Extension<AuthUser>,
+    Json(body): Json<CreateBadgeBody>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    verify_admin(&state, auth.user_id).await?;
+    let id = Uuid::new_v4();
+    sqlx::query("INSERT INTO badges (id, slug, name, description, icon, color, auto_rule, auto_threshold) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)")
+        .bind(id).bind(&body.slug).bind(&body.name).bind(&body.description)
+        .bind(&body.icon).bind(&body.color)
+        .bind(&body.auto_rule).bind(body.auto_threshold)
+        .execute(&state.db).await.map_err(|e| {
+            if e.to_string().contains("duplicate") || e.to_string().contains("unique") {
+                ApiError::Validation("A badge with that slug already exists".into())
+            } else {
+                ApiError::Internal(e.to_string())
+            }
+        })?;
+    Ok(Json(serde_json::json!({"id": id, "message": "Badge created"})))
+}
+
+async fn delete_badge(
+    State(state): State<AppState>,
+    Extension(auth): Extension<AuthUser>,
+    Path(id): Path<Uuid>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    verify_admin(&state, auth.user_id).await?;
+    sqlx::query("DELETE FROM user_badges WHERE badge_id=$1").bind(id).execute(&state.db).await?;
+    sqlx::query("DELETE FROM badges WHERE id=$1").bind(id).execute(&state.db).await?;
+    Ok(Json(serde_json::json!({"message": "Badge deleted"})))
 }
 
 // ── Helper ──
