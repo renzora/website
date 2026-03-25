@@ -3,98 +3,111 @@ use leptos::prelude::*;
 #[component]
 pub fn MarketplacePage() -> impl IntoView {
     view! {
-        <section class="relative py-8 px-6 min-h-[80vh]">
-            <div class="max-w-[1200px] mx-auto">
-                // Hero header
-                <div class="relative mb-10 py-10 text-center overflow-hidden">
-                    <div class="absolute inset-0 bg-gradient-to-b from-accent/5 via-transparent to-transparent rounded-2xl pointer-events-none"></div>
-                    <div class="absolute top-0 left-1/2 -translate-x-1/2 w-64 h-px bg-gradient-to-r from-transparent via-accent/30 to-transparent"></div>
-                    <div class="relative z-10">
-                        <h1 class="text-3xl md:text-4xl font-bold">"Marketplace"</h1>
-                        <p class="text-zinc-500 text-sm mt-2 max-w-md mx-auto">"Plugins, assets, themes, and scripts for every workflow."</p>
-                        <a id="publish-btn" href="/login" class="hidden inline-flex items-center gap-2 px-4 py-2 mt-4 rounded-lg text-sm font-medium bg-accent text-white hover:bg-accent-hover transition-all hover:shadow-[0_0_20px_rgba(99,102,241,0.2)]">
-                            <i class="ph ph-upload-simple text-base"></i>"Publish an Asset"
-                        </a>
+        <section class="min-h-[calc(100vh-3.5rem)] flex">
+            // ── Left Sidebar: Categories ──
+            <aside class="w-56 shrink-0 bg-surface-card border-r border-zinc-800 sticky top-14 h-[calc(100vh-3.5rem)] overflow-y-auto hidden lg:block">
+                <div class="p-4 border-b border-zinc-800">
+                    <div class="flex items-center gap-2">
+                        <i class="ph ph-storefront text-xl text-accent"></i>
+                        <h1 class="text-base font-bold">"Marketplace"</h1>
+                    </div>
+                    <p class="text-[11px] text-zinc-600 mt-1">"Browse assets, plugins & more"</p>
+                </div>
+                <div class="py-2">
+                    <div class="px-3 py-1.5 text-[10px] font-semibold text-zinc-600 uppercase tracking-wider">"Categories"</div>
+                    <div id="mp-sidebar-cats">
+                        <button class="w-full flex items-center gap-2.5 px-4 py-2 text-sm bg-white/5 text-zinc-50">
+                            <i class="ph ph-squares-four text-base"></i>"All"
+                        </button>
                     </div>
                 </div>
-
-                // Search + sort + filter toggle
-                <div class="flex flex-col sm:flex-row gap-3 mb-4">
-                    <div class="relative flex-1">
-                        <i class="ph ph-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500"></i>
-                        <input type="text" id="mp-search" placeholder="Search assets..." oninput="loadAssets()" class="w-full pl-9 pr-4 py-2.5 bg-white/[0.03] border border-zinc-800/50 rounded-xl text-zinc-50 text-sm outline-none focus:border-accent/50 focus:bg-white/[0.05] transition-all" />
-                    </div>
-                    <select id="mp-sort" onchange="loadAssets()" class="px-3 py-2.5 bg-white/[0.03] border border-zinc-800/50 rounded-xl text-zinc-50 text-sm focus:border-accent/50 transition-all">
-                        <option value="newest">"Newest"</option>
-                        <option value="popular">"Most Popular"</option>
-                        <option value="top_rated">"Top Rated"</option>
-                        <option value="price_asc">"Price: Low to High"</option>
-                        <option value="price_desc">"Price: High to Low"</option>
-                    </select>
-                    <button onclick="toggleFilters()" id="filter-toggle" class="inline-flex items-center gap-1.5 px-3.5 py-2.5 bg-white/[0.03] border border-zinc-800/50 rounded-xl text-zinc-400 text-sm hover:border-zinc-600 hover:text-zinc-200 transition-all">
-                        <i class="ph ph-faders text-base"></i>"Filters"
-                        <span id="active-filter-count" class="hidden ml-1 w-4 h-4 rounded-full bg-accent text-white text-[10px] font-bold flex items-center justify-center"></span>
+                <div class="py-2 border-t border-zinc-800">
+                    <div class="px-3 py-1.5 text-[10px] font-semibold text-zinc-600 uppercase tracking-wider">"Price"</div>
+                    <button onclick="setPrice('all')" id="price-all" class="mp-price-btn w-full flex items-center gap-2.5 px-4 py-2 text-sm bg-white/5 text-zinc-50">
+                        <i class="ph ph-coins text-base"></i>"All Prices"
+                    </button>
+                    <button onclick="setPrice('free')" id="price-free" class="mp-price-btn w-full flex items-center gap-2.5 px-4 py-2 text-sm text-zinc-400 hover:text-zinc-50 hover:bg-white/5 transition-all">
+                        <i class="ph ph-gift text-base"></i>"Free Only"
+                    </button>
+                    <button onclick="setPrice('paid')" id="price-paid" class="mp-price-btn w-full flex items-center gap-2.5 px-4 py-2 text-sm text-zinc-400 hover:text-zinc-50 hover:bg-white/5 transition-all">
+                        <i class="ph ph-credit-card text-base"></i>"Paid Only"
                     </button>
                 </div>
+                <div class="py-2 border-t border-zinc-800">
+                    <div class="px-3 py-1.5 text-[10px] font-semibold text-zinc-600 uppercase tracking-wider">"Min Rating"</div>
+                    <button onclick="setMinRating(0)" id="rating-0" class="mp-rating-btn w-full flex items-center gap-2.5 px-4 py-2 text-sm bg-white/5 text-zinc-50">
+                        <i class="ph ph-star text-base"></i>"Any"
+                    </button>
+                    <button onclick="setMinRating(3)" id="rating-3" class="mp-rating-btn w-full flex items-center gap-2.5 px-4 py-2 text-sm text-zinc-400 hover:text-zinc-50 hover:bg-white/5 transition-all">
+                        <span class="text-amber-400">"★★★"</span><span class="text-zinc-600">"☆☆"</span>"& up"
+                    </button>
+                    <button onclick="setMinRating(4)" id="rating-4" class="mp-rating-btn w-full flex items-center gap-2.5 px-4 py-2 text-sm text-zinc-400 hover:text-zinc-50 hover:bg-white/5 transition-all">
+                        <span class="text-amber-400">"★★★★"</span><span class="text-zinc-600">"☆"</span>"& up"
+                    </button>
+                    <button onclick="setMinRating(5)" id="rating-5" class="mp-rating-btn w-full flex items-center gap-2.5 px-4 py-2 text-sm text-zinc-400 hover:text-zinc-50 hover:bg-white/5 transition-all">
+                        <span class="text-amber-400">"★★★★★"</span>"only"
+                    </button>
+                </div>
+                <div class="p-4 border-t border-zinc-800">
+                    <a id="publish-btn" href="/login" class="hidden w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium bg-accent text-white hover:bg-accent-hover transition-all">
+                        <i class="ph ph-upload-simple text-base"></i>"Publish"
+                    </a>
+                </div>
+            </aside>
 
-                // Advanced filters panel
-                <div id="filter-panel" class="hidden mb-6 p-5 bg-white/[0.02] border border-zinc-800/50 rounded-xl">
-                    <div class="flex flex-wrap gap-6">
-                        // Price filter
-                        <div>
-                            <label class="block text-xs text-zinc-500 mb-2 font-medium uppercase tracking-wider">"Price"</label>
-                            <div class="flex gap-2">
-                                <button onclick="setPrice('all')" id="price-all" class="px-3 py-1.5 rounded-lg text-xs font-medium bg-accent text-white transition-all">"All"</button>
-                                <button onclick="setPrice('free')" id="price-free" class="px-3 py-1.5 rounded-lg text-xs font-medium bg-white/[0.03] border border-zinc-800/50 text-zinc-400 hover:border-zinc-600 transition-all">"Free"</button>
-                                <button onclick="setPrice('paid')" id="price-paid" class="px-3 py-1.5 rounded-lg text-xs font-medium bg-white/[0.03] border border-zinc-800/50 text-zinc-400 hover:border-zinc-600 transition-all">"Paid"</button>
-                            </div>
+            // ── Main Content ──
+            <div class="flex-1 min-w-0">
+                // Top bar: search + sort
+                <div class="sticky top-14 z-20 bg-[rgba(10,10,11,0.85)] backdrop-blur-xl border-b border-zinc-800/50 px-6 py-3">
+                    <div class="flex items-center gap-3">
+                        // Mobile category toggle
+                        <button onclick="toggleMobileCats()" class="lg:hidden inline-flex items-center gap-1.5 px-3 py-2.5 bg-white/[0.03] border border-zinc-800/50 rounded-xl text-zinc-400 text-sm hover:border-zinc-600 transition-all shrink-0">
+                            <i class="ph ph-list text-base"></i>
+                        </button>
+                        <div class="relative flex-1">
+                            <i class="ph ph-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500"></i>
+                            <input type="text" id="mp-search" placeholder="Search assets..." oninput="loadAssets()" class="w-full pl-9 pr-4 py-2.5 bg-white/[0.03] border border-zinc-800/50 rounded-xl text-zinc-50 text-sm outline-none focus:border-accent/50 focus:bg-white/[0.05] transition-all" />
                         </div>
-
-                        // Max price
-                        <div id="max-price-wrap" class="hidden">
-                            <label class="block text-xs text-zinc-500 mb-2 font-medium uppercase tracking-wider">"Max Price"</label>
-                            <input type="number" id="mp-max-price" min="0" placeholder="Max credits" oninput="loadAssets()"
-                                class="w-32 px-3 py-1.5 bg-white/[0.02] border border-zinc-800/50 rounded-lg text-zinc-50 text-xs outline-none focus:border-accent/50" />
-                        </div>
-
-                        // Min rating
-                        <div>
-                            <label class="block text-xs text-zinc-500 mb-2 font-medium uppercase tracking-wider">"Min Rating"</label>
-                            <div class="flex gap-1">
-                                <button onclick="setMinRating(0)" id="rating-0" class="px-3 py-1.5 rounded-lg text-xs font-medium bg-accent text-white transition-all">"Any"</button>
-                                <button onclick="setMinRating(3)" id="rating-3" class="px-3 py-1.5 rounded-lg text-xs font-medium bg-white/[0.03] border border-zinc-800/50 text-zinc-400 hover:border-zinc-600 transition-all">"3+"<span class="text-amber-400 ml-0.5">"★"</span></button>
-                                <button onclick="setMinRating(4)" id="rating-4" class="px-3 py-1.5 rounded-lg text-xs font-medium bg-white/[0.03] border border-zinc-800/50 text-zinc-400 hover:border-zinc-600 transition-all">"4+"<span class="text-amber-400 ml-0.5">"★"</span></button>
-                                <button onclick="setMinRating(5)" id="rating-5" class="px-3 py-1.5 rounded-lg text-xs font-medium bg-white/[0.03] border border-zinc-800/50 text-zinc-400 hover:border-zinc-600 transition-all">"5"<span class="text-amber-400 ml-0.5">"★"</span></button>
-                            </div>
-                        </div>
-
-                        // Clear
-                        <div class="flex items-end">
-                            <button onclick="clearFilters()" class="px-3 py-1.5 rounded-lg text-xs font-medium text-zinc-500 hover:text-zinc-300 transition-colors">"Clear All"</button>
-                        </div>
+                        <select id="mp-sort" onchange="loadAssets()" class="px-3 py-2.5 bg-white/[0.03] border border-zinc-800/50 rounded-xl text-zinc-50 text-sm focus:border-accent/50 transition-all shrink-0">
+                            <option value="newest">"Newest"</option>
+                            <option value="popular">"Most Popular"</option>
+                            <option value="top_rated">"Top Rated"</option>
+                            <option value="price_asc">"Price: Low → High"</option>
+                            <option value="price_desc">"Price: High → Low"</option>
+                        </select>
+                        // Result count
+                        <span id="mp-result-count" class="text-xs text-zinc-600 shrink-0 hidden sm:block"></span>
+                    </div>
+                    // Mobile categories (hidden by default)
+                    <div id="mp-mobile-cats" class="hidden lg:hidden mt-3">
+                        <div id="mp-categories" class="flex gap-2 flex-wrap">"Loading..."</div>
                     </div>
                 </div>
-
-                // Category chips
-                <div id="mp-categories" class="flex gap-2 flex-wrap mb-8">"Loading categories..."</div>
 
                 // Asset grid
-                <div id="mp-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                    <div class="col-span-full text-center py-16">
-                        <div class="inline-block animate-spin w-5 h-5 border-2 border-zinc-700 border-t-accent rounded-full"></div>
+                <div class="p-6">
+                    <div id="mp-grid" class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4">
+                        <div class="col-span-full text-center py-16">
+                            <div class="inline-block animate-spin w-5 h-5 border-2 border-zinc-700 border-t-accent rounded-full"></div>
+                        </div>
                     </div>
-                </div>
 
-                // Pagination
-                <div id="mp-pagination" class="flex justify-center gap-2 mt-8"></div>
+                    // Pagination
+                    <div id="mp-pagination" class="flex justify-center gap-2 mt-8"></div>
+                </div>
             </div>
         </section>
+
         <script>
             r##"
             let currentCategory = new URLSearchParams(window.location.search).get('category') || 'all';
             let currentPage = 1;
-            let currentPrice = 'all'; // all, free, paid
+            let currentPrice = 'all';
             let currentMinRating = 0;
+
+            function toggleMobileCats() {
+                document.getElementById('mp-mobile-cats').classList.toggle('hidden');
+            }
 
             (async function() {
                 const token = document.cookie.match('(^|;)\\s*token\\s*=\\s*([^;]+)')?.pop();
@@ -105,9 +118,18 @@ pub fn MarketplacePage() -> impl IntoView {
                 const dbCats = catRes.ok ? await catRes.json() : [];
                 const categories = [{slug: 'all', name: 'All', icon: 'ph-squares-four'}, ...dbCats.map(c => ({slug: c.slug, name: c.name, icon: c.icon}))];
 
+                // Sidebar categories
+                const sideEl = document.getElementById('mp-sidebar-cats');
+                sideEl.innerHTML = categories.map(c => `
+                    <button onclick="setCategory('${c.slug}')" id="scat-${c.slug}" class="mp-cat-btn w-full flex items-center gap-2.5 px-4 py-2 text-sm transition-all ${c.slug === currentCategory ? 'bg-white/5 text-zinc-50' : 'text-zinc-400 hover:text-zinc-50 hover:bg-white/5'}">
+                        <i class="ph ${c.icon} text-base"></i>${c.name}
+                    </button>
+                `).join('');
+
+                // Mobile category chips
                 const catEl = document.getElementById('mp-categories');
                 catEl.innerHTML = categories.map(c => `
-                    <button onclick="setCategory('${c.slug}')" id="cat-${c.slug}" class="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-medium transition-all ${c.slug === currentCategory ? 'bg-accent text-white shadow-[0_0_12px_rgba(99,102,241,0.3)]' : 'bg-white/[0.03] border border-zinc-800/50 text-zinc-400 hover:border-zinc-600 hover:text-zinc-200'}">
+                    <button onclick="setCategory('${c.slug}')" id="cat-${c.slug}" class="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-medium transition-all ${c.slug === currentCategory ? 'bg-accent text-white' : 'bg-white/[0.03] border border-zinc-800/50 text-zinc-400 hover:border-zinc-600 hover:text-zinc-200'}">
                         <i class="ph ${c.icon}"></i>${c.name}
                     </button>
                 `).join('');
@@ -115,62 +137,28 @@ pub fn MarketplacePage() -> impl IntoView {
                 loadAssets();
             })();
 
-            function toggleFilters() {
-                document.getElementById('filter-panel').classList.toggle('hidden');
-            }
-
             function setPrice(val) {
                 currentPrice = val;
                 currentPage = 1;
-                ['all','free','paid'].forEach(v => {
-                    const el = document.getElementById('price-' + v);
-                    el.className = `px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${v === val ? 'bg-accent text-white' : 'bg-white/[0.03] border border-zinc-800/50 text-zinc-400 hover:border-zinc-600'}`;
+                document.querySelectorAll('.mp-price-btn').forEach(el => {
+                    el.classList.remove('bg-white/5', 'text-zinc-50');
+                    el.classList.add('text-zinc-400');
                 });
-                document.getElementById('max-price-wrap').classList.toggle('hidden', val !== 'paid');
-                updateFilterCount();
+                const active = document.getElementById('price-' + val);
+                if (active) { active.classList.add('bg-white/5', 'text-zinc-50'); active.classList.remove('text-zinc-400'); }
                 loadAssets();
             }
 
             function setMinRating(val) {
                 currentMinRating = val;
                 currentPage = 1;
-                [0,3,4,5].forEach(v => {
-                    const el = document.getElementById('rating-' + v);
-                    if (!el) return;
-                    const isActive = v === val;
-                    // Keep the inner HTML (star spans) but update the wrapper class
-                    if (isActive) {
-                        el.classList.remove('bg-white/[0.03]', 'border', 'border-zinc-800/50', 'text-zinc-400', 'hover:border-zinc-600');
-                        el.classList.add('bg-accent', 'text-white');
-                    } else {
-                        el.classList.remove('bg-accent', 'text-white');
-                        el.classList.add('bg-white/[0.03]', 'border', 'border-zinc-800/50', 'text-zinc-400', 'hover:border-zinc-600');
-                    }
+                document.querySelectorAll('.mp-rating-btn').forEach(el => {
+                    el.classList.remove('bg-white/5', 'text-zinc-50');
+                    el.classList.add('text-zinc-400');
                 });
-                updateFilterCount();
+                const active = document.getElementById('rating-' + val);
+                if (active) { active.classList.add('bg-white/5', 'text-zinc-50'); active.classList.remove('text-zinc-400'); }
                 loadAssets();
-            }
-
-            function clearFilters() {
-                currentPrice = 'all';
-                currentMinRating = 0;
-                document.getElementById('mp-max-price').value = '';
-                setPrice('all');
-                setMinRating(0);
-            }
-
-            function updateFilterCount() {
-                let count = 0;
-                if (currentPrice !== 'all') count++;
-                if (currentMinRating > 0) count++;
-                if (document.getElementById('mp-max-price')?.value) count++;
-                const badge = document.getElementById('active-filter-count');
-                if (count > 0) {
-                    badge.textContent = count;
-                    badge.classList.remove('hidden');
-                } else {
-                    badge.classList.add('hidden');
-                }
             }
 
             function setCategory(slug) {
@@ -180,9 +168,17 @@ pub fn MarketplacePage() -> impl IntoView {
                 if (slug === 'all') url.searchParams.delete('category');
                 else url.searchParams.set('category', slug);
                 history.pushState({}, '', url);
+                // Update sidebar
+                document.querySelectorAll('.mp-cat-btn').forEach(el => {
+                    el.classList.remove('bg-white/5', 'text-zinc-50');
+                    el.classList.add('text-zinc-400');
+                });
+                const sActive = document.getElementById('scat-' + slug);
+                if (sActive) { sActive.classList.add('bg-white/5', 'text-zinc-50'); sActive.classList.remove('text-zinc-400'); }
+                // Update mobile chips
                 document.querySelectorAll('[id^="cat-"]').forEach(el => {
                     const isActive = el.id === 'cat-' + slug;
-                    el.className = `inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-medium transition-all ${isActive ? 'bg-accent text-white shadow-[0_0_12px_rgba(99,102,241,0.3)]' : 'bg-white/[0.03] border border-zinc-800/50 text-zinc-400 hover:border-zinc-600 hover:text-zinc-200'}`;
+                    el.className = `inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-medium transition-all ${isActive ? 'bg-accent text-white' : 'bg-white/[0.03] border border-zinc-800/50 text-zinc-400 hover:border-zinc-600 hover:text-zinc-200'}`;
                 });
                 loadAssets();
             }
@@ -196,12 +192,14 @@ pub fn MarketplacePage() -> impl IntoView {
                 if (cat) url += '&category=' + cat;
                 if (currentPrice === 'free') url += '&free=true';
                 if (currentMinRating > 0) url += '&min_rating=' + currentMinRating;
-                const maxPrice = document.getElementById('mp-max-price')?.value;
-                if (maxPrice && currentPrice === 'paid') url += '&max_price=' + maxPrice;
 
                 const res = await fetch(url);
                 const data = await res.json();
                 const el = document.getElementById('mp-grid');
+
+                // Update result count
+                const countEl = document.getElementById('mp-result-count');
+                if (countEl) countEl.textContent = (data.total || 0) + ' asset' + ((data.total||0) !== 1 ? 's' : '');
 
                 if (!data.assets?.length) {
                     el.innerHTML = `
@@ -210,7 +208,6 @@ pub fn MarketplacePage() -> impl IntoView {
                                 <i class="ph ph-storefront text-3xl text-zinc-600"></i>
                             </div>
                             <p class="text-zinc-500 text-sm">${q ? 'No results. Try a different search.' : 'No assets found with these filters.'}</p>
-                            ${(currentPrice !== 'all' || currentMinRating > 0) ? '<button onclick="clearFilters()" class="mt-3 text-xs text-accent hover:text-accent-hover transition-colors">Clear filters</button>' : ''}
                         </div>`;
                     document.getElementById('mp-pagination').innerHTML = '';
                     return;
