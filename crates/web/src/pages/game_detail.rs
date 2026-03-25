@@ -71,6 +71,21 @@ pub fn GameDetailPage() -> impl IntoView {
             </div>
         </section>
 
+        // Lightbox overlay
+        <div id="game-lightbox" class="hidden fixed inset-0 z-[9999] bg-black/90 backdrop-blur-sm flex items-center justify-center" onclick="if(event.target===this)closeGameLightbox()">
+            <button onclick="closeGameLightbox()" class="absolute top-4 right-4 w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white text-xl transition-all z-10">
+                <i class="ph ph-x"></i>
+            </button>
+            <button onclick="gameLightboxNav(-1)" class="game-lb-nav absolute left-4 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white text-xl transition-all z-10">
+                <i class="ph ph-caret-left"></i>
+            </button>
+            <button onclick="gameLightboxNav(1)" class="game-lb-nav absolute right-4 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white text-xl transition-all z-10">
+                <i class="ph ph-caret-right"></i>
+            </button>
+            <div id="game-lightbox-content" class="flex items-center justify-center p-4"></div>
+            <div id="game-lightbox-counter" class="absolute bottom-4 left-1/2 -translate-x-1/2 text-sm text-zinc-400"></div>
+        </div>
+
         <script>
             r##"
             let gameData = null;
@@ -142,18 +157,20 @@ pub fn GameDetailPage() -> impl IntoView {
                     }
 
                     // Load media
+                    let gameMedia = [];
                     try {
                         const mediaRes = await fetch(`/api/games/${gameId}/media`);
                         const media = await mediaRes.json();
+                        gameMedia = media;
                         if (media.length > 0) {
                             const mediaEl = document.getElementById('game-media');
                             mediaEl.innerHTML = `
                                 <h2 class="text-lg font-semibold mb-3">Screenshots & Videos</h2>
                                 <div class="grid grid-cols-2 md:grid-cols-3 gap-3">
-                                    ${media.map(m => `
-                                        <div class="rounded-xl overflow-hidden border border-zinc-800/50 cursor-pointer hover:border-zinc-600 transition-all">
+                                    ${media.map((m, i) => `
+                                        <div class="rounded-xl overflow-hidden border border-zinc-800/50 cursor-pointer hover:border-zinc-600 transition-all" onclick="openGameLightbox(${i})">
                                             ${m.media_type === 'video'
-                                                ? `<video src="${m.url}" poster="${m.thumbnail_url || ''}" class="w-full aspect-video object-cover" controls></video>`
+                                                ? `<div class="relative"><video src="${m.url}" poster="${m.thumbnail_url || ''}" class="w-full aspect-video object-cover" preload="metadata"></video><div class="absolute inset-0 flex items-center justify-center"><div class="w-12 h-12 rounded-full bg-black/60 flex items-center justify-center backdrop-blur-sm"><i class="ph-fill ph-play text-xl text-white"></i></div></div></div>`
                                                 : `<img src="${m.url}" class="w-full aspect-video object-cover hover:scale-105 transition-transform duration-300" loading="lazy" />`
                                             }
                                         </div>
@@ -168,6 +185,54 @@ pub fn GameDetailPage() -> impl IntoView {
                     notfound.classList.remove('hidden');
                 }
             })();
+
+            let gameLightboxIndex = 0;
+
+            function openGameLightbox(index) {
+                gameLightboxIndex = index;
+                const lb = document.getElementById('game-lightbox');
+                lb.classList.remove('hidden');
+                document.body.style.overflow = 'hidden';
+                updateGameLightbox();
+            }
+
+            function closeGameLightbox() {
+                document.getElementById('game-lightbox').classList.add('hidden');
+                document.body.style.overflow = '';
+                // pause any playing video
+                const v = document.querySelector('#game-lightbox-content video');
+                if (v) v.pause();
+            }
+
+            function gameLightboxNav(dir) {
+                const v = document.querySelector('#game-lightbox-content video');
+                if (v) v.pause();
+                gameLightboxIndex = (gameLightboxIndex + dir + gameMedia.length) % gameMedia.length;
+                updateGameLightbox();
+            }
+
+            function updateGameLightbox() {
+                const m = gameMedia[gameLightboxIndex];
+                const container = document.getElementById('game-lightbox-content');
+                if (m.media_type === 'video') {
+                    container.innerHTML = `<video src="${m.url}" poster="${m.thumbnail_url || ''}" class="max-w-full max-h-[85vh] rounded-xl" controls autoplay></video>`;
+                } else {
+                    container.innerHTML = `<img src="${m.url}" class="max-w-full max-h-[85vh] rounded-xl object-contain" />`;
+                }
+                const counter = document.getElementById('game-lightbox-counter');
+                counter.textContent = (gameLightboxIndex + 1) + ' / ' + gameMedia.length;
+                // show/hide nav
+                const nav = document.querySelectorAll('.game-lb-nav');
+                nav.forEach(el => el.style.display = gameMedia.length > 1 ? '' : 'none');
+            }
+
+            document.addEventListener('keydown', function(e) {
+                const lb = document.getElementById('game-lightbox');
+                if (!lb || lb.classList.contains('hidden')) return;
+                if (e.key === 'Escape') closeGameLightbox();
+                if (e.key === 'ArrowLeft') gameLightboxNav(-1);
+                if (e.key === 'ArrowRight') gameLightboxNav(1);
+            });
 
             async function handleGameAction() {
                 const btn = document.getElementById('game-action-btn');

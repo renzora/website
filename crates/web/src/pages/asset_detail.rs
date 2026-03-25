@@ -139,7 +139,7 @@ pub fn AssetDetailPage() -> impl IntoView {
                     <div class="flex flex-col lg:flex-row gap-8">
                         <div class="flex-1 min-w-0">
                             <!-- Main preview -->
-                            <div class="rounded-2xl overflow-hidden border border-zinc-800/50 bg-zinc-900" id="main-preview">
+                            <div class="rounded-2xl overflow-hidden border border-zinc-800/50 bg-zinc-900 relative group/preview" id="main-preview">
                                 ${mainPreviewHtml}
                             </div>
                             ${thumbsHtml}
@@ -292,9 +292,9 @@ pub fn AssetDetailPage() -> impl IntoView {
                         return vid ? `<div class="aspect-video"><iframe src="https://www.youtube.com/embed/${vid}" class="w-full h-full" frameborder="0" allowfullscreen></iframe></div>` :
                             `<div class="aspect-video flex items-center justify-center text-zinc-600">Invalid video URL</div>`;
                     }
-                    return `<video src="${item.url}" controls ${item.thumb ? `poster="${item.thumb}"` : ''} class="w-full aspect-video object-contain bg-black"></video>`;
+                    return `<video src="${item.url}" controls ${item.thumb ? `poster="${item.thumb}"` : ''} class="w-full aspect-video object-contain bg-black" ondblclick="openAssetLightbox(activeGalleryIndex)"></video>`;
                 }
-                return `<img src="${item.url}" class="w-full aspect-video object-cover" />`;
+                return `<div class="relative group/preview"><img src="${item.url}" class="w-full aspect-video object-cover cursor-pointer" onclick="openAssetLightbox(activeGalleryIndex)" /><button onclick="openAssetLightbox(activeGalleryIndex)" class="absolute top-3 right-3 w-8 h-8 rounded-lg bg-black/50 hover:bg-black/70 flex items-center justify-center text-white/70 hover:text-white text-sm opacity-0 group-hover/preview:opacity-100 transition-all backdrop-blur-sm"><i class="ph ph-arrows-out"></i></button></div>`;
             }
 
             function setGalleryItem(index) {
@@ -307,6 +307,75 @@ pub fn AssetDetailPage() -> impl IntoView {
                     el.classList.add(i === index ? 'border-accent' : 'border-zinc-800/50');
                 });
             }
+
+            let assetLbIndex = 0;
+
+            function openAssetLightbox(index) {
+                assetLbIndex = index;
+                let lb = document.getElementById('asset-lightbox');
+                if (!lb) {
+                    lb = document.createElement('div');
+                    lb.id = 'asset-lightbox';
+                    lb.className = 'fixed inset-0 z-[9999] bg-black/90 backdrop-blur-sm flex items-center justify-center';
+                    lb.innerHTML = `
+                        <button onclick="closeAssetLightbox()" class="absolute top-4 right-4 w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white text-xl transition-all z-10"><i class="ph ph-x"></i></button>
+                        <button onclick="assetLightboxNav(-1)" class="asset-lb-nav absolute left-4 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white text-xl transition-all z-10"><i class="ph ph-caret-left"></i></button>
+                        <button onclick="assetLightboxNav(1)" class="asset-lb-nav absolute right-4 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white text-xl transition-all z-10"><i class="ph ph-caret-right"></i></button>
+                        <div id="asset-lightbox-content" class="flex items-center justify-center p-4"></div>
+                        <div id="asset-lightbox-counter" class="absolute bottom-4 left-1/2 -translate-x-1/2 text-sm text-zinc-400"></div>
+                    `;
+                    lb.addEventListener('click', function(e) { if (e.target === lb) closeAssetLightbox(); });
+                    document.body.appendChild(lb);
+                } else {
+                    lb.classList.remove('hidden');
+                }
+                document.body.style.overflow = 'hidden';
+                updateAssetLightbox();
+            }
+
+            function closeAssetLightbox() {
+                const lb = document.getElementById('asset-lightbox');
+                if (lb) lb.classList.add('hidden');
+                document.body.style.overflow = '';
+                const v = document.querySelector('#asset-lightbox-content video');
+                if (v) v.pause();
+            }
+
+            function assetLightboxNav(dir) {
+                const v = document.querySelector('#asset-lightbox-content video');
+                if (v) v.pause();
+                assetLbIndex = (assetLbIndex + dir + galleryItems.length) % galleryItems.length;
+                updateAssetLightbox();
+            }
+
+            function updateAssetLightbox() {
+                const item = galleryItems[assetLbIndex];
+                const container = document.getElementById('asset-lightbox-content');
+                if (!item || item.type === 'placeholder') {
+                    container.innerHTML = '<div class="text-zinc-600 text-4xl"><i class="ph ph-image"></i></div>';
+                } else if (item.type === 'video') {
+                    if (item.url.includes('youtube.com') || item.url.includes('youtu.be')) {
+                        const vid = item.url.match(/(?:v=|youtu\.be\/)([a-zA-Z0-9_-]+)/)?.[1];
+                        container.innerHTML = vid ? `<div class="w-[80vw] max-w-[1000px] aspect-video"><iframe src="https://www.youtube.com/embed/${vid}?autoplay=1" class="w-full h-full rounded-xl" frameborder="0" allowfullscreen></iframe></div>` : '';
+                    } else {
+                        container.innerHTML = `<video src="${item.url}" ${item.thumb ? `poster="${item.thumb}"` : ''} class="max-w-full max-h-[85vh] rounded-xl" controls autoplay></video>`;
+                    }
+                } else {
+                    container.innerHTML = `<img src="${item.url}" class="max-w-full max-h-[85vh] rounded-xl object-contain" />`;
+                }
+                const counter = document.getElementById('asset-lightbox-counter');
+                counter.textContent = (assetLbIndex + 1) + ' / ' + galleryItems.length;
+                const nav = document.querySelectorAll('.asset-lb-nav');
+                nav.forEach(el => el.style.display = galleryItems.length > 1 ? '' : 'none');
+            }
+
+            document.addEventListener('keydown', function(e) {
+                const lb = document.getElementById('asset-lightbox');
+                if (!lb || lb.classList.contains('hidden')) return;
+                if (e.key === 'Escape') closeAssetLightbox();
+                if (e.key === 'ArrowLeft') assetLightboxNav(-1);
+                if (e.key === 'ArrowRight') assetLightboxNav(1);
+            });
 
             async function purchaseAsset(id) {
                 const token = document.cookie.match('(^|;)\\s*token\\s*=\\s*([^;]+)')?.pop();
