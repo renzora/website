@@ -3,7 +3,7 @@ use leptos::prelude::*;
 #[component]
 pub fn AssetDetailPage() -> impl IntoView {
     view! {
-        <section class="py-8 px-6 relative overflow-hidden">
+        <section class="py-8 px-6 relative z-10">
             <div class="max-w-[1100px] mx-auto relative" id="asset-detail">
                 <div class="text-center py-20">
                     <div class="inline-block animate-spin w-6 h-6 border-2 border-zinc-700 border-t-accent rounded-full"></div>
@@ -135,20 +135,30 @@ pub fn AssetDetailPage() -> impl IntoView {
                 // Blurred hero background from thumbnail
                 const heroImg = a.thumbnail_url || (galleryItems[0]?.type === 'image' ? galleryItems[0].url : '');
 
+                // Inject blurred background at page level (outside container)
+                if (heroImg) {
+                    const existing = document.getElementById('asset-hero-bg');
+                    if (existing) existing.remove();
+                    const bg = document.createElement('div');
+                    bg.id = 'asset-hero-bg';
+                    bg.className = 'fixed inset-0 pointer-events-none z-0';
+                    bg.innerHTML = `
+                        <div class="absolute inset-0 bg-cover bg-center blur-3xl scale-150 opacity-20" style="background-image:url('${heroImg}')"></div>
+                        <div class="absolute inset-0 bg-gradient-to-b from-transparent via-[#060608]/50 to-[#060608]"></div>
+                        <div class="absolute inset-0 bg-gradient-to-t from-[#060608] via-transparent to-transparent h-full"></div>
+                    `;
+                    document.body.prepend(bg);
+                }
+
                 const el = document.getElementById('asset-detail');
                 el.innerHTML = `
-                    ${heroImg ? `
-                    <div class="absolute inset-x-0 top-0 h-[600px] overflow-hidden pointer-events-none z-0">
-                        <div class="absolute inset-0 bg-cover bg-center blur-3xl scale-150 opacity-25" style="background-image:url('${heroImg}')"></div>
-                        <div class="absolute inset-0 bg-gradient-to-b from-transparent via-[#060608]/60 to-[#060608]"></div>
-                    </div>` : ''}
 
-                    <a href="/marketplace" class="inline-flex items-center gap-1.5 text-sm text-zinc-500 hover:text-zinc-300 transition-colors mb-6 relative z-10">
+                    <a href="/marketplace" class="inline-flex items-center gap-1.5 text-sm text-zinc-500 hover:text-zinc-300 transition-colors mb-6">
                         <i class="ph ph-arrow-left"></i> Back to Marketplace
                     </a>
 
                     <!-- Gallery + Sidebar -->
-                    <div class="flex flex-col lg:flex-row gap-8 relative z-10">
+                    <div class="flex flex-col lg:flex-row gap-8">
                         <div class="flex-1 min-w-0">
                             <!-- Main preview -->
                             <div class="rounded-2xl overflow-hidden border border-zinc-800/50 bg-zinc-900 relative group/preview" id="main-preview">

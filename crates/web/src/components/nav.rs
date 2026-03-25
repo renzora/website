@@ -4,7 +4,7 @@ use leptos::prelude::*;
 pub fn Nav() -> impl IntoView {
     view! {
         <nav class="sticky top-0 z-50 bg-[rgba(10,10,11,0.8)] backdrop-blur-xl border-b border-zinc-800">
-            <div class="max-w-[1200px] mx-auto px-6 h-14 flex items-center gap-8">
+            <div class="px-6 h-14 flex items-center gap-8">
                 <a href="/" class="text-lg font-bold tracking-tight">"Renzora"</a>
                 <div class="flex gap-6 flex-1">
                     <a href="/download" class="text-sm text-zinc-400 hover:text-zinc-50 transition-colors flex items-center gap-1.5">
