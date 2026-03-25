@@ -84,15 +84,17 @@ pub fn MarketplacePage() -> impl IntoView {
                 </div>
 
                 // Asset grid
-                <div class="px-0 py-0">
-                    <div id="mp-grid" class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-[1px] bg-zinc-800/20">
-                        <div class="col-span-full text-center py-16">
-                            <div class="inline-block animate-spin w-5 h-5 border-2 border-zinc-700 border-t-accent rounded-full"></div>
+                <div class="flex-1 overflow-y-auto mp-scroll" id="mp-scroll-area">
+                    <div class="p-3">
+                        <div id="mp-grid" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-2">
+                            <div class="col-span-full text-center py-16">
+                                <div class="inline-block animate-spin w-5 h-5 border-2 border-zinc-700 border-t-accent rounded-full"></div>
+                            </div>
                         </div>
                     </div>
 
                     // Pagination
-                    <div id="mp-pagination" class="flex justify-center gap-1 py-6"></div>
+                    <div id="mp-pagination" class="flex justify-center gap-1 py-4 border-t border-zinc-800/30"></div>
                 </div>
             </div>
         </section>
@@ -216,24 +218,26 @@ pub fn MarketplacePage() -> impl IntoView {
                     const ratingAvg = a.rating_count > 0 ? a.rating_avg.toFixed(1) : '';
                     const priceLabel = a.price_credits === 0 ? 'Free' : a.price_credits.toLocaleString() + ' cr';
                     return `
-                    <a href="/marketplace/asset/${a.slug}" class="block group bg-surface-panel hover:bg-white/[0.04] transition-colors" style="animation: fadeSlideUp 0.3s ease both; animation-delay: ${i * 30}ms">
-                        <div class="aspect-square bg-zinc-900 relative overflow-hidden">
+                    <a href="/marketplace/asset/${a.slug}" class="block group relative" style="animation: fadeSlideUp 0.25s ease both; animation-delay: ${i * 20}ms">
+                        <div class="aspect-[4/3] bg-zinc-900/80 relative overflow-hidden">
                             ${a.thumbnail_url
-                                ? `<img src="${a.thumbnail_url}" class="w-full h-full object-cover group-hover:scale-[1.03] transition-transform duration-300" loading="lazy" />`
-                                : `<div class="w-full h-full flex items-center justify-center"><i class="ph ph-package text-4xl text-zinc-800"></i></div>`}
-                            <div class="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
-                            ${a.price_credits === 0 ? `<span class="absolute top-2 left-2 text-[10px] px-1.5 py-0.5 bg-green-500/90 text-white font-semibold">FREE</span>` : ''}
-                            <span class="absolute top-2 right-2 text-[9px] px-1.5 py-0.5 bg-black/50 text-zinc-300 backdrop-blur-sm">${a.category}</span>
-                        </div>
-                        <div class="px-3 py-2.5">
-                            <h3 class="text-[13px] font-medium text-zinc-200 group-hover:text-white truncate leading-tight">${a.name}</h3>
-                            <div class="flex items-center justify-between mt-1.5">
-                                <span class="text-[11px] text-zinc-500 truncate">${a.creator_name}</span>
-                                <span class="text-[11px] font-semibold ${a.price_credits === 0 ? 'text-green-400' : 'text-zinc-300'} shrink-0 ml-2">${priceLabel}</span>
-                            </div>
-                            <div class="flex items-center gap-2 mt-1 text-[10px] text-zinc-600">
-                                ${ratingAvg ? `<span class="text-amber-400">${ratingAvg} ★</span>` : ''}
-                                <span>${a.downloads.toLocaleString()} dl</span>
+                                ? `<img src="${a.thumbnail_url}" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 ease-out" loading="lazy" />`
+                                : `<div class="w-full h-full flex items-center justify-center bg-zinc-900"><i class="ph ph-package text-3xl text-zinc-800"></i></div>`}
+                            <!-- Permanent bottom gradient -->
+                            <div class="absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-black/80 to-transparent"></div>
+                            <!-- Hover overlay -->
+                            <div class="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity duration-200"></div>
+                            <!-- Category pill - always visible -->
+                            <span class="absolute top-1.5 left-1.5 text-[9px] px-1.5 py-[1px] bg-black/60 text-zinc-400 backdrop-blur-sm leading-relaxed">${a.category}</span>
+                            <!-- Price badge -->
+                            <span class="absolute top-1.5 right-1.5 text-[10px] px-1.5 py-[1px] font-semibold ${a.price_credits === 0 ? 'bg-emerald-600 text-white' : 'bg-black/60 text-zinc-200 backdrop-blur-sm'} leading-relaxed">${priceLabel}</span>
+                            <!-- Bottom info - name always, details on hover -->
+                            <div class="absolute inset-x-0 bottom-0 px-2 pb-1.5 pt-4 z-10">
+                                <h3 class="text-[11px] font-medium text-white truncate leading-snug drop-shadow-lg">${a.name}</h3>
+                                <div class="flex items-center gap-1.5 mt-0.5 overflow-hidden max-h-0 group-hover:max-h-6 transition-all duration-200">
+                                    <span class="text-[9px] text-zinc-400 truncate">${a.creator_name}</span>
+                                    ${ratingAvg ? `<span class="text-[9px] text-amber-400 shrink-0">${ratingAvg}★</span>` : ''}
+                                </div>
                             </div>
                         </div>
                     </a>`;
@@ -256,9 +260,15 @@ pub fn MarketplacePage() -> impl IntoView {
         <style>
             r#"
             @keyframes fadeSlideUp {
-                from { opacity: 0; transform: translateY(16px); }
+                from { opacity: 0; transform: translateY(8px); }
                 to { opacity: 1; transform: translateY(0); }
             }
+            /* Custom scrollbar */
+            .mp-scroll::-webkit-scrollbar { width: 6px; }
+            .mp-scroll::-webkit-scrollbar-track { background: transparent; }
+            .mp-scroll::-webkit-scrollbar-thumb { background: #27272a; border-radius: 3px; }
+            .mp-scroll::-webkit-scrollbar-thumb:hover { background: #3f3f46; }
+            .mp-scroll { scrollbar-width: thin; scrollbar-color: #27272a transparent; }
             "#
         </style>
     }
