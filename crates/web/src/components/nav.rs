@@ -6,17 +6,14 @@ pub fn Nav() -> impl IntoView {
         <nav class="sticky top-0 z-50 bg-[rgba(10,10,11,0.8)] backdrop-blur-xl border-b border-zinc-800">
             <div class="px-6 h-14 flex items-center gap-8">
                 <a href="/" class="text-lg font-bold tracking-tight">"Renzora"</a>
-                <div class="flex gap-6 flex-1">
-                    <a href="/download" class="text-sm text-zinc-400 hover:text-zinc-50 transition-colors flex items-center gap-1.5">
-                        <i class="ph ph-download-simple text-base"></i>"Download"
+                <div class="flex gap-6 flex-1" id="nav-links">
+                    <a href="/download" class="nav-link text-sm text-zinc-400 hover:text-zinc-50 transition-colors flex items-center gap-1.5" data-path="/download">
+                        <i class="ph ph-download-simple text-base"></i>"Download Engine"
                     </a>
-                    <a href="/games" class="text-sm text-zinc-400 hover:text-zinc-50 transition-colors flex items-center gap-1.5">
-                        <i class="ph ph-game-controller text-base"></i>"Game Store"
-                    </a>
-                    <a href="/marketplace" class="text-sm text-zinc-400 hover:text-zinc-50 transition-colors flex items-center gap-1.5">
+                    <a href="/marketplace" class="nav-link text-sm text-zinc-400 hover:text-zinc-50 transition-colors flex items-center gap-1.5" data-path="/marketplace">
                         <i class="ph ph-storefront text-base"></i>"Marketplace"
                     </a>
-                    <a href="/docs" class="text-sm text-zinc-400 hover:text-zinc-50 transition-colors flex items-center gap-1.5">
+                    <a href="/docs" class="nav-link text-sm text-zinc-400 hover:text-zinc-50 transition-colors flex items-center gap-1.5" data-path="/docs">
                         <i class="ph ph-book-open text-base"></i>"Docs"
                     </a>
                 </div>
@@ -414,6 +411,18 @@ pub fn Nav() -> impl IntoView {
                     }
                 } catch(e) {}
             }
+
+            // Highlight active nav link
+            (function() {
+                const path = window.location.pathname;
+                document.querySelectorAll('.nav-link').forEach(link => {
+                    const linkPath = link.getAttribute('data-path');
+                    if (path === linkPath || path.startsWith(linkPath + '/')) {
+                        link.classList.remove('text-zinc-400');
+                        link.classList.add('text-zinc-50');
+                    }
+                });
+            })();
 
             updateNav();
             loadNotifs(); // Initial load only
