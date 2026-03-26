@@ -167,7 +167,7 @@ pub fn GameStorePage() -> impl IntoView {
                     const res = await fetch('/api/auth/me', { credentials: 'include' });
                     if (res.ok) {
                         const btn = document.getElementById('publish-btn');
-                        btn.href = '/games/upload';
+                        btn.href = '/marketplace/upload?type=game';
                         btn.classList.remove('hidden');
                     }
                 } catch(e) {}
