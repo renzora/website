@@ -26,6 +26,20 @@ jobs:
             git fetch origin main
             git reset --hard origin/main
 
+            # Fetch latest preview WASM from engine releases
+            mkdir -p assets/wasm
+            PREVIEW_URL=$(curl -sf "https://api.github.com/repos/${{ secrets.ENGINE_REPO }}/releases/latest" \
+              | grep -o '"browser_download_url": "[^"]*renzora-preview-wasm[^"]*"' \
+              | head -1 | cut -d'"' -f4 || true)
+            if [ -n "$PREVIEW_URL" ]; then
+              echo "Downloading preview WASM from: $PREVIEW_URL"
+              curl -sfL "$PREVIEW_URL" -o /tmp/preview-wasm.zip
+              unzip -o /tmp/preview-wasm.zip -d assets/wasm/ 2>/dev/null || true
+              rm -f /tmp/preview-wasm.zip
+            else
+              echo "Warning: Could not fetch preview WASM — skipping"
+            fi
+
             # Build and deploy
             docker compose -f docker-compose.prod.yml build app
             docker compose -f docker-compose.prod.yml up -d --remove-orphans

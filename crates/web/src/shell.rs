@@ -35,7 +35,9 @@ pub fn Shell() -> impl IntoView {
                 </script>
                 <link rel="stylesheet" href="/assets/style/main.css" />
                 <style>
-                    "html,body{scrollbar-width:thin;scrollbar-color:#1a1a1e #060608}
+                    "@keyframes gradientShift{0%{background-position:0% 50%}50%{background-position:100% 50%}100%{background-position:0% 50%}}
+                    body{background:linear-gradient(-45deg,#060608,#0a0a1a,#0d0518,#06100e,#060608);background-size:400% 400%;animation:gradientShift 20s ease infinite}
+                    html,body{scrollbar-width:thin;scrollbar-color:#1a1a1e #060608}
                     *{scrollbar-width:thin;scrollbar-color:#1a1a1e #060608}
                     ::-webkit-scrollbar{width:8px!important;height:8px!important}
                     ::-webkit-scrollbar-track{background:#060608!important}
@@ -48,7 +50,7 @@ pub fn Shell() -> impl IntoView {
                 </style>
                 <MetaTags />
             </head>
-            <body class="bg-[#060608] text-zinc-50 antialiased">
+            <body class="text-zinc-50 antialiased">
                 <App />
             </body>
         </html>
