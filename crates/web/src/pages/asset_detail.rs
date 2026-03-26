@@ -339,7 +339,7 @@ pub fn AssetDetailPage() -> impl IntoView {
                     return `
                         <div class="aspect-video flex flex-col items-end justify-end relative overflow-hidden">
                             ${coverBg}
-                            <audio id="audio-player" src="${item.url}" preload="metadata" crossorigin="anonymous" class="hidden"></audio>
+                            <audio id="audio-player" src="${item.url}" preload="metadata" class="hidden"></audio>
                             <!-- Waveform canvas centered -->
                             <div class="absolute inset-0 z-[5] flex items-center justify-center pointer-events-none">
                                 <canvas id="waveform-canvas" class="w-[85%] h-24 opacity-80 pointer-events-auto cursor-pointer" onclick="seekWaveform(event)"></canvas>
@@ -436,12 +436,8 @@ pub fn AssetDetailPage() -> impl IntoView {
                 });
             }
 
-            // ── Audio Player with Frequency Analyser ──
-            let audioCtx = null;
-            let analyser = null;
+            // ── Audio Player with Animated Waveform ──
             let animFrameId = null;
-            let analyserConnected = false;
-            let analyserFailed = false;
 
             function initAudioPlayer() {
                 const audio = document.getElementById('audio-player');
@@ -475,26 +471,7 @@ pub fn AssetDetailPage() -> impl IntoView {
                 drawIdleWaveform();
             }
 
-            function connectAnalyser() {
-                if (analyserConnected || analyserFailed) return;
-                const audio = document.getElementById('audio-player');
-                if (!audio) return;
-                try {
-                    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-                    analyser = audioCtx.createAnalyser();
-                    analyser.fftSize = 512;
-                    analyser.smoothingTimeConstant = 0.8;
-                    const src = audioCtx.createMediaElementSource(audio);
-                    src.connect(analyser);
-                    analyser.connect(audioCtx.destination);
-                    analyserConnected = true;
-                } catch(e) {
-                    analyserFailed = true;
-                    analyser = null;
-                }
-            }
-
-            function drawCanvas(fn) {
+            function drawCanvas() {
                 const canvas = document.getElementById('waveform-canvas');
                 if (!canvas) return null;
                 const ctx = canvas.getContext('2d');
@@ -524,7 +501,7 @@ pub fn AssetDetailPage() -> impl IntoView {
                 }
             }
 
-            function drawAnalyserFrame() {
+            function drawAnimatedWaveform() {
                 const audio = document.getElementById('audio-player');
                 if (!audio || audio.paused || audio.ended) return;
 
@@ -534,78 +511,53 @@ pub fn AssetDetailPage() -> impl IntoView {
                 const barW = 2, gap = 1.5, step = barW + gap;
                 const bars = Math.floor(w / step);
                 const mid = h / 2;
+                const t = audio.currentTime;
+                const vol = audio.volume;
+                const progress = audio.duration ? audio.currentTime / audio.duration : 0;
 
-                if (analyser) {
-                    // Real frequency data — full width, volume-sensitive
-                    const bufLen = analyser.frequencyBinCount;
-                    const freqData = new Uint8Array(bufLen);
-                    analyser.getByteFrequencyData(freqData);
+                for (let i = 0; i < bars; i++) {
+                    const x = i * step;
+                    // Layered sine waves for organic movement across full width
+                    const wave = Math.sin(i * 0.08 + t * 3.5) * 0.3
+                               + Math.sin(i * 0.05 + t * 5.5) * 0.25
+                               + Math.sin(i * 0.15 + t * 2) * 0.25
+                               + Math.sin(i * 0.22 + t * 7) * 0.2;
+                    const amp = Math.max(0, Math.min(1, (wave + 1) / 2)) * vol;
+                    const barH = Math.max(2, amp * h * 0.8);
+                    const half = barH / 2;
 
-                    for (let i = 0; i < bars; i++) {
-                        const x = i * step;
-                        // Map bar index to frequency bin (log scale for better visual)
-                        const freqIdx = Math.min(Math.floor(Math.pow(i / bars, 1.5) * bufLen), bufLen - 1);
-                        const val = freqData[freqIdx] / 255;
-                        const barH = Math.max(2, val * h * 0.9);
-                        const half = barH / 2;
-
-                        // Color by loudness: blue → accent → pink → red
-                        let r, g, b;
-                        if (val < 0.33) {
-                            const t = val / 0.33;
-                            r = Math.round(59 + (99 - 59) * t);
-                            g = Math.round(130 + (102 - 130) * t);
-                            b = Math.round(246 + (241 - 246) * t);
-                        } else if (val < 0.66) {
-                            const t = (val - 0.33) / 0.33;
-                            r = Math.round(99 + (220 - 99) * t);
-                            g = Math.round(102 + (60 - 102) * t);
-                            b = Math.round(241 + (200 - 241) * t);
-                        } else {
-                            const t = (val - 0.66) / 0.34;
-                            r = Math.round(220 + (255 - 220) * t);
-                            g = Math.round(60 + (50 - 60) * t);
-                            b = Math.round(200 + (80 - 200) * t);
-                        }
-                        ctx.fillStyle = `rgba(${r},${g},${b},${0.2 + val * 0.8})`;
-                        ctx.beginPath();
-                        ctx.roundRect(x, mid - half, barW, barH, 1);
-                        ctx.fill();
+                    // Color by amplitude: blue → accent → pink → red
+                    let r, g, b;
+                    if (amp < 0.3) {
+                        const tt = amp / 0.3;
+                        r = Math.round(59 + 40 * tt);
+                        g = Math.round(130 - 28 * tt);
+                        b = Math.round(246 - 5 * tt);
+                    } else if (amp < 0.6) {
+                        const tt = (amp - 0.3) / 0.3;
+                        r = Math.round(99 + 121 * tt);
+                        g = Math.round(102 - 42 * tt);
+                        b = Math.round(241 - 41 * tt);
+                    } else {
+                        const tt = (amp - 0.6) / 0.4;
+                        r = Math.round(220 + 35 * tt);
+                        g = Math.round(60 - 10 * tt);
+                        b = Math.round(200 - 120 * tt);
                     }
-
-                    // Playhead
-                    if (audio.duration) {
-                        const px = (audio.currentTime / audio.duration) * w;
-                        ctx.fillStyle = 'rgba(255,255,255,0.4)';
-                        ctx.fillRect(px - 0.5, 0, 1, h);
-                    }
-                } else {
-                    // Fallback: animated sine bars across full width
-                    const t = audio.currentTime;
-                    const progress = audio.duration ? audio.currentTime / audio.duration : 0;
-                    for (let i = 0; i < bars; i++) {
-                        const x = i * step;
-                        const wave = Math.sin(i * 0.1 + t * 4) * 0.35
-                                   + Math.sin(i * 0.06 + t * 6) * 0.35
-                                   + Math.sin(i * 0.18 + t * 2) * 0.3;
-                        const amp = (wave + 1) / 2;
-                        const barH = 4 + amp * h * 0.55;
-                        const pct = x / w;
-                        const alpha = pct <= progress ? 0.3 + amp * 0.7 : 0.05 + amp * 0.08;
-                        const color = pct <= progress ? `rgba(99,102,241,${alpha})` : `rgba(255,255,255,${alpha})`;
-                        ctx.fillStyle = color;
-                        ctx.beginPath();
-                        ctx.roundRect(x, mid - barH / 2, barW, barH, 1);
-                        ctx.fill();
-                    }
-                    if (audio.duration) {
-                        const px = progress * w;
-                        ctx.fillStyle = 'rgba(255,255,255,0.4)';
-                        ctx.fillRect(px - 0.5, 0, 1, h);
-                    }
+                    ctx.fillStyle = `rgba(${r},${g},${b},${0.15 + amp * 0.85})`;
+                    ctx.beginPath();
+                    ctx.roundRect(x, mid - half, barW, barH, 1);
+                    ctx.fill();
                 }
 
-                animFrameId = requestAnimationFrame(drawAnalyserFrame);
+                // Playhead line
+                if (audio.duration) {
+                    const px = progress * w;
+                    ctx.fillStyle = 'rgba(255,255,255,0.5)';
+                    ctx.fillRect(px - 0.5, 0, 1, h);
+                }
+
+                animFrameId = requestAnimationFrame(drawAnimatedWaveform);
             }
 
             function seekWaveform(e) {
@@ -626,20 +578,13 @@ pub fn AssetDetailPage() -> impl IntoView {
                 const audio = document.getElementById('audio-player');
                 if (!audio) return;
 
-                // Connect analyser on first play (needs user gesture for AudioContext)
-                if (!analyserConnected && !analyserFailed) {
-                    connectAnalyser();
-                }
-                if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
-
                 if (audio.paused) {
                     audio.play().then(() => {
                         document.getElementById('audio-icon-play')?.classList.add('hidden');
                         document.getElementById('audio-icon-pause')?.classList.remove('hidden');
-                        // Update duration if not yet set
                         const dur = document.getElementById('audio-duration');
                         if (dur && audio.duration && isFinite(audio.duration)) dur.textContent = fmtTime(audio.duration);
-                        drawAnalyserFrame();
+                        drawAnimatedWaveform();
                     }).catch(e => console.warn('Play failed:', e));
                 } else {
                     audio.pause();
