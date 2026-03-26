@@ -14,6 +14,7 @@ pub fn Shell() -> impl IntoView {
                 <meta name="viewport" content="width=device-width, initial-scale=1" />
                 <script src="https://cdn.tailwindcss.com"></script>
                 <link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/regular/style.css" />
+                <link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/fill/style.css" />
                 <script>
                     "tailwind.config = {
                         darkMode: 'class',

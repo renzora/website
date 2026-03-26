@@ -649,10 +649,8 @@ pub async fn upload_to_storage(
     let content_type = content_type_for_key(&key);
 
     if let Some(bucket) = &state.s3_bucket {
-        // Upload to S3 with public-read ACL so files are accessible via CDN
-        let mut public_bucket = (**bucket).clone();
-        public_bucket.add_header("x-amz-acl", "public-read");
-        let response = public_bucket
+        // Upload to S3-compatible storage (Cloudflare R2)
+        let response = bucket
             .put_object_with_content_type(&key, &data, content_type)
             .await
             .map_err(|e| ApiError::Internal(format!("S3 upload failed: {e}")))?;

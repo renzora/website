@@ -45,10 +45,10 @@ async fn main() {
     let s3_bucket = std::env::var("S3_BUCKET").unwrap_or_else(|_| "renzora-assets".into());
     let s3_public_url = std::env::var("S3_PUBLIC_URL").unwrap_or_default();
 
-    // Set up S3 bucket (DigitalOcean Spaces via rust-s3)
+    // Set up S3 bucket (Cloudflare R2 via rust-s3)
     let s3_bucket_obj = if let (Some(access), Some(secret)) = (&s3_access_key, &s3_secret_key) {
         let region = s3::Region::Custom {
-            region: "us-east-1".to_string(),
+            region: "auto".to_string(),
             endpoint: s3_endpoint.clone(),
         };
         let creds = s3::creds::Credentials::new(Some(access), Some(secret), None, None, None)
