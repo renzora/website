@@ -176,19 +176,13 @@ pub fn AssetDetailPage() -> impl IntoView {
                     <!-- Gallery + Sidebar -->
                     <div class="flex flex-col lg:flex-row gap-8">
                         <div class="flex-1 min-w-0">
-                            <!-- Main preview -->
-                            <div class="rounded-2xl overflow-hidden border border-zinc-800/50 bg-zinc-900 relative group/preview" id="main-preview">
-                                ${mainPreviewHtml}
-                            </div>
-                            ${thumbsHtml}
-
-                            <!-- Live Preview (for previewable asset types) -->
+                            <!-- Live Preview or static gallery -->
                             ${(() => {
                                 const cat = (a.category || '').toLowerCase();
                                 const previewable = ['3d models', 'animations', 'materials & shaders', 'textures & hdris', 'particle effects'];
-                                if (!previewable.some(c => cat.includes(c.split(' ')[0]))) return '';
+                                const hasLivePreview = previewable.some(c => cat.includes(c.split(' ')[0]));
+                                if (!hasLivePreview) return '<div class="rounded-2xl overflow-hidden border border-zinc-800/50 bg-zinc-900 relative group/preview" id="main-preview">' + mainPreviewHtml + '</div>' + thumbsHtml;
 
-                                // Map category to preview mode
                                 let previewMode = 'shader';
                                 if (cat.includes('3d') || cat.includes('model')) previewMode = 'model';
                                 else if (cat.includes('anim')) previewMode = 'animation';
@@ -196,141 +190,40 @@ pub fn AssetDetailPage() -> impl IntoView {
                                 else if (cat.includes('texture') || cat.includes('hdri')) previewMode = 'texture';
                                 else if (cat.includes('particle')) previewMode = 'particle';
 
-                                return `
-                                <div class="mt-4" id="live-preview-section">
-                                    <div class="flex items-center justify-between mb-2">
-                                        <div class="flex items-center gap-2">
-                                            <i class="ph ph-play-circle text-accent"></i>
-                                            <span class="text-sm font-medium text-zinc-300">Live Preview</span>
-                                            <span class="px-1.5 py-0.5 rounded bg-accent/10 border border-accent/20 text-[10px] text-accent font-medium">BETA</span>
-                                        </div>
-                                        <div class="flex items-center gap-1.5" id="preview-mesh-controls" style="display:${previewMode === 'shader' || previewMode === 'material' ? '' : 'none'}">
-                                            <span class="text-[11px] text-zinc-600 mr-1">Mesh:</span>
-                                            ${['sphere', 'cube', 'plane', 'torus'].map(s =>
-                                                '<button onclick="previewSetMesh(\\''+s+'\\')\" class="px-2 py-0.5 rounded text-[11px] '+(s === 'sphere' ? 'bg-accent/20 text-accent' : 'text-zinc-500 hover:text-zinc-300')+' transition-colors" data-mesh="'+s+'">'+s[0].toUpperCase()+s.slice(1)+'</button>'
-                                            ).join('')}
-                                        </div>
-                                    </div>
-                                    <div class="rounded-2xl overflow-hidden border border-zinc-800/50 bg-[#0a0a0c] relative" style="aspect-ratio:16/9">
-                                        <canvas id="preview-canvas" class="w-full h-full"></canvas>
-                                        <div id="preview-loading" class="absolute inset-0 flex items-center justify-center bg-[#0a0a0c]">
-                                            <div class="text-center">
-                                                <div class="inline-block animate-spin w-5 h-5 border-2 border-zinc-700 border-t-accent rounded-full mb-2"></div>
-                                                <p class="text-xs text-zinc-600">Loading preview engine...</p>
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <div id="preview-params" class="mt-2"></div>
-                                </div>
-                                <script>
-                                    (function() {
-                                        const mode = '${previewMode}';
-                                        const fileUrl = '${a.file_url || ''}';
-                                        const category = '${cat}';
+                                // Stash preview config for post-render init
+                                // Use proxy endpoint to avoid CORS issues with CDN
+                                window.__previewConfig = { mode: previewMode, fileUrl: '/api/marketplace/' + a.id + '/preview-file', category: cat };
 
-                                        // Load the preview WASM module
-                                        async function initPreview() {
-                                            try {
-                                                const wasm = await import('/assets/wasm/renzora_preview.js');
-                                                await wasm.default();
-                                                wasm.preview_init();
+                                const meshBtns = ['sphere','cube','plane','torus'].map(s =>
+                                    '<button onclick="previewSetMesh(this.dataset.mesh)" class="px-2 py-0.5 rounded text-[11px] ' +
+                                    (s === 'cube' ? 'bg-accent/20 text-accent' : 'text-zinc-500 hover:text-zinc-300') +
+                                    ' transition-colors" data-mesh="' + s + '">' + s[0].toUpperCase() + s.slice(1) + '</button>'
+                                ).join('');
 
-                                                // Wait a frame for Bevy to initialize
-                                                await new Promise(r => setTimeout(r, 500));
-
-                                                // Load the asset based on mode
-                                                if (mode === 'shader' && fileUrl) {
-                                                    const res = await fetch(fileUrl);
-                                                    if (res.ok) {
-                                                        const source = await res.text();
-                                                        wasm.preview_load_shader(source, 'Fragment');
-
-                                                        // Generate param UI
-                                                        const paramsJson = wasm.preview_extract_params(source);
-                                                        const params = JSON.parse(paramsJson || '{}');
-                                                        buildParamUI(params, wasm);
-                                                    }
-                                                } else if (mode === 'model' && fileUrl) {
-                                                    wasm.preview_load_model(fileUrl);
-                                                } else if (mode === 'animation' && fileUrl) {
-                                                    wasm.preview_load_animation(fileUrl);
-                                                } else if (mode === 'particle' && fileUrl) {
-                                                    const res = await fetch(fileUrl);
-                                                    if (res.ok) {
-                                                        const def = await res.text();
-                                                        wasm.preview_load_particle(def);
-                                                    }
-                                                } else if (mode === 'texture' && fileUrl) {
-                                                    const texType = category.includes('hdri') ? 'hdri' : 'texture';
-                                                    wasm.preview_load_texture(fileUrl, texType);
-                                                }
-
-                                                document.getElementById('preview-loading')?.remove();
-
-                                                // Expose for mesh buttons
-                                                window.__previewWasm = wasm;
-                                            } catch (err) {
-                                                console.warn('[preview] Failed to load:', err);
-                                                const section = document.getElementById('live-preview-section');
-                                                if (section) section.style.display = 'none';
-                                            }
-                                        }
-
-                                        function buildParamUI(params, wasm) {
-                                            const container = document.getElementById('preview-params');
-                                            if (!container || !Object.keys(params).length) return;
-
-                                            let html = '<div class="grid grid-cols-2 gap-2 p-3 bg-white/[0.02] border border-zinc-800/50 rounded-xl">';
-                                            for (const [name, param] of Object.entries(params)) {
-                                                const p = param;
-                                                if (p.param_type === 'Float') {
-                                                    const def = p.default_value?.Float ?? 0;
-                                                    const min = p.min ?? 0;
-                                                    const max = p.max ?? 10;
-                                                    html += '<div class="flex items-center gap-2"><label class="text-[11px] text-zinc-500 w-20 shrink-0 truncate" title="'+name+'">'+name+'</label><input type="range" min="'+min+'" max="'+max+'" step="0.01" value="'+def+'" oninput="previewSetParam(\\''+name+'\\', JSON.stringify({type:\\'Float\\',value:parseFloat(this.value)}))" class="flex-1 h-1 accent-accent bg-white/10 rounded-full appearance-none cursor-pointer" /><span class="text-[10px] text-zinc-600 w-8 text-right tabular-nums">'+def.toFixed(1)+'</span></div>';
-                                                } else if (p.param_type === 'Color') {
-                                                    const c = p.default_value?.Color ?? [1,1,1,1];
-                                                    const hex = '#' + [c[0],c[1],c[2]].map(v => Math.round(v*255).toString(16).padStart(2,'0')).join('');
-                                                    html += '<div class="flex items-center gap-2"><label class="text-[11px] text-zinc-500 w-20 shrink-0 truncate" title="'+name+'">'+name+'</label><input type="color" value="'+hex+'" oninput="previewSetColor(\\''+name+'\\', this.value)" class="w-6 h-6 rounded border-0 bg-transparent cursor-pointer" /></div>';
-                                                }
-                                            }
-                                            html += '</div>';
-                                            container.innerHTML = html;
-                                        }
-
-                                        // Global helpers for inline event handlers
-                                        window.previewSetMesh = function(shape) {
-                                            if (window.__previewWasm) {
-                                                window.__previewWasm.preview_set_mesh(shape);
-                                                document.querySelectorAll('[data-mesh]').forEach(el => {
-                                                    el.className = el.className.replace(/bg-accent\\/20 text-accent|text-zinc-500/g, '');
-                                                    el.classList.add(el.dataset.mesh === shape ? 'bg-accent/20' : 'text-zinc-500');
-                                                    if (el.dataset.mesh === shape) el.classList.add('text-accent');
-                                                });
-                                            }
-                                        };
-                                        window.previewSetParam = function(name, jsonValue) {
-                                            if (window.__previewWasm) window.__previewWasm.preview_set_param(name, jsonValue);
-                                        };
-                                        window.previewSetColor = function(name, hex) {
-                                            const r = parseInt(hex.slice(1,3),16)/255;
-                                            const g = parseInt(hex.slice(3,5),16)/255;
-                                            const b = parseInt(hex.slice(5,7),16)/255;
-                                            if (window.__previewWasm) window.__previewWasm.preview_set_param(name, JSON.stringify({type:'Color',value:[r,g,b,1.0]}));
-                                        };
-
-                                        // Lazy-load: only init when section is visible
-                                        const observer = new IntersectionObserver(entries => {
-                                            if (entries[0].isIntersecting) {
-                                                observer.disconnect();
-                                                initPreview();
-                                            }
-                                        }, { threshold: 0.1 });
-                                        const el = document.getElementById('live-preview-section');
-                                        if (el) observer.observe(el);
-                                    })();
-                                </script>
-                                `;
+                                return '<div class="mt-4" id="live-preview-section">' +
+                                    '<div class="flex items-center justify-between mb-2">' +
+                                        '<div class="flex items-center gap-2">' +
+                                            '<i class="ph ph-play-circle text-accent"></i>' +
+                                            '<span class="text-sm font-medium text-zinc-300">Live Preview</span>' +
+                                            '<span class="px-1.5 py-0.5 rounded bg-accent/10 border border-accent/20 text-[10px] text-accent font-medium">BETA</span>' +
+                                        '</div>' +
+                                        '<div class="flex items-center gap-1.5" id="preview-mesh-controls" style="display:' +
+                                            (previewMode === 'shader' || previewMode === 'material' ? '' : 'none') + '">' +
+                                            '<span class="text-[11px] text-zinc-600 mr-1">Mesh:</span>' +
+                                            meshBtns +
+                                        '</div>' +
+                                    '</div>' +
+                                    '<div class="rounded-2xl overflow-hidden border border-zinc-800/50 bg-[#0f0f13] relative" style="aspect-ratio:16/9">' +
+                                        '<canvas id="preview-canvas" class="w-full h-full"></canvas>' +
+                                        '<div id="preview-loading" class="absolute inset-0 flex items-center justify-center bg-[#0f0f13]">' +
+                                            '<div class="text-center">' +
+                                                '<div class="inline-block animate-spin w-5 h-5 border-2 border-zinc-700 border-t-accent rounded-full mb-2"></div>' +
+                                                '<p class="text-xs text-zinc-600">Loading preview engine...</p>' +
+                                            '</div>' +
+                                        '</div>' +
+                                    '</div>' +
+                                    '<div id="preview-params" class="mt-2"></div>' +
+                                '</div>';
                             })()}
 
                             <!-- Title + meta -->
@@ -476,7 +369,114 @@ pub fn AssetDetailPage() -> impl IntoView {
                     const target = document.getElementById(tab);
                     if (target) target.scrollIntoView({ behavior: 'smooth' });
                 }
+
+                // Initialize live preview if section exists
+                if (window.__previewConfig && document.getElementById('live-preview-section')) {
+                    initLivePreview(window.__previewConfig);
+                }
             })();
+
+            // ── Live Preview ──
+            window.previewSetMesh = function(shape) {
+                if (!window.__previewWasm) return;
+                window.__previewWasm.preview_set_mesh(shape);
+                document.querySelectorAll('[data-mesh]').forEach(function(el) {
+                    if (el.dataset.mesh === shape) {
+                        el.className = el.className.replace('text-zinc-500 hover:text-zinc-300', '').replace('text-zinc-500', '');
+                        el.classList.add('bg-accent/20', 'text-accent');
+                    } else {
+                        el.className = el.className.replace('bg-accent/20', '').replace('text-accent', '');
+                        el.classList.add('text-zinc-500');
+                    }
+                });
+            };
+            window.previewSetParam = function(name, jsonValue) {
+                if (window.__previewWasm) window.__previewWasm.preview_set_param(name, jsonValue);
+            };
+            window.previewSetColor = function(name, hex) {
+                var r = parseInt(hex.slice(1,3),16)/255;
+                var g = parseInt(hex.slice(3,5),16)/255;
+                var b = parseInt(hex.slice(5,7),16)/255;
+                if (window.__previewWasm) window.__previewWasm.preview_set_param(name, JSON.stringify({type:'Color',value:[r,g,b,1.0]}));
+            };
+
+            function buildPreviewParamUI(params, wasm) {
+                var container = document.getElementById('preview-params');
+                if (!container || !Object.keys(params).length) return;
+                var html = '<div class="grid grid-cols-2 gap-2 p-3 bg-white/[0.02] border border-zinc-800/50 rounded-xl">';
+                for (var name in params) {
+                    var p = params[name];
+                    if (p.param_type === 'Float') {
+                        var def = p.default_value && p.default_value.Float != null ? p.default_value.Float : 0;
+                        var mn = p.min != null ? p.min : 0;
+                        var mx = p.max != null ? p.max : 10;
+                        html += '<div class="flex items-center gap-2"><label class="text-[11px] text-zinc-500 w-20 shrink-0 truncate" title="'+name+'">'+name+'</label><input type="range" min="'+mn+'" max="'+mx+'" step="0.01" value="'+def+'" oninput="previewSetParam(\''+name+'\', JSON.stringify({type:\'Float\',value:parseFloat(this.value)}))" class="flex-1 h-1 accent-accent bg-white/10 rounded-full appearance-none cursor-pointer" /><span class="text-[10px] text-zinc-600 w-8 text-right tabular-nums">'+def.toFixed(1)+'</span></div>';
+                    } else if (p.param_type === 'Color') {
+                        var c = p.default_value && p.default_value.Color ? p.default_value.Color : [1,1,1,1];
+                        var hex = '#' + [c[0],c[1],c[2]].map(function(v){ return Math.round(v*255).toString(16).padStart(2,'0'); }).join('');
+                        html += '<div class="flex items-center gap-2"><label class="text-[11px] text-zinc-500 w-20 shrink-0 truncate" title="'+name+'">'+name+'</label><input type="color" value="'+hex+'" oninput="previewSetColor(\''+name+'\', this.value)" class="w-6 h-6 rounded border-0 bg-transparent cursor-pointer" /></div>';
+                    }
+                }
+                html += '</div>';
+                container.innerHTML = html;
+            }
+
+            async function initLivePreview(config) {
+                var section = document.getElementById('live-preview-section');
+                if (!section) return;
+
+                var observer = new IntersectionObserver(function(entries) {
+                    if (entries[0].isIntersecting) {
+                        observer.disconnect();
+                        doInitPreview(config);
+                    }
+                }, { threshold: 0.1 });
+                observer.observe(section);
+            }
+
+            async function doInitPreview(config) {
+                try {
+                    var wasm = await import('/assets/wasm/renzora_preview.js');
+                    await wasm.default();
+                    wasm.preview_init();
+                    await new Promise(function(r){ setTimeout(r, 500); });
+
+                    var mode = config.mode;
+                    var fileUrl = config.fileUrl;
+                    var category = config.category;
+
+                    if (mode === 'shader' && fileUrl) {
+                        var res = await fetch(fileUrl);
+                        if (res.ok) {
+                            var source = await res.text();
+                            wasm.preview_load_shader(source, 'Fragment');
+                            var paramsJson = wasm.preview_extract_params(source);
+                            var params = JSON.parse(paramsJson || '{}');
+                            buildPreviewParamUI(params, wasm);
+                        }
+                    } else if (mode === 'model' && fileUrl) {
+                        wasm.preview_load_model(fileUrl);
+                    } else if (mode === 'animation' && fileUrl) {
+                        wasm.preview_load_animation(fileUrl);
+                    } else if (mode === 'particle' && fileUrl) {
+                        var res2 = await fetch(fileUrl);
+                        if (res2.ok) { wasm.preview_load_particle(await res2.text()); }
+                    } else if (mode === 'texture' && fileUrl) {
+                        var texType = category.includes('hdri') ? 'hdri' : 'texture';
+                        wasm.preview_load_texture(fileUrl, texType);
+                    }
+
+                    var loading = document.getElementById('preview-loading');
+                    if (loading) loading.remove();
+                    window.__previewWasm = wasm;
+                } catch (err) {
+                    console.warn('[preview] Failed to load:', err);
+                    var sec = document.getElementById('live-preview-section');
+                    if (sec) sec.style.display = 'none';
+                }
+            }
+
+            (function __alreadyDefined(){})();
 
             function renderMainPreview(item) {
                 if (!item || item.type === 'placeholder') {

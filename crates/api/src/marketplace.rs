@@ -37,6 +37,7 @@ pub fn router() -> Router<AppState> {
         .route("/:id/comments", get(list_comments))
         .route("/:id/reviews", get(list_reviews))
         .route("/:id/media", get(list_media))
+        .route("/:id/preview-file", get(preview_file_proxy))
         .merge(protected)
 }
 
@@ -342,6 +343,41 @@ async fn download_asset(
     Ok(Json(DownloadResponse {
         download_url: file_url,
     }))
+}
+
+/// Proxy an asset's file for the live preview (avoids CORS issues with CDN).
+/// Only serves the raw file content — no auth required since the preview is public.
+async fn preview_file_proxy(
+    State(state): State<AppState>,
+    Path(id): Path<Uuid>,
+) -> Result<axum::response::Response, ApiError> {
+    let asset = Asset::find_by_id(&state.db, id)
+        .await?
+        .ok_or(ApiError::NotFound)?;
+
+    let file_url = asset
+        .file_url
+        .ok_or(ApiError::NotFound)?;
+
+    // Fetch from CDN/S3
+    let client = reqwest::Client::new();
+    let resp = client.get(&file_url).send().await
+        .map_err(|e| ApiError::Internal(format!("Failed to fetch file: {e}")))?;
+
+    let content_type = resp.headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("application/octet-stream")
+        .to_string();
+
+    let bytes = resp.bytes().await
+        .map_err(|e| ApiError::Internal(format!("Failed to read file: {e}")))?;
+
+    Ok(axum::response::Response::builder()
+        .header("content-type", content_type)
+        .header("cache-control", "public, max-age=3600")
+        .body(axum::body::Body::from(bytes))
+        .unwrap())
 }
 
 /// List the authenticated user's uploaded assets.
