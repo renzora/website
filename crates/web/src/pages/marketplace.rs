@@ -13,6 +13,11 @@ pub fn MarketplacePage() -> impl IntoView {
                     </div>
                     <p class="text-[11px] text-zinc-600 mt-1">"Browse assets, plugins & more"</p>
                 </div>
+                <div class="px-3 pt-3 pb-2">
+                    <a id="publish-btn-side" href="/marketplace/upload" class="hidden w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium bg-accent text-white hover:bg-accent-hover transition-all">
+                        <i class="ph ph-upload-simple text-base"></i>"Publish"
+                    </a>
+                </div>
                 <div class="py-2">
                     <div class="px-3 py-1.5 text-[10px] font-semibold text-zinc-600 uppercase tracking-wider">"Categories"</div>
                     <div id="mp-sidebar-cats">
@@ -73,9 +78,6 @@ pub fn MarketplacePage() -> impl IntoView {
                         </select>
                         // Result count
                         <span id="mp-result-count" class="text-xs text-zinc-600 shrink-0 hidden sm:block"></span>
-                        <a id="publish-btn-top" href="/login" class="hidden inline-flex items-center gap-1.5 px-4 py-2 bg-accent text-white text-sm font-medium hover:bg-accent-hover transition-all shrink-0">
-                            <i class="ph ph-upload-simple text-base"></i>"Publish"
-                        </a>
                     </div>
                     // Mobile categories (hidden by default)
                     <div id="mp-mobile-cats" class="hidden lg:hidden mt-3">
@@ -112,8 +114,8 @@ pub fn MarketplacePage() -> impl IntoView {
 
             (async function() {
                 const token = document.cookie.match('(^|;)\\s*token\\s*=\\s*([^;]+)')?.pop();
-                const pubBtn = document.getElementById('publish-btn-top');
-                if (pubBtn) { pubBtn.classList.remove('hidden'); pubBtn.href = token ? '/marketplace/sell' : '/login'; }
+                const pubBtn = document.getElementById('publish-btn-side');
+                if (pubBtn && token) { pubBtn.classList.remove('hidden'); }
 
                 const catRes = await fetch('/api/marketplace/categories');
                 const dbCats = catRes.ok ? await catRes.json() : [];
