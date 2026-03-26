@@ -494,6 +494,13 @@ pub fn UploadPage() -> impl IntoView {
             categoryName: null, // display name
         };
 
+        async function safeJson(res) {
+            const text = await res.text();
+            if (!text) return {};
+            try { return JSON.parse(text); }
+            catch(e) { return { error: text.substring(0, 200) }; }
+        }
+
         const STEP_LABELS = [
             'Content Type',
             'Category',
@@ -598,8 +605,9 @@ pub fn UploadPage() -> impl IntoView {
             const url = type === 'game' ? '/api/games/categories' : '/api/marketplace/categories';
             try {
                 const res = await fetch(url);
-                if (!res.ok) throw new Error();
-                const cats = await res.json();
+                if (!res.ok) throw new Error('Failed to load');
+                const cats = await safeJson(res);
+                if (!Array.isArray(cats)) throw new Error('Invalid response');
                 grid.innerHTML = '';
                 cats.forEach(cat => {
                     const btn = document.createElement('button');
@@ -864,7 +872,7 @@ pub fn UploadPage() -> impl IntoView {
                         credentials: 'include',
                         body: fd
                     });
-                    const data = await res.json();
+                    const data = await safeJson(res);
                     if (!res.ok) throw new Error(data.error || 'Upload failed');
                     itemId = data.id;
                     itemSlug = data.slug;
@@ -909,7 +917,7 @@ pub fn UploadPage() -> impl IntoView {
                         headers: headers,
                         body: fd
                     });
-                    const data = await res.json();
+                    const data = await safeJson(res);
                     if (!res.ok) throw new Error(data.error || 'Upload failed');
                     itemId = data.id;
                     itemSlug = data.slug;
