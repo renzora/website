@@ -35,12 +35,12 @@ pub fn DashboardPage() -> impl IntoView {
                         <div class="relative p-5 bg-white/[0.02] border border-zinc-800/50 rounded-xl overflow-hidden group hover:border-zinc-700 transition-all">
                             <div class="absolute -top-6 -right-6 w-20 h-20 bg-green-500/5 rounded-full group-hover:scale-150 transition-transform duration-500"></div>
                             <span class="text-[11px] text-zinc-500 uppercase tracking-wider font-medium">"Total Earnings"</span>
-                            <div class="text-3xl font-bold mt-2"><span id="stat-earnings">"0"</span><span class="text-base font-normal text-zinc-500">" cr"</span></div>
+                            <div class="text-3xl font-bold mt-2"><span id="stat-earnings">"0"</span><span class="text-base font-normal text-zinc-500">" credits"</span></div>
                         </div>
                         <div class="relative p-5 bg-white/[0.02] border border-zinc-800/50 rounded-xl overflow-hidden group hover:border-zinc-700 transition-all">
                             <div class="absolute -top-6 -right-6 w-20 h-20 bg-purple-500/5 rounded-full group-hover:scale-150 transition-transform duration-500"></div>
                             <span class="text-[11px] text-zinc-500 uppercase tracking-wider font-medium">"Balance"</span>
-                            <div class="text-3xl font-bold mt-2"><span id="stat-balance">"0"</span><span class="text-base font-normal text-zinc-500">" cr"</span></div>
+                            <div class="text-3xl font-bold mt-2"><span id="stat-balance">"0"</span><span class="text-base font-normal text-zinc-500">" credits"</span></div>
                         </div>
                     </div>
 
@@ -128,7 +128,7 @@ pub fn DashboardPage() -> impl IntoView {
                                     </div>
                                     <div class="flex items-center gap-3 shrink-0">
                                         <div class="text-right">
-                                            <span class="text-xs font-medium">${a.price_credits === 0 ? 'Free' : a.price_credits.toLocaleString() + ' cr'}</span>
+                                            <span class="text-xs font-medium">${a.price_credits === 0 ? 'Free' : a.price_credits.toLocaleString() + ' credits'}</span>
                                             <div class="mt-0.5">
                                                 <span class="text-[10px] px-1.5 py-0.5 rounded-full ${a.published ? 'bg-green-500/10 text-green-400' : 'bg-amber-500/10 text-amber-400'}">${a.published ? 'Live' : 'Draft'}</span>
                                             </div>

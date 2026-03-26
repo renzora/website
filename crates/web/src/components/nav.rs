@@ -347,7 +347,7 @@ pub fn Nav() -> impl IntoView {
                                 </div>
                                 <div class="flex-1 min-w-0">
                                     <div class="text-sm text-zinc-200 truncate">${a.name}</div>
-                                    <div class="text-[11px] text-zinc-600">${a.category} · ${a.price_credits === 0 ? 'Free' : a.price_credits + ' cr'}</div>
+                                    <div class="text-[11px] text-zinc-600">${a.category} · ${a.price_credits === 0 ? 'Free' : a.price_credits + ' credits'}</div>
                                 </div>
                                 ${a.rating_count > 0 ? `<span class="text-[11px] text-amber-400">${'★'.repeat(Math.round(a.rating_avg))}</span>` : ''}
                             </a>

@@ -202,7 +202,7 @@ pub fn AdminPage() -> impl IntoView {
                                     </div>
                                     <div class="flex items-center gap-4">
                                         <span class="text-xs text-zinc-400">${a.sales} sales</span>
-                                        <span class="text-xs font-semibold text-green-400">${a.revenue?.toLocaleString()} cr</span>
+                                        <span class="text-xs font-semibold text-green-400">${a.revenue?.toLocaleString()} credits</span>
                                     </div>
                                 </div>
                             `).join('')}

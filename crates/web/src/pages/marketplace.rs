@@ -217,7 +217,7 @@ pub fn MarketplacePage() -> impl IntoView {
                 el.innerHTML = data.assets.map((a, i) => {
                     const fullStars = a.rating_count > 0 ? Math.round(a.rating_avg) : 0;
                     const starsHtml = `<span class="text-amber-400 text-sm">${'★'.repeat(fullStars)}</span><span class="text-zinc-700 text-sm">${'☆'.repeat(5 - fullStars)}</span><span class="text-[11px] text-zinc-500 ml-1">(${a.rating_count})</span>`;
-                    const priceLabel = a.price_credits === 0 ? 'Free' : a.price_credits.toLocaleString() + ' cr';
+                    const priceLabel = a.price_credits === 0 ? 'Free' : a.price_credits.toLocaleString() + ' credits';
                     const avatarHtml = a.creator_avatar_url
                         ? `<img src="${a.creator_avatar_url}" class="w-5 h-5 rounded-full object-cover" />`
                         : `<div class="w-5 h-5 rounded-full bg-zinc-800 flex items-center justify-center"><i class="ph ph-user text-[9px] text-zinc-500"></i></div>`;
