@@ -260,7 +260,6 @@ pub fn AssetDetailPage() -> impl IntoView {
                         <!-- Sidebar -->
                         <div class="w-full lg:w-80 shrink-0">
                             <div class="bg-white/[0.02] border border-zinc-800/50 rounded-2xl p-6 sticky top-20">
-                                ${a.price_credits === 0 ? '<div class="text-3xl font-bold mb-1"><span class="text-green-400">Free</span></div>' : ''}
 
                                 ${token ? `
                                     ${isCreator ? `
@@ -271,7 +270,7 @@ pub fn AssetDetailPage() -> impl IntoView {
                                         <a href="/library" class="w-full mt-2 px-4 py-2.5 rounded-xl text-sm font-medium bg-white/[0.03] border border-zinc-800/50 text-zinc-300 hover:border-zinc-600 hover:text-white transition-all flex items-center justify-center gap-2"><i class="ph ph-books text-lg"></i>Show in Library</a>
                                         <p class="text-xs text-green-400 text-center mt-2"><i class="ph ph-check-circle"></i> You own this asset</p>
                                     ` : a.price_credits === 0 ? `
-                                        <button onclick="purchaseAsset('${a.id}')" class="w-full mt-4 px-4 py-3 rounded-xl text-sm font-semibold bg-accent text-white hover:bg-accent-hover transition-all hover:shadow-[0_0_20px_rgba(99,102,241,0.2)] flex items-center justify-center gap-2"><i class="ph ph-plus-circle text-lg"></i>Add to Library</button>
+                                        <button onclick="purchaseAsset('${a.id}')" class="w-full mt-4 px-4 py-3 rounded-xl text-sm font-semibold bg-accent text-white hover:bg-accent-hover transition-all hover:shadow-[0_0_20px_rgba(99,102,241,0.2)] flex items-center justify-center gap-2"><i class="ph ph-download-simple text-lg"></i>Download for Free</button>
                                     ` : `
                                         <div class="mt-4 flex gap-2">
                                             <input type="text" id="promo-input" placeholder="Promo code" maxlength="32" class="flex-1 px-3 py-2.5 bg-white/[0.02] border border-zinc-800/50 rounded-xl text-xs text-zinc-50 outline-none focus:border-accent/50 uppercase" />
