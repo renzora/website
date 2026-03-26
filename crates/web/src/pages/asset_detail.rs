@@ -340,7 +340,7 @@ pub fn AssetDetailPage() -> impl IntoView {
                     return `
                         <div class="aspect-video flex flex-col items-end justify-end relative overflow-hidden">
                             ${coverBg}
-                            <audio id="audio-player" src="${item.url}" preload="metadata" crossorigin="anonymous" class="hidden"></audio>
+                            <audio id="audio-player" src="${item.url}" preload="metadata" class="hidden"></audio>
                             <!-- Waveform canvas centered -->
                             <div class="absolute inset-0 z-[5] flex items-center justify-center pointer-events-none">
                                 <canvas id="waveform-canvas" class="w-[85%] h-24 opacity-80 pointer-events-auto cursor-pointer" onclick="seekWaveform(event)"></canvas>
@@ -352,7 +352,10 @@ pub fn AssetDetailPage() -> impl IntoView {
                                         <svg id="audio-icon-pause" class="w-5 h-5 hidden" viewBox="0 0 24 24" fill="currentColor"><rect x="5" y="3" width="4" height="18"></rect><rect x="15" y="3" width="4" height="18"></rect></svg>
                                     </button>
                                     <div class="flex-1 min-w-0">
-                                        <div class="flex justify-between">
+                                        <div class="relative w-full h-1 bg-white/10 rounded-full cursor-pointer" onclick="seekAudio(event)" id="audio-seek-bar">
+                                            <div id="audio-progress" class="absolute left-0 top-0 h-full bg-accent rounded-full transition-all" style="width:0%"></div>
+                                        </div>
+                                        <div class="flex justify-between mt-1.5">
                                             <span id="audio-current" class="text-[11px] text-white/60 tabular-nums">0:00</span>
                                             <span id="audio-duration" class="text-[11px] text-white/60 tabular-nums">0:00</span>
                                         </div>
@@ -364,7 +367,6 @@ pub fn AssetDetailPage() -> impl IntoView {
                                         </button>
                                         <input type="range" min="0" max="100" value="100" id="audio-vol-slider" oninput="setAudioVolume(this.value)" class="w-16 h-1 accent-accent bg-white/10 rounded-full appearance-none cursor-pointer opacity-0 group-hover/vol:opacity-100 transition-opacity [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-2.5 [&::-webkit-slider-thumb]:h-2.5 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-white" />
                                     </div>
-                                    </button>
                                 </div>
                             </div>
                         </div>`;
@@ -438,7 +440,6 @@ pub fn AssetDetailPage() -> impl IntoView {
             // ── Audio Player with Real-time Waveform ──
             let audioCtx = null;
             let analyser = null;
-            let sourceNode = null;
             let animFrameId = null;
             let audioConnected = false;
 
@@ -447,34 +448,44 @@ pub fn AssetDetailPage() -> impl IntoView {
                 if (!audio) return;
 
                 audio.addEventListener('loadedmetadata', () => {
-                    document.getElementById('audio-duration').textContent = fmtTime(audio.duration);
+                    const dur = document.getElementById('audio-duration');
+                    if (dur) dur.textContent = fmtTime(audio.duration);
                 });
                 audio.addEventListener('timeupdate', () => {
-                    document.getElementById('audio-current').textContent = fmtTime(audio.currentTime);
+                    const cur = document.getElementById('audio-current');
+                    const prog = document.getElementById('audio-progress');
+                    if (cur) cur.textContent = fmtTime(audio.currentTime);
+                    if (prog && audio.duration) prog.style.width = ((audio.currentTime / audio.duration) * 100) + '%';
                 });
                 audio.addEventListener('ended', () => {
-                    document.getElementById('audio-icon-play').classList.remove('hidden');
-                    document.getElementById('audio-icon-pause').classList.add('hidden');
+                    const play = document.getElementById('audio-icon-play');
+                    const pause = document.getElementById('audio-icon-pause');
+                    if (play) play.classList.remove('hidden');
+                    if (pause) pause.classList.add('hidden');
                     cancelAnimationFrame(animFrameId);
-                    // Draw idle state
                     drawIdleWaveform();
                 });
 
-                // Draw idle bars on load
                 drawIdleWaveform();
             }
 
-            function connectAudioAnalyser() {
+            function tryConnectAnalyser() {
                 if (audioConnected) return;
-                const audio = document.getElementById('audio-player');
-                if (!audio) return;
-                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-                analyser = audioCtx.createAnalyser();
-                analyser.fftSize = 256;
-                sourceNode = audioCtx.createMediaElementSource(audio);
-                sourceNode.connect(analyser);
-                analyser.connect(audioCtx.destination);
-                audioConnected = true;
+                try {
+                    const audio = document.getElementById('audio-player');
+                    if (!audio) return;
+                    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                    analyser = audioCtx.createAnalyser();
+                    analyser.fftSize = 256;
+                    const src = audioCtx.createMediaElementSource(audio);
+                    src.connect(analyser);
+                    analyser.connect(audioCtx.destination);
+                    audioConnected = true;
+                } catch(e) {
+                    console.warn('Waveform analyser unavailable:', e.message);
+                    audioConnected = false;
+                    analyser = null;
+                }
             }
 
             function drawIdleWaveform() {
@@ -505,7 +516,7 @@ pub fn AssetDetailPage() -> impl IntoView {
 
             function drawRealtimeWaveform() {
                 const canvas = document.getElementById('waveform-canvas');
-                if (!canvas || !analyser) return;
+                if (!canvas || !analyser) { animFrameId = requestAnimationFrame(drawProgressWaveform); return; }
                 const ctx = canvas.getContext('2d');
                 const dpr = window.devicePixelRatio || 1;
                 const w = canvas.offsetWidth;
@@ -522,46 +533,67 @@ pub fn AssetDetailPage() -> impl IntoView {
                 const barW = 2, gap = 2, step = barW + gap;
                 const bars = Math.floor(w / step);
                 const mid = h / 2;
-
-                // Map frequency bins to bars
                 const binStep = Math.max(1, Math.floor(bufLen / bars));
+
                 for (let i = 0; i < bars; i++) {
                     const x = i * step;
-                    const binIdx = Math.min(i * binStep, bufLen - 1);
-                    const val = dataArray[binIdx] / 255;
+                    const val = dataArray[Math.min(i * binStep, bufLen - 1)] / 255;
                     const barH = Math.max(3, val * h * 0.85);
-                    const half = barH / 2;
-
-                    // Gradient: accent for active, white/dim for quiet
-                    const intensity = val;
-                    const r = Math.round(99 + (129 - 99) * intensity);
-                    const g = Math.round(102 + (140 - 102) * intensity);
-                    const b = Math.round(241);
-                    ctx.fillStyle = `rgba(${r},${g},${b},${0.3 + intensity * 0.7})`;
-
+                    const r = Math.round(99 + 30 * val), g = Math.round(102 + 38 * val);
+                    ctx.fillStyle = `rgba(${r},${g},241,${0.3 + val * 0.7})`;
                     ctx.beginPath();
-                    ctx.roundRect(x, mid - half, barW, barH, 1);
+                    ctx.roundRect(x, mid - barH / 2, barW, barH, 1);
                     ctx.fill();
                 }
 
-                // Progress overlay line
                 const audio = document.getElementById('audio-player');
                 if (audio && audio.duration) {
                     const px = (audio.currentTime / audio.duration) * w;
                     ctx.fillStyle = 'rgba(255,255,255,0.5)';
                     ctx.fillRect(px - 0.5, 0, 1, h);
                 }
-
                 animFrameId = requestAnimationFrame(drawRealtimeWaveform);
+            }
+
+            // Fallback: simple progress-based waveform when analyser unavailable
+            function drawProgressWaveform() {
+                const canvas = document.getElementById('waveform-canvas');
+                const audio = document.getElementById('audio-player');
+                if (!canvas || !audio) return;
+                if (audio.paused || audio.ended) return;
+
+                const ctx = canvas.getContext('2d');
+                const dpr = window.devicePixelRatio || 1;
+                const w = canvas.offsetWidth;
+                const h = canvas.offsetHeight;
+                canvas.width = w * dpr;
+                canvas.height = h * dpr;
+                ctx.scale(dpr, dpr);
+                ctx.clearRect(0, 0, w, h);
+
+                const progress = audio.duration ? audio.currentTime / audio.duration : 0;
+                const barW = 2, gap = 2, step = barW + gap;
+                const bars = Math.floor(w / step);
+                const mid = h / 2;
+
+                for (let i = 0; i < bars; i++) {
+                    const x = i * step;
+                    const pct = x / w;
+                    const seed = Math.sin(i * 0.3 + audio.currentTime * 2) * 0.5 + 0.5;
+                    const barH = pct <= progress ? (8 + seed * h * 0.5) : (4 + Math.sin(i * 0.15) * 2);
+                    ctx.fillStyle = pct <= progress ? `rgba(99,102,241,${0.4 + seed * 0.5})` : 'rgba(255,255,255,0.08)';
+                    ctx.beginPath();
+                    ctx.roundRect(x, mid - barH / 2, barW, barH, 1);
+                    ctx.fill();
+                }
+                animFrameId = requestAnimationFrame(drawProgressWaveform);
             }
 
             function seekWaveform(e) {
                 const audio = document.getElementById('audio-player');
                 if (!audio || !audio.duration) return;
-                const canvas = e.currentTarget;
-                const rect = canvas.getBoundingClientRect();
-                const pct = (e.clientX - rect.left) / rect.width;
-                audio.currentTime = pct * audio.duration;
+                const rect = e.currentTarget.getBoundingClientRect();
+                audio.currentTime = ((e.clientX - rect.left) / rect.width) * audio.duration;
             }
 
             function fmtTime(sec) {
@@ -574,19 +606,22 @@ pub fn AssetDetailPage() -> impl IntoView {
             function toggleAudioPlay() {
                 const audio = document.getElementById('audio-player');
                 if (!audio) return;
-                // Connect analyser on first play (requires user gesture)
-                connectAudioAnalyser();
+
+                // Try to connect analyser on first play (requires user gesture)
+                tryConnectAnalyser();
                 if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
 
                 if (audio.paused) {
-                    audio.play();
-                    document.getElementById('audio-icon-play').classList.add('hidden');
-                    document.getElementById('audio-icon-pause').classList.remove('hidden');
-                    drawRealtimeWaveform();
+                    audio.play().then(() => {
+                        document.getElementById('audio-icon-play')?.classList.add('hidden');
+                        document.getElementById('audio-icon-pause')?.classList.remove('hidden');
+                        if (analyser) drawRealtimeWaveform();
+                        else drawProgressWaveform();
+                    }).catch(e => console.warn('Play failed:', e));
                 } else {
                     audio.pause();
-                    document.getElementById('audio-icon-play').classList.remove('hidden');
-                    document.getElementById('audio-icon-pause').classList.add('hidden');
+                    document.getElementById('audio-icon-play')?.classList.remove('hidden');
+                    document.getElementById('audio-icon-pause')?.classList.add('hidden');
                     cancelAnimationFrame(animFrameId);
                 }
             }

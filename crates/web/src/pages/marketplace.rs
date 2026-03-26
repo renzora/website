@@ -5,7 +5,7 @@ pub fn MarketplacePage() -> impl IntoView {
     view! {
         <section class="min-h-[calc(100vh-3.5rem)] flex bg-[#08080a]">
             // ── Left Sidebar: Categories ──
-            <aside class="w-56 shrink-0 bg-surface-card border-r border-zinc-800 sticky top-14 h-[calc(100vh-3.5rem)] overflow-y-auto hidden lg:block">
+            <aside class="w-56 shrink-0 border-r border-zinc-800/50 sticky top-14 h-[calc(100vh-3.5rem)] overflow-y-auto hidden lg:block">
                 <div class="p-4 border-b border-zinc-800">
                     <div class="flex items-center gap-2">
                         <i class="ph ph-storefront text-xl text-accent"></i>
