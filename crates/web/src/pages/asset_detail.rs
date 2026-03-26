@@ -437,11 +437,8 @@ pub fn AssetDetailPage() -> impl IntoView {
                 });
             }
 
-            // ── Audio Player with Real-time Waveform ──
-            let audioCtx = null;
-            let analyser = null;
+            // ── Audio Player with Animated Waveform ──
             let animFrameId = null;
-            let audioConnected = false;
 
             function initAudioPlayer() {
                 const audio = document.getElementById('audio-player');
@@ -458,34 +455,13 @@ pub fn AssetDetailPage() -> impl IntoView {
                     if (prog && audio.duration) prog.style.width = ((audio.currentTime / audio.duration) * 100) + '%';
                 });
                 audio.addEventListener('ended', () => {
-                    const play = document.getElementById('audio-icon-play');
-                    const pause = document.getElementById('audio-icon-pause');
-                    if (play) play.classList.remove('hidden');
-                    if (pause) pause.classList.add('hidden');
+                    document.getElementById('audio-icon-play')?.classList.remove('hidden');
+                    document.getElementById('audio-icon-pause')?.classList.add('hidden');
                     cancelAnimationFrame(animFrameId);
                     drawIdleWaveform();
                 });
 
                 drawIdleWaveform();
-            }
-
-            function tryConnectAnalyser() {
-                if (audioConnected) return;
-                try {
-                    const audio = document.getElementById('audio-player');
-                    if (!audio) return;
-                    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-                    analyser = audioCtx.createAnalyser();
-                    analyser.fftSize = 256;
-                    const src = audioCtx.createMediaElementSource(audio);
-                    src.connect(analyser);
-                    analyser.connect(audioCtx.destination);
-                    audioConnected = true;
-                } catch(e) {
-                    console.warn('Waveform analyser unavailable:', e.message);
-                    audioConnected = false;
-                    analyser = null;
-                }
             }
 
             function drawIdleWaveform() {
@@ -514,49 +490,7 @@ pub fn AssetDetailPage() -> impl IntoView {
                 }
             }
 
-            function drawRealtimeWaveform() {
-                const canvas = document.getElementById('waveform-canvas');
-                if (!canvas || !analyser) { animFrameId = requestAnimationFrame(drawProgressWaveform); return; }
-                const ctx = canvas.getContext('2d');
-                const dpr = window.devicePixelRatio || 1;
-                const w = canvas.offsetWidth;
-                const h = canvas.offsetHeight;
-                canvas.width = w * dpr;
-                canvas.height = h * dpr;
-                ctx.scale(dpr, dpr);
-                ctx.clearRect(0, 0, w, h);
-
-                const bufLen = analyser.frequencyBinCount;
-                const dataArray = new Uint8Array(bufLen);
-                analyser.getByteFrequencyData(dataArray);
-
-                const barW = 2, gap = 2, step = barW + gap;
-                const bars = Math.floor(w / step);
-                const mid = h / 2;
-                const binStep = Math.max(1, Math.floor(bufLen / bars));
-
-                for (let i = 0; i < bars; i++) {
-                    const x = i * step;
-                    const val = dataArray[Math.min(i * binStep, bufLen - 1)] / 255;
-                    const barH = Math.max(3, val * h * 0.85);
-                    const r = Math.round(99 + 30 * val), g = Math.round(102 + 38 * val);
-                    ctx.fillStyle = `rgba(${r},${g},241,${0.3 + val * 0.7})`;
-                    ctx.beginPath();
-                    ctx.roundRect(x, mid - barH / 2, barW, barH, 1);
-                    ctx.fill();
-                }
-
-                const audio = document.getElementById('audio-player');
-                if (audio && audio.duration) {
-                    const px = (audio.currentTime / audio.duration) * w;
-                    ctx.fillStyle = 'rgba(255,255,255,0.5)';
-                    ctx.fillRect(px - 0.5, 0, 1, h);
-                }
-                animFrameId = requestAnimationFrame(drawRealtimeWaveform);
-            }
-
-            // Fallback: simple progress-based waveform when analyser unavailable
-            function drawProgressWaveform() {
+            function drawPlayingWaveform() {
                 const canvas = document.getElementById('waveform-canvas');
                 const audio = document.getElementById('audio-player');
                 if (!canvas || !audio) return;
@@ -572,6 +506,7 @@ pub fn AssetDetailPage() -> impl IntoView {
                 ctx.clearRect(0, 0, w, h);
 
                 const progress = audio.duration ? audio.currentTime / audio.duration : 0;
+                const t = audio.currentTime;
                 const barW = 2, gap = 2, step = barW + gap;
                 const bars = Math.floor(w / step);
                 const mid = h / 2;
@@ -579,14 +514,34 @@ pub fn AssetDetailPage() -> impl IntoView {
                 for (let i = 0; i < bars; i++) {
                     const x = i * step;
                     const pct = x / w;
-                    const seed = Math.sin(i * 0.3 + audio.currentTime * 2) * 0.5 + 0.5;
-                    const barH = pct <= progress ? (8 + seed * h * 0.5) : (4 + Math.sin(i * 0.15) * 2);
-                    ctx.fillStyle = pct <= progress ? `rgba(99,102,241,${0.4 + seed * 0.5})` : 'rgba(255,255,255,0.08)';
-                    ctx.beginPath();
-                    ctx.roundRect(x, mid - barH / 2, barW, barH, 1);
-                    ctx.fill();
+                    // Animated wave using multiple sine waves for organic movement
+                    const wave = Math.sin(i * 0.12 + t * 3) * 0.4
+                               + Math.sin(i * 0.07 + t * 5) * 0.3
+                               + Math.sin(i * 0.2 + t * 1.5) * 0.3;
+                    const amp = (wave + 1) / 2; // normalize 0-1
+
+                    if (pct <= progress) {
+                        const barH = 6 + amp * h * 0.6;
+                        const intensity = 0.5 + amp * 0.5;
+                        ctx.fillStyle = `rgba(99,102,241,${intensity})`;
+                        ctx.beginPath();
+                        ctx.roundRect(x, mid - barH / 2, barW, barH, 1);
+                        ctx.fill();
+                    } else {
+                        const barH = 3 + Math.sin(i * 0.15) * 1.5;
+                        ctx.fillStyle = 'rgba(255,255,255,0.06)';
+                        ctx.beginPath();
+                        ctx.roundRect(x, mid - barH / 2, barW, barH, 1);
+                        ctx.fill();
+                    }
                 }
-                animFrameId = requestAnimationFrame(drawProgressWaveform);
+
+                // Playhead line
+                const px = progress * w;
+                ctx.fillStyle = 'rgba(255,255,255,0.6)';
+                ctx.fillRect(px - 0.5, 0, 1, h);
+
+                animFrameId = requestAnimationFrame(drawPlayingWaveform);
             }
 
             function seekWaveform(e) {
@@ -607,16 +562,11 @@ pub fn AssetDetailPage() -> impl IntoView {
                 const audio = document.getElementById('audio-player');
                 if (!audio) return;
 
-                // Try to connect analyser on first play (requires user gesture)
-                tryConnectAnalyser();
-                if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
-
                 if (audio.paused) {
                     audio.play().then(() => {
                         document.getElementById('audio-icon-play')?.classList.add('hidden');
                         document.getElementById('audio-icon-pause')?.classList.remove('hidden');
-                        if (analyser) drawRealtimeWaveform();
-                        else drawProgressWaveform();
+                        drawPlayingWaveform();
                     }).catch(e => console.warn('Play failed:', e));
                 } else {
                     audio.pause();
