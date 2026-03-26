@@ -865,11 +865,15 @@ pub fn UploadPage() -> impl IntoView {
 
                 let itemId, itemSlug;
 
+                // Auth — always use Bearer token
+                const token = document.cookie.match('(^|;)\\s*token\\s*=\\s*([^;]+)')?.pop();
+                if (!token) throw new Error('Please sign in first');
+                const headers = { 'Authorization': 'Bearer ' + token };
+
                 if (W.contentType === 'game') {
-                    // Game upload — credentials auth
                     const res = await fetch('/api/games/upload', {
                         method: 'POST',
-                        credentials: 'include',
+                        headers: headers,
                         body: fd
                     });
                     const data = await safeJson(res);
@@ -881,8 +885,7 @@ pub fn UploadPage() -> impl IntoView {
                     if (publish) {
                         await fetch('/api/games/' + itemId + '/update', {
                             method: 'PUT',
-                            credentials: 'include',
-                            headers: { 'Content-Type': 'application/json' },
+                            headers: { ...headers, 'Content-Type': 'application/json' },
                             body: JSON.stringify({ published: true })
                         });
                     }
@@ -895,7 +898,7 @@ pub fn UploadPage() -> impl IntoView {
                         mfd.append('file', screenshots[i]);
                         await fetch('/api/games/' + itemId + '/media', {
                             method: 'POST',
-                            credentials: 'include',
+                            headers: headers,
                             body: mfd
                         });
                     }
@@ -906,12 +909,6 @@ pub fn UploadPage() -> impl IntoView {
                         : 'Draft saved! <a href="' + link + '" class="underline">View draft \u2192</a>';
 
                 } else {
-                    // Asset upload — Bearer token auth
-                    const token = document.cookie.match('(^|;)\\s*token\\s*=\\s*([^;]+)')?.pop();
-                    if (!token) throw new Error('Please sign in first');
-
-                    const headers = { 'Authorization': 'Bearer ' + token };
-
                     const res = await fetch('/api/marketplace/upload', {
                         method: 'POST',
                         headers: headers,
