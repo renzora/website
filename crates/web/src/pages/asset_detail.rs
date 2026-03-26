@@ -364,7 +364,7 @@ pub fn AssetDetailPage() -> impl IntoView {
                                             <svg id="audio-vol-on" class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="11,5 6,9 2,9 2,15 6,15 11,19" fill="currentColor"></polygon><path d="M19.07 4.93a10 10 0 010 14.14M15.54 8.46a5 5 0 010 7.07"></path></svg>
                                             <svg id="audio-vol-off" class="w-4 h-4 hidden" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="11,5 6,9 2,9 2,15 6,15 11,19" fill="currentColor"></polygon><line x1="23" y1="9" x2="17" y2="15"></line><line x1="17" y1="9" x2="23" y2="15"></line></svg>
                                         </button>
-                                        <input type="range" min="0" max="100" value="100" id="audio-vol-slider" oninput="setAudioVolume(this.value)" class="w-16 h-1 accent-accent bg-white/10 rounded-full appearance-none cursor-pointer opacity-0 group-hover/vol:opacity-100 transition-opacity [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-2.5 [&::-webkit-slider-thumb]:h-2.5 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-white" />
+                                        <input type="range" min="0" max="100" value="100" id="audio-vol-slider" oninput="setAudioVolume(this.value)" class="w-16 h-1 accent-accent bg-white/10 rounded-full appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-2.5 [&::-webkit-slider-thumb]:h-2.5 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-white" />
                                     </div>
                                 </div>
                             </div>
