@@ -260,7 +260,7 @@ pub fn AssetDetailPage() -> impl IntoView {
                         <!-- Sidebar -->
                         <div class="w-full lg:w-80 shrink-0">
                             <div class="bg-white/[0.02] border border-zinc-800/50 rounded-2xl p-6 sticky top-20">
-                                <div class="text-3xl font-bold mb-1">${a.price_credits === 0 ? '<span class="text-green-400">Free</span>' : a.price_credits.toLocaleString() + ' <span class="text-lg font-normal text-zinc-500">credits</span>'}</div>
+                                ${a.price_credits === 0 ? '<div class="text-3xl font-bold mb-1"><span class="text-green-400">Free</span></div>' : ''}
 
                                 ${token ? `
                                     ${isCreator ? `
@@ -276,7 +276,7 @@ pub fn AssetDetailPage() -> impl IntoView {
                                         <div class="mt-4 flex gap-2">
                                             <input type="text" id="promo-input" placeholder="Promo code" maxlength="32" class="flex-1 px-3 py-2.5 bg-white/[0.02] border border-zinc-800/50 rounded-xl text-xs text-zinc-50 outline-none focus:border-accent/50 uppercase" />
                                         </div>
-                                        <button onclick="purchaseAsset('${a.id}')" class="w-full mt-2 px-4 py-3 rounded-xl text-sm font-semibold bg-accent text-white hover:bg-accent-hover transition-all hover:shadow-[0_0_20px_rgba(99,102,241,0.2)] flex items-center justify-center gap-2"><i class="ph ph-shopping-cart text-lg"></i>Purchase</button>
+                                        <button onclick="purchaseAsset('${a.id}')" class="w-full mt-2 px-4 py-3 rounded-xl text-sm font-semibold bg-accent text-white hover:bg-accent-hover transition-all hover:shadow-[0_0_20px_rgba(99,102,241,0.2)] flex items-center justify-center gap-2"><i class="ph ph-shopping-cart text-lg"></i>Buy for ${a.price_credits.toLocaleString()} credits</button>
                                     `}
                                 ` : `
                                     <a href="/login" class="block w-full mt-4 px-4 py-3 rounded-xl text-sm font-semibold bg-accent text-white hover:bg-accent-hover transition-all text-center">Sign in to purchase</a>
@@ -340,7 +340,7 @@ pub fn AssetDetailPage() -> impl IntoView {
                     return `
                         <div class="aspect-video flex flex-col items-end justify-end relative overflow-hidden">
                             ${coverBg}
-                            <audio id="audio-player" src="${item.url}" preload="metadata" class="hidden"></audio>
+                            <audio id="audio-player" src="${item.url}" preload="metadata" crossorigin="anonymous" class="hidden"></audio>
                             <!-- Waveform canvas centered -->
                             <div class="absolute inset-0 z-[5] flex items-center justify-center pointer-events-none">
                                 <canvas id="waveform-canvas" class="w-[85%] h-24 opacity-80 pointer-events-auto cursor-pointer" onclick="seekWaveform(event)"></canvas>
@@ -437,8 +437,12 @@ pub fn AssetDetailPage() -> impl IntoView {
                 });
             }
 
-            // ── Audio Player with Animated Waveform ──
+            // ── Audio Player with Frequency Analyser ──
+            let audioCtx = null;
+            let analyser = null;
             let animFrameId = null;
+            let analyserConnected = false;
+            let analyserFailed = false;
 
             function initAudioPlayer() {
                 const audio = document.getElementById('audio-player');
@@ -446,7 +450,15 @@ pub fn AssetDetailPage() -> impl IntoView {
 
                 audio.addEventListener('loadedmetadata', () => {
                     const dur = document.getElementById('audio-duration');
-                    if (dur) dur.textContent = fmtTime(audio.duration);
+                    if (dur && audio.duration && isFinite(audio.duration)) dur.textContent = fmtTime(audio.duration);
+                });
+                audio.addEventListener('durationchange', () => {
+                    const dur = document.getElementById('audio-duration');
+                    if (dur && audio.duration && isFinite(audio.duration)) dur.textContent = fmtTime(audio.duration);
+                });
+                audio.addEventListener('canplay', () => {
+                    const dur = document.getElementById('audio-duration');
+                    if (dur && audio.duration && isFinite(audio.duration) && dur.textContent === '0:00') dur.textContent = fmtTime(audio.duration);
                 });
                 audio.addEventListener('timeupdate', () => {
                     const cur = document.getElementById('audio-current');
@@ -464,9 +476,28 @@ pub fn AssetDetailPage() -> impl IntoView {
                 drawIdleWaveform();
             }
 
-            function drawIdleWaveform() {
+            function connectAnalyser() {
+                if (analyserConnected || analyserFailed) return;
+                const audio = document.getElementById('audio-player');
+                if (!audio) return;
+                try {
+                    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                    analyser = audioCtx.createAnalyser();
+                    analyser.fftSize = 512;
+                    analyser.smoothingTimeConstant = 0.8;
+                    const src = audioCtx.createMediaElementSource(audio);
+                    src.connect(analyser);
+                    analyser.connect(audioCtx.destination);
+                    analyserConnected = true;
+                } catch(e) {
+                    analyserFailed = true;
+                    analyser = null;
+                }
+            }
+
+            function drawCanvas(fn) {
                 const canvas = document.getElementById('waveform-canvas');
-                if (!canvas) return;
+                if (!canvas) return null;
                 const ctx = canvas.getContext('2d');
                 const dpr = window.devicePixelRatio || 1;
                 const w = canvas.offsetWidth;
@@ -475,73 +506,107 @@ pub fn AssetDetailPage() -> impl IntoView {
                 canvas.height = h * dpr;
                 ctx.scale(dpr, dpr);
                 ctx.clearRect(0, 0, w, h);
+                return { ctx, w, h };
+            }
 
-                const barW = 2, gap = 2, step = barW + gap;
+            function drawIdleWaveform() {
+                const c = drawCanvas();
+                if (!c) return;
+                const { ctx, w, h } = c;
+                const barW = 2, gap = 1.5, step = barW + gap;
                 const bars = Math.floor(w / step);
                 const mid = h / 2;
-
                 for (let i = 0; i < bars; i++) {
-                    const x = i * step;
-                    const barH = 4 + Math.sin(i * 0.15) * 2;
-                    ctx.fillStyle = 'rgba(255,255,255,0.08)';
+                    const barH = 3 + Math.sin(i * 0.12) * 2;
+                    ctx.fillStyle = 'rgba(255,255,255,0.06)';
                     ctx.beginPath();
-                    ctx.roundRect(x, mid - barH / 2, barW, barH, 1);
+                    ctx.roundRect(i * step, mid - barH / 2, barW, barH, 1);
                     ctx.fill();
                 }
             }
 
-            function drawPlayingWaveform() {
-                const canvas = document.getElementById('waveform-canvas');
+            function drawAnalyserFrame() {
                 const audio = document.getElementById('audio-player');
-                if (!canvas || !audio) return;
-                if (audio.paused || audio.ended) return;
+                if (!audio || audio.paused || audio.ended) return;
 
-                const ctx = canvas.getContext('2d');
-                const dpr = window.devicePixelRatio || 1;
-                const w = canvas.offsetWidth;
-                const h = canvas.offsetHeight;
-                canvas.width = w * dpr;
-                canvas.height = h * dpr;
-                ctx.scale(dpr, dpr);
-                ctx.clearRect(0, 0, w, h);
-
-                const progress = audio.duration ? audio.currentTime / audio.duration : 0;
-                const t = audio.currentTime;
-                const barW = 2, gap = 2, step = barW + gap;
+                const c = drawCanvas();
+                if (!c) return;
+                const { ctx, w, h } = c;
+                const barW = 2, gap = 1.5, step = barW + gap;
                 const bars = Math.floor(w / step);
                 const mid = h / 2;
 
-                for (let i = 0; i < bars; i++) {
-                    const x = i * step;
-                    const pct = x / w;
-                    // Animated wave using multiple sine waves for organic movement
-                    const wave = Math.sin(i * 0.12 + t * 3) * 0.4
-                               + Math.sin(i * 0.07 + t * 5) * 0.3
-                               + Math.sin(i * 0.2 + t * 1.5) * 0.3;
-                    const amp = (wave + 1) / 2; // normalize 0-1
+                if (analyser) {
+                    // Real frequency data — full width, volume-sensitive
+                    const bufLen = analyser.frequencyBinCount;
+                    const freqData = new Uint8Array(bufLen);
+                    analyser.getByteFrequencyData(freqData);
 
-                    if (pct <= progress) {
-                        const barH = 6 + amp * h * 0.6;
-                        const intensity = 0.5 + amp * 0.5;
-                        ctx.fillStyle = `rgba(99,102,241,${intensity})`;
+                    for (let i = 0; i < bars; i++) {
+                        const x = i * step;
+                        // Map bar index to frequency bin (log scale for better visual)
+                        const freqIdx = Math.min(Math.floor(Math.pow(i / bars, 1.5) * bufLen), bufLen - 1);
+                        const val = freqData[freqIdx] / 255;
+                        const barH = Math.max(2, val * h * 0.9);
+                        const half = barH / 2;
+
+                        // Color by loudness: blue → accent → pink → red
+                        let r, g, b;
+                        if (val < 0.33) {
+                            const t = val / 0.33;
+                            r = Math.round(59 + (99 - 59) * t);
+                            g = Math.round(130 + (102 - 130) * t);
+                            b = Math.round(246 + (241 - 246) * t);
+                        } else if (val < 0.66) {
+                            const t = (val - 0.33) / 0.33;
+                            r = Math.round(99 + (220 - 99) * t);
+                            g = Math.round(102 + (60 - 102) * t);
+                            b = Math.round(241 + (200 - 241) * t);
+                        } else {
+                            const t = (val - 0.66) / 0.34;
+                            r = Math.round(220 + (255 - 220) * t);
+                            g = Math.round(60 + (50 - 60) * t);
+                            b = Math.round(200 + (80 - 200) * t);
+                        }
+                        ctx.fillStyle = `rgba(${r},${g},${b},${0.2 + val * 0.8})`;
                         ctx.beginPath();
-                        ctx.roundRect(x, mid - barH / 2, barW, barH, 1);
+                        ctx.roundRect(x, mid - half, barW, barH, 1);
                         ctx.fill();
-                    } else {
-                        const barH = 3 + Math.sin(i * 0.15) * 1.5;
-                        ctx.fillStyle = 'rgba(255,255,255,0.06)';
+                    }
+
+                    // Playhead
+                    if (audio.duration) {
+                        const px = (audio.currentTime / audio.duration) * w;
+                        ctx.fillStyle = 'rgba(255,255,255,0.4)';
+                        ctx.fillRect(px - 0.5, 0, 1, h);
+                    }
+                } else {
+                    // Fallback: animated sine bars across full width
+                    const t = audio.currentTime;
+                    const progress = audio.duration ? audio.currentTime / audio.duration : 0;
+                    for (let i = 0; i < bars; i++) {
+                        const x = i * step;
+                        const wave = Math.sin(i * 0.1 + t * 4) * 0.35
+                                   + Math.sin(i * 0.06 + t * 6) * 0.35
+                                   + Math.sin(i * 0.18 + t * 2) * 0.3;
+                        const amp = (wave + 1) / 2;
+                        const barH = 4 + amp * h * 0.55;
+                        const pct = x / w;
+                        const alpha = pct <= progress ? 0.3 + amp * 0.7 : 0.05 + amp * 0.08;
+                        const color = pct <= progress ? `rgba(99,102,241,${alpha})` : `rgba(255,255,255,${alpha})`;
+                        ctx.fillStyle = color;
                         ctx.beginPath();
                         ctx.roundRect(x, mid - barH / 2, barW, barH, 1);
                         ctx.fill();
                     }
+                    if (audio.duration) {
+                        const px = progress * w;
+                        ctx.fillStyle = 'rgba(255,255,255,0.4)';
+                        ctx.fillRect(px - 0.5, 0, 1, h);
+                    }
                 }
 
-                // Playhead line
-                const px = progress * w;
-                ctx.fillStyle = 'rgba(255,255,255,0.6)';
-                ctx.fillRect(px - 0.5, 0, 1, h);
-
-                animFrameId = requestAnimationFrame(drawPlayingWaveform);
+                animFrameId = requestAnimationFrame(drawAnalyserFrame);
             }
 
             function seekWaveform(e) {
@@ -562,11 +627,20 @@ pub fn AssetDetailPage() -> impl IntoView {
                 const audio = document.getElementById('audio-player');
                 if (!audio) return;
 
+                // Connect analyser on first play (needs user gesture for AudioContext)
+                if (!analyserConnected && !analyserFailed) {
+                    connectAnalyser();
+                }
+                if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+
                 if (audio.paused) {
                     audio.play().then(() => {
                         document.getElementById('audio-icon-play')?.classList.add('hidden');
                         document.getElementById('audio-icon-pause')?.classList.remove('hidden');
-                        drawPlayingWaveform();
+                        // Update duration if not yet set
+                        const dur = document.getElementById('audio-duration');
+                        if (dur && audio.duration && isFinite(audio.duration)) dur.textContent = fmtTime(audio.duration);
+                        drawAnalyserFrame();
                     }).catch(e => console.warn('Play failed:', e));
                 } else {
                     audio.pause();
