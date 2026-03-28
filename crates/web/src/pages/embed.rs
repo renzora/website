@@ -18,7 +18,8 @@ pub fn EmbedPreviewPage() -> impl IntoView {
             let activeGalleryIndex = 0;
 
             (async function() {
-                const slug = window.location.pathname.split('/').pop();
+                const root = document.getElementById('embed-root');
+                const slug = root?.dataset?.slug || window.location.pathname.split('/').pop();
                 const res = await fetch('/api/marketplace/detail/' + slug);
                 if (!res.ok) {
                     document.getElementById('embed-loading').innerHTML = '<p class="text-zinc-500 text-sm">Preview not available</p>';
