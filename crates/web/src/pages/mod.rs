@@ -7,6 +7,7 @@ pub mod dashboard;
 pub mod developers;
 pub mod docs;
 pub mod download;
+pub mod embed;
 pub mod forum;
 pub mod game_detail;
 pub mod game_store;
