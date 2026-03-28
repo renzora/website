@@ -11,7 +11,7 @@ use axum::{
     Extension, Json, Router,
 };
 use renzora_api::{api_router, middleware::JwtSecret, AppState};
-use renzora_web::shell::Shell;
+use renzora_web::shell::{Shell, EmbedShell};
 use sqlx::postgres::PgPoolOptions;
 use tower_http::cors::CorsLayer;
 use tower_http::services::ServeDir;
@@ -116,6 +116,13 @@ async fn main() {
         async move { render(req).await }
     };
 
+    // Separate SSR handler for embed pages (no nav/shell)
+    let embed_render = leptos_axum::render_app_to_stream(EmbedShell);
+    let embed_ssr = move |req: Request<Body>| {
+        let render = embed_render.clone();
+        async move { render(req).await }
+    };
+
     let db_pool_ext = renzora_api::middleware::DbPool(state.db.clone());
 
     let app = Router::new()
@@ -166,7 +173,7 @@ async fn main() {
         .route("/teams", get(ssr.clone()))
         .route("/settings", get(ssr.clone()))
         .route("/admin", get(ssr.clone()))
-        .route("/embed/preview/:slug", get(serve_embed))
+        .route("/embed/preview/:slug", get(embed_ssr.clone()))
         // Layers
         .layer(Extension(JwtSecret(jwt_secret)))
         .layer(Extension(db_pool_ext))

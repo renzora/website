@@ -2,6 +2,7 @@ use leptos::prelude::*;
 use leptos_meta::MetaTags;
 
 use crate::app::App;
+use crate::pages::embed::EmbedPreviewPage;
 
 /// The HTML shell that wraps the entire application for SSR.
 #[component]
@@ -52,6 +53,45 @@ pub fn Shell() -> impl IntoView {
             </head>
             <body class="text-zinc-50 antialiased">
                 <App />
+            </body>
+        </html>
+    }
+}
+
+/// Minimal shell for embed pages — no nav, no footer, no app wrapper.
+#[component]
+pub fn EmbedShell() -> impl IntoView {
+    view! {
+        <!DOCTYPE html>
+        <html lang="en" class="dark">
+            <head>
+                <meta charset="utf-8" />
+                <meta name="viewport" content="width=device-width, initial-scale=1" />
+                <script src="https://cdn.tailwindcss.com"></script>
+                <link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/regular/style.css" />
+                <link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/fill/style.css" />
+                <script>
+                    "tailwind.config = {
+                        darkMode: 'class',
+                        theme: {
+                            extend: {
+                                colors: {
+                                    accent: { DEFAULT: '#6366f1', hover: '#818cf8' },
+                                    surface: { DEFAULT: '#111113', card: '#18181b' },
+                                },
+                            },
+                        },
+                    }"
+                </script>
+                <style>
+                    "body { margin: 0; padding: 0; background: #060608; overflow: hidden; }
+                    * { box-sizing: border-box; }
+                    .spinner { width: 24px; height: 24px; border: 2px solid #27272a; border-top-color: #6366f1; border-radius: 50%; animation: spin .6s linear infinite; }
+                    @keyframes spin { to { transform: rotate(360deg); } }"
+                </style>
+            </head>
+            <body class="text-zinc-50">
+                <EmbedPreviewPage />
             </body>
         </html>
     }
