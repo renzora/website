@@ -97,6 +97,9 @@ pub struct AssetDetail {
     pub rating_sum: i64,
     pub rating_count: i32,
     pub tags: Vec<String>,
+    pub licence: String,
+    pub ai_generated: bool,
+    pub metadata: serde_json::Value,
     pub creator: UserProfile,
     pub created_at: String,
     pub updated_at: String,
@@ -130,7 +133,25 @@ pub struct UploadAssetRequest {
     pub category: String,
     pub price_credits: i64,
     pub version: String,
+    /// Up to 5 tags for discoverability.
+    #[serde(default)]
+    pub tags: Vec<String>,
+    /// Licence: "standard", "extended", "cc0", "mit", "apache2", "gpl3"
+    #[serde(default = "default_licence")]
+    pub licence: String,
+    /// Whether this asset contains AI-generated content.
+    #[serde(default)]
+    pub ai_generated: bool,
+    /// Flexible metadata (render pipeline, texture resolution, poly count, etc.)
+    /// Example: {"render_pipeline":"pbr","texture_resolution":"2048x2048","poly_count":1500}
+    #[serde(default)]
+    pub metadata: serde_json::Value,
 }
+
+fn default_licence() -> String { "standard".to_string() }
+
+/// Valid licence identifiers.
+pub const VALID_LICENCES: &[&str] = &["standard", "extended", "cc0", "mit", "apache2", "gpl3"];
 
 #[derive(Debug, Deserialize)]
 pub struct UpdateAssetRequest {
@@ -139,6 +160,10 @@ pub struct UpdateAssetRequest {
     pub price_credits: Option<i64>,
     pub version: Option<String>,
     pub published: Option<bool>,
+    pub tags: Option<Vec<String>>,
+    pub licence: Option<String>,
+    pub ai_generated: Option<bool>,
+    pub metadata: Option<serde_json::Value>,
 }
 
 #[derive(Debug, Serialize)]

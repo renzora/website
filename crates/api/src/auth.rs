@@ -347,6 +347,9 @@ async fn discord_callback(
     )
     .await?;
 
+    // Assign Discord role if user has an active subscription
+    crate::discord::on_discord_link(&state.db, claims.sub, &discord_user.id).await;
+
     // Redirect back to the site settings page
     Ok(Redirect::to(&format!("{}/settings?discord=linked", state.site_url)))
 }
@@ -356,6 +359,13 @@ async fn discord_unlink(
     State(state): State<AppState>,
     Extension(auth): Extension<AuthUser>,
 ) -> Result<Json<MessageResponse>, ApiError> {
+    // Get Discord ID before unlinking so we can remove roles
+    let user = User::find_by_id(&state.db, auth.user_id).await?
+        .ok_or(ApiError::Internal("User not found".into()))?;
+    if let Some(discord_id) = &user.discord_id {
+        crate::discord::on_discord_unlink(discord_id).await;
+    }
+
     User::unlink_discord(&state.db, auth.user_id).await?;
     Ok(Json(MessageResponse {
         message: "Discord unlinked".into(),

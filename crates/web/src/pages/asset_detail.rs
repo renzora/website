@@ -230,7 +230,7 @@ pub fn AssetDetailPage() -> impl IntoView {
                             <div class="mt-8">
                                 <div class="flex items-center gap-3">
                                     <h1 class="text-3xl font-bold leading-tight">${a.name}</h1>
-                                    ${isCreator ? `<a href="/marketplace/asset/${a.slug}/edit" class="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium bg-white/[0.03] border border-zinc-800/50 text-zinc-400 hover:border-zinc-600 hover:text-zinc-200 transition-colors"><i class="ph ph-pencil-simple"></i>Edit</a>` : ''}
+                                    ${isCreator ? `<a href="/marketplace/asset/${a.slug}/edit" class="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium bg-white/[0.03] border border-zinc-800/50 text-zinc-400 hover:border-zinc-600 hover:text-zinc-200 transition-colors"><i class="ph ph-pencil-simple"></i>Edit</a><button onclick="deleteAsset('${a.id}')" class="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium bg-white/[0.03] border border-red-900/50 text-red-400 hover:border-red-700 hover:text-red-300 hover:bg-red-950/30 transition-colors"><i class="ph ph-trash"></i>Delete</button>` : ''}
                                 </div>
                                 <div class="flex items-center gap-4 mt-3 flex-wrap">
                                     <a href="/profile/${a.creator.username}" class="flex items-center gap-2 text-sm font-medium text-accent hover:text-accent-hover transition-colors">
@@ -1121,6 +1121,22 @@ pub fn AssetDetailPage() -> impl IntoView {
                     body: JSON.stringify({ content: input.value })
                 });
                 if (res.ok) { input.value = ''; window.location.reload(); } else { const d = await res.json(); alert(d.error || 'Failed'); }
+            }
+
+            async function deleteAsset(assetId) {
+                if (!confirm('Are you sure you want to delete this asset? This will permanently remove it and all associated files.')) return;
+                const token = document.cookie.match('(^|;)\\s*token\\s*=\\s*([^;]+)')?.pop();
+                if (!token) return;
+                const res = await fetch('/api/marketplace/' + assetId + '/delete', {
+                    method: 'DELETE',
+                    headers: { 'Authorization': 'Bearer ' + token }
+                });
+                if (res.ok) {
+                    window.location.href = '/marketplace';
+                } else {
+                    const data = await res.json().catch(() => ({}));
+                    alert('Failed to delete: ' + (data.message || res.statusText));
+                }
             }
 
             async function deleteComment(commentId, assetId) {

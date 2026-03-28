@@ -78,11 +78,17 @@ pub fn Nav() -> impl IntoView {
                             <a href="/library" class="flex items-center gap-2 px-3 py-2.5 text-sm text-zinc-400 hover:text-zinc-50 hover:bg-white/5 transition-all">
                                 <i class="ph ph-books text-base"></i>"My Library"
                             </a>
-                            <a href="/dashboard" class="flex items-center gap-2 px-3 py-2.5 text-sm text-zinc-400 hover:text-zinc-50 hover:bg-white/5 transition-all">
-                                <i class="ph ph-chart-bar text-base"></i>"Dashboard"
-                            </a>
                             <a id="nav-sell-link" href="/marketplace/sell" class="flex items-center gap-2 px-3 py-2.5 text-sm text-zinc-400 hover:text-zinc-50 hover:bg-white/5 transition-all">
                                 <i class="ph ph-storefront text-base" id="nav-sell-icon"></i><span id="nav-sell-text">"Sell on Marketplace"</span>
+                            </a>
+                            <a href="/teams" class="flex items-center gap-2 px-3 py-2.5 text-sm text-zinc-400 hover:text-zinc-50 hover:bg-white/5 transition-all">
+                                <i class="ph ph-users-three text-base"></i>"Teams"
+                            </a>
+                            <a href="/subscription" class="flex items-center gap-2 px-3 py-2.5 text-sm text-zinc-400 hover:text-zinc-50 hover:bg-white/5 transition-all">
+                                <i class="ph ph-crown text-base"></i>"Subscription"
+                            </a>
+                            <a href="/developers" class="flex items-center gap-2 px-3 py-2.5 text-sm text-zinc-400 hover:text-zinc-50 hover:bg-white/5 transition-all">
+                                <i class="ph ph-code text-base"></i>"Developers"
                             </a>
                             <a href="/settings" class="flex items-center gap-2 px-3 py-2.5 text-sm text-zinc-400 hover:text-zinc-50 hover:bg-white/5 transition-all">
                                 <i class="ph ph-gear text-base"></i>"Settings"

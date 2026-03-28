@@ -12,6 +12,7 @@ use crate::pages::{
     asset_edit::AssetEditPage,
     community::{CommunityPage, ArticleDetailPage, WriteArticlePage},
     dashboard::DashboardPage,
+    developers::DevelopersPage,
     docs::{DocsPage, DocsSectionPage, DocArticle},
     courses::{CoursesPage, CourseDetailPage, ChapterViewPage, CreateCoursePage, EditCoursePage},
     download::DownloadPage,
@@ -27,6 +28,8 @@ use crate::pages::{
     sell::SellOnboardingPage,
     shop::ShopPage,
     settings::SettingsPage,
+    subscription::SubscriptionPage,
+    teams::TeamsPage,
     upload::UploadPage,
     wallet::WalletPage,
 };
@@ -77,6 +80,9 @@ pub fn App() -> impl IntoView {
                     <Route path=path!("/profile/:username") view=ProfilePage />
                     <Route path=path!("/shop/:username") view=ShopPage />
                     <Route path=path!("/dashboard") view=DashboardPage />
+                    <Route path=path!("/developers") view=DevelopersPage />
+                    <Route path=path!("/subscription") view=SubscriptionPage />
+                    <Route path=path!("/teams") view=TeamsPage />
                     <Route path=path!("/settings") view=SettingsPage />
                     <Route path=path!("/admin") view=AdminPage />
                 </Routes>

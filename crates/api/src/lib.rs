@@ -1,18 +1,24 @@
 pub mod admin;
+pub mod api_tokens;
 pub mod articles;
 pub mod auth;
 pub mod creator;
 pub mod courses;
+pub mod discord;
 pub mod credits;
 pub mod docs;
 pub mod error;
 pub mod forum;
 pub mod games;
 pub mod jwt;
+pub mod library;
 pub mod marketplace;
 pub mod middleware;
 pub mod notifications;
 pub mod profiles;
+pub mod subscriptions;
+pub mod teams;
+pub mod user;
 pub mod ws;
 
 use axum::Router;
@@ -49,6 +55,11 @@ pub fn api_router(state: AppState) -> Router {
         .nest("/notifications", notifications::router())
         .nest("/profiles", profiles::router())
         .nest("/admin", admin::router())
+        .nest("/api-tokens", api_tokens::router())
+        .nest("/subscriptions", subscriptions::router())
+        .nest("/teams", teams::router())
+        .nest("/library", library::router())
+        .nest("/user", user::router())
         .nest("/ws", ws::router())
         .with_state(state)
 }

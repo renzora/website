@@ -20,6 +20,9 @@ pub struct Asset {
     pub rating_sum: i64,
     pub rating_count: i32,
     pub tags: Vec<String>,
+    pub licence: String,
+    pub ai_generated: bool,
+    pub metadata: serde_json::Value,
     pub created_at: OffsetDateTime,
     pub updated_at: OffsetDateTime,
 }
@@ -54,14 +57,30 @@ impl Asset {
         price_credits: i64,
         version: &str,
     ) -> Result<Self, sqlx::Error> {
+        Self::create_full(pool, creator_id, name, description, category, price_credits, version, &[], "standard", false, serde_json::Value::Object(Default::default())).await
+    }
+
+    pub async fn create_full(
+        pool: &PgPool,
+        creator_id: Uuid,
+        name: &str,
+        description: &str,
+        category: &str,
+        price_credits: i64,
+        version: &str,
+        tags: &[String],
+        licence: &str,
+        ai_generated: bool,
+        metadata: serde_json::Value,
+    ) -> Result<Self, sqlx::Error> {
         let id = Uuid::new_v4();
         let slug = slugify(name, id);
         let now = OffsetDateTime::now_utc();
 
         sqlx::query_as::<_, Asset>(
             r#"
-            INSERT INTO assets (id, creator_id, name, slug, description, category, price_credits, version, created_at, updated_at)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $9)
+            INSERT INTO assets (id, creator_id, name, slug, description, category, price_credits, version, tags, licence, ai_generated, metadata, created_at, updated_at)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $13)
             RETURNING *
             "#,
         )
@@ -73,6 +92,10 @@ impl Asset {
         .bind(category)
         .bind(price_credits)
         .bind(version)
+        .bind(tags)
+        .bind(licence)
+        .bind(ai_generated)
+        .bind(metadata)
         .bind(now)
         .fetch_one(pool)
         .await
@@ -248,6 +271,33 @@ impl Asset {
         .bind(published)
         .fetch_one(pool)
         .await
+    }
+
+    pub async fn update_extended(
+        pool: &PgPool,
+        id: Uuid,
+        tags: Option<&[String]>,
+        licence: Option<&str>,
+        ai_generated: Option<bool>,
+        metadata: Option<serde_json::Value>,
+    ) -> Result<(), sqlx::Error> {
+        if let Some(tags) = tags {
+            sqlx::query("UPDATE assets SET tags = $2, updated_at = NOW() WHERE id = $1")
+                .bind(id).bind(tags).execute(pool).await?;
+        }
+        if let Some(licence) = licence {
+            sqlx::query("UPDATE assets SET licence = $2, updated_at = NOW() WHERE id = $1")
+                .bind(id).bind(licence).execute(pool).await?;
+        }
+        if let Some(ai) = ai_generated {
+            sqlx::query("UPDATE assets SET ai_generated = $2, updated_at = NOW() WHERE id = $1")
+                .bind(id).bind(ai).execute(pool).await?;
+        }
+        if let Some(meta) = metadata {
+            sqlx::query("UPDATE assets SET metadata = $2, updated_at = NOW() WHERE id = $1")
+                .bind(id).bind(meta).execute(pool).await?;
+        }
+        Ok(())
     }
 
     /// List all assets owned/purchased by a user (via user_assets table).

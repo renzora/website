@@ -116,6 +116,8 @@ async fn main() {
         async move { render(req).await }
     };
 
+    let db_pool_ext = renzora_api::middleware::DbPool(state.db.clone());
+
     let app = Router::new()
         // Health check
         .route("/health", get(health_check))
@@ -159,10 +161,14 @@ async fn main() {
         .route("/shop/:username", get(ssr.clone()))
         .route("/marketplace/asset/:slug/edit", get(ssr.clone()))
         .route("/dashboard", get(ssr.clone()))
+        .route("/developers", get(ssr.clone()))
+        .route("/subscription", get(ssr.clone()))
+        .route("/teams", get(ssr.clone()))
         .route("/settings", get(ssr.clone()))
         .route("/admin", get(ssr.clone()))
         // Layers
         .layer(Extension(JwtSecret(jwt_secret)))
+        .layer(Extension(db_pool_ext))
         .layer(DefaultBodyLimit::max(50 * 1024 * 1024))
         .layer(cors)
         .layer(TraceLayer::new_for_http());

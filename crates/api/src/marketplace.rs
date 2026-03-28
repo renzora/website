@@ -28,6 +28,7 @@ pub fn router() -> Router<AppState> {
         .route("/media/:media_id", delete(delete_media))
         .route("/:id/reviews/flag", post(flag_review))
         .route("/:id/reviews/helpful", post(mark_review_helpful))
+        .route("/:id/delete", delete(delete_asset))
         .layer(axum::middleware::from_fn(middleware::require_auth));
 
     Router::new()
@@ -142,7 +143,16 @@ async fn get_asset(
     Ok(Json(asset_to_detail(&asset, &creator, owned)))
 }
 
-/// Upload a new asset (multipart: JSON metadata + file + optional thumbnail).
+/// Upload a new asset.
+///
+/// Multipart fields:
+/// - `metadata` (required): JSON with name, description, category, price_credits, version,
+///    tags, licence, ai_generated, metadata (material details etc.)
+/// - `file` (required): The asset file (.wgsl, .zip, .glb, etc.)
+/// - `thumbnail` (optional): Cover image (.png, .jpg, .webp)
+/// - `screenshot_0`..`screenshot_9` (optional): Gallery screenshots
+/// - `video` (optional): Video preview (.mp4, .webm)
+/// - `audio` (optional): Audio preview (.mp3, .wav, .ogg)
 async fn upload_asset(
     State(state): State<AppState>,
     Extension(auth): Extension<AuthUser>,
@@ -151,6 +161,9 @@ async fn upload_asset(
     let mut metadata: Option<UploadAssetRequest> = None;
     let mut file_path: Option<String> = None;
     let mut thumb_path: Option<String> = None;
+    let mut screenshots: Vec<String> = Vec::new();
+    let mut video_url: Option<String> = None;
+    let mut audio_url: Option<String> = None;
 
     while let Some(field) = multipart.next_field().await.map_err(|e| {
         ApiError::Validation(format!("Failed to read multipart field: {e}"))
@@ -174,15 +187,61 @@ async fn upload_asset(
                     .bytes()
                     .await
                     .map_err(|e| ApiError::Validation(format!("Failed to read file: {e}")))?;
+                if data.len() > 200 * 1024 * 1024 {
+                    return Err(ApiError::Validation("File exceeds 200MB limit".into()));
+                }
                 file_path = Some(upload_to_storage(&state, "assets", &filename, data.to_vec()).await?);
             }
             "thumbnail" => {
                 let filename = field.file_name().unwrap_or("thumb.png").to_string();
+                validate_image_extension(&filename)?;
                 let data = field
                     .bytes()
                     .await
                     .map_err(|e| ApiError::Validation(format!("Failed to read thumbnail: {e}")))?;
+                if data.len() > 10 * 1024 * 1024 {
+                    return Err(ApiError::Validation("Thumbnail exceeds 10MB limit".into()));
+                }
                 thumb_path = Some(upload_to_storage(&state, "thumbnails", &filename, data.to_vec()).await?);
+            }
+            name if name.starts_with("screenshot") => {
+                if screenshots.len() >= 10 {
+                    return Err(ApiError::Validation("Maximum 10 screenshots".into()));
+                }
+                let filename = field.file_name().unwrap_or("screenshot.png").to_string();
+                validate_image_extension(&filename)?;
+                let data = field
+                    .bytes()
+                    .await
+                    .map_err(|e| ApiError::Validation(format!("Failed to read screenshot: {e}")))?;
+                if data.len() > 10 * 1024 * 1024 {
+                    return Err(ApiError::Validation("Screenshot exceeds 10MB limit".into()));
+                }
+                screenshots.push(upload_to_storage(&state, "gallery", &filename, data.to_vec()).await?);
+            }
+            "video" => {
+                let filename = field.file_name().unwrap_or("preview.mp4").to_string();
+                validate_video_extension(&filename)?;
+                let data = field
+                    .bytes()
+                    .await
+                    .map_err(|e| ApiError::Validation(format!("Failed to read video: {e}")))?;
+                if data.len() > 100 * 1024 * 1024 {
+                    return Err(ApiError::Validation("Video exceeds 100MB limit".into()));
+                }
+                video_url = Some(upload_to_storage(&state, "gallery", &filename, data.to_vec()).await?);
+            }
+            "audio" => {
+                let filename = field.file_name().unwrap_or("preview.mp3").to_string();
+                validate_audio_extension(&filename)?;
+                let data = field
+                    .bytes()
+                    .await
+                    .map_err(|e| ApiError::Validation(format!("Failed to read audio: {e}")))?;
+                if data.len() > 50 * 1024 * 1024 {
+                    return Err(ApiError::Validation("Audio exceeds 50MB limit".into()));
+                }
+                audio_url = Some(upload_to_storage(&state, "gallery", &filename, data.to_vec()).await?);
             }
             _ => {}
         }
@@ -190,20 +249,104 @@ async fn upload_asset(
 
     let meta = metadata.ok_or(ApiError::Validation("Missing metadata field".into()))?;
 
-    // Validate category exists in DB
-    let cat_exists = renzora_models::category::Category::find_by_slug(&state.db, &meta.category).await?;
-    if cat_exists.is_none() {
+    // ── Validate all fields ──
+
+    // Name: 1-128 characters
+    let name = meta.name.trim();
+    if name.is_empty() || name.len() > 128 {
+        return Err(ApiError::Validation("Name must be 1-128 characters".into()));
+    }
+
+    // Description: 1-5000 characters
+    let description = meta.description.trim();
+    if description.is_empty() || description.len() > 5000 {
+        return Err(ApiError::Validation("Description must be 1-5000 characters".into()));
+    }
+
+    // Category: must exist in DB
+    let cat = renzora_models::category::Category::find_by_slug(&state.db, &meta.category).await?;
+    if cat.is_none() {
         return Err(ApiError::Validation(format!("Unknown category: '{}'", meta.category)));
     }
 
-    let asset = Asset::create(
+    // Price: non-negative
+    if meta.price_credits < 0 {
+        return Err(ApiError::Validation("Price cannot be negative".into()));
+    }
+
+    // Version: semver-like, 1-32 chars
+    let version = meta.version.trim();
+    if version.is_empty() || version.len() > 32 {
+        return Err(ApiError::Validation("Version must be 1-32 characters".into()));
+    }
+
+    // Tags: max 5, each 1-32 chars, alphanumeric + hyphens
+    let tags: Vec<String> = meta.tags.iter()
+        .take(5)
+        .map(|t| t.trim().to_lowercase())
+        .filter(|t| !t.is_empty() && t.len() <= 32)
+        .collect();
+
+    // Licence: must be valid
+    if !renzora_common::types::VALID_LICENCES.contains(&meta.licence.as_str()) {
+        return Err(ApiError::Validation(format!(
+            "Invalid licence '{}'. Valid options: {}",
+            meta.licence,
+            renzora_common::types::VALID_LICENCES.join(", ")
+        )));
+    }
+
+    // Metadata: must be an object, validate known keys
+    if !meta.metadata.is_null() && !meta.metadata.is_object() {
+        return Err(ApiError::Validation("metadata must be a JSON object".into()));
+    }
+    if let Some(obj) = meta.metadata.as_object() {
+        // Validate texture_resolution if present
+        if let Some(res) = obj.get("texture_resolution") {
+            if let Some(s) = res.as_str() {
+                if !s.is_empty() && !s.contains('x') {
+                    return Err(ApiError::Validation("texture_resolution should be in format 'WIDTHxHEIGHT' (e.g. '2048x2048')".into()));
+                }
+            }
+        }
+        // Validate render_pipeline if present
+        if let Some(rp) = obj.get("render_pipeline") {
+            if let Some(s) = rp.as_str() {
+                let valid = ["pbr", "unlit", "custom", "forward", "deferred"];
+                if !valid.contains(&s) {
+                    return Err(ApiError::Validation(format!("render_pipeline must be one of: {}", valid.join(", "))));
+                }
+            }
+        }
+        // Validate poly_count if present
+        if let Some(pc) = obj.get("poly_count") {
+            if let Some(n) = pc.as_i64() {
+                if n < 0 {
+                    return Err(ApiError::Validation("poly_count cannot be negative".into()));
+                }
+            }
+        }
+    }
+
+    // File is required
+    if file_path.is_none() {
+        return Err(ApiError::Validation("Asset file is required".into()));
+    }
+
+    // ── Create asset ──
+
+    let asset = Asset::create_full(
         &state.db,
         auth.user_id,
-        &meta.name,
-        &meta.description,
+        name,
+        description,
         &meta.category,
         meta.price_credits,
-        &meta.version,
+        version,
+        &tags,
+        &meta.licence,
+        meta.ai_generated,
+        meta.metadata.clone(),
     )
     .await?;
 
@@ -212,6 +355,30 @@ async fn upload_asset(
     }
     if let Some(url) = &thumb_path {
         Asset::update_thumbnail_url(&state.db, asset.id, url).await?;
+    }
+
+    // Insert gallery media (screenshots, video, audio)
+    for (i, url) in screenshots.iter().enumerate() {
+        sqlx::query("INSERT INTO asset_media (asset_id, media_type, url, sort_order) VALUES ($1, 'image', $2, $3)")
+            .bind(asset.id)
+            .bind(url)
+            .bind(i as i32)
+            .execute(&state.db)
+            .await?;
+    }
+    if let Some(url) = &video_url {
+        sqlx::query("INSERT INTO asset_media (asset_id, media_type, url, sort_order) VALUES ($1, 'video', $2, 100)")
+            .bind(asset.id)
+            .bind(url)
+            .execute(&state.db)
+            .await?;
+    }
+    if let Some(url) = &audio_url {
+        sqlx::query("INSERT INTO asset_media (asset_id, media_type, url, sort_order) VALUES ($1, 'audio', $2, 200)")
+            .bind(asset.id)
+            .bind(url)
+            .execute(&state.db)
+            .await?;
     }
 
     // Re-fetch with updated URLs
@@ -234,6 +401,30 @@ async fn upload_asset(
     Ok(Json(asset_to_detail(&asset, &creator, Some(true))))
 }
 
+fn validate_image_extension(filename: &str) -> Result<(), ApiError> {
+    let ext = filename.rsplit('.').next().unwrap_or("").to_lowercase();
+    match ext.as_str() {
+        "png" | "jpg" | "jpeg" | "webp" | "gif" => Ok(()),
+        _ => Err(ApiError::Validation(format!("Invalid image format '.{ext}'. Allowed: png, jpg, jpeg, webp, gif"))),
+    }
+}
+
+fn validate_video_extension(filename: &str) -> Result<(), ApiError> {
+    let ext = filename.rsplit('.').next().unwrap_or("").to_lowercase();
+    match ext.as_str() {
+        "mp4" | "webm" | "mov" => Ok(()),
+        _ => Err(ApiError::Validation(format!("Invalid video format '.{ext}'. Allowed: mp4, webm, mov"))),
+    }
+}
+
+fn validate_audio_extension(filename: &str) -> Result<(), ApiError> {
+    let ext = filename.rsplit('.').next().unwrap_or("").to_lowercase();
+    match ext.as_str() {
+        "mp3" | "wav" | "ogg" | "flac" => Ok(()),
+        _ => Err(ApiError::Validation(format!("Invalid audio format '.{ext}'. Allowed: mp3, wav, ogg, flac"))),
+    }
+}
+
 /// Update an asset's metadata (creator only).
 async fn update_asset(
     State(state): State<AppState>,
@@ -249,6 +440,20 @@ async fn update_asset(
         return Err(ApiError::Unauthorized);
     }
 
+    // Validate tags if provided
+    if let Some(tags) = &body.tags {
+        if tags.len() > 5 {
+            return Err(ApiError::Validation("Maximum 5 tags".into()));
+        }
+    }
+
+    // Validate licence if provided
+    if let Some(licence) = &body.licence {
+        if !renzora_common::types::VALID_LICENCES.contains(&licence.as_str()) {
+            return Err(ApiError::Validation(format!("Invalid licence '{licence}'")));
+        }
+    }
+
     let updated = Asset::update_metadata(
         &state.db,
         id,
@@ -259,6 +464,24 @@ async fn update_asset(
         body.published,
     )
     .await?;
+
+    // Update extended fields
+    let tags_cleaned: Option<Vec<String>> = body.tags.as_ref().map(|t|
+        t.iter().take(5).map(|s| s.trim().to_lowercase()).filter(|s| !s.is_empty()).collect()
+    );
+    Asset::update_extended(
+        &state.db,
+        id,
+        tags_cleaned.as_deref(),
+        body.licence.as_deref(),
+        body.ai_generated,
+        body.metadata.clone(),
+    ).await?;
+
+    // Re-fetch to get all updated fields
+    let updated = Asset::find_by_id(&state.db, id)
+        .await?
+        .ok_or(ApiError::Internal("Asset not found".into()))?;
 
     let creator = User::find_by_id(&state.db, auth.user_id)
         .await?
@@ -343,6 +566,61 @@ async fn download_asset(
     Ok(Json(DownloadResponse {
         download_url: file_url,
     }))
+}
+
+/// Delete an asset and all its associated files from storage.
+/// Only the asset creator or an admin can delete.
+async fn delete_asset(
+    State(state): State<AppState>,
+    Extension(auth): Extension<AuthUser>,
+    Path(id): Path<Uuid>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    let asset = Asset::find_by_id(&state.db, id)
+        .await?
+        .ok_or(ApiError::NotFound)?;
+
+    // Only creator or admin can delete
+    if asset.creator_id != auth.user_id {
+        let user = User::find_by_id(&state.db, auth.user_id)
+            .await?
+            .ok_or(ApiError::Unauthorized)?;
+        if user.role != "admin" {
+            return Err(ApiError::Unauthorized);
+        }
+    }
+
+    // Delete files from storage
+    if let Some(url) = &asset.file_url {
+        delete_from_storage(&state, url).await?;
+    }
+    if let Some(url) = &asset.thumbnail_url {
+        delete_from_storage(&state, url).await?;
+    }
+
+    // Delete associated media files from storage
+    let media_rows = sqlx::query_as::<_, (String, Option<String>)>(
+        "SELECT url, thumbnail_url FROM asset_media WHERE asset_id = $1"
+    )
+    .bind(id)
+    .fetch_all(&state.db)
+    .await?;
+
+    for (url, thumb_url) in &media_rows {
+        delete_from_storage(&state, url).await?;
+        if let Some(thumb) = thumb_url {
+            delete_from_storage(&state, thumb).await?;
+        }
+    }
+
+    // Delete DB records (cascading: media, reviews, comments, purchases)
+    sqlx::query("DELETE FROM asset_media WHERE asset_id = $1").bind(id).execute(&state.db).await?;
+    sqlx::query("DELETE FROM reviews WHERE asset_id = $1").bind(id).execute(&state.db).await?;
+    sqlx::query("DELETE FROM asset_comments WHERE asset_id = $1").bind(id).execute(&state.db).await?;
+    sqlx::query("DELETE FROM user_assets WHERE asset_id = $1").bind(id).execute(&state.db).await?;
+    sqlx::query("DELETE FROM transactions WHERE asset_id = $1").bind(id).execute(&state.db).await?;
+    sqlx::query("DELETE FROM assets WHERE id = $1").bind(id).execute(&state.db).await?;
+
+    Ok(Json(serde_json::json!({ "message": "Asset deleted", "id": id.to_string() })))
 }
 
 /// Proxy an asset's file for the live preview (avoids CORS issues with CDN).
@@ -714,6 +992,38 @@ pub async fn upload_to_storage(
     }
 }
 
+/// Delete a file from S3 or local disk given its public URL.
+pub async fn delete_from_storage(state: &AppState, url: &str) -> Result<(), ApiError> {
+    // Extract the S3 key from the public URL
+    // e.g. "https://assets.renzora.com/assets/uuid.wgsl" -> "assets/uuid.wgsl"
+    let key = if url.starts_with(&state.s3_public_url) {
+        url.strip_prefix(&state.s3_public_url)
+            .unwrap_or(url)
+            .trim_start_matches('/')
+            .to_string()
+    } else if url.starts_with(&state.upload_base_url) {
+        url.strip_prefix(&state.upload_base_url)
+            .unwrap_or(url)
+            .trim_start_matches('/')
+            .to_string()
+    } else {
+        return Ok(()); // Unknown URL format, skip
+    };
+
+    if key.is_empty() {
+        return Ok(());
+    }
+
+    if let Some(bucket) = &state.s3_bucket {
+        let _ = bucket.delete_object(&key).await; // Best effort
+    } else {
+        let path = format!("{}/{}", state.upload_dir, key);
+        let _ = tokio::fs::remove_file(&path).await; // Best effort
+    }
+
+    Ok(())
+}
+
 // ── Media gallery ──
 
 async fn list_media(
@@ -825,6 +1135,9 @@ fn asset_to_detail(
         rating_sum: asset.rating_sum,
         rating_count: asset.rating_count,
         tags: asset.tags.clone(),
+        licence: asset.licence.clone(),
+        ai_generated: asset.ai_generated,
+        metadata: asset.metadata.clone(),
         creator: UserProfile {
             id: creator.id,
             username: creator.username.clone(),

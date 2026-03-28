@@ -89,6 +89,13 @@ impl User {
             .await
     }
 
+    pub async fn find_by_username(pool: &PgPool, username: &str) -> Result<Option<Self>, sqlx::Error> {
+        sqlx::query_as::<_, User>("SELECT * FROM users WHERE username = $1")
+            .bind(username)
+            .fetch_optional(pool)
+            .await
+    }
+
     pub async fn find_by_id(pool: &PgPool, id: Uuid) -> Result<Option<Self>, sqlx::Error> {
         sqlx::query_as::<_, User>("SELECT * FROM users WHERE id = $1")
             .bind(id)
