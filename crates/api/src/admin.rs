@@ -10,6 +10,7 @@ use renzora_models::dispute::{self, Dispute};
 use renzora_models::forum::ForumCategory;
 use renzora_models::user::User;
 use renzora_models::asset::Asset;
+use renzora_models::article::Article;
 use renzora_models::doc::Doc;
 use serde::{Deserialize, Serialize};
 use sqlx::Row;
@@ -83,6 +84,10 @@ pub fn router() -> Router<AppState> {
         .route("/users/:id/notes", get(get_mod_notes_handler))
         .route("/users/:id/notes", post(add_mod_note_handler))
         .route("/notes/:id", delete(delete_mod_note_handler))
+        // Articles
+        .route("/articles", get(list_admin_articles))
+        .route("/articles/:id/publish", put(toggle_article_publish))
+        .route("/articles/:id", delete(delete_article))
         .layer(axum::middleware::from_fn(require_admin))
         .layer(axum::middleware::from_fn(middleware::require_auth))
 }
@@ -977,4 +982,67 @@ async fn verify_admin(state: &AppState, user_id: Uuid) -> Result<(), ApiError> {
         return Ok(());
     }
     Err(ApiError::Unauthorized)
+}
+
+// ── Articles ──
+
+async fn list_admin_articles(
+    State(state): State<AppState>,
+    Query(params): Query<std::collections::HashMap<String, String>>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    let q = params.get("q").cloned().unwrap_or_default();
+    let rows = sqlx::query_as::<_, Article>(
+        r#"
+        SELECT * FROM articles
+        WHERE ($1 = '' OR title ILIKE '%' || $1 || '%')
+        ORDER BY created_at DESC
+        LIMIT 100
+        "#
+    )
+    .bind(&q)
+    .fetch_all(&state.db)
+    .await?;
+
+    // Look up author names
+    let mut articles: Vec<serde_json::Value> = Vec::new();
+    for a in &rows {
+        let author_name = User::find_by_id(&state.db, a.author_id).await
+            .ok().flatten()
+            .map(|u| u.username)
+            .unwrap_or_else(|| "Unknown".to_string());
+        articles.push(serde_json::json!({
+            "id": a.id,
+            "title": a.title,
+            "slug": a.slug,
+            "author_name": author_name,
+            "published": a.published,
+            "tags": a.tags,
+            "likes": a.likes,
+            "views": a.views,
+            "created_at": a.created_at.to_string(),
+        }));
+    }
+
+    Ok(Json(serde_json::json!({ "articles": articles })))
+}
+
+async fn toggle_article_publish(
+    State(state): State<AppState>,
+    Path(id): Path<Uuid>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    sqlx::query("UPDATE articles SET published = NOT published WHERE id = $1")
+        .bind(id)
+        .execute(&state.db)
+        .await?;
+    Ok(Json(serde_json::json!({ "ok": true })))
+}
+
+async fn delete_article(
+    State(state): State<AppState>,
+    Path(id): Path<Uuid>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    sqlx::query("DELETE FROM article_comments WHERE article_id = $1").bind(id).execute(&state.db).await?;
+    sqlx::query("DELETE FROM article_likes WHERE article_id = $1").bind(id).execute(&state.db).await?;
+    sqlx::query("DELETE FROM articles WHERE id = $1").bind(id).execute(&state.db).await?;
+    Ok(Json(serde_json::json!({ "ok": true })))
 }

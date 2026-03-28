@@ -39,6 +39,9 @@ pub fn AdminPage() -> impl IntoView {
                     <button onclick="showTab('forum')" id="tab-forum" class="admin-tab w-full flex items-center gap-2.5 px-4 py-2 text-sm text-zinc-400 hover:text-zinc-50 hover:bg-white/5 transition-all">
                         <i class="ph ph-chat-circle-dots text-base"></i>"Forum"
                     </button>
+                    <button onclick="showTab('articles')" id="tab-articles" class="admin-tab w-full flex items-center gap-2.5 px-4 py-2 text-sm text-zinc-400 hover:text-zinc-50 hover:bg-white/5 transition-all">
+                        <i class="ph ph-article text-base"></i>"Articles"
+                    </button>
                     <button onclick="showTab('docs')" id="tab-docs" class="admin-tab w-full flex items-center gap-2.5 px-4 py-2 text-sm text-zinc-400 hover:text-zinc-50 hover:bg-white/5 transition-all">
                         <i class="ph ph-book-open text-base"></i>"Docs"
                     </button>
@@ -128,7 +131,7 @@ pub fn AdminPage() -> impl IntoView {
                     tab.classList.add('bg-white/5', 'text-zinc-50');
                     tab.classList.remove('text-zinc-400');
                 }
-                const loaders = { users: loadUsers, assets: loadAssets, categories: loadCategories, disputes: loadDisputes, roles: loadRoles, forum: loadForumCats, badges: loadBadges, reviews: loadFlaggedReviews, withdrawals: loadWithdrawals, promos: loadPromos, settings: loadSettings, docs: loadDocs, analytics: loadAnalytics };
+                const loaders = { users: loadUsers, assets: loadAssets, categories: loadCategories, disputes: loadDisputes, roles: loadRoles, forum: loadForumCats, badges: loadBadges, reviews: loadFlaggedReviews, withdrawals: loadWithdrawals, promos: loadPromos, settings: loadSettings, docs: loadDocs, analytics: loadAnalytics, articles: loadArticles };
                 if (loaders[name]) loaders[name]();
             }
 
@@ -395,6 +398,38 @@ pub fn AdminPage() -> impl IntoView {
             }
             async function togglePub(id) { await api('/assets/'+id+'/publish', { method: 'PUT' }); loadAssets(); loadStats(); }
             async function delAsset(id) { await api('/assets/'+id, { method: 'DELETE' }); loadAssets(); loadStats(); }
+
+            // ── Articles ──
+            async function loadArticles() {
+                const el = document.getElementById('admin-content');
+                el.innerHTML = '<div class="flex justify-between items-center mb-4"><h2 class="text-lg font-semibold">Articles</h2><input type="text" id="article-q" placeholder="Search..." oninput="loadArticles()" class="px-3 py-2 bg-surface border border-zinc-800 rounded-lg text-sm text-zinc-50 outline-none focus:border-accent w-64" /></div><div id="article-list" class="space-y-2">Loading...</div>';
+                const q = document.getElementById('article-q')?.value || '';
+                const data = await api('/articles?q=' + encodeURIComponent(q));
+                if (!data?.articles) return;
+                document.getElementById('article-list').innerHTML = data.articles.map(a => {
+                    const tags = (a.tags || []).map(t => `<span class="px-1.5 py-0.5 rounded text-[10px] bg-zinc-800 text-zinc-400">${t}</span>`).join(' ');
+                    const date = new Date(a.created_at);
+                    const dateStr = isNaN(date) ? '' : date.toLocaleDateString('en-US', {month:'short', day:'numeric', year:'numeric'});
+                    return `
+                    <div class="flex items-center justify-between p-3 bg-surface border border-zinc-800 rounded-lg">
+                        <div class="min-w-0 flex-1">
+                            <div class="flex items-center gap-2">
+                                <span class="text-sm font-medium">${a.title}</span>
+                                ${tags}
+                            </div>
+                            <span class="text-xs text-zinc-500">by ${a.author_name} · ${dateStr} · ${a.views} views · ${a.likes} likes</span>
+                        </div>
+                        <div class="flex items-center gap-2 shrink-0 ml-4">
+                            <span class="text-xs ${a.published ? 'text-green-400' : 'text-zinc-500'}">${a.published ? 'Published' : 'Draft'}</span>
+                            <button onclick="toggleArticlePub('${a.id}')" class="text-xs px-2 py-1 rounded bg-zinc-800 text-zinc-300 hover:bg-zinc-700">${a.published ? 'Unpublish' : 'Publish'}</button>
+                            <a href="/community/${a.slug}" target="_blank" class="text-xs px-2 py-1 rounded bg-zinc-800 text-zinc-300 hover:bg-zinc-700">View</a>
+                            <button onclick="if(confirm('Delete this article and all its comments?')) delArticle('${a.id}')" class="text-xs px-2 py-1 rounded bg-red-500/10 text-red-400 hover:bg-red-500/20">Delete</button>
+                        </div>
+                    </div>`;
+                }).join('') || '<p class="text-zinc-500 text-sm">No articles found</p>';
+            }
+            async function toggleArticlePub(id) { await api('/articles/'+id+'/publish', { method: 'PUT' }); loadArticles(); }
+            async function delArticle(id) { await api('/articles/'+id, { method: 'DELETE' }); loadArticles(); }
 
             // ── Categories ──
             async function loadCategories() {
