@@ -307,7 +307,7 @@ impl Asset {
     ) -> Result<(Vec<AssetWithCreator>, i64), sqlx::Error> {
         let assets = sqlx::query_as::<_, AssetWithCreator>(
             r#"
-            SELECT DISTINCT a.id, a.name, a.slug, a.description, a.category, a.price_credits,
+            SELECT a.id, a.name, a.slug, a.description, a.category, a.price_credits,
                    a.thumbnail_url, a.version, a.downloads, a.views, u.username AS creator_name,
                    u.avatar_url AS creator_avatar_url, a.rating_sum, a.rating_count, a.tags
             FROM assets a
