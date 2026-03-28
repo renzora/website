@@ -328,6 +328,14 @@ pub fn EmbedPreviewPage() -> impl IntoView {
                     window.__previewWasm = wasm;
                 } catch (err) { console.warn('[preview]', err); var sec = document.getElementById('live-preview-section'); if (sec) sec.innerHTML = '<div class="flex items-center justify-center h-full text-zinc-600 text-sm">Preview not available</div>'; }
             }
+
+            // Report height to parent for iframe auto-resize
+            function reportHeight() {
+                const h = document.documentElement.scrollHeight;
+                window.parent.postMessage({ type: 'embed-resize', height: h }, '*');
+            }
+            new MutationObserver(reportHeight).observe(document.body, { childList: true, subtree: true, attributes: true });
+            setInterval(reportHeight, 1000);
             "##
         </script>
         <style>
