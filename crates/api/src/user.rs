@@ -1,10 +1,10 @@
 use axum::{
     extract::{Extension, State},
-    routing::get,
+    routing::{get, post},
     Json, Router,
 };
 use renzora_models::user::User;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::{error::ApiError, middleware, middleware::AuthUser, AppState};
@@ -12,6 +12,7 @@ use crate::{error::ApiError, middleware, middleware::AuthUser, AppState};
 pub fn router() -> Router<AppState> {
     Router::new()
         .route("/me", get(user_me))
+        .route("/owned", post(check_owned))
         .layer(axum::middleware::from_fn(middleware::require_auth))
 }
 
@@ -23,7 +24,6 @@ struct UserMeResponse {
     credit_balance: i64,
     role: String,
     avatar_url: Option<String>,
-    owned_asset_ids: Vec<Uuid>,
 }
 
 async fn user_me(
@@ -34,15 +34,6 @@ async fn user_me(
         .await?
         .ok_or(ApiError::NotFound)?;
 
-    // Get all owned asset IDs
-    let owned: Vec<(Uuid,)> = sqlx::query_as(
-        "SELECT asset_id FROM asset_ownership WHERE user_id = $1"
-    )
-    .bind(auth.user_id)
-    .fetch_all(&state.db)
-    .await
-    .unwrap_or_default();
-
     Ok(Json(UserMeResponse {
         id: user.id,
         username: user.username,
@@ -50,6 +41,48 @@ async fn user_me(
         credit_balance: user.credit_balance,
         role: user.role,
         avatar_url: user.avatar_url,
-        owned_asset_ids: owned.into_iter().map(|r| r.0).collect(),
+    }))
+}
+
+#[derive(Deserialize)]
+struct CheckOwnedRequest {
+    asset_ids: Vec<Uuid>,
+}
+
+#[derive(Serialize)]
+struct CheckOwnedResponse {
+    owned_ids: Vec<Uuid>,
+}
+
+/// Check which of the given asset IDs the user owns (via purchase or creation)
+async fn check_owned(
+    State(state): State<AppState>,
+    Extension(auth): Extension<AuthUser>,
+    Json(body): Json<CheckOwnedRequest>,
+) -> Result<Json<CheckOwnedResponse>, ApiError> {
+    if body.asset_ids.is_empty() {
+        return Ok(Json(CheckOwnedResponse { owned_ids: vec![] }));
+    }
+
+    // Check purchased + created in one query, limited to the requested IDs
+    let owned: Vec<(Uuid,)> = sqlx::query_as(
+        r#"
+        SELECT DISTINCT id FROM (
+            SELECT asset_id AS id FROM transactions
+            WHERE user_id = $1 AND type = 'purchase' AND asset_id = ANY($2)
+            UNION
+            SELECT id FROM assets
+            WHERE creator_id = $1 AND id = ANY($2)
+        ) sub
+        "#
+    )
+    .bind(auth.user_id)
+    .bind(&body.asset_ids)
+    .fetch_all(&state.db)
+    .await
+    .unwrap_or_default();
+
+    Ok(Json(CheckOwnedResponse {
+        owned_ids: owned.into_iter().map(|r| r.0).collect(),
     }))
 }
