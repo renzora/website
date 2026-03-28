@@ -166,6 +166,7 @@ async fn main() {
         .route("/teams", get(ssr.clone()))
         .route("/settings", get(ssr.clone()))
         .route("/admin", get(ssr.clone()))
+        .route("/embed/preview/:slug", get(ssr.clone()))
         // Layers
         .layer(Extension(JwtSecret(jwt_secret)))
         .layer(Extension(db_pool_ext))
