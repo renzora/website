@@ -14,8 +14,8 @@ pub fn EmbedPreviewPage() -> impl IntoView {
         </div>
         <style>
             "body { margin: 0; padding: 0; background: #060608; overflow: hidden; }
-            nav, header, footer { display: none !important; }
-            main { padding: 0 !important; margin: 0 !important; }
+            nav, header, footer, .nav-bar { display: none !important; }
+            main { padding: 0 !important; margin: 0 !important; min-height: 100vh !important; }
             * { box-sizing: border-box; }
             .gallery-thumb { cursor: pointer; }"
         </style>

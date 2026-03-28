@@ -358,6 +358,22 @@ pub fn AssetDetailPage() -> impl IntoView {
                                         </div>
                                     </a>
                                 </div>
+
+                                <!-- Share & Embed -->
+                                <div class="mt-6 pt-6 border-t border-zinc-800/50">
+                                    <p class="text-xs text-zinc-500 mb-3">Share</p>
+                                    <div class="flex gap-2 mb-3">
+                                        <a href="https://twitter.com/intent/tweet?text=${encodeURIComponent(a.name + ' on Renzora')}&url=${encodeURIComponent('https://renzora.com/marketplace/asset/' + a.slug)}" target="_blank" class="flex-1 px-3 py-2 rounded-lg bg-white/[0.03] border border-zinc-800/50 text-xs text-zinc-400 hover:text-white hover:border-zinc-600 transition-all flex items-center justify-center gap-1.5"><i class="ph ph-x-logo"></i>Post</a>
+                                        <a href="https://www.reddit.com/submit?url=${encodeURIComponent('https://renzora.com/marketplace/asset/' + a.slug)}&title=${encodeURIComponent(a.name)}" target="_blank" class="flex-1 px-3 py-2 rounded-lg bg-white/[0.03] border border-zinc-800/50 text-xs text-zinc-400 hover:text-white hover:border-zinc-600 transition-all flex items-center justify-center gap-1.5"><i class="ph ph-reddit-logo"></i>Reddit</a>
+                                        <button onclick="navigator.clipboard.writeText('https://renzora.com/marketplace/asset/${a.slug}');this.textContent='Copied!';setTimeout(()=>this.innerHTML='<i class=\\'ph ph-link\\'></i>Link',1500)" class="flex-1 px-3 py-2 rounded-lg bg-white/[0.03] border border-zinc-800/50 text-xs text-zinc-400 hover:text-white hover:border-zinc-600 transition-all flex items-center justify-center gap-1.5"><i class="ph ph-link"></i>Link</button>
+                                    </div>
+                                    <button onclick="toggleEmbed()" class="w-full px-3 py-2 rounded-lg bg-white/[0.03] border border-zinc-800/50 text-xs text-zinc-400 hover:text-white hover:border-zinc-600 transition-all flex items-center justify-center gap-1.5"><i class="ph ph-code"></i>Embed Preview</button>
+                                    <div id="embed-code" class="hidden mt-2">
+                                        <textarea readonly onclick="this.select()" class="w-full px-3 py-2 bg-zinc-900 border border-zinc-800 rounded-lg text-[10px] text-zinc-400 font-mono resize-none h-16">&lt;iframe src="https://renzora.com/embed/preview/${a.slug}" width="640" height="360" frameborder="0" allowfullscreen&gt;&lt;/iframe&gt;</textarea>
+                                    </div>
+                                </div>
+
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -1044,6 +1060,11 @@ pub fn AssetDetailPage() -> impl IntoView {
                     container.appendChild(p);
                 }
                 setTimeout(() => container.remove(), 3000);
+            }
+
+            function toggleEmbed() {
+                const el = document.getElementById('embed-code');
+                el.classList.toggle('hidden');
             }
 
             async function downloadAsset(id) {
