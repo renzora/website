@@ -310,8 +310,8 @@ pub fn AssetDetailPage() -> impl IntoView {
                     if (target) target.scrollIntoView({ behavior: 'smooth' });
                 }
 
-                // Initialize live preview if section exists
-            // All preview functions handled by /embed/preview/:slug
+                // Preview handled by /embed/preview/:slug iframe
+            })();
 
             function hoverStar(n) {
                 document.querySelectorAll('.rate-star').forEach(s => {
