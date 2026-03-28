@@ -64,12 +64,12 @@ async fn check_owned(
         return Ok(Json(CheckOwnedResponse { owned_ids: vec![] }));
     }
 
-    // Check purchased + created in one query, limited to the requested IDs
+    // Check purchased (user_assets) + created in one query, limited to the requested IDs
     let owned: Vec<(Uuid,)> = sqlx::query_as(
         r#"
         SELECT DISTINCT id FROM (
-            SELECT asset_id AS id FROM transactions
-            WHERE user_id = $1 AND type = 'purchase' AND asset_id = ANY($2)
+            SELECT asset_id AS id FROM user_assets
+            WHERE user_id = $1 AND asset_id = ANY($2)
             UNION
             SELECT id FROM assets
             WHERE creator_id = $1 AND id = ANY($2)

@@ -307,14 +307,17 @@ impl Asset {
     ) -> Result<(Vec<AssetWithCreator>, i64), sqlx::Error> {
         let assets = sqlx::query_as::<_, AssetWithCreator>(
             r#"
-            SELECT a.id, a.name, a.slug, a.description, a.category, a.price_credits,
+            SELECT DISTINCT a.id, a.name, a.slug, a.description, a.category, a.price_credits,
                    a.thumbnail_url, a.version, a.downloads, a.views, u.username AS creator_name,
                    u.avatar_url AS creator_avatar_url, a.rating_sum, a.rating_count, a.tags
-            FROM user_assets ua
-            JOIN assets a ON a.id = ua.asset_id
+            FROM assets a
             JOIN users u ON u.id = a.creator_id
-            WHERE ua.user_id = $1
-            ORDER BY ua.purchased_at DESC
+            WHERE a.id IN (
+                SELECT asset_id FROM user_assets WHERE user_id = $1
+                UNION
+                SELECT id FROM assets WHERE creator_id = $1
+            )
+            ORDER BY a.created_at DESC
             "#,
         )
         .bind(user_id)
