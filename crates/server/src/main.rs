@@ -166,7 +166,7 @@ async fn main() {
         .route("/teams", get(ssr.clone()))
         .route("/settings", get(ssr.clone()))
         .route("/admin", get(ssr.clone()))
-        .route("/embed/preview/:slug", get(ssr.clone()))
+        .route("/embed/preview/:slug", get(serve_embed))
         // Layers
         .layer(Extension(JwtSecret(jwt_secret)))
         .layer(Extension(db_pool_ext))
@@ -186,4 +186,14 @@ async fn health_check() -> Json<serde_json::Value> {
         "status": "ok",
         "version": env!("CARGO_PKG_VERSION"),
     }))
+}
+
+async fn serve_embed(
+    axum::extract::Path(_slug): axum::extract::Path<String>,
+) -> Response {
+    let html = include_str!("../../web/embed/preview.html");
+    Response::builder()
+        .header("Content-Type", "text/html; charset=utf-8")
+        .body(Body::from(html))
+        .unwrap()
 }
