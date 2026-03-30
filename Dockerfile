@@ -40,7 +40,7 @@ RUN cargo build --release
 FROM debian:trixie-slim
 
 RUN apt-get update && \
-    apt-get install -y ca-certificates curl && \
+    apt-get install -y ca-certificates curl ffmpeg && \
     rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
