@@ -7,7 +7,6 @@ use leptos_router::{
 
 use crate::components::nav::Nav;
 use crate::pages::{
-    admin::AdminPage,
     asset_detail::AssetDetailPage,
     asset_edit::AssetEditPage,
     community::{CommunityPage, ArticleDetailPage, WriteArticlePage},
@@ -85,7 +84,6 @@ pub fn App() -> impl IntoView {
                     <Route path=path!("/subscription") view=SubscriptionPage />
                     <Route path=path!("/teams") view=TeamsPage />
                     <Route path=path!("/settings") view=SettingsPage />
-                    <Route path=path!("/admin") view=AdminPage />
                     <Route path=path!("/embed/preview/:slug") view=EmbedPreviewPage />
                 </Routes>
             </main>

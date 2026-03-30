@@ -172,7 +172,6 @@ async fn main() {
         .route("/subscription", get(ssr.clone()))
         .route("/teams", get(ssr.clone()))
         .route("/settings", get(ssr.clone()))
-        .route("/admin", get(ssr.clone()))
         .route("/embed/preview/:slug", get(embed_ssr.clone()))
         // Layers
         .layer(Extension(JwtSecret(jwt_secret)))

@@ -93,11 +93,6 @@ pub fn Nav() -> impl IntoView {
                             <a href="/settings" class="flex items-center gap-2 px-3 py-2.5 text-sm text-zinc-400 hover:text-zinc-50 hover:bg-white/5 transition-all">
                                 <i class="ph ph-gear text-base"></i>"Settings"
                             </a>
-                            <div id="nav-admin-link" class="hidden">
-                                <a href="/admin" class="flex items-center gap-2 px-3 py-2.5 text-sm text-amber-400 hover:text-amber-300 hover:bg-white/5 transition-all">
-                                    <i class="ph ph-shield-check text-base"></i>"Admin Panel"
-                                </a>
-                            </div>
                             <div class="border-t border-zinc-800"></div>
                             <button onclick="handleLogout()" class="w-full flex items-center gap-2 px-3 py-2.5 text-sm text-red-400 hover:text-red-300 hover:bg-white/5 transition-all cursor-pointer">
                                 <i class="ph ph-sign-out text-base"></i>"Sign Out"
@@ -119,7 +114,6 @@ pub fn Nav() -> impl IntoView {
                 const guest = document.getElementById('nav-guest');
                 const user = document.getElementById('nav-user');
                 const username = document.getElementById('nav-username');
-                const adminLink = document.getElementById('nav-admin-link');
                 if (userCookie && guest && user) {
                     try {
                         const u = JSON.parse(decodeURIComponent(userCookie));
@@ -129,9 +123,6 @@ pub fn Nav() -> impl IntoView {
                         if (username) username.textContent = u.username;
                         const profileLink = document.getElementById('nav-profile-link');
                         if (profileLink) profileLink.href = '/profile/' + u.username;
-                        if (adminLink && u.role === 'admin') {
-                            adminLink.classList.remove('hidden');
-                        }
                     } catch(e) {}
 
                     // Fetch live credit balance from API
