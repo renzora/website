@@ -7,13 +7,14 @@ use serde::Deserialize;
 use sqlx::Row;
 use renzora_common::types::*;
 use renzora_models::asset::{self, Asset};
+use renzora_models::asset_file::AssetFile;
 use renzora_models::category::Category;
 use renzora_models::subcategory::Subcategory;
 use renzora_models::tag::Tag;
 use renzora_models::user::User;
 use uuid::Uuid;
 
-use crate::{error::ApiError, middleware, middleware::AuthUser, AppState};
+use crate::{error::ApiError, middleware, middleware::AuthUser, preview, AppState};
 
 pub fn router() -> Router<AppState> {
     let protected = Router::new()
@@ -31,6 +32,8 @@ pub fn router() -> Router<AppState> {
         .route("/:id/reviews/flag", post(flag_review))
         .route("/:id/reviews/helpful", post(mark_review_helpful))
         .route("/:id/delete", delete(delete_asset))
+        .route("/:id/files/:file_id/download", get(download_single_file))
+        .route("/:id/download-zip", get(download_all_zip))
         .route("/tags/submit", post(submit_tag))
         .route("/subcategories/submit", post(submit_subcategory))
         .layer(axum::middleware::from_fn(middleware::require_auth));
@@ -44,6 +47,7 @@ pub fn router() -> Router<AppState> {
         .route("/:id/comments", get(list_comments))
         .route("/:id/reviews", get(list_reviews))
         .route("/:id/media", get(list_media))
+        .route("/:id/asset-files", get(list_asset_files))
         .route("/:id/preview-file", get(preview_file_proxy))
         .merge(protected)
 }
@@ -148,15 +152,26 @@ async fn get_asset(
         None => None,
     };
 
-    Ok(Json(asset_to_detail(&asset, &creator, owned)))
+    let mut detail = asset_to_detail(&asset, &creator, owned);
+
+    // Populate file list with preview/download URLs based on ownership
+    let asset_files = AssetFile::list_by_asset(&state.db, asset.id).await?;
+    if !asset_files.is_empty() {
+        let is_owned = owned.unwrap_or(false);
+        let is_free = asset.price_credits == 0;
+        detail.files = build_file_infos(&state, &asset_files, is_owned || is_free).await;
+    }
+
+    Ok(Json(detail))
 }
 
 /// Upload a new asset.
 ///
 /// Multipart fields:
 /// - `metadata` (required): JSON with name, description, category, price_credits, version,
-///    tags, licence, ai_generated, metadata (material details etc.)
-/// - `file` (required): The asset file (.wgsl, .zip, .glb, etc.)
+///    tags, licence, ai_generated, metadata (material details etc.), zip_action ("keep"|"extract")
+/// - `file` (required, repeatable): One or more asset files. If a single .zip with zip_action="extract",
+///    the server will unpack it into individual files.
 /// - `thumbnail` (optional): Cover image (.png, .jpg, .webp)
 /// - `screenshot_0`..`screenshot_9` (optional): Gallery screenshots
 /// - `video` (optional): Video preview (.mp4, .webm)
@@ -167,8 +182,7 @@ async fn upload_asset(
     mut multipart: Multipart,
 ) -> Result<Json<AssetDetail>, ApiError> {
     let mut metadata: Option<UploadAssetRequest> = None;
-    let mut file_path: Option<String> = None;
-    let mut original_filename: Option<String> = None;
+    let mut uploaded_files: Vec<(String, Vec<u8>)> = Vec::new(); // (filename, data)
     let mut thumb_path: Option<String> = None;
     let mut screenshots: Vec<String> = Vec::new();
     let mut video_url: Option<String> = None;
@@ -191,8 +205,10 @@ async fn upload_asset(
                 );
             }
             "file" => {
+                if uploaded_files.len() >= 20 {
+                    return Err(ApiError::Validation("Maximum 20 files per upload".into()));
+                }
                 let filename = field.file_name().unwrap_or("asset.zip").to_string();
-                original_filename = Some(filename.clone());
                 let data = field
                     .bytes()
                     .await
@@ -200,7 +216,7 @@ async fn upload_asset(
                 if data.len() > 200 * 1024 * 1024 {
                     return Err(ApiError::Validation("File exceeds 200MB limit".into()));
                 }
-                file_path = Some(upload_to_storage(&state, "assets", &filename, data.to_vec()).await?);
+                uploaded_files.push((filename, data.to_vec()));
             }
             "thumbnail" => {
                 let filename = field.file_name().unwrap_or("thumb.png").to_string();
@@ -338,16 +354,16 @@ async fn upload_asset(
         }
     }
 
-    // File is required
-    if file_path.is_none() {
+    // At least one file is required
+    if uploaded_files.is_empty() {
         return Err(ApiError::Validation("Asset file is required".into()));
     }
 
     // ── Create asset ──
 
-    // Auto-populate download_filename from the uploaded file if not explicitly set
+    // Auto-populate download_filename from the first uploaded file if not explicitly set
     let download_filename = if meta.download_filename.is_empty() {
-        original_filename.clone().unwrap_or_default()
+        uploaded_files.first().map(|(n, _)| n.clone()).unwrap_or_default()
     } else {
         meta.download_filename.clone()
     };
@@ -371,9 +387,85 @@ async fn upload_asset(
     )
     .await?;
 
-    if let Some(url) = &file_path {
-        Asset::update_file_url(&state.db, asset.id, url).await?;
+    // ── Process files: multi-file or zip extract ──
+    let is_paid = meta.price_credits > 0 && meta.credit_name.is_empty();
+    let zip_action = meta.zip_action.as_str();
+
+    // Determine if this is a single zip that should be extracted
+    let should_extract = uploaded_files.len() == 1
+        && zip_action == "extract"
+        && uploaded_files[0].0.to_lowercase().ends_with(".zip");
+
+    let multi_file;
+    if should_extract {
+        // Extract zip into individual files
+        let (_, zip_data) = &uploaded_files[0];
+        let extracted = extract_zip_files(zip_data)?;
+        multi_file = extracted.len() > 1;
+
+        for (i, (entry_name, entry_data)) in extracted.iter().enumerate() {
+            let mime = mime_from_extension(entry_name);
+            let file_key = upload_to_storage_private(
+                &state,
+                &format!("private/assets/{}", asset.id),
+                entry_name,
+                entry_data.clone(),
+            ).await?;
+
+            // Generate preview for paid assets with previewable content
+            let preview_key = if is_paid && preview::is_previewable(&mime) {
+                generate_preview_key(&state, asset.id, entry_name, entry_data, &mime).await.ok()
+            } else {
+                None
+            };
+
+            AssetFile::insert(
+                &state.db, asset.id, &file_key,
+                preview_key.as_deref(), entry_name,
+                entry_data.len() as i64, &mime, i as i32,
+            ).await?;
+        }
+    } else {
+        // Store files as-is (multiple individual files or single zip kept as zip)
+        multi_file = uploaded_files.len() > 1;
+
+        for (i, (filename, data)) in uploaded_files.iter().enumerate() {
+            let mime = mime_from_extension(filename);
+            let file_key = upload_to_storage_private(
+                &state,
+                &format!("private/assets/{}", asset.id),
+                filename,
+                data.clone(),
+            ).await?;
+
+            let preview_key = if is_paid && preview::is_previewable(&mime) {
+                generate_preview_key(&state, asset.id, filename, data, &mime).await.ok()
+            } else {
+                None
+            };
+
+            AssetFile::insert(
+                &state.db, asset.id, &file_key,
+                preview_key.as_deref(), filename,
+                data.len() as i64, &mime, i as i32,
+            ).await?;
+        }
     }
+
+    // Set multi_file flag
+    if multi_file {
+        sqlx::query("UPDATE assets SET multi_file = true WHERE id = $1")
+            .bind(asset.id)
+            .execute(&state.db)
+            .await?;
+    }
+
+    // For backwards compatibility, set file_url to first file's key
+    let first_file = AssetFile::list_by_asset(&state.db, asset.id).await?.into_iter().next();
+    if let Some(f) = &first_file {
+        Asset::update_file_url(&state.db, asset.id, &f.file_key).await?;
+    }
+
     if let Some(url) = &thumb_path {
         Asset::update_thumbnail_url(&state.db, asset.id, url).await?;
     }
@@ -475,7 +567,7 @@ async fn update_asset(
         }
     }
 
-    let updated = Asset::update_metadata(
+    Asset::update_metadata(
         &state.db,
         id,
         body.name.as_deref(),
@@ -515,7 +607,10 @@ async fn update_asset(
     Ok(Json(asset_to_detail(&updated, &creator, Some(true))))
 }
 
-/// Update asset file and/or thumbnail (multipart).
+/// Update asset file(s) and/or thumbnail (multipart).
+///
+/// Replaces all existing asset files with the new upload. Supports multiple `file` fields
+/// and a `zip_action` field ("keep" or "extract").
 async fn update_asset_files(
     State(state): State<AppState>,
     Extension(auth): Extension<AuthUser>,
@@ -530,6 +625,9 @@ async fn update_asset_files(
         return Err(ApiError::Unauthorized);
     }
 
+    let mut new_files: Vec<(String, Vec<u8>)> = Vec::new();
+    let mut zip_action = "keep".to_string();
+
     while let Some(field) = multipart.next_field().await.map_err(|e| {
         ApiError::Validation(format!("Failed to read multipart field: {e}"))
     })? {
@@ -539,8 +637,14 @@ async fn update_asset_files(
                 let filename = field.file_name().unwrap_or("asset.zip").to_string();
                 let data = field.bytes().await
                     .map_err(|e| ApiError::Validation(format!("Failed to read file: {e}")))?;
-                let url = upload_to_storage(&state, "assets", &filename, data.to_vec()).await?;
-                Asset::update_file_url(&state.db, id, &url).await?;
+                if data.len() > 200 * 1024 * 1024 {
+                    return Err(ApiError::Validation("File exceeds 200MB limit".into()));
+                }
+                new_files.push((filename, data.to_vec()));
+            }
+            "zip_action" => {
+                let val = field.text().await.unwrap_or_default();
+                if val == "extract" { zip_action = val; }
             }
             "thumbnail" => {
                 let filename = field.file_name().unwrap_or("thumb.png").to_string();
@@ -551,6 +655,64 @@ async fn update_asset_files(
             }
             _ => {}
         }
+    }
+
+    // If new files were uploaded, replace existing asset_files
+    if !new_files.is_empty() {
+        // Delete old files from storage
+        let old_files = AssetFile::delete_by_asset(&state.db, id).await?;
+        for af in &old_files {
+            delete_from_storage_by_key(&state, &af.file_key).await;
+            if let Some(pk) = &af.preview_key {
+                delete_from_storage(&state, pk).await?;
+            }
+        }
+
+        let is_paid = asset.price_credits > 0 && asset.credit_name.is_empty();
+        let should_extract = new_files.len() == 1
+            && zip_action == "extract"
+            && new_files[0].0.to_lowercase().ends_with(".zip");
+
+        let entries: Vec<(String, Vec<u8>)> = if should_extract {
+            extract_zip_files(&new_files[0].1)?
+        } else {
+            new_files
+        };
+
+        let multi_file = entries.len() > 1;
+
+        for (i, (filename, data)) in entries.iter().enumerate() {
+            let mime = mime_from_extension(filename);
+            let file_key = upload_to_storage_private(
+                &state,
+                &format!("private/assets/{}", id),
+                filename,
+                data.clone(),
+            ).await?;
+
+            let preview_key = if is_paid && preview::is_previewable(&mime) {
+                generate_preview_key(&state, id, filename, data, &mime).await.ok()
+            } else {
+                None
+            };
+
+            AssetFile::insert(
+                &state.db, id, &file_key,
+                preview_key.as_deref(), filename,
+                data.len() as i64, &mime, i as i32,
+            ).await?;
+        }
+
+        // Update backwards-compat fields
+        let first = AssetFile::list_by_asset(&state.db, id).await?.into_iter().next();
+        if let Some(f) = &first {
+            Asset::update_file_url(&state.db, id, &f.file_key).await?;
+        }
+        sqlx::query("UPDATE assets SET multi_file = $1 WHERE id = $2")
+            .bind(multi_file)
+            .bind(id)
+            .execute(&state.db)
+            .await?;
     }
 
     let updated = Asset::find_by_id(&state.db, id)
@@ -564,6 +726,8 @@ async fn update_asset_files(
 }
 
 /// Download an asset (requires auth + ownership or free).
+///
+/// Returns presigned download URLs for all files.
 async fn download_asset(
     State(state): State<AppState>,
     Extension(auth): Extension<AuthUser>,
@@ -581,28 +745,55 @@ async fn download_asset(
         }
     }
 
-    let file_url = asset
-        .file_url
-        .ok_or(ApiError::Internal("Asset has no file".into()))?;
-
     // Increment download counter
     Asset::increment_downloads(&state.db, id).await?;
 
-    // Use download_filename if set, otherwise derive from URL
-    let filename = if !asset.download_filename.is_empty() {
-        asset.download_filename.clone()
-    } else {
-        file_url
-            .rsplit('/')
-            .next()
-            .unwrap_or("asset")
-            .to_string()
-    };
+    // Check for multi-file asset
+    let asset_files = AssetFile::list_by_asset(&state.db, id).await?;
 
-    Ok(Json(DownloadResponse {
-        download_url: file_url,
-        download_filename: filename,
-    }))
+    if !asset_files.is_empty() {
+        // Multi-file: return presigned URLs for all files
+        let file_infos = build_file_infos(&state, &asset_files, true).await;
+
+        // Primary download URL = first file
+        let first = asset_files.first().unwrap();
+        let primary_url = generate_presigned_url(&state, &first.file_key).await?;
+        let filename = if !asset.download_filename.is_empty() {
+            asset.download_filename.clone()
+        } else {
+            first.original_filename.clone()
+        };
+
+        Ok(Json(DownloadResponse {
+            download_url: primary_url,
+            download_filename: filename,
+            files: file_infos,
+        }))
+    } else {
+        // Legacy single-file: use file_url directly
+        let file_url = asset
+            .file_url
+            .ok_or(ApiError::Internal("Asset has no file".into()))?;
+
+        let download_url = if file_url.starts_with("private/") {
+            generate_presigned_url(&state, &file_url).await?
+        } else {
+            // Legacy public URL
+            file_url.clone()
+        };
+
+        let filename = if !asset.download_filename.is_empty() {
+            asset.download_filename.clone()
+        } else {
+            file_url.rsplit('/').next().unwrap_or("asset").to_string()
+        };
+
+        Ok(Json(DownloadResponse {
+            download_url,
+            download_filename: filename,
+            files: vec![],
+        }))
+    }
 }
 
 /// Delete an asset and all its associated files from storage.
@@ -626,9 +817,23 @@ async fn delete_asset(
         }
     }
 
-    // Delete files from storage
+    // Delete asset_files from storage (private keys)
+    let deleted_files = AssetFile::delete_by_asset(&state.db, id).await?;
+    for af in &deleted_files {
+        delete_from_storage_by_key(&state, &af.file_key).await;
+        if let Some(pk) = &af.preview_key {
+            delete_from_storage(&state, pk).await?;
+        }
+    }
+
+    // Delete legacy file from storage
     if let Some(url) = &asset.file_url {
-        delete_from_storage(&state, url).await?;
+        // Could be a private key or a public URL
+        if url.starts_with("private/") {
+            delete_from_storage_by_key(&state, url).await;
+        } else {
+            delete_from_storage(&state, url).await?;
+        }
     }
     if let Some(url) = &asset.thumbnail_url {
         delete_from_storage(&state, url).await?;
@@ -661,7 +866,8 @@ async fn delete_asset(
 }
 
 /// Proxy an asset's file for the live preview (avoids CORS issues with CDN).
-/// Only serves the raw file content — no auth required since the preview is public.
+/// For paid assets without ownership, serves the preview (watermarked) version.
+/// For free assets or public files, serves the original.
 async fn preview_file_proxy(
     State(state): State<AppState>,
     Path(id): Path<Uuid>,
@@ -670,19 +876,41 @@ async fn preview_file_proxy(
         .await?
         .ok_or(ApiError::NotFound)?;
 
-    let file_url = asset
-        .file_url
-        .ok_or(ApiError::NotFound)?;
+    // For preview proxy, try to serve from asset_files first
+    let asset_files = AssetFile::list_by_asset(&state.db, id).await?;
 
-    // Fetch from CDN/S3
+    let (fetch_url, content_type_hint) = if let Some(first) = asset_files.first() {
+        if asset.price_credits > 0 {
+            // Paid asset: serve preview if available, otherwise deny
+            if let Some(pk) = &first.preview_key {
+                (format!("{}/{}", state.s3_public_url, pk), first.mime_type.clone())
+            } else {
+                return Err(ApiError::Unauthorized);
+            }
+        } else {
+            // Free asset: generate a presigned URL to fetch from
+            let url = generate_presigned_url(&state, &first.file_key).await?;
+            (url, first.mime_type.clone())
+        }
+    } else {
+        // Legacy: use file_url
+        let file_url = asset.file_url.ok_or(ApiError::NotFound)?;
+        if file_url.starts_with("private/") {
+            let url = generate_presigned_url(&state, &file_url).await?;
+            (url, "application/octet-stream".to_string())
+        } else {
+            (file_url, "application/octet-stream".to_string())
+        }
+    };
+
     let client = reqwest::Client::new();
-    let resp = client.get(&file_url).send().await
+    let resp = client.get(&fetch_url).send().await
         .map_err(|e| ApiError::Internal(format!("Failed to fetch file: {e}")))?;
 
     let content_type = resp.headers()
         .get("content-type")
         .and_then(|v| v.to_str().ok())
-        .unwrap_or("application/octet-stream")
+        .unwrap_or(&content_type_hint)
         .to_string();
 
     let bytes = resp.bytes().await
@@ -1329,7 +1557,414 @@ fn asset_to_detail(
         created_at: asset.created_at.to_string(),
         updated_at: asset.updated_at.to_string(),
         owned,
+        files: vec![],
     }
+}
+
+// ── Asset files endpoints ──
+
+/// List asset files (public). Returns preview URLs for unowned paid assets,
+/// download URLs for owned/free assets. Auth is optional.
+async fn list_asset_files(
+    State(state): State<AppState>,
+    Path(id): Path<Uuid>,
+    headers: axum::http::HeaderMap,
+    Extension(jwt_secret): Extension<crate::middleware::JwtSecret>,
+) -> Result<Json<Vec<AssetFileInfo>>, ApiError> {
+    let asset = Asset::find_by_id(&state.db, id)
+        .await?
+        .ok_or(ApiError::NotFound)?;
+
+    let user_id = headers
+        .get("authorization")
+        .and_then(|v| v.to_str().ok())
+        .and_then(|h| h.strip_prefix("Bearer "))
+        .and_then(|token| crate::jwt::validate_token(token, &jwt_secret.0).ok())
+        .filter(|c| c.token_type == "access")
+        .map(|c| c.sub);
+
+    let has_access = if asset.price_credits == 0 {
+        true
+    } else {
+        match user_id {
+            Some(uid) if uid == asset.creator_id => true,
+            Some(uid) => asset::user_owns_asset(&state.db, uid, id).await?,
+            None => false,
+        }
+    };
+
+    let files = AssetFile::list_by_asset(&state.db, id).await?;
+    let infos = build_file_infos(&state, &files, has_access).await;
+    Ok(Json(infos))
+}
+
+/// Download a single file from a multi-file asset (auth + ownership).
+async fn download_single_file(
+    State(state): State<AppState>,
+    Extension(auth): Extension<AuthUser>,
+    Path((asset_id, file_id)): Path<(Uuid, Uuid)>,
+) -> Result<Json<DownloadResponse>, ApiError> {
+    let asset = Asset::find_by_id(&state.db, asset_id)
+        .await?
+        .ok_or(ApiError::NotFound)?;
+
+    if asset.price_credits > 0 {
+        let owns = asset::user_owns_asset(&state.db, auth.user_id, asset_id).await?;
+        if !owns && asset.creator_id != auth.user_id {
+            return Err(ApiError::Unauthorized);
+        }
+    }
+
+    let file = AssetFile::find_by_id(&state.db, file_id)
+        .await?
+        .ok_or(ApiError::NotFound)?;
+
+    if file.asset_id != asset_id {
+        return Err(ApiError::NotFound);
+    }
+
+    let download_url = generate_presigned_url(&state, &file.file_key).await?;
+
+    Ok(Json(DownloadResponse {
+        download_url,
+        download_filename: file.original_filename,
+        files: vec![],
+    }))
+}
+
+/// Download all files as a zip (auth + ownership). Streams files from S3 into an in-memory zip.
+async fn download_all_zip(
+    State(state): State<AppState>,
+    Extension(auth): Extension<AuthUser>,
+    Path(id): Path<Uuid>,
+) -> Result<axum::response::Response, ApiError> {
+    let asset = Asset::find_by_id(&state.db, id)
+        .await?
+        .ok_or(ApiError::NotFound)?;
+
+    if asset.price_credits > 0 {
+        let owns = asset::user_owns_asset(&state.db, auth.user_id, id).await?;
+        if !owns && asset.creator_id != auth.user_id {
+            return Err(ApiError::Unauthorized);
+        }
+    }
+
+    let files = AssetFile::list_by_asset(&state.db, id).await?;
+    if files.is_empty() {
+        return Err(ApiError::NotFound);
+    }
+
+    // If there's only one file and it's a zip, just redirect to it
+    if files.len() == 1 && files[0].mime_type == "application/zip" {
+        let url = generate_presigned_url(&state, &files[0].file_key).await?;
+        return Ok(axum::response::Response::builder()
+            .status(302)
+            .header("location", url)
+            .body(axum::body::Body::empty())
+            .unwrap());
+    }
+
+    // Build zip in memory from all files
+    let mut zip_buf = Vec::new();
+    {
+        let mut zip_writer = zip::ZipWriter::new(std::io::Cursor::new(&mut zip_buf));
+        let options = zip::write::SimpleFileOptions::default()
+            .compression_method(zip::CompressionMethod::Deflated);
+
+        for file in &files {
+            let file_bytes = fetch_file_from_storage(&state, &file.file_key).await?;
+            zip_writer
+                .start_file(&file.original_filename, options)
+                .map_err(|e| ApiError::Internal(format!("Zip write failed: {e}")))?;
+            std::io::Write::write_all(&mut zip_writer, &file_bytes)
+                .map_err(|e| ApiError::Internal(format!("Zip write failed: {e}")))?;
+        }
+
+        zip_writer
+            .finish()
+            .map_err(|e| ApiError::Internal(format!("Zip finalize failed: {e}")))?;
+    }
+
+    Asset::increment_downloads(&state.db, id).await?;
+
+    let filename = if !asset.download_filename.is_empty() {
+        format!("{}.zip", asset.download_filename.trim_end_matches(".zip"))
+    } else {
+        format!("{}.zip", asset.slug)
+    };
+
+    Ok(axum::response::Response::builder()
+        .header("content-type", "application/zip")
+        .header(
+            "content-disposition",
+            format!("attachment; filename=\"{filename}\""),
+        )
+        .body(axum::body::Body::from(zip_buf))
+        .unwrap())
+}
+
+// ── Private storage and presigned URL helpers ──
+
+/// Upload a file to private S3 storage. Returns the bare S3 key (not a public URL).
+async fn upload_to_storage_private(
+    state: &AppState,
+    folder: &str,
+    original_filename: &str,
+    data: Vec<u8>,
+) -> Result<String, ApiError> {
+    let key = storage_key(folder, original_filename);
+    let content_type = content_type_for_key(&key);
+
+    if let Some(bucket) = &state.s3_bucket {
+        let response = bucket
+            .put_object_with_content_type(&key, &data, content_type)
+            .await
+            .map_err(|e| ApiError::Internal(format!("S3 upload failed: {e}")))?;
+
+        if response.status_code() != 200 {
+            return Err(ApiError::Internal(format!(
+                "S3 upload returned status {}",
+                response.status_code()
+            )));
+        }
+
+        Ok(key) // Return bare key, not public URL
+    } else {
+        // Local fallback
+        let path = format!("{}/{}", state.upload_dir, key);
+        if let Some(parent) = std::path::Path::new(&path).parent() {
+            tokio::fs::create_dir_all(parent)
+                .await
+                .map_err(|e| ApiError::Internal(format!("Failed to create dir: {e}")))?;
+        }
+        tokio::fs::write(&path, &data)
+            .await
+            .map_err(|e| ApiError::Internal(format!("Failed to write file: {e}")))?;
+        Ok(key) // Return key for local too, presigned fallback will use it
+    }
+}
+
+/// Generate a presigned download URL for a private S3 key (5-minute expiry).
+async fn generate_presigned_url(state: &AppState, key: &str) -> Result<String, ApiError> {
+    if let Some(bucket) = &state.s3_bucket {
+        bucket
+            .presign_get(key, 300, None)
+            .await
+            .map_err(|e| ApiError::Internal(format!("Presign failed: {e}")))
+    } else {
+        // Local fallback: serve via local URL
+        Ok(format!("{}/{}", state.upload_base_url, key))
+    }
+}
+
+/// Fetch file bytes from S3 by key (for zip generation, preview proxy, etc.)
+async fn fetch_file_from_storage(state: &AppState, key: &str) -> Result<Vec<u8>, ApiError> {
+    if let Some(bucket) = &state.s3_bucket {
+        let resp = bucket
+            .get_object(key)
+            .await
+            .map_err(|e| ApiError::Internal(format!("S3 get failed: {e}")))?;
+        Ok(resp.to_vec())
+    } else {
+        let path = format!("{}/{}", state.upload_dir, key);
+        tokio::fs::read(&path)
+            .await
+            .map_err(|e| ApiError::Internal(format!("Failed to read local file: {e}")))
+    }
+}
+
+/// Delete a file from S3 by its bare key (not a URL). Best effort.
+async fn delete_from_storage_by_key(state: &AppState, key: &str) {
+    if key.is_empty() {
+        return;
+    }
+    if let Some(bucket) = &state.s3_bucket {
+        let _ = bucket.delete_object(key).await;
+    } else {
+        let path = format!("{}/{}", state.upload_dir, key);
+        let _ = tokio::fs::remove_file(&path).await;
+    }
+}
+
+/// Build `AssetFileInfo` list with appropriate preview/download URLs.
+async fn build_file_infos(
+    state: &AppState,
+    files: &[AssetFile],
+    has_access: bool,
+) -> Vec<AssetFileInfo> {
+    let mut infos = Vec::with_capacity(files.len());
+    for f in files {
+        let download_url = if has_access {
+            generate_presigned_url(state, &f.file_key).await.ok()
+        } else {
+            None
+        };
+
+        let preview_url = if !has_access {
+            f.preview_key
+                .as_ref()
+                .map(|pk| format!("{}/{}", state.s3_public_url, pk))
+        } else {
+            None
+        };
+
+        infos.push(AssetFileInfo {
+            id: f.id,
+            original_filename: f.original_filename.clone(),
+            file_size: f.file_size,
+            mime_type: f.mime_type.clone(),
+            sort_order: f.sort_order,
+            preview_url,
+            download_url,
+        });
+    }
+    infos
+}
+
+/// Generate a preview for a file and upload it to public storage.
+/// Returns the public preview key on success.
+async fn generate_preview_key(
+    state: &AppState,
+    asset_id: Uuid,
+    filename: &str,
+    data: &[u8],
+    mime: &str,
+) -> Result<String, ApiError> {
+    let preview_data = if mime.starts_with("image/") {
+        preview::generate_image_preview(data)?
+    } else if mime.starts_with("audio/") {
+        let ext = filename.rsplit('.').next().unwrap_or("mp3");
+        preview::generate_audio_preview(data, ext).await?
+    } else {
+        return Err(ApiError::Internal("Not previewable".into()));
+    };
+
+    let preview_ext = if mime.starts_with("audio/") { "mp3" } else { "jpg" };
+    let preview_filename = format!("preview_{}.{}", Uuid::new_v4(), preview_ext);
+
+    // Upload to public previews path
+    upload_to_storage(
+        state,
+        &format!("public/previews/{}", asset_id),
+        &preview_filename,
+        preview_data,
+    )
+    .await
+}
+
+/// Extract files from a zip archive in memory with safety checks.
+fn extract_zip_files(data: &[u8]) -> Result<Vec<(String, Vec<u8>)>, ApiError> {
+    use std::io::Read;
+
+    let reader = std::io::Cursor::new(data);
+    let mut archive = zip::ZipArchive::new(reader)
+        .map_err(|e| ApiError::Validation(format!("Invalid zip file: {e}")))?;
+
+    if archive.len() > 100 {
+        return Err(ApiError::Validation(
+            "Zip contains too many entries (max 100)".into(),
+        ));
+    }
+
+    let mut files = Vec::new();
+    let mut total_size: u64 = 0;
+    let max_total: u64 = 500 * 1024 * 1024; // 500MB
+    let max_single: u64 = 200 * 1024 * 1024; // 200MB
+
+    for i in 0..archive.len() {
+        let mut entry = archive
+            .by_index(i)
+            .map_err(|e| ApiError::Validation(format!("Failed to read zip entry: {e}")))?;
+
+        // Skip directories
+        if entry.is_dir() {
+            continue;
+        }
+
+        let name = entry.name().to_string();
+
+        // Path traversal check
+        if name.contains("..") || name.starts_with('/') || name.starts_with('\\') {
+            continue;
+        }
+
+        // Skip nested zips
+        if name.to_lowercase().ends_with(".zip") {
+            continue;
+        }
+
+        // Skip macOS resource fork files
+        if name.contains("__MACOSX") || name.starts_with('.') {
+            continue;
+        }
+
+        // Size check
+        let size = entry.size();
+        if size > max_single {
+            return Err(ApiError::Validation(format!(
+                "File '{}' exceeds 200MB limit",
+                name
+            )));
+        }
+        total_size += size;
+        if total_size > max_total {
+            return Err(ApiError::Validation(
+                "Total uncompressed size exceeds 500MB limit".into(),
+            ));
+        }
+
+        let mut buf = Vec::with_capacity(size as usize);
+        entry
+            .read_to_end(&mut buf)
+            .map_err(|e| ApiError::Validation(format!("Failed to extract '{}': {e}", name)))?;
+
+        // Use just the filename (strip directory paths from zip)
+        let clean_name = name.rsplit('/').next().unwrap_or(&name).to_string();
+        if clean_name.is_empty() {
+            continue;
+        }
+
+        files.push((clean_name, buf));
+    }
+
+    if files.is_empty() {
+        return Err(ApiError::Validation("Zip contains no extractable files".into()));
+    }
+
+    Ok(files)
+}
+
+/// Derive MIME type from file extension.
+fn mime_from_extension(filename: &str) -> String {
+    let ext = filename.rsplit('.').next().unwrap_or("").to_lowercase();
+    match ext.as_str() {
+        "png" => "image/png",
+        "jpg" | "jpeg" => "image/jpeg",
+        "gif" => "image/gif",
+        "webp" => "image/webp",
+        "svg" => "image/svg+xml",
+        "mp4" => "video/mp4",
+        "webm" => "video/webm",
+        "mov" => "video/quicktime",
+        "mp3" => "audio/mpeg",
+        "wav" => "audio/wav",
+        "ogg" => "audio/ogg",
+        "flac" => "audio/flac",
+        "aac" => "audio/aac",
+        "zip" => "application/zip",
+        "wgsl" => "text/plain",
+        "glb" | "gltf" => "model/gltf-binary",
+        "fbx" => "application/octet-stream",
+        "obj" => "model/obj",
+        "lua" => "text/x-lua",
+        "rhai" => "text/plain",
+        "json" => "application/json",
+        "ron" => "text/plain",
+        "ttf" => "font/ttf",
+        "otf" => "font/otf",
+        _ => "application/octet-stream",
+    }
+    .to_string()
 }
 
 /// Extract the real client IP, checking common proxy headers first.

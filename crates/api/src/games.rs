@@ -389,7 +389,7 @@ async fn download_game(
         .next()
         .unwrap_or("game")
         .to_string();
-    Ok(Json(DownloadResponse { download_url: file_url, download_filename: filename }))
+    Ok(Json(DownloadResponse { download_url: file_url, download_filename: filename, files: vec![] }))
 }
 
 // ── Media ──

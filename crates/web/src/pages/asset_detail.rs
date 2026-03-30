@@ -325,6 +325,9 @@ pub fn AssetDetailPage() -> impl IntoView {
                                     <a href="/login" class="block w-full mt-4 px-4 py-3 rounded-xl text-sm font-semibold bg-accent text-white hover:bg-accent-hover transition-all text-center">Sign in to purchase</a>
                                 `}
 
+                                <!-- Asset Files List -->
+                                <div id="asset-files-list" class="mt-4"></div>
+
                                 <div class="mt-6 pt-6 border-t border-zinc-800/50 space-y-3">
                                     <div class="flex justify-between text-sm"><span class="text-zinc-500">Rating</span><span>${starsHtml} <span class="text-zinc-500">(${ratingCount})</span></span></div>
                                     <div class="flex justify-between text-sm"><span class="text-zinc-500">Reviews</span><span class="text-zinc-300">${ratingCount}</span></div>
@@ -391,7 +394,153 @@ pub fn AssetDetailPage() -> impl IntoView {
                 if (window.__previewConfig && document.getElementById('live-preview-section')) {
                     initLivePreview(window.__previewConfig);
                 }
+
+                // Fetch and render asset files list
+                loadAssetFiles(a.id, a.owned || isCreator || a.price_credits === 0);
             })();
+
+            function fmtFileSize(bytes) {
+                if (!bytes) return '';
+                if (bytes > 1e9) return (bytes / 1e9).toFixed(1) + ' GB';
+                if (bytes > 1e6) return (bytes / 1e6).toFixed(1) + ' MB';
+                return (bytes / 1e3).toFixed(0) + ' KB';
+            }
+
+            function fileIcon(mime) {
+                if (mime.startsWith('audio/')) return 'ph-music-note';
+                if (mime.startsWith('image/')) return 'ph-image';
+                if (mime.startsWith('video/')) return 'ph-video-camera';
+                if (mime.includes('zip')) return 'ph-file-zip';
+                if (mime.includes('gltf') || mime.includes('model')) return 'ph-cube';
+                return 'ph-file';
+            }
+
+            async function loadAssetFiles(assetId, hasAccess) {
+                const container = document.getElementById('asset-files-list');
+                if (!container) return;
+
+                const token = document.cookie.match('(^|;)\\s*token\\s*=\\s*([^;]+)')?.pop();
+                const headers = token ? { 'Authorization': 'Bearer ' + token } : {};
+                const res = await fetch('/api/marketplace/' + assetId + '/asset-files', { headers });
+                if (!res.ok) return;
+
+                const files = await res.json();
+                if (!files || files.length <= 1) return; // Don't show for single-file assets
+
+                const audioFiles = files.filter(f => f.mime_type.startsWith('audio/'));
+                const otherFiles = files.filter(f => !f.mime_type.startsWith('audio/'));
+
+                let html = '<div class="border-t border-zinc-800/50 pt-4 mt-4">';
+                html += '<p class="text-xs text-zinc-500 mb-3 font-medium">' + files.length + ' files in this asset</p>';
+
+                // Audio track list
+                if (audioFiles.length > 0) {
+                    html += '<div class="space-y-1.5 mb-3">';
+                    audioFiles.forEach((f, i) => {
+                        const src = hasAccess ? f.download_url : f.preview_url;
+                        const name = f.original_filename.replace(/\.[^.]+$/, '');
+                        html += '<div class="flex items-center gap-2 px-3 py-2 bg-white/[0.02] rounded-lg group">';
+                        if (src) {
+                            html += '<button onclick="toggleFileAudio(this, \'' + src + '\')" class="w-6 h-6 rounded-full bg-accent/10 flex items-center justify-center shrink-0 hover:bg-accent/20 transition-colors">';
+                            html += '<i class="ph ph-play text-xs text-accent file-play-icon"></i>';
+                            html += '</button>';
+                        } else {
+                            html += '<div class="w-6 h-6 rounded-full bg-zinc-800 flex items-center justify-center shrink-0"><i class="ph ph-lock text-xs text-zinc-600"></i></div>';
+                        }
+                        html += '<span class="text-xs text-zinc-300 flex-1 truncate">' + name + '</span>';
+                        html += '<span class="text-[10px] text-zinc-600">' + fmtFileSize(f.file_size) + '</span>';
+                        if (!hasAccess && f.preview_url) {
+                            html += '<span class="text-[9px] text-amber-400/60 px-1.5 py-0.5 rounded bg-amber-400/5">PREVIEW</span>';
+                        }
+                        if (hasAccess && f.download_url) {
+                            html += '<a href="' + f.download_url + '" download="' + f.original_filename + '" class="text-zinc-600 hover:text-accent transition-colors" title="Download"><i class="ph ph-download-simple text-xs"></i></a>';
+                        }
+                        html += '</div>';
+                    });
+                    html += '</div>';
+                }
+
+                // Other files list
+                if (otherFiles.length > 0) {
+                    html += '<div class="space-y-1.5">';
+                    otherFiles.forEach(f => {
+                        html += '<div class="flex items-center gap-2 px-3 py-2 bg-white/[0.02] rounded-lg">';
+                        html += '<i class="ph ' + fileIcon(f.mime_type) + ' text-xs text-zinc-500"></i>';
+                        html += '<span class="text-xs text-zinc-300 flex-1 truncate">' + f.original_filename + '</span>';
+                        html += '<span class="text-[10px] text-zinc-600">' + fmtFileSize(f.file_size) + '</span>';
+                        if (hasAccess && f.download_url) {
+                            html += '<a href="' + f.download_url + '" download="' + f.original_filename + '" class="text-zinc-600 hover:text-accent transition-colors" title="Download"><i class="ph ph-download-simple text-xs"></i></a>';
+                        } else {
+                            html += '<i class="ph ph-lock text-xs text-zinc-700"></i>';
+                        }
+                        html += '</div>';
+                    });
+                    html += '</div>';
+                }
+
+                // Download All button
+                if (hasAccess && files.length > 1) {
+                    html += '<button onclick="downloadAllZip(\'' + assetId + '\')" class="w-full mt-3 px-3 py-2.5 rounded-xl text-xs font-medium bg-white/[0.03] border border-zinc-800/50 text-zinc-300 hover:border-zinc-600 hover:text-white transition-all flex items-center justify-center gap-2">';
+                    html += '<i class="ph ph-file-zip text-sm"></i> Download All (.zip)';
+                    html += '</button>';
+                }
+
+                html += '</div>';
+                container.innerHTML = html;
+            }
+
+            // Mini audio player for file list tracks
+            let activeFileAudio = null;
+            let activeFileBtn = null;
+
+            function toggleFileAudio(btn, src) {
+                if (activeFileAudio && activeFileBtn === btn) {
+                    // Toggle pause/play on same track
+                    if (activeFileAudio.paused) {
+                        activeFileAudio.play();
+                        btn.querySelector('.file-play-icon').className = 'ph ph-pause text-xs text-accent file-play-icon';
+                    } else {
+                        activeFileAudio.pause();
+                        btn.querySelector('.file-play-icon').className = 'ph ph-play text-xs text-accent file-play-icon';
+                    }
+                    return;
+                }
+                // Stop previous
+                if (activeFileAudio) {
+                    activeFileAudio.pause();
+                    if (activeFileBtn) activeFileBtn.querySelector('.file-play-icon').className = 'ph ph-play text-xs text-accent file-play-icon';
+                }
+                // Play new
+                activeFileAudio = new Audio(src);
+                activeFileBtn = btn;
+                btn.querySelector('.file-play-icon').className = 'ph ph-pause text-xs text-accent file-play-icon';
+                activeFileAudio.play().catch(() => {});
+                activeFileAudio.addEventListener('ended', () => {
+                    btn.querySelector('.file-play-icon').className = 'ph ph-play text-xs text-accent file-play-icon';
+                    activeFileAudio = null;
+                    activeFileBtn = null;
+                });
+            }
+
+            async function downloadAllZip(assetId) {
+                const token = document.cookie.match('(^|;)\\s*token\\s*=\\s*([^;]+)')?.pop();
+                if (!token) return;
+                try {
+                    const res = await fetch('/api/marketplace/' + assetId + '/download-zip', {
+                        headers: { 'Authorization': 'Bearer ' + token }
+                    });
+                    if (!res.ok) { alert('Download failed'); return; }
+                    const blob = await res.blob();
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = assetId + '.zip';
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+                } catch(e) { alert('Download failed: ' + e.message); }
+            }
 
             // ── Live Preview ──
             window.previewSetMesh = function(shape) {
@@ -1075,9 +1224,19 @@ pub fn AssetDetailPage() -> impl IntoView {
                     headers: { 'Authorization': 'Bearer ' + token }
                 });
                 const data = await res.json();
-                if (res.ok && data.download_url) {
-                    window.open(data.download_url, '_blank');
-                } else { alert(data.error || 'Download failed'); }
+                if (!res.ok) { alert(data.error || 'Download failed'); return; }
+                if (data.files && data.files.length > 1) {
+                    // Multi-file: download all as zip
+                    downloadAllZip(id);
+                } else if (data.download_url) {
+                    // Single file: direct download
+                    const a = document.createElement('a');
+                    a.href = data.download_url;
+                    a.download = data.download_filename || 'asset';
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                }
             }
 
             let selectedRating = 0;

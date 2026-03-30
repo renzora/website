@@ -27,6 +27,8 @@ pub struct Asset {
     pub subcategory: String,
     pub credit_name: String,
     pub credit_url: String,
+    pub multi_file: bool,
+    pub legacy_file_url: Option<String>,
     pub created_at: OffsetDateTime,
     pub updated_at: OffsetDateTime,
 }

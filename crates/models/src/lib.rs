@@ -2,6 +2,7 @@ pub mod achievement;
 pub mod api_token;
 pub mod article;
 pub mod asset;
+pub mod asset_file;
 pub mod developer_app;
 pub mod friend;
 pub mod leaderboard;

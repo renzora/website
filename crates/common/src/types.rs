@@ -109,6 +109,23 @@ pub struct AssetDetail {
     pub updated_at: String,
     /// Whether the current user owns this asset (only set when authenticated).
     pub owned: Option<bool>,
+    /// Individual files within this asset (populated for multi-file assets).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub files: Vec<AssetFileInfo>,
+}
+
+/// Information about an individual file within a multi-file asset.
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct AssetFileInfo {
+    pub id: Uuid,
+    pub original_filename: String,
+    pub file_size: i64,
+    pub mime_type: String,
+    pub sort_order: i32,
+    /// For paid unowned assets: URL to the watermarked/clipped preview. None if unavailable.
+    pub preview_url: Option<String>,
+    /// For owned/free assets: presigned download URL. None if not authorized.
+    pub download_url: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -164,7 +181,12 @@ pub struct UploadAssetRequest {
     /// Link to original creator or source.
     #[serde(default)]
     pub credit_url: String,
+    /// For zip uploads: "keep" (store as-is) or "extract" (unpack into individual files).
+    #[serde(default = "default_zip_action")]
+    pub zip_action: String,
 }
+
+fn default_zip_action() -> String { "keep".to_string() }
 
 fn default_licence() -> String { "standard".to_string() }
 
@@ -192,6 +214,9 @@ pub struct UpdateAssetRequest {
 pub struct DownloadResponse {
     pub download_url: String,
     pub download_filename: String,
+    /// Individual file download URLs for multi-file assets.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub files: Vec<AssetFileInfo>,
 }
 
 #[derive(Debug, Serialize)]

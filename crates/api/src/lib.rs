@@ -14,6 +14,7 @@ pub mod gameservices;
 pub mod jwt;
 pub mod library;
 pub mod marketplace;
+pub mod preview;
 pub mod middleware;
 pub mod notifications;
 pub mod profiles;

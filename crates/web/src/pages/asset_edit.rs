@@ -146,16 +146,36 @@ pub fn AssetEditPage() -> impl IntoView {
                         </div>
                     </div>
 
-                    <!-- Asset File -->
+                    <!-- Asset Files -->
                     <div class="p-6 bg-white/[0.02] border border-zinc-800/50 rounded-2xl space-y-5 mb-8">
                         <h2 class="text-base font-semibold flex items-center gap-2">
-                            <i class="ph ph-file-arrow-up text-cyan-400"></i> Asset File
+                            <i class="ph ph-file-arrow-up text-cyan-400"></i> Asset Files
                         </h2>
                         <div>
-                            <p class="text-sm text-zinc-400 mb-2">${a.file_url ? '<i class="ph ph-check-circle text-green-400"></i> File uploaded' : '<i class="ph ph-warning text-amber-400"></i> No file uploaded'}</p>
-                            <input type="file" id="edit-file"
+                            <p class="text-sm text-zinc-400 mb-2">${a.files && a.files.length ? '<i class="ph ph-check-circle text-green-400"></i> ' + a.files.length + ' file(s) uploaded' : a.file_url ? '<i class="ph ph-check-circle text-green-400"></i> File uploaded' : '<i class="ph ph-warning text-amber-400"></i> No file uploaded'}</p>
+
+                            ${a.files && a.files.length ? '<div class="mb-3 space-y-1.5" id="current-files">' + a.files.map(f => '<div class="flex items-center gap-2 text-xs text-zinc-400 px-3 py-2 bg-white/[0.02] rounded-lg"><i class="ph ph-file text-zinc-600"></i><span class="flex-1 truncate">' + f.original_filename + '</span><span class="text-zinc-600">' + formatFileSize(f.file_size) + '</span></div>').join('') + '</div>' : ''}
+
+                            <input type="file" id="edit-file" multiple
+                                onchange="onEditFileChange(this)"
                                 class="w-full text-sm text-zinc-400 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-sm file:font-medium file:bg-white/[0.05] file:text-zinc-300 hover:file:bg-white/[0.08] file:cursor-pointer file:transition-colors" />
-                            <p class="text-xs text-zinc-600 mt-1">Upload a new file to replace the current one. Max 50MB.</p>
+                            <p class="text-xs text-zinc-600 mt-1">Upload new file(s) to replace all current files. Max 200MB each. You can select multiple files or a single .zip.</p>
+
+                            <div id="edit-zip-options" class="hidden mt-3 p-3 bg-white/[0.02] rounded-xl border border-zinc-800/50">
+                                <p class="text-xs text-zinc-400 mb-2">This is a .zip file. How should it be stored?</p>
+                                <div class="flex gap-3">
+                                    <label class="flex items-center gap-2 cursor-pointer">
+                                        <input type="radio" name="zip_action" value="keep" checked class="accent-accent" />
+                                        <span class="text-xs text-zinc-300">Keep as zip</span>
+                                    </label>
+                                    <label class="flex items-center gap-2 cursor-pointer">
+                                        <input type="radio" name="zip_action" value="extract" class="accent-accent" />
+                                        <span class="text-xs text-zinc-300">Extract contents</span>
+                                    </label>
+                                </div>
+                            </div>
+
+                            <div id="edit-file-list" class="mt-2 space-y-1"></div>
                         </div>
                     </div>
 
@@ -219,6 +239,39 @@ pub fn AssetEditPage() -> impl IntoView {
                 }
             }
 
+            function formatFileSize(bytes) {
+                if (!bytes) return '';
+                if (bytes > 1e9) return (bytes / 1e9).toFixed(1) + ' GB';
+                if (bytes > 1e6) return (bytes / 1e6).toFixed(1) + ' MB';
+                return (bytes / 1e3).toFixed(0) + ' KB';
+            }
+
+            function onEditFileChange(input) {
+                const files = input.files;
+                const zipOpts = document.getElementById('edit-zip-options');
+                const fileList = document.getElementById('edit-file-list');
+
+                // Show zip options if single .zip file
+                if (files.length === 1 && files[0].name.toLowerCase().endsWith('.zip')) {
+                    zipOpts.classList.remove('hidden');
+                } else {
+                    zipOpts.classList.add('hidden');
+                }
+
+                // Show file list
+                if (files.length > 0) {
+                    fileList.innerHTML = Array.from(files).map(f =>
+                        `<div class="flex items-center gap-2 text-xs text-zinc-400 px-3 py-2 bg-white/[0.02] rounded-lg">
+                            <i class="ph ph-file text-zinc-600"></i>
+                            <span class="flex-1 truncate">${f.name}</span>
+                            <span class="text-zinc-600">${formatFileSize(f.size)}</span>
+                        </div>`
+                    ).join('');
+                } else {
+                    fileList.innerHTML = '';
+                }
+            }
+
             function previewEditThumb(input) {
                 const el = document.getElementById('edit-thumb-preview');
                 if (input.files[0]) {
@@ -270,12 +323,19 @@ pub fn AssetEditPage() -> impl IntoView {
                         throw new Error(d.error || 'Failed to save');
                     }
 
-                    // 2. Upload new file and/or thumbnail if selected
+                    // 2. Upload new file(s) and/or thumbnail if selected
                     const thumbFile = document.getElementById('edit-thumbnail')?.files[0];
-                    const newFile = document.getElementById('edit-file')?.files[0];
-                    if (newFile || thumbFile) {
+                    const newFiles = document.getElementById('edit-file')?.files;
+                    if ((newFiles && newFiles.length > 0) || thumbFile) {
                         const fd = new FormData();
-                        if (newFile) fd.append('file', newFile);
+                        if (newFiles) {
+                            for (let i = 0; i < newFiles.length; i++) {
+                                fd.append('file', newFiles[i], newFiles[i].name);
+                            }
+                            // Send zip_action if applicable
+                            const zipAction = document.querySelector('input[name="zip_action"]:checked');
+                            if (zipAction) fd.append('zip_action', zipAction.value);
+                        }
                         if (thumbFile) fd.append('thumbnail', thumbFile);
                         const fRes = await fetch('/api/marketplace/' + assetId + '/files', {
                             method: 'PUT',
