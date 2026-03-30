@@ -23,6 +23,10 @@ pub struct Asset {
     pub licence: String,
     pub ai_generated: bool,
     pub metadata: serde_json::Value,
+    pub download_filename: String,
+    pub subcategory: String,
+    pub credit_name: String,
+    pub credit_url: String,
     pub created_at: OffsetDateTime,
     pub updated_at: OffsetDateTime,
 }
@@ -57,7 +61,7 @@ impl Asset {
         price_credits: i64,
         version: &str,
     ) -> Result<Self, sqlx::Error> {
-        Self::create_full(pool, creator_id, name, description, category, price_credits, version, &[], "standard", false, serde_json::Value::Object(Default::default())).await
+        Self::create_full(pool, creator_id, name, description, category, price_credits, version, &[], "standard", false, serde_json::Value::Object(Default::default()), "", "", "", "").await
     }
 
     pub async fn create_full(
@@ -72,15 +76,22 @@ impl Asset {
         licence: &str,
         ai_generated: bool,
         metadata: serde_json::Value,
+        download_filename: &str,
+        subcategory: &str,
+        credit_name: &str,
+        credit_url: &str,
     ) -> Result<Self, sqlx::Error> {
         let id = Uuid::new_v4();
         let slug = slugify(name, id);
         let now = OffsetDateTime::now_utc();
 
+        // Force free if credited from another creator
+        let effective_price = if !credit_name.is_empty() { 0 } else { price_credits };
+
         sqlx::query_as::<_, Asset>(
             r#"
-            INSERT INTO assets (id, creator_id, name, slug, description, category, price_credits, version, tags, licence, ai_generated, metadata, created_at, updated_at)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $13)
+            INSERT INTO assets (id, creator_id, name, slug, description, category, price_credits, version, tags, licence, ai_generated, metadata, download_filename, subcategory, credit_name, credit_url, created_at, updated_at)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $17)
             RETURNING *
             "#,
         )
@@ -90,12 +101,16 @@ impl Asset {
         .bind(&slug)
         .bind(description)
         .bind(category)
-        .bind(price_credits)
+        .bind(effective_price)
         .bind(version)
         .bind(tags)
         .bind(licence)
         .bind(ai_generated)
         .bind(metadata)
+        .bind(download_filename)
+        .bind(subcategory)
+        .bind(credit_name)
+        .bind(credit_url)
         .bind(now)
         .fetch_one(pool)
         .await
@@ -123,13 +138,15 @@ impl Asset {
         page: i64,
         per_page: i64,
     ) -> Result<(Vec<AssetWithCreator>, i64), sqlx::Error> {
-        Self::list_published_filtered(pool, query, category, sort, page, per_page, None, None, None).await
+        Self::list_published_filtered(pool, query, category, None, None, sort, page, per_page, None, None, None).await
     }
 
     pub async fn list_published_filtered(
         pool: &PgPool,
         query: Option<&str>,
         category: Option<&str>,
+        subcategory: Option<&str>,
+        tag: Option<&str>,
         sort: &str,
         page: i64,
         per_page: i64,
@@ -161,11 +178,13 @@ impl Asset {
             FROM assets a
             JOIN users u ON u.id = a.creator_id
             WHERE a.published = true
-              AND ($1::text IS NULL OR a.name ILIKE '%' || $1 || '%' OR a.description ILIKE '%' || $1 || '%')
+              AND ($1::text IS NULL OR a.name ILIKE '%' || $1 || '%' OR a.description ILIKE '%' || $1 || '%' OR $1 = ANY(a.tags))
               AND ($2::text IS NULL OR $2 = 'all' OR a.category = $2)
               AND ($5::bool = false OR a.price_credits = 0)
               AND ($6::int = 0 OR (a.rating_count > 0 AND a.rating_sum::float / a.rating_count >= $6::float))
               AND ($7::bigint = -1 OR a.price_credits <= $7)
+              AND ($8::text IS NULL OR a.subcategory = $8)
+              AND ($9::text IS NULL OR $9 = ANY(a.tags))
             ORDER BY {order_clause}
             LIMIT $3 OFFSET $4
             "#,
@@ -177,6 +196,8 @@ impl Asset {
         .bind(free_filter)
         .bind(min_r)
         .bind(max_p)
+        .bind(subcategory)
+        .bind(tag)
         .fetch_all(pool)
         .await?;
 
@@ -185,11 +206,13 @@ impl Asset {
             SELECT COUNT(*)::bigint
             FROM assets a
             WHERE a.published = true
-              AND ($1::text IS NULL OR a.name ILIKE '%' || $1 || '%' OR a.description ILIKE '%' || $1 || '%')
+              AND ($1::text IS NULL OR a.name ILIKE '%' || $1 || '%' OR a.description ILIKE '%' || $1 || '%' OR $1 = ANY(a.tags))
               AND ($2::text IS NULL OR $2 = 'all' OR a.category = $2)
               AND ($3::bool = false OR a.price_credits = 0)
               AND ($4::int = 0 OR (a.rating_count > 0 AND a.rating_sum::float / a.rating_count >= $4::float))
               AND ($5::bigint = -1 OR a.price_credits <= $5)
+              AND ($6::text IS NULL OR a.subcategory = $6)
+              AND ($7::text IS NULL OR $7 = ANY(a.tags))
             "#,
         )
         .bind(query)
@@ -197,6 +220,8 @@ impl Asset {
         .bind(free_filter)
         .bind(min_r)
         .bind(max_p)
+        .bind(subcategory)
+        .bind(tag)
         .fetch_one(pool)
         .await?;
 
@@ -280,6 +305,10 @@ impl Asset {
         licence: Option<&str>,
         ai_generated: Option<bool>,
         metadata: Option<serde_json::Value>,
+        download_filename: Option<&str>,
+        subcategory: Option<&str>,
+        credit_name: Option<&str>,
+        credit_url: Option<&str>,
     ) -> Result<(), sqlx::Error> {
         if let Some(tags) = tags {
             sqlx::query("UPDATE assets SET tags = $2, updated_at = NOW() WHERE id = $1")
@@ -296,6 +325,27 @@ impl Asset {
         if let Some(meta) = metadata {
             sqlx::query("UPDATE assets SET metadata = $2, updated_at = NOW() WHERE id = $1")
                 .bind(id).bind(meta).execute(pool).await?;
+        }
+        if let Some(filename) = download_filename {
+            sqlx::query("UPDATE assets SET download_filename = $2, updated_at = NOW() WHERE id = $1")
+                .bind(id).bind(filename).execute(pool).await?;
+        }
+        if let Some(sub) = subcategory {
+            sqlx::query("UPDATE assets SET subcategory = $2, updated_at = NOW() WHERE id = $1")
+                .bind(id).bind(sub).execute(pool).await?;
+        }
+        if let Some(cn) = credit_name {
+            sqlx::query("UPDATE assets SET credit_name = $2, updated_at = NOW() WHERE id = $1")
+                .bind(id).bind(cn).execute(pool).await?;
+            // Force price to 0 if credited
+            if !cn.is_empty() {
+                sqlx::query("UPDATE assets SET price_credits = 0, updated_at = NOW() WHERE id = $1")
+                    .bind(id).execute(pool).await?;
+            }
+        }
+        if let Some(cu) = credit_url {
+            sqlx::query("UPDATE assets SET credit_url = $2, updated_at = NOW() WHERE id = $1")
+                .bind(id).bind(cu).execute(pool).await?;
         }
         Ok(())
     }

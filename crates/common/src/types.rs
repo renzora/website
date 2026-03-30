@@ -100,6 +100,10 @@ pub struct AssetDetail {
     pub licence: String,
     pub ai_generated: bool,
     pub metadata: serde_json::Value,
+    pub download_filename: String,
+    pub subcategory: String,
+    pub credit_name: String,
+    pub credit_url: String,
     pub creator: UserProfile,
     pub created_at: String,
     pub updated_at: String,
@@ -111,6 +115,8 @@ pub struct AssetDetail {
 pub struct MarketplaceQuery {
     pub q: Option<String>,
     pub category: Option<String>,
+    pub subcategory: Option<String>,
+    pub tag: Option<String>,
     pub sort: Option<String>,
     pub page: Option<i64>,
     pub free: Option<bool>,
@@ -146,6 +152,18 @@ pub struct UploadAssetRequest {
     /// Example: {"render_pipeline":"pbr","texture_resolution":"2048x2048","poly_count":1500}
     #[serde(default)]
     pub metadata: serde_json::Value,
+    /// Human-readable filename for downloads (auto-populated from uploaded file).
+    #[serde(default)]
+    pub download_filename: String,
+    /// Subcategory slug (optional).
+    #[serde(default)]
+    pub subcategory: String,
+    /// Original creator name (attribution). Forces price to free when set.
+    #[serde(default)]
+    pub credit_name: String,
+    /// Link to original creator or source.
+    #[serde(default)]
+    pub credit_url: String,
 }
 
 fn default_licence() -> String { "standard".to_string() }
@@ -164,11 +182,16 @@ pub struct UpdateAssetRequest {
     pub licence: Option<String>,
     pub ai_generated: Option<bool>,
     pub metadata: Option<serde_json::Value>,
+    pub download_filename: Option<String>,
+    pub subcategory: Option<String>,
+    pub credit_name: Option<String>,
+    pub credit_url: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
 pub struct DownloadResponse {
     pub download_url: String,
+    pub download_filename: String,
 }
 
 #[derive(Debug, Serialize)]

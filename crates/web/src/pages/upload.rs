@@ -139,9 +139,51 @@ pub fn UploadPage() -> impl IntoView {
                             // Tags — asset only
                             <div id="tags-field" class="hidden">
                                 <label class="block text-sm text-zinc-400 mb-1.5">"Tags"</label>
-                                <input type="text" id="w-tags" placeholder="physics, 3d, multiplayer (comma separated)"
+                                <div class="relative">
+                                    <div id="tags-pills" class="flex flex-wrap gap-1.5 mb-2"></div>
+                                    <input type="text" id="w-tags-input" placeholder="Type to search tags..."
+                                        autocomplete="off"
+                                        class="w-full px-4 py-3 bg-white/[0.02] border border-zinc-800/50 rounded-xl text-zinc-50 text-sm outline-none focus:border-accent/50 transition-all" />
+                                    <input type="hidden" id="w-tags" />
+                                    <div id="tags-dropdown" class="hidden absolute left-0 right-0 top-full mt-1 bg-zinc-900 border border-zinc-700 rounded-xl shadow-lg z-50 max-h-48 overflow-y-auto"></div>
+                                </div>
+                                <p class="text-xs text-zinc-600 mt-1">"Add up to 5 tags. Press comma or click a suggestion. New tags are submitted for review."</p>
+                            </div>
+
+                            // Download filename — asset only
+                            <div id="filename-field" class="hidden">
+                                <label class="block text-sm text-zinc-400 mb-1.5">"Download Filename"</label>
+                                <input type="text" id="w-download-filename" placeholder="my-asset.zip"
                                     class="w-full px-4 py-3 bg-white/[0.02] border border-zinc-800/50 rounded-xl text-zinc-50 text-sm outline-none focus:border-accent/50 transition-all" />
-                                <p class="text-xs text-zinc-600 mt-1">"Add up to 5 tags to help people find your asset."</p>
+                                <p class="text-xs text-zinc-600 mt-1">"The filename users will see when downloading. Auto-populated from your uploaded file."</p>
+                            </div>
+
+                            // Credit / Attribution — asset only
+                            <div id="credit-field" class="hidden">
+                                <div class="p-4 bg-white/[0.01] border border-zinc-800/30 rounded-xl space-y-4">
+                                    <div class="flex items-center gap-2">
+                                        <i class="ph ph-heart text-accent"></i>
+                                        <p class="text-xs text-zinc-500 uppercase tracking-wider font-medium">"Credit / Attribution"</p>
+                                    </div>
+                                    <p class="text-xs text-zinc-600">"If this asset is from another creator, credit them here. Credited assets are automatically free."</p>
+                                    <div>
+                                        <label class="block text-sm text-zinc-400 mb-1.5">"Original Creator Name"</label>
+                                        <input type="text" id="w-credit-name" placeholder="e.g. KayKit, Kenney"
+                                            oninput="updateCreditState()"
+                                            class="w-full px-4 py-3 bg-white/[0.02] border border-zinc-800/50 rounded-xl text-zinc-50 text-sm outline-none focus:border-accent/50 transition-all" />
+                                    </div>
+                                    <div>
+                                        <label class="block text-sm text-zinc-400 mb-1.5">"Creator Website / Source Link"</label>
+                                        <input type="text" id="w-credit-url" placeholder="https://kaykit.itch.io"
+                                            class="w-full px-4 py-3 bg-white/[0.02] border border-zinc-800/50 rounded-xl text-zinc-50 text-sm outline-none focus:border-accent/50 transition-all" />
+                                    </div>
+                                    <div id="credit-free-notice" class="hidden p-3 bg-green-500/5 border border-green-500/10 rounded-lg">
+                                        <p class="text-xs text-green-400 flex items-center gap-1.5">
+                                            <i class="ph ph-info"></i>
+                                            "This asset will be published as free because it credits another creator."
+                                        </p>
+                                    </div>
+                                </div>
                             </div>
                         </div>
 
@@ -638,12 +680,150 @@ pub fn UploadPage() -> impl IntoView {
         // ──────────────────────────────────────
         function setupStep3() {
             const tagsField = document.getElementById('tags-field');
+            const filenameField = document.getElementById('filename-field');
+            const creditField = document.getElementById('credit-field');
             if (W.contentType === 'asset') {
                 tagsField.classList.remove('hidden');
+                filenameField.classList.remove('hidden');
+                creditField.classList.remove('hidden');
             } else {
                 tagsField.classList.add('hidden');
+                filenameField.classList.add('hidden');
+                creditField.classList.add('hidden');
             }
         }
+
+        function updateCreditState() {
+            const creditName = document.getElementById('w-credit-name').value.trim();
+            const notice = document.getElementById('credit-free-notice');
+            const priceInput = document.getElementById('w-price');
+            if (creditName) {
+                notice.classList.remove('hidden');
+                priceInput.value = '0';
+                priceInput.disabled = true;
+                updatePricePreview();
+            } else {
+                notice.classList.add('hidden');
+                priceInput.disabled = false;
+            }
+        }
+
+        // ── Tag autocomplete system ──
+        const selectedTags = [];
+        let tagSearchTimeout = null;
+
+        function renderTagPills() {
+            const container = document.getElementById('tags-pills');
+            const hidden = document.getElementById('w-tags');
+            container.innerHTML = '';
+            selectedTags.forEach((tag, i) => {
+                const pill = document.createElement('span');
+                pill.className = 'inline-flex items-center gap-1 px-2.5 py-1 bg-accent/15 text-accent text-xs font-medium rounded-lg';
+                pill.innerHTML = escHtml(tag) + ' <button type="button" class="hover:text-white ml-0.5" onclick="removeTag(' + i + ')">&times;</button>';
+                container.appendChild(pill);
+            });
+            hidden.value = selectedTags.join(',');
+        }
+
+        function addTag(name) {
+            const clean = name.trim().toLowerCase();
+            if (!clean || selectedTags.length >= 5 || selectedTags.includes(clean)) return;
+            selectedTags.push(clean);
+            renderTagPills();
+            document.getElementById('w-tags-input').value = '';
+            document.getElementById('tags-dropdown').classList.add('hidden');
+        }
+
+        function removeTag(index) {
+            selectedTags.splice(index, 1);
+            renderTagPills();
+        }
+
+        async function searchTags(query) {
+            const dropdown = document.getElementById('tags-dropdown');
+            if (!query || query.length < 1) { dropdown.classList.add('hidden'); return; }
+            try {
+                const res = await fetch('/api/marketplace/tags?q=' + encodeURIComponent(query));
+                const tags = await safeJson(res);
+                if (!Array.isArray(tags) || tags.length === 0) {
+                    // Show "submit new tag" option
+                    dropdown.innerHTML = '<div class="px-3 py-2 text-xs text-zinc-500">No matching tags</div>'
+                        + '<button type="button" class="w-full px-3 py-2 text-left text-sm text-accent hover:bg-white/[0.05] transition-colors" onclick="submitNewTag(\'' + escHtml(query).replace(/'/g, "\\'") + '\')">+ Submit &quot;' + escHtml(query) + '&quot; as new tag</button>';
+                    dropdown.classList.remove('hidden');
+                    return;
+                }
+                dropdown.innerHTML = '';
+                tags.forEach(t => {
+                    if (selectedTags.includes(t.name)) return;
+                    const btn = document.createElement('button');
+                    btn.type = 'button';
+                    btn.className = 'w-full px-3 py-2 text-left text-sm text-zinc-200 hover:bg-white/[0.05] transition-colors';
+                    btn.textContent = t.name;
+                    btn.onclick = () => addTag(t.name);
+                    dropdown.appendChild(btn);
+                });
+                // Always offer to submit as new if not in results
+                const names = tags.map(t => t.name.toLowerCase());
+                if (!names.includes(query.toLowerCase())) {
+                    const btn = document.createElement('button');
+                    btn.type = 'button';
+                    btn.className = 'w-full px-3 py-2 text-left text-sm text-accent hover:bg-white/[0.05] transition-colors border-t border-zinc-800';
+                    btn.innerHTML = '+ Submit &quot;' + escHtml(query) + '&quot; as new tag';
+                    btn.onclick = () => submitNewTag(query);
+                    dropdown.appendChild(btn);
+                }
+                dropdown.classList.remove('hidden');
+            } catch (e) {
+                dropdown.classList.add('hidden');
+            }
+        }
+
+        async function submitNewTag(name) {
+            const token = document.cookie.match('(^|;)\\s*token\\s*=\\s*([^;]+)')?.pop();
+            if (!token) return;
+            try {
+                const res = await fetch('/api/marketplace/tags/submit', {
+                    method: 'POST',
+                    headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name: name.trim() })
+                });
+                const data = await safeJson(res);
+                if (res.ok) {
+                    addTag(data.name || name.trim());
+                }
+            } catch (e) {}
+        }
+
+        // Wire up tag input events
+        document.getElementById('w-tags-input').addEventListener('input', function(e) {
+            clearTimeout(tagSearchTimeout);
+            const val = e.target.value;
+            // Check for comma — add tag immediately
+            if (val.includes(',')) {
+                const parts = val.split(',');
+                parts.forEach((p, i) => {
+                    if (i < parts.length - 1 && p.trim()) addTag(p.trim());
+                });
+                e.target.value = parts[parts.length - 1];
+                return;
+            }
+            tagSearchTimeout = setTimeout(() => searchTags(val.trim()), 200);
+        });
+
+        document.getElementById('w-tags-input').addEventListener('keydown', function(e) {
+            if (e.key === 'Backspace' && !e.target.value && selectedTags.length > 0) {
+                removeTag(selectedTags.length - 1);
+            }
+        });
+
+        // Close dropdown on outside click
+        document.addEventListener('click', function(e) {
+            const dropdown = document.getElementById('tags-dropdown');
+            const input = document.getElementById('w-tags-input');
+            if (dropdown && !dropdown.contains(e.target) && e.target !== input) {
+                dropdown.classList.add('hidden');
+            }
+        });
 
         function updatePricePreview() {
             const price = parseInt(document.getElementById('w-price').value) || 0;
@@ -729,6 +909,11 @@ pub fn UploadPage() -> impl IntoView {
                 if (f.size > maxMB * 1024 * 1024) {
                     label.innerHTML += ' <span class="text-red-400">\u2014 exceeds ' + maxMB + 'MB limit</span>';
                 }
+                // Auto-populate download filename
+                const filenameInput = document.getElementById('w-download-filename');
+                if (filenameInput && !filenameInput.value) {
+                    filenameInput.value = f.name;
+                }
             }
         }
 
@@ -785,8 +970,17 @@ pub fn UploadPage() -> impl IntoView {
             html += reviewRow('Price', priceLabel);
 
             if (W.contentType === 'asset') {
-                const tags = document.getElementById('w-tags').value.trim();
-                if (tags) html += reviewRow('Tags', escHtml(tags));
+                if (selectedTags.length > 0) html += reviewRow('Tags', selectedTags.map(t => escHtml(t)).join(', '));
+                const dlFilename = document.getElementById('w-download-filename').value.trim();
+                if (dlFilename) html += reviewRow('Download Filename', escHtml(dlFilename));
+                const creditName = document.getElementById('w-credit-name').value.trim();
+                const creditUrl = document.getElementById('w-credit-url').value.trim();
+                if (creditName) {
+                    let creditHtml = escHtml(creditName);
+                    if (creditUrl) creditHtml += ' (<a href="' + escHtml(creditUrl) + '" class="text-accent underline" target="_blank">' + escHtml(creditUrl) + '</a>)';
+                    html += reviewRow('Credit', creditHtml);
+                    html += reviewRow('Price', '<span class="text-green-400">Free (credited asset)</span>');
+                }
             }
 
             if (file) {
@@ -850,13 +1044,26 @@ pub fn UploadPage() -> impl IntoView {
 
                 if (!file) throw new Error('No file selected');
 
-                const metadata = JSON.stringify({
+                const dlFilename = document.getElementById('w-download-filename')?.value?.trim() || '';
+                const metaObj = {
                     name: name,
                     description: description,
                     category: W.category,
                     price_credits: price_credits,
                     version: version
-                });
+                };
+                if (W.contentType === 'asset') {
+                    metaObj.tags = selectedTags;
+                    metaObj.download_filename = dlFilename;
+                    const creditName = document.getElementById('w-credit-name')?.value?.trim() || '';
+                    const creditUrl = document.getElementById('w-credit-url')?.value?.trim() || '';
+                    if (creditName) {
+                        metaObj.credit_name = creditName;
+                        metaObj.credit_url = creditUrl;
+                        metaObj.price_credits = 0;
+                    }
+                }
+                const metadata = JSON.stringify(metaObj);
 
                 const fd = new FormData();
                 fd.append('metadata', metadata);

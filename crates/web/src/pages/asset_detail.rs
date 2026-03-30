@@ -213,8 +213,8 @@ pub fn AssetDetailPage() -> impl IntoView {
                                             meshBtns +
                                         '</div>' +
                                     '</div>' +
-                                    '<div class="rounded-2xl overflow-hidden border border-zinc-800/50 bg-[#0f0f13] relative" style="aspect-ratio:16/9">' +
-                                        '<canvas id="preview-canvas" class="w-full h-full"></canvas>' +
+                                    '<div class="rounded-2xl overflow-hidden border border-zinc-800/50 bg-[#0f0f13] relative" style="aspect-ratio:16/9" id="preview-container">' +
+                                        '<canvas id="preview-canvas" class="w-full h-full" style="pointer-events:none"></canvas>' +
                                         '<div id="preview-loading" class="absolute inset-0 flex items-center justify-center bg-[#0f0f13]">' +
                                             '<div class="text-center">' +
                                                 '<div class="inline-block animate-spin w-5 h-5 border-2 border-zinc-700 border-t-accent rounded-full mb-2"></div>' +
@@ -332,6 +332,7 @@ pub fn AssetDetailPage() -> impl IntoView {
                                     <div class="flex justify-between text-sm"><span class="text-zinc-500">Downloads</span><span class="text-zinc-300">${a.downloads.toLocaleString()}</span></div>
                                     <div class="flex justify-between text-sm"><span class="text-zinc-500">Category</span><span class="text-zinc-300">${a.category}</span></div>
                                     ${(a.tags || []).length ? `<div class="text-sm"><span class="text-zinc-500 block mb-1.5">Tags</span><div class="flex flex-wrap gap-1">${a.tags.map(t => `<span class="px-2 py-0.5 rounded-full bg-accent/10 border border-accent/20 text-[10px] text-accent">${t}</span>`).join('')}</div></div>` : ''}
+                                    ${a.credit_name ? `<div class="flex justify-between text-sm"><span class="text-zinc-500">Credit</span><span class="text-zinc-300">${a.credit_url ? `<a href="${a.credit_url}" target="_blank" class="text-accent hover:underline">${a.credit_name}</a>` : a.credit_name}</span></div>` : ''}
                                     <div class="flex justify-between text-sm"><span class="text-zinc-500">Version</span><span class="text-zinc-300">${a.version}</span></div>
                                     <div class="flex justify-between text-sm"><span class="text-zinc-500">Comments</span><span class="text-zinc-300">${commentsData.comments?.length || 0}</span></div>
                                     <div class="flex justify-between text-sm"><span class="text-zinc-500">Published</span><span class="text-zinc-300">${fmtDate(a.created_at)}</span></div>

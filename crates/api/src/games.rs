@@ -384,7 +384,12 @@ async fn download_game(
     let file_url = game.file_url.ok_or(ApiError::Internal("Game has no file".into()))?;
     Game::increment_downloads(&state.db, id).await?;
 
-    Ok(Json(DownloadResponse { download_url: file_url }))
+    let filename = file_url
+        .rsplit('/')
+        .next()
+        .unwrap_or("game")
+        .to_string();
+    Ok(Json(DownloadResponse { download_url: file_url, download_filename: filename }))
 }
 
 // ── Media ──

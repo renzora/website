@@ -8,6 +8,8 @@ use sqlx::Row;
 use renzora_common::types::*;
 use renzora_models::asset::{self, Asset};
 use renzora_models::category::Category;
+use renzora_models::subcategory::Subcategory;
+use renzora_models::tag::Tag;
 use renzora_models::user::User;
 use uuid::Uuid;
 
@@ -29,11 +31,15 @@ pub fn router() -> Router<AppState> {
         .route("/:id/reviews/flag", post(flag_review))
         .route("/:id/reviews/helpful", post(mark_review_helpful))
         .route("/:id/delete", delete(delete_asset))
+        .route("/tags/submit", post(submit_tag))
+        .route("/subcategories/submit", post(submit_subcategory))
         .layer(axum::middleware::from_fn(middleware::require_auth));
 
     Router::new()
         .route("/", get(list_assets))
         .route("/categories", get(list_categories))
+        .route("/subcategories", get(list_subcategories))
+        .route("/tags", get(search_tags))
         .route("/detail/:slug", get(get_asset))
         .route("/:id/comments", get(list_comments))
         .route("/:id/reviews", get(list_reviews))
@@ -55,6 +61,8 @@ async fn list_assets(
         &state.db,
         params.q.as_deref(),
         params.category.as_deref(),
+        params.subcategory.as_deref(),
+        params.tag.as_deref(),
         sort,
         page,
         per_page,
@@ -160,6 +168,7 @@ async fn upload_asset(
 ) -> Result<Json<AssetDetail>, ApiError> {
     let mut metadata: Option<UploadAssetRequest> = None;
     let mut file_path: Option<String> = None;
+    let mut original_filename: Option<String> = None;
     let mut thumb_path: Option<String> = None;
     let mut screenshots: Vec<String> = Vec::new();
     let mut video_url: Option<String> = None;
@@ -183,6 +192,7 @@ async fn upload_asset(
             }
             "file" => {
                 let filename = field.file_name().unwrap_or("asset.zip").to_string();
+                original_filename = Some(filename.clone());
                 let data = field
                     .bytes()
                     .await
@@ -335,6 +345,13 @@ async fn upload_asset(
 
     // ── Create asset ──
 
+    // Auto-populate download_filename from the uploaded file if not explicitly set
+    let download_filename = if meta.download_filename.is_empty() {
+        original_filename.clone().unwrap_or_default()
+    } else {
+        meta.download_filename.clone()
+    };
+
     let asset = Asset::create_full(
         &state.db,
         auth.user_id,
@@ -347,6 +364,10 @@ async fn upload_asset(
         &meta.licence,
         meta.ai_generated,
         meta.metadata.clone(),
+        &download_filename,
+        &meta.subcategory,
+        &meta.credit_name,
+        &meta.credit_url,
     )
     .await?;
 
@@ -476,6 +497,10 @@ async fn update_asset(
         body.licence.as_deref(),
         body.ai_generated,
         body.metadata.clone(),
+        body.download_filename.as_deref(),
+        body.subcategory.as_deref(),
+        body.credit_name.as_deref(),
+        body.credit_url.as_deref(),
     ).await?;
 
     // Re-fetch to get all updated fields
@@ -563,8 +588,20 @@ async fn download_asset(
     // Increment download counter
     Asset::increment_downloads(&state.db, id).await?;
 
+    // Use download_filename if set, otherwise derive from URL
+    let filename = if !asset.download_filename.is_empty() {
+        asset.download_filename.clone()
+    } else {
+        file_url
+            .rsplit('/')
+            .next()
+            .unwrap_or("asset")
+            .to_string()
+    };
+
     Ok(Json(DownloadResponse {
         download_url: file_url,
+        download_filename: filename,
     }))
 }
 
@@ -914,6 +951,143 @@ async fn mark_review_helpful(
     Ok(Json(serde_json::json!({"message": "Marked as helpful"})))
 }
 
+// ── Tags ──
+
+#[derive(Deserialize)]
+struct TagQuery {
+    q: Option<String>,
+}
+
+/// Search/list approved tags (autocomplete).
+async fn search_tags(
+    State(state): State<AppState>,
+    Query(params): Query<TagQuery>,
+) -> Result<Json<Vec<serde_json::Value>>, ApiError> {
+    let tags = if let Some(q) = &params.q {
+        if q.is_empty() {
+            Tag::list_approved(&state.db).await?
+        } else {
+            Tag::search(&state.db, q, 20).await?
+        }
+    } else {
+        Tag::list_approved(&state.db).await?
+    };
+
+    let result: Vec<serde_json::Value> = tags
+        .iter()
+        .map(|t| {
+            serde_json::json!({
+                "id": t.id,
+                "name": t.name,
+                "slug": t.slug,
+            })
+        })
+        .collect();
+
+    Ok(Json(result))
+}
+
+#[derive(Deserialize)]
+struct SubmitTagBody {
+    name: String,
+}
+
+/// Submit a new tag for review (authenticated).
+async fn submit_tag(
+    State(state): State<AppState>,
+    Extension(auth): Extension<AuthUser>,
+    Json(body): Json<SubmitTagBody>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    let name = body.name.trim();
+    if name.is_empty() || name.len() > 64 {
+        return Err(ApiError::Validation(
+            "Tag name must be 1-64 characters".into(),
+        ));
+    }
+
+    let tag = Tag::submit(&state.db, name, auth.user_id).await?;
+
+    Ok(Json(serde_json::json!({
+        "id": tag.id,
+        "name": tag.name,
+        "slug": tag.slug,
+        "approved": tag.approved,
+    })))
+}
+
+// ── Subcategories ──
+
+#[derive(Deserialize)]
+struct SubcategoryQuery {
+    category: Option<String>,
+}
+
+/// List approved subcategories, optionally filtered by category slug.
+async fn list_subcategories(
+    State(state): State<AppState>,
+    Query(params): Query<SubcategoryQuery>,
+) -> Result<Json<Vec<serde_json::Value>>, ApiError> {
+    let subs = if let Some(cat_slug) = &params.category {
+        let cat = Category::find_by_slug(&state.db, cat_slug)
+            .await?
+            .ok_or(ApiError::NotFound)?;
+        Subcategory::list_for_category(&state.db, cat.id).await?
+    } else {
+        Subcategory::list_all_approved(&state.db).await?
+    };
+
+    let result: Vec<serde_json::Value> = subs
+        .iter()
+        .map(|s| {
+            serde_json::json!({
+                "id": s.id,
+                "category_id": s.category_id,
+                "name": s.name,
+                "slug": s.slug,
+            })
+        })
+        .collect();
+
+    Ok(Json(result))
+}
+
+#[derive(Deserialize)]
+struct SubmitSubcategoryBody {
+    category_slug: String,
+    name: String,
+}
+
+/// Submit a new subcategory for review (authenticated).
+async fn submit_subcategory(
+    State(state): State<AppState>,
+    Extension(auth): Extension<AuthUser>,
+    Json(body): Json<SubmitSubcategoryBody>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    let name = body.name.trim();
+    if name.is_empty() || name.len() > 128 {
+        return Err(ApiError::Validation(
+            "Subcategory name must be 1-128 characters".into(),
+        ));
+    }
+
+    let cat = Category::find_by_slug(&state.db, &body.category_slug)
+        .await?
+        .ok_or(ApiError::Validation(format!(
+            "Unknown category: '{}'",
+            body.category_slug
+        )))?;
+
+    let sub = Subcategory::submit(&state.db, cat.id, name, auth.user_id).await?;
+
+    Ok(Json(serde_json::json!({
+        "id": sub.id,
+        "category_id": sub.category_id,
+        "name": sub.name,
+        "slug": sub.slug,
+        "approved": sub.approved,
+    })))
+}
+
 /// Generate a clean storage key from a folder and original filename.
 /// Returns `folder/uuid.ext` — strips the original name, keeps only the extension.
 fn storage_key(folder: &str, original_filename: &str) -> String {
@@ -1138,6 +1312,10 @@ fn asset_to_detail(
         licence: asset.licence.clone(),
         ai_generated: asset.ai_generated,
         metadata: asset.metadata.clone(),
+        download_filename: asset.download_filename.clone(),
+        subcategory: asset.subcategory.clone(),
+        credit_name: asset.credit_name.clone(),
+        credit_url: asset.credit_url.clone(),
         creator: UserProfile {
             id: creator.id,
             username: creator.username.clone(),

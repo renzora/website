@@ -100,6 +100,21 @@ pub fn SettingsPage() -> impl IntoView {
                     </div>
                 </div>
 
+                // Connected Apps
+                <div class="mb-8">
+                    <h2 class="text-base font-semibold mb-4 flex items-center gap-2">
+                        <i class="ph ph-plugs-connected text-lg text-accent"></i>"Connected Apps"
+                    </h2>
+                    <div class="p-6 bg-surface-card border border-zinc-800 rounded-lg">
+                        <p class="text-xs text-zinc-500 mb-4">"Apps and games you have granted access to your account data. You can revoke access at any time."</p>
+                        <div id="connected-apps">
+                            <div class="text-center py-4">
+                                <div class="inline-block animate-spin w-4 h-4 border-2 border-zinc-700 border-t-accent rounded-full"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
                 // Danger zone
                 <div>
                     <h2 class="text-base font-semibold mb-4 flex items-center gap-2 text-red-400">
@@ -298,6 +313,43 @@ pub fn SettingsPage() -> impl IntoView {
                             </div>`;
                     }).join('');
                 } catch(e) {}
+            }
+
+            // ── Connected Apps ──
+            (async function loadConnectedApps() {
+                const token = getToken();
+                const el = document.getElementById('connected-apps');
+                if (!token) { el.innerHTML = '<p class="text-xs text-zinc-500">Sign in to see connected apps.</p>'; return; }
+                try {
+                    const res = await fetch('/api/gameservices/grants', { headers: { 'Authorization': 'Bearer ' + token } });
+                    if (!res.ok) { el.innerHTML = '<p class="text-xs text-zinc-500">Could not load connected apps.</p>'; return; }
+                    const grants = await res.json();
+                    if (!grants.length) { el.innerHTML = '<p class="text-xs text-zinc-500">No apps connected to your account.</p>'; return; }
+                    el.innerHTML = grants.map(g => `
+                        <div class="flex items-center justify-between py-3 border-b border-zinc-800/50 last:border-0">
+                            <div class="flex items-center gap-3">
+                                <div class="w-9 h-9 rounded-lg bg-accent/10 flex items-center justify-center">
+                                    ${g.app_icon_url ? '<img src="' + g.app_icon_url + '" class="w-6 h-6 rounded" />' : '<i class="ph ph-game-controller text-accent"></i>'}
+                                </div>
+                                <div>
+                                    <div class="text-sm font-medium">${g.app_name}</div>
+                                    <div class="text-[11px] text-zinc-500">${g.scopes_granted.join(', ')}</div>
+                                    <div class="text-[10px] text-zinc-600">Connected ${new Date(g.granted_at).toLocaleDateString()}</div>
+                                </div>
+                            </div>
+                            <button onclick="revokeApp('${g.app_id}', this)" class="px-3 py-1.5 rounded-lg text-xs text-red-400 hover:bg-red-950/30 border border-transparent hover:border-red-900/50 transition-all">Revoke</button>
+                        </div>
+                    `).join('');
+                } catch(e) { el.innerHTML = '<p class="text-xs text-zinc-500">Error loading apps.</p>'; }
+            })();
+
+            async function revokeApp(appId, btn) {
+                if (!confirm('Revoke access? The app will no longer be able to access your data.')) return;
+                const token = getToken();
+                if (!token) return;
+                const res = await fetch('/api/gameservices/grants/' + appId, { method: 'DELETE', headers: { 'Authorization': 'Bearer ' + token } });
+                if (res.ok) { btn.closest('[class*="flex items-center justify-between"]').remove(); showMsg('success', 'App access revoked.'); }
+                else { showMsg('error', 'Failed to revoke access.'); }
             }
 
             // Check for connect success redirect

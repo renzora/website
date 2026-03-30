@@ -37,24 +37,100 @@ pub fn DevelopersPage() -> impl IntoView {
                     <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-10">
                         <div class="p-5 bg-white/[0.02] border border-zinc-800/50 rounded-xl">
                             <div class="w-10 h-10 rounded-lg bg-accent/10 flex items-center justify-center mb-3">
-                                <i class="ph ph-key text-accent text-lg"></i>
+                                <i class="ph ph-game-controller text-accent text-lg"></i>
                             </div>
-                            <h3 class="font-semibold mb-1">API Tokens</h3>
-                            <p class="text-sm text-zinc-500">Create tokens for programmatic access to the marketplace API.</p>
+                            <h3 class="font-semibold mb-1">Game Services</h3>
+                            <p class="text-sm text-zinc-500">Achievements, leaderboards, player stats, and friends for your game.</p>
                         </div>
                         <div class="p-5 bg-white/[0.02] border border-zinc-800/50 rounded-xl">
                             <div class="w-10 h-10 rounded-lg bg-accent/10 flex items-center justify-center mb-3">
-                                <i class="ph ph-upload-simple text-accent text-lg"></i>
+                                <i class="ph ph-shield-check text-accent text-lg"></i>
                             </div>
-                            <h3 class="font-semibold mb-1">Bulk Uploads</h3>
-                            <p class="text-sm text-zinc-500">Upload hundreds of assets at once via the REST API.</p>
+                            <h3 class="font-semibold mb-1">Scoped Access</h3>
+                            <p class="text-sm text-zinc-500">Users grant your app specific permissions. No scope, no access.</p>
                         </div>
                         <div class="p-5 bg-white/[0.02] border border-zinc-800/50 rounded-xl">
                             <div class="w-10 h-10 rounded-lg bg-accent/10 flex items-center justify-center mb-3">
                                 <i class="ph ph-brackets-curly text-accent text-lg"></i>
                             </div>
                             <h3 class="font-semibold mb-1">REST API</h3>
-                            <p class="text-sm text-zinc-500">Full marketplace API with JSON responses and multipart uploads.</p>
+                            <p class="text-sm text-zinc-500">Marketplace API, game services, and multipart uploads.</p>
+                        </div>
+                    </div>
+
+                    <!-- Developer Apps Section -->
+                    <div class="mb-10">
+                        <div class="flex items-center justify-between mb-4">
+                            <h2 class="text-xl font-semibold">My Apps</h2>
+                            ${token ? '<button onclick="registerApp()" class="px-4 py-2 rounded-lg text-sm font-medium bg-accent text-white hover:bg-accent-hover transition-all">Register App</button>' : ''}
+                        </div>
+                        ${!token ? '<p class="text-sm text-zinc-500"><a href="/login" class="text-accent hover:text-accent-hover">Sign in</a> to register developer apps.</p>' : `
+                            <div id="app-list" class="space-y-2"></div>
+                        `}
+                    </div>
+
+                    <!-- Scopes Reference -->
+                    <div class="mb-10">
+                        <h2 class="text-xl font-semibold mb-4">Permission Scopes</h2>
+                        <p class="text-sm text-zinc-500 mb-3">When creating an app token, specify exactly which scopes it needs. Users must grant each scope before your app can use it.</p>
+                        <div class="bg-white/[0.02] border border-zinc-800/50 rounded-xl overflow-hidden">
+                            <table class="w-full text-sm">
+                                <thead><tr class="border-b border-zinc-800/50">
+                                    <th class="text-left px-4 py-3 text-zinc-500 font-medium">Scope</th>
+                                    <th class="text-left px-4 py-3 text-zinc-500 font-medium">Description</th>
+                                </tr></thead>
+                                <tbody>
+                                    <tr class="border-b border-zinc-800/30"><td class="px-4 py-2.5 text-zinc-200 font-mono text-xs">profile:read</td><td class="px-4 py-2.5 text-zinc-400">Read username and avatar</td></tr>
+                                    <tr class="border-b border-zinc-800/30"><td class="px-4 py-2.5 text-zinc-200 font-mono text-xs">friends:read</td><td class="px-4 py-2.5 text-zinc-400">Read player's friend list</td></tr>
+                                    <tr class="border-b border-zinc-800/30"><td class="px-4 py-2.5 text-zinc-200 font-mono text-xs">friends:write</td><td class="px-4 py-2.5 text-zinc-400">Send and accept friend requests</td></tr>
+                                    <tr class="border-b border-zinc-800/30"><td class="px-4 py-2.5 text-zinc-200 font-mono text-xs">achievements:read</td><td class="px-4 py-2.5 text-zinc-400">Read player achievements</td></tr>
+                                    <tr class="border-b border-zinc-800/30"><td class="px-4 py-2.5 text-zinc-200 font-mono text-xs">achievements:write</td><td class="px-4 py-2.5 text-zinc-400">Unlock achievements for players</td></tr>
+                                    <tr class="border-b border-zinc-800/30"><td class="px-4 py-2.5 text-zinc-200 font-mono text-xs">stats:read</td><td class="px-4 py-2.5 text-zinc-400">Read player stats (play time, kills, etc.)</td></tr>
+                                    <tr class="border-b border-zinc-800/30"><td class="px-4 py-2.5 text-zinc-200 font-mono text-xs">stats:write</td><td class="px-4 py-2.5 text-zinc-400">Update player stats</td></tr>
+                                    <tr class="border-b border-zinc-800/30"><td class="px-4 py-2.5 text-zinc-200 font-mono text-xs">leaderboards:read</td><td class="px-4 py-2.5 text-zinc-400">Read leaderboard scores</td></tr>
+                                    <tr class="border-b border-zinc-800/30"><td class="px-4 py-2.5 text-zinc-200 font-mono text-xs">leaderboards:write</td><td class="px-4 py-2.5 text-zinc-400">Submit leaderboard scores</td></tr>
+                                    <tr><td class="px-4 py-2.5 text-zinc-200 font-mono text-xs">inventory:read</td><td class="px-4 py-2.5 text-zinc-400">Read purchased assets and games</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- Game Services API Reference -->
+                    <div class="mb-10">
+                        <h2 class="text-xl font-semibold mb-4">Game Services API</h2>
+                        <p class="text-sm text-zinc-500 mb-4">Use <code class="text-zinc-400">rza_</code> prefixed app tokens for all game service endpoints. The user must have granted the required scope to your app.</p>
+                        <div class="space-y-3">
+                            <h3 class="text-sm font-medium text-zinc-500 mt-4 mb-2">Player Data (requires user grant)</h3>
+                            ${apiEndpoint('GET', '/api/gameservices/player/:user_id/profile', 'Get player profile (scope: profile:read)', null)}
+                            ${apiEndpoint('GET', '/api/gameservices/player/:user_id/friends', 'Get player friends (scope: friends:read)', null)}
+                            ${apiEndpoint('GET', '/api/gameservices/player/:user_id/achievements', 'Get player achievements (scope: achievements:read)', null)}
+                            ${apiEndpoint('POST', '/api/gameservices/player/:user_id/achievements/unlock', 'Unlock achievement (scope: achievements:write)', '{ "achievement_key": "first_win" }')}
+                            ${apiEndpoint('GET', '/api/gameservices/player/:user_id/stats', 'Get player stats (scope: stats:read)', null)}
+                            ${apiEndpoint('POST', '/api/gameservices/player/:user_id/stats', 'Set player stat (scope: stats:write)', '{ "key": "total_kills", "value_int": 42 }')}
+                            ${apiEndpoint('POST', '/api/gameservices/player/:user_id/stats/increment', 'Increment stat (scope: stats:write)', '{ "key": "games_played", "delta": 1 }')}
+
+                            <h3 class="text-sm font-medium text-zinc-500 mt-6 mb-2">Leaderboards</h3>
+                            ${apiEndpoint('GET', '/api/gameservices/leaderboard/:key/scores?limit=50', 'Get top scores (uses app token, no user grant needed)', null)}
+                            ${apiEndpoint('POST', '/api/gameservices/leaderboard/:key/submit', 'Submit score (scope: leaderboards:write)', '{ "user_id": "...", "score": 9500 }')}
+
+                            <h3 class="text-sm font-medium text-zinc-500 mt-6 mb-2">App Management (owner only, JWT or rz_ token)</h3>
+                            ${apiEndpoint('POST', '/api/gameservices/apps', 'Register a new app', '{ "name": "My Game", "description": "...", "website_url": "..." }')}
+                            ${apiEndpoint('GET', '/api/gameservices/apps', 'List your apps', null)}
+                            ${apiEndpoint('POST', '/api/gameservices/apps/:id/tokens', 'Create scoped app token', '{ "name": "prod", "scopes": ["achievements:write", "stats:write"] }')}
+                            ${apiEndpoint('POST', '/api/gameservices/apps/:id/achievements', 'Define achievement', '{ "key": "first_win", "name": "First Victory", "points": 10 }')}
+                            ${apiEndpoint('POST', '/api/gameservices/apps/:id/leaderboards', 'Create leaderboard', '{ "key": "high_score", "name": "High Score", "sort_order": "desc" }')}
+
+                            <h3 class="text-sm font-medium text-zinc-500 mt-6 mb-2">User Grants</h3>
+                            ${apiEndpoint('POST', '/api/gameservices/grants', 'Grant permissions to an app (user-facing)', '{ "app_id": "...", "scopes": ["profile:read", "achievements:write"] }')}
+                            ${apiEndpoint('GET', '/api/gameservices/grants', 'List connected apps (user-facing)', null)}
+                            ${apiEndpoint('DELETE', '/api/gameservices/grants/:app_id', 'Revoke app access (user-facing)', null)}
+
+                            <h3 class="text-sm font-medium text-zinc-500 mt-6 mb-2">Friends (user-facing, any auth)</h3>
+                            ${apiEndpoint('GET', '/api/gameservices/friends', 'List friends', null)}
+                            ${apiEndpoint('GET', '/api/gameservices/friends/requests', 'List incoming requests', null)}
+                            ${apiEndpoint('POST', '/api/gameservices/friends/add', 'Send friend request', '{ "user_id": "..." }')}
+                            ${apiEndpoint('POST', '/api/gameservices/friends/accept', 'Accept friend request', '{ "user_id": "..." }')}
+                            ${apiEndpoint('POST', '/api/gameservices/friends/remove', 'Remove friend', '{ "user_id": "..." }')}
                         </div>
                     </div>
 
@@ -278,6 +354,87 @@ pub fn DevelopersPage() -> impl IntoView {
                     </div>
                 `;
             })();
+
+            // ── App management ──
+            async function loadApps() {
+                if (!token) return;
+                try {
+                    const res = await fetch('/api/gameservices/apps', { headers: { 'Authorization': 'Bearer ' + token } });
+                    if (!res.ok) return;
+                    const apps = await res.json();
+                    const el = document.getElementById('app-list');
+                    if (!el) return;
+                    if (apps.length === 0) { el.innerHTML = '<p class="text-sm text-zinc-500">No apps registered. Create one to get started with Game Services.</p>'; return; }
+                    el.innerHTML = apps.map(a => `
+                        <div class="p-4 bg-white/[0.02] border border-zinc-800/50 rounded-xl">
+                            <div class="flex items-center justify-between mb-2">
+                                <div class="flex items-center gap-3">
+                                    <div class="w-10 h-10 rounded-lg bg-accent/10 flex items-center justify-center"><i class="ph ph-game-controller text-accent"></i></div>
+                                    <div>
+                                        <div class="font-medium">${a.name}</div>
+                                        <div class="text-xs text-zinc-500">Client ID: <code class="text-zinc-400">${a.client_id}</code></div>
+                                    </div>
+                                </div>
+                                <div class="flex items-center gap-2">
+                                    <button onclick="manageAppTokens('${a.id}', '${a.name}')" class="px-3 py-1.5 rounded-lg text-xs text-accent hover:bg-accent/10 border border-transparent hover:border-accent/20 transition-all">Tokens</button>
+                                    <button onclick="deleteApp('${a.id}', this)" class="px-3 py-1.5 rounded-lg text-xs text-red-400 hover:bg-red-950/30 border border-transparent hover:border-red-900/50 transition-all">Delete</button>
+                                </div>
+                            </div>
+                            ${a.description ? '<p class="text-xs text-zinc-500 ml-13">' + a.description + '</p>' : ''}
+                        </div>
+                    `).join('');
+                } catch(e) {}
+            }
+            loadApps();
+
+            async function registerApp() {
+                const name = prompt('App name (e.g. "My Game"):');
+                if (!name) return;
+                const desc = prompt('Short description:') || '';
+                const website = prompt('Website URL (optional):') || '';
+                try {
+                    const res = await fetch('/api/gameservices/apps', {
+                        method: 'POST',
+                        headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ name, description: desc, website_url: website })
+                    });
+                    const data = await res.json();
+                    if (!res.ok) { alert(data.error || 'Failed to register app'); return; }
+                    alert('App registered!\\n\\nClient ID: ' + data.client_id + '\\nClient Secret: ' + data.client_secret + '\\n\\nSave the client secret — it will not be shown again.');
+                    loadApps();
+                } catch(e) { alert('Error: ' + e.message); }
+            }
+
+            async function deleteApp(id, btn) {
+                if (!confirm('Delete this app? All tokens, achievements, and leaderboards will be removed.')) return;
+                const res = await fetch('/api/gameservices/apps/' + id, { method: 'DELETE', headers: { 'Authorization': 'Bearer ' + token } });
+                if (res.ok) { loadApps(); } else { alert('Failed to delete app'); }
+            }
+
+            async function manageAppTokens(appId, appName) {
+                try {
+                    const res = await fetch('/api/gameservices/apps/' + appId + '/tokens', { headers: { 'Authorization': 'Bearer ' + token } });
+                    const tokens = await res.json();
+                    const scopeList = ['profile:read','friends:read','friends:write','achievements:read','achievements:write','stats:read','stats:write','leaderboards:read','leaderboards:write','inventory:read'];
+                    let msg = 'Tokens for ' + appName + ':\\n\\n';
+                    if (tokens.length === 0) msg += '(no tokens)\\n';
+                    else tokens.forEach(t => { msg += t.name + ' (' + t.prefix + '...) — ' + t.scopes.join(', ') + '\\n'; });
+                    msg += '\\nCreate a new token? Enter a name (or Cancel):';
+                    const tokenName = prompt(msg);
+                    if (!tokenName) return;
+                    const scopeInput = prompt('Enter scopes (comma separated):\\n' + scopeList.join(', '));
+                    if (!scopeInput) return;
+                    const scopes = scopeInput.split(',').map(s => s.trim()).filter(Boolean);
+                    const createRes = await fetch('/api/gameservices/apps/' + appId + '/tokens', {
+                        method: 'POST',
+                        headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ name: tokenName, scopes })
+                    });
+                    const data = await createRes.json();
+                    if (!createRes.ok) { alert(data.error || 'Failed to create token'); return; }
+                    alert('Token created!\\n\\n' + data.token + '\\n\\nScopes: ' + data.scopes.join(', ') + '\\n\\nSave this — it will not be shown again.');
+                } catch(e) { alert('Error: ' + e.message); }
+            }
 
             function tokenRow(t) {
                 return '<div class="flex items-center justify-between p-3 bg-white/[0.02] border border-zinc-800/50 rounded-lg">' +

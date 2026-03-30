@@ -15,6 +15,14 @@ pub struct AuthUser {
     pub user_id: Uuid,
 }
 
+/// Extension inserted when authenticating via an app token (rza_ prefix).
+/// Contains the app ID and the token's scopes for permission checks.
+#[derive(Clone, Debug)]
+pub struct AppAuth {
+    pub app_id: Uuid,
+    pub scopes: Vec<String>,
+}
+
 /// Extension that carries the JWT secret into middleware. Inserted by the server on startup.
 #[derive(Clone)]
 pub struct JwtSecret(pub String);
@@ -44,6 +52,47 @@ pub async fn require_auth(
     let token = auth_header
         .strip_prefix("Bearer ")
         .ok_or(StatusCode::UNAUTHORIZED)?;
+
+    // App token path: tokens prefixed with "rza_" (developer app tokens)
+    if token.starts_with("rza_") {
+        let db = req
+            .extensions()
+            .get::<DbPool>()
+            .ok_or(StatusCode::INTERNAL_SERVER_ERROR)?
+            .clone();
+
+        let token_hash = hash_api_token(token);
+        let app_token = renzora_models::developer_app::AppToken::find_by_hash(&db.0, &token_hash)
+            .await
+            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
+            .ok_or(StatusCode::UNAUTHORIZED)?;
+
+        // Check expiry
+        if let Some(expires) = app_token.expires_at {
+            if expires < time::OffsetDateTime::now_utc() {
+                return Err(StatusCode::UNAUTHORIZED);
+            }
+        }
+
+        // Update last used
+        let _ = renzora_models::developer_app::AppToken::touch_last_used(&db.0, app_token.id).await;
+
+        // Get the app to find the owner
+        let app = renzora_models::developer_app::DeveloperApp::find_by_id(&db.0, app_token.app_id)
+            .await
+            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
+            .ok_or(StatusCode::UNAUTHORIZED)?;
+
+        req.extensions_mut().insert(AuthUser {
+            user_id: app.owner_id,
+        });
+        req.extensions_mut().insert(AppAuth {
+            app_id: app.id,
+            scopes: app_token.scopes.clone(),
+        });
+
+        return Ok(next.run(req).await);
+    }
 
     // API token path: tokens prefixed with "rz_"
     if token.starts_with("rz_") {
