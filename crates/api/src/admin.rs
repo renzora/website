@@ -12,6 +12,8 @@ use renzora_models::user::User;
 use renzora_models::asset::Asset;
 use renzora_models::article::Article;
 use renzora_models::doc::Doc;
+use renzora_models::tag::Tag;
+use renzora_models::subcategory::Subcategory;
 use serde::{Deserialize, Serialize};
 use sqlx::Row;
 use uuid::Uuid;
@@ -88,6 +90,26 @@ pub fn router() -> Router<AppState> {
         .route("/articles", get(list_admin_articles))
         .route("/articles/:id/publish", put(toggle_article_publish))
         .route("/articles/:id", delete(delete_article))
+        // Tags
+        .route("/tags/pending", get(list_pending_tags))
+        .route("/tags/:id/approve", put(approve_tag))
+        .route("/tags/:id", delete(delete_tag))
+        // Subcategories
+        .route("/subcategories", get(list_admin_subcategories))
+        .route("/subcategories/pending", get(list_pending_subcategories))
+        .route("/subcategories/:id/approve", put(approve_subcategory))
+        .route("/subcategories/:id", delete(delete_subcategory))
+        // Games
+        .route("/games", get(list_admin_games))
+        .route("/games/:id/publish", put(toggle_game_publish))
+        .route("/games/:id", delete(delete_game))
+        // Courses
+        .route("/courses", get(list_admin_courses))
+        .route("/courses/:id/publish", put(toggle_course_publish))
+        .route("/courses/:id", delete(delete_course))
+        // Deploy
+        .route("/deploy", post(trigger_deploy))
+        .route("/deploy/status", get(deploy_status))
         .layer(axum::middleware::from_fn(require_admin))
         .layer(axum::middleware::from_fn(middleware::require_auth))
 }
@@ -1045,4 +1067,387 @@ async fn delete_article(
     sqlx::query("DELETE FROM article_likes WHERE article_id = $1").bind(id).execute(&state.db).await?;
     sqlx::query("DELETE FROM articles WHERE id = $1").bind(id).execute(&state.db).await?;
     Ok(Json(serde_json::json!({ "ok": true })))
+}
+
+// ── Tags ──
+
+async fn list_pending_tags(
+    State(state): State<AppState>,
+    Extension(auth): Extension<AuthUser>,
+) -> Result<Json<Vec<Tag>>, ApiError> {
+    verify_admin(&state, auth.user_id).await?;
+    let tags = Tag::list_pending(&state.db).await?;
+    Ok(Json(tags))
+}
+
+async fn approve_tag(
+    State(state): State<AppState>,
+    Extension(auth): Extension<AuthUser>,
+    Path(id): Path<Uuid>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    verify_admin(&state, auth.user_id).await?;
+    Tag::approve(&state.db, id).await?;
+    Ok(Json(serde_json::json!({ "message": "Tag approved" })))
+}
+
+async fn delete_tag(
+    State(state): State<AppState>,
+    Extension(auth): Extension<AuthUser>,
+    Path(id): Path<Uuid>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    verify_admin(&state, auth.user_id).await?;
+    Tag::delete(&state.db, id).await?;
+    Ok(Json(serde_json::json!({ "message": "Tag deleted" })))
+}
+
+// ── Subcategories ──
+
+async fn list_admin_subcategories(
+    State(state): State<AppState>,
+    Extension(auth): Extension<AuthUser>,
+) -> Result<Json<Vec<Subcategory>>, ApiError> {
+    verify_admin(&state, auth.user_id).await?;
+    let subs = Subcategory::list_all_approved(&state.db).await?;
+    Ok(Json(subs))
+}
+
+async fn list_pending_subcategories(
+    State(state): State<AppState>,
+    Extension(auth): Extension<AuthUser>,
+) -> Result<Json<Vec<Subcategory>>, ApiError> {
+    verify_admin(&state, auth.user_id).await?;
+    let subs = Subcategory::list_pending(&state.db).await?;
+    Ok(Json(subs))
+}
+
+async fn approve_subcategory(
+    State(state): State<AppState>,
+    Extension(auth): Extension<AuthUser>,
+    Path(id): Path<Uuid>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    verify_admin(&state, auth.user_id).await?;
+    Subcategory::approve(&state.db, id).await?;
+    Ok(Json(serde_json::json!({ "message": "Subcategory approved" })))
+}
+
+async fn delete_subcategory(
+    State(state): State<AppState>,
+    Extension(auth): Extension<AuthUser>,
+    Path(id): Path<Uuid>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    verify_admin(&state, auth.user_id).await?;
+    Subcategory::delete(&state.db, id).await?;
+    Ok(Json(serde_json::json!({ "message": "Subcategory deleted" })))
+}
+
+// ── Games ──
+
+#[derive(Serialize)]
+struct AdminGameEntry {
+    id: Uuid,
+    name: String,
+    slug: String,
+    category: String,
+    price_credits: i64,
+    downloads: i64,
+    published: bool,
+    creator_name: String,
+    created_at: String,
+}
+
+async fn list_admin_games(
+    State(state): State<AppState>,
+    Extension(auth): Extension<AuthUser>,
+    Query(params): Query<std::collections::HashMap<String, String>>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    verify_admin(&state, auth.user_id).await?;
+    let page: i64 = params.get("page").and_then(|p| p.parse().ok()).unwrap_or(1).max(1);
+    let offset = (page - 1) * 50;
+    let q = params.get("q");
+    let published = params.get("published");
+
+    let mut sql = String::from(
+        "SELECT g.id, g.name, g.slug, g.category, g.price_credits, g.downloads, g.published, g.created_at, u.username AS creator_name \
+         FROM games g JOIN users u ON u.id = g.creator_id WHERE 1=1"
+    );
+    if let Some(q) = q {
+        if !q.is_empty() {
+            sql.push_str(&format!(" AND g.name ILIKE '%{}%'", q.replace('\'', "''")));
+        }
+    }
+    if let Some(p) = published {
+        if p == "true" { sql.push_str(" AND g.published = true"); }
+        else if p == "false" { sql.push_str(" AND g.published = false"); }
+    }
+    sql.push_str(&format!(" ORDER BY g.created_at DESC LIMIT 50 OFFSET {}", offset));
+
+    let rows = sqlx::query(&sql).fetch_all(&state.db).await?;
+    let games: Vec<AdminGameEntry> = rows.iter().map(|r| AdminGameEntry {
+        id: r.get("id"), name: r.get("name"), slug: r.get("slug"),
+        category: r.get("category"), price_credits: r.get("price_credits"),
+        downloads: r.get("downloads"), published: r.get("published"),
+        creator_name: r.get("creator_name"),
+        created_at: r.get::<time::OffsetDateTime, _>("created_at").to_string(),
+    }).collect();
+
+    Ok(Json(serde_json::json!({ "games": games })))
+}
+
+async fn toggle_game_publish(
+    State(state): State<AppState>,
+    Extension(auth): Extension<AuthUser>,
+    Path(id): Path<Uuid>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    verify_admin(&state, auth.user_id).await?;
+    sqlx::query("UPDATE games SET published = NOT published WHERE id = $1")
+        .bind(id).execute(&state.db).await?;
+    Ok(Json(serde_json::json!({ "message": "Toggled" })))
+}
+
+async fn delete_game(
+    State(state): State<AppState>,
+    Extension(auth): Extension<AuthUser>,
+    Path(id): Path<Uuid>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    verify_admin(&state, auth.user_id).await?;
+    sqlx::query("DELETE FROM game_media WHERE game_id = $1").bind(id).execute(&state.db).await?;
+    sqlx::query("DELETE FROM user_games WHERE game_id = $1").bind(id).execute(&state.db).await?;
+    sqlx::query("DELETE FROM games WHERE id = $1").bind(id).execute(&state.db).await?;
+    Ok(Json(serde_json::json!({ "message": "Game deleted" })))
+}
+
+// ── Courses ──
+
+async fn list_admin_courses(
+    State(state): State<AppState>,
+    Extension(auth): Extension<AuthUser>,
+    Query(params): Query<std::collections::HashMap<String, String>>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    verify_admin(&state, auth.user_id).await?;
+    let page: i64 = params.get("page").and_then(|p| p.parse().ok()).unwrap_or(1).max(1);
+    let offset = (page - 1) * 50;
+    let q = params.get("q");
+
+    let mut sql = String::from(
+        "SELECT c.id, c.title, c.slug, c.category, c.difficulty, c.price_credits, c.published, c.chapter_count, c.enrolled_count, c.created_at, u.username AS creator_name \
+         FROM courses c JOIN users u ON u.id = c.creator_id WHERE 1=1"
+    );
+    if let Some(q) = q {
+        if !q.is_empty() {
+            sql.push_str(&format!(" AND c.title ILIKE '%{}%'", q.replace('\'', "''")));
+        }
+    }
+    sql.push_str(&format!(" ORDER BY c.created_at DESC LIMIT 50 OFFSET {}", offset));
+
+    let rows = sqlx::query(&sql).fetch_all(&state.db).await?;
+    let courses: Vec<serde_json::Value> = rows.iter().map(|r| serde_json::json!({
+        "id": r.get::<Uuid, _>("id"),
+        "title": r.get::<String, _>("title"),
+        "slug": r.get::<String, _>("slug"),
+        "category": r.get::<String, _>("category"),
+        "difficulty": r.get::<String, _>("difficulty"),
+        "price_credits": r.get::<i64, _>("price_credits"),
+        "published": r.get::<bool, _>("published"),
+        "chapter_count": r.get::<i32, _>("chapter_count"),
+        "enrolled_count": r.get::<i32, _>("enrolled_count"),
+        "creator_name": r.get::<String, _>("creator_name"),
+        "created_at": r.get::<time::OffsetDateTime, _>("created_at").to_string(),
+    })).collect();
+
+    Ok(Json(serde_json::json!({ "courses": courses })))
+}
+
+async fn toggle_course_publish(
+    State(state): State<AppState>,
+    Extension(auth): Extension<AuthUser>,
+    Path(id): Path<Uuid>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    verify_admin(&state, auth.user_id).await?;
+    sqlx::query("UPDATE courses SET published = NOT published WHERE id = $1")
+        .bind(id).execute(&state.db).await?;
+    Ok(Json(serde_json::json!({ "message": "Toggled" })))
+}
+
+async fn delete_course(
+    State(state): State<AppState>,
+    Extension(auth): Extension<AuthUser>,
+    Path(id): Path<Uuid>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    verify_admin(&state, auth.user_id).await?;
+    sqlx::query("DELETE FROM course_chapters WHERE course_id = $1").bind(id).execute(&state.db).await?;
+    sqlx::query("DELETE FROM enrollments WHERE course_id = $1").bind(id).execute(&state.db).await?;
+    sqlx::query("DELETE FROM courses WHERE id = $1").bind(id).execute(&state.db).await?;
+    Ok(Json(serde_json::json!({ "message": "Course deleted" })))
+}
+
+// ── Deploy ──
+
+use std::sync::{Mutex, LazyLock};
+
+#[derive(Clone, Serialize)]
+struct DeployState {
+    status: String,       // idle, running, success, failed
+    output: String,
+    started_by: Option<String>,
+    started_at: Option<String>,
+    finished_at: Option<String>,
+}
+
+static DEPLOY_STATE: LazyLock<Mutex<DeployState>> = LazyLock::new(|| {
+    Mutex::new(DeployState {
+        status: "idle".into(),
+        output: String::new(),
+        started_by: None,
+        started_at: None,
+        finished_at: None,
+    })
+});
+
+async fn trigger_deploy(
+    State(state): State<AppState>,
+    Extension(auth): Extension<AuthUser>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    verify_admin(&state, auth.user_id).await?;
+
+    // Check not already running
+    {
+        let ds = DEPLOY_STATE.lock().unwrap();
+        if ds.status == "running" {
+            return Err(ApiError::Validation("Deploy already in progress".into()));
+        }
+    }
+
+    let user = User::find_by_id(&state.db, auth.user_id).await?.ok_or(ApiError::NotFound)?;
+
+    // Set state to running
+    {
+        let mut ds = DEPLOY_STATE.lock().unwrap();
+        ds.status = "running".into();
+        ds.output = String::new();
+        ds.started_by = Some(user.username.clone());
+        ds.started_at = Some(time::OffsetDateTime::now_utc().to_string());
+        ds.finished_at = None;
+    }
+
+    // Spawn deploy in background
+    std::thread::spawn(move || {
+        let result = run_deploy();
+        let mut ds = DEPLOY_STATE.lock().unwrap();
+        match result {
+            Ok(output) => {
+                ds.status = "success".into();
+                ds.output = output;
+            }
+            Err(e) => {
+                ds.status = "failed".into();
+                ds.output = e;
+            }
+        }
+        ds.finished_at = Some(time::OffsetDateTime::now_utc().to_string());
+    });
+
+    Ok(Json(serde_json::json!({
+        "status": "running",
+        "started_by": user.username,
+    })))
+}
+
+fn run_deploy() -> Result<String, String> {
+    let deploy_dir = std::env::var("DEPLOY_PATH")
+        .unwrap_or_else(|_| "/opt/renzora-website".to_string());
+    let mut output = String::new();
+
+    // Step 1: git pull
+    output.push_str("==> git fetch origin main\n");
+    let fetch = std::process::Command::new("git")
+        .args(["fetch", "origin", "main"])
+        .current_dir(&deploy_dir)
+        .output()
+        .map_err(|e| format!("git fetch failed: {e}"))?;
+    output.push_str(&String::from_utf8_lossy(&fetch.stdout));
+    output.push_str(&String::from_utf8_lossy(&fetch.stderr));
+    if !fetch.status.success() {
+        return Err(format!("{output}\ngit fetch failed with exit code {:?}", fetch.status.code()));
+    }
+
+    output.push_str("\n==> git reset --hard origin/main\n");
+    let reset = std::process::Command::new("git")
+        .args(["reset", "--hard", "origin/main"])
+        .current_dir(&deploy_dir)
+        .output()
+        .map_err(|e| format!("git reset failed: {e}"))?;
+    output.push_str(&String::from_utf8_lossy(&reset.stdout));
+    output.push_str(&String::from_utf8_lossy(&reset.stderr));
+    if !reset.status.success() {
+        return Err(format!("{output}\ngit reset failed"));
+    }
+
+    // Step 2: docker compose build
+    output.push_str("\n==> docker compose build app\n");
+    let build = std::process::Command::new("docker")
+        .args(["compose", "-f", "docker-compose.prod.yml", "build", "app"])
+        .current_dir(&deploy_dir)
+        .output()
+        .map_err(|e| format!("docker build failed: {e}"))?;
+    output.push_str(&String::from_utf8_lossy(&build.stdout));
+    output.push_str(&String::from_utf8_lossy(&build.stderr));
+    if !build.status.success() {
+        return Err(format!("{output}\ndocker compose build failed"));
+    }
+
+    // Step 3: docker compose up
+    output.push_str("\n==> docker compose up -d --remove-orphans\n");
+    let up = std::process::Command::new("docker")
+        .args(["compose", "-f", "docker-compose.prod.yml", "up", "-d", "--remove-orphans"])
+        .current_dir(&deploy_dir)
+        .output()
+        .map_err(|e| format!("docker up failed: {e}"))?;
+    output.push_str(&String::from_utf8_lossy(&up.stdout));
+    output.push_str(&String::from_utf8_lossy(&up.stderr));
+    if !up.status.success() {
+        return Err(format!("{output}\ndocker compose up failed"));
+    }
+
+    // Step 4: health check
+    output.push_str("\n==> Waiting for health check...\n");
+    for i in 1..=30 {
+        std::thread::sleep(std::time::Duration::from_secs(2));
+        let check = std::process::Command::new("curl")
+            .args(["-sf", "http://localhost/health"])
+            .output();
+        if let Ok(c) = check {
+            if c.status.success() {
+                output.push_str(&format!("Health check passed on attempt {i}\n"));
+
+                // Cleanup old images
+                let _ = std::process::Command::new("docker")
+                    .args(["image", "prune", "-f"])
+                    .current_dir(&deploy_dir)
+                    .output();
+                output.push_str("\n==> Deploy successful!\n");
+                return Ok(output);
+            }
+        }
+    }
+
+    // Health check failed — get logs
+    output.push_str("\nHealth check failed after 30 attempts\n");
+    if let Ok(logs) = std::process::Command::new("docker")
+        .args(["compose", "-f", "docker-compose.prod.yml", "logs", "app", "--tail=50"])
+        .current_dir(&deploy_dir)
+        .output()
+    {
+        output.push_str(&String::from_utf8_lossy(&logs.stdout));
+        output.push_str(&String::from_utf8_lossy(&logs.stderr));
+    }
+    Err(output)
+}
+
+async fn deploy_status(
+    State(state): State<AppState>,
+    Extension(auth): Extension<AuthUser>,
+) -> Result<Json<DeployState>, ApiError> {
+    verify_admin(&state, auth.user_id).await?;
+    let ds = DEPLOY_STATE.lock().unwrap().clone();
+    Ok(Json(ds))
 }
