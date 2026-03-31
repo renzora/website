@@ -481,8 +481,18 @@ pub fn DevelopersPage() -> impl IntoView {
                     if (!res.ok) { alert(data.message || 'Failed to create token'); return; }
                     document.getElementById('new-token-value').textContent = data.token;
                     document.getElementById('new-token-banner').classList.remove('hidden');
-                    // Reload token list
-                    window.location.reload();
+                    // Add new token row to the list without reloading the page
+                    var list = document.getElementById('token-list');
+                    var empty = list.querySelector('p');
+                    if (empty) empty.remove();
+                    list.insertAdjacentHTML('afterbegin', tokenRow({
+                        id: data.id,
+                        name: data.name,
+                        prefix: data.prefix,
+                        created_at: data.created_at,
+                        last_used_at: null,
+                        expires_at: data.expires_at || null
+                    }));
                 } catch(e) { alert('Error: ' + e.message); }
             }
 
