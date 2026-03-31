@@ -115,13 +115,20 @@ pub async fn require_auth(
             }
         }
 
-        // Check daily rate limit
-        let (count, limit) = renzora_models::subscription::check_and_increment_usage(&db.0, api_token.user_id)
+        // Skip rate limit for admin users
+        let user = renzora_models::user::User::find_by_id(&db.0, api_token.user_id)
             .await
-            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
+            .ok_or(StatusCode::UNAUTHORIZED)?;
 
-        if count > limit {
-            return Err(StatusCode::TOO_MANY_REQUESTS);
+        if user.role != "admin" {
+            let (count, limit) = renzora_models::subscription::check_and_increment_usage(&db.0, api_token.user_id)
+                .await
+                .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+            if count > limit {
+                return Err(StatusCode::TOO_MANY_REQUESTS);
+            }
         }
 
         // Update last used (fire and forget)

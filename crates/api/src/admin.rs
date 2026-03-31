@@ -19,6 +19,7 @@ use sqlx::Row;
 use uuid::Uuid;
 
 use crate::{error::ApiError, middleware, middleware::AuthUser, AppState};
+use time::format_description::well_known::Rfc3339;
 
 pub fn router() -> Router<AppState> {
     Router::new()
@@ -86,6 +87,13 @@ pub fn router() -> Router<AppState> {
         .route("/users/:id/notes", get(get_mod_notes_handler))
         .route("/users/:id/notes", post(add_mod_note_handler))
         .route("/notes/:id", delete(delete_mod_note_handler))
+        // User detail
+        .route("/users/:id/detail", get(user_detail))
+        .route("/users/:id/tokens", get(user_tokens))
+        .route("/users/:id/tokens/:token_id", delete(revoke_user_token))
+        .route("/users/:id/assets", get(user_assets))
+        .route("/users/:id/purchases", get(user_purchases))
+        .route("/users/:id/topups", get(user_topups))
         // Articles
         .route("/articles", get(list_admin_articles))
         .route("/articles/:id/publish", put(toggle_article_publish))
@@ -871,7 +879,7 @@ async fn admin_analytics(
     let mut monthly: Vec<serde_json::Value> = Vec::new();
     for row in &monthly_rows {
         monthly.push(serde_json::json!({
-            "month": row.get::<time::OffsetDateTime, _>("month").format(&time::format_description::well_known::Rfc3339).unwrap_or_default(),
+            "month": row.get::<time::OffsetDateTime, _>("month").format(&Rfc3339).unwrap_or_default(),
             "type": row.get::<String, _>("type"),
             "total": row.get::<i64, _>("total"),
         }));
@@ -938,7 +946,7 @@ async fn withdrawal_transactions(
         "type": r.get::<String, _>("type"),
         "amount": r.get::<i64, _>("amount"),
         "asset_id": r.get::<Option<Uuid>, _>("asset_id"),
-        "created_at": r.get::<time::OffsetDateTime, _>("created_at").format(&time::format_description::well_known::Rfc3339).unwrap_or_default(),
+        "created_at": r.get::<time::OffsetDateTime, _>("created_at").format(&Rfc3339).unwrap_or_default(),
     })).collect();
     Ok(Json(serde_json::json!({
         "withdrawal_amount": amount,
@@ -1275,5 +1283,166 @@ async fn delete_course(
     sqlx::query("DELETE FROM enrollments WHERE course_id = $1").bind(id).execute(&state.db).await?;
     sqlx::query("DELETE FROM courses WHERE id = $1").bind(id).execute(&state.db).await?;
     Ok(Json(serde_json::json!({ "message": "Course deleted" })))
+}
+
+// ── User Detail ──
+
+async fn user_detail(
+    State(state): State<AppState>,
+    Extension(auth): Extension<AuthUser>,
+    Path(id): Path<Uuid>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    verify_admin(&state, auth.user_id).await?;
+
+    let user = User::find_by_id(&state.db, id)
+        .await?
+        .ok_or(ApiError::NotFound)?;
+
+    let asset_count: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM assets WHERE creator_id = $1")
+        .bind(id).fetch_one(&state.db).await?;
+
+    let purchase_count: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM user_assets WHERE user_id = $1")
+        .bind(id).fetch_one(&state.db).await?;
+
+    let token_count: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM api_tokens WHERE user_id = $1")
+        .bind(id).fetch_one(&state.db).await?;
+
+    // Get subscription plan info
+    let plan_row = sqlx::query_as::<_, (String, i32)>(
+        "SELECT sp.name, sp.daily_api_limit FROM subscription_plans sp JOIN subscriptions s ON s.plan_id = sp.id WHERE s.user_id = $1 AND s.status = 'active'"
+    ).bind(id).fetch_optional(&state.db).await.unwrap_or(None);
+
+    // Get today's API usage
+    let usage_row = sqlx::query_as::<_, (i32,)>(
+        "SELECT request_count FROM api_usage_daily WHERE user_id = $1 AND date = CURRENT_DATE"
+    ).bind(id).fetch_optional(&state.db).await.unwrap_or(None);
+
+    Ok(Json(serde_json::json!({
+        "id": user.id,
+        "username": user.username,
+        "email": user.email,
+        "role": user.role,
+        "credit_balance": user.credit_balance,
+        "avatar_url": user.avatar_url,
+        "discord_id": user.discord_id,
+        "discord_username": user.discord_username,
+        "stripe_connect_id": user.stripe_connect_id,
+        "stripe_connect_onboarded": user.stripe_connect_onboarded,
+        "totp_enabled": user.totp_enabled,
+        "referral_code": user.referral_code,
+        "referred_by": user.referred_by,
+        "created_at": user.created_at.format(&Rfc3339).unwrap_or_default(),
+        "updated_at": user.updated_at.format(&Rfc3339).unwrap_or_default(),
+        "asset_count": asset_count.0,
+        "purchase_count": purchase_count.0,
+        "token_count": token_count.0,
+        "subscription_plan": plan_row.as_ref().map(|r| &r.0),
+        "daily_api_limit": plan_row.as_ref().map(|r| r.1),
+        "api_usage_today": usage_row.map(|r| r.0).unwrap_or(0),
+    })))
+}
+
+async fn user_tokens(
+    State(state): State<AppState>,
+    Extension(auth): Extension<AuthUser>,
+    Path(id): Path<Uuid>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    verify_admin(&state, auth.user_id).await?;
+
+    let rows = sqlx::query_as::<_, (Uuid, String, String, Vec<String>, Option<time::OffsetDateTime>, Option<time::OffsetDateTime>, time::OffsetDateTime)>(
+        "SELECT id, name, prefix, scopes, last_used_at, expires_at, created_at FROM api_tokens WHERE user_id = $1 ORDER BY created_at DESC"
+    ).bind(id).fetch_all(&state.db).await?;
+
+    let tokens: Vec<serde_json::Value> = rows.iter().map(|r| serde_json::json!({
+        "id": r.0,
+        "name": r.1,
+        "prefix": r.2,
+        "scopes": r.3,
+        "last_used_at": r.4.map(|t| t.format(&Rfc3339).unwrap_or_default()),
+        "expires_at": r.5.map(|t| t.format(&Rfc3339).unwrap_or_default()),
+        "created_at": r.6.format(&Rfc3339).unwrap_or_default(),
+    })).collect();
+
+    Ok(Json(serde_json::json!(tokens)))
+}
+
+async fn revoke_user_token(
+    State(state): State<AppState>,
+    Extension(auth): Extension<AuthUser>,
+    Path((user_id, token_id)): Path<(Uuid, Uuid)>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    verify_admin(&state, auth.user_id).await?;
+
+    sqlx::query("DELETE FROM api_tokens WHERE id = $1 AND user_id = $2")
+        .bind(token_id).bind(user_id)
+        .execute(&state.db).await?;
+    Ok(Json(serde_json::json!({"ok": true})))
+}
+
+async fn user_assets(
+    State(state): State<AppState>,
+    Extension(auth): Extension<AuthUser>,
+    Path(id): Path<Uuid>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    verify_admin(&state, auth.user_id).await?;
+
+    let rows = sqlx::query_as::<_, (Uuid, String, String, i64, i64, bool, time::OffsetDateTime)>(
+        "SELECT id, name, slug, price_credits, downloads, published, created_at FROM assets WHERE creator_id = $1 ORDER BY created_at DESC LIMIT 100"
+    ).bind(id).fetch_all(&state.db).await?;
+
+    let assets: Vec<serde_json::Value> = rows.iter().map(|r| serde_json::json!({
+        "id": r.0,
+        "name": r.1,
+        "slug": r.2,
+        "price_credits": r.3,
+        "downloads": r.4,
+        "published": r.5,
+        "created_at": r.6.format(&Rfc3339).unwrap_or_default(),
+    })).collect();
+
+    Ok(Json(serde_json::json!(assets)))
+}
+
+async fn user_purchases(
+    State(state): State<AppState>,
+    Extension(auth): Extension<AuthUser>,
+    Path(id): Path<Uuid>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    verify_admin(&state, auth.user_id).await?;
+
+    let rows = sqlx::query_as::<_, (Uuid, String, String, i64, time::OffsetDateTime)>(
+        "SELECT a.id, a.name, a.slug, a.price_credits, ua.purchased_at FROM user_assets ua JOIN assets a ON a.id = ua.asset_id WHERE ua.user_id = $1 ORDER BY ua.purchased_at DESC LIMIT 100"
+    ).bind(id).fetch_all(&state.db).await?;
+
+    let purchases: Vec<serde_json::Value> = rows.iter().map(|r| serde_json::json!({
+        "id": r.0,
+        "name": r.1,
+        "slug": r.2,
+        "price_credits": r.3,
+        "purchased_at": r.4.format(&Rfc3339).unwrap_or_default(),
+    })).collect();
+
+    Ok(Json(serde_json::json!(purchases)))
+}
+
+async fn user_topups(
+    State(state): State<AppState>,
+    Extension(auth): Extension<AuthUser>,
+    Path(id): Path<Uuid>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    verify_admin(&state, auth.user_id).await?;
+
+    let rows = sqlx::query_as::<_, (Uuid, i64, String, time::OffsetDateTime)>(
+        "SELECT id, amount, type, created_at FROM transactions WHERE user_id = $1 AND type = 'topup' ORDER BY created_at DESC LIMIT 100"
+    ).bind(id).fetch_all(&state.db).await?;
+
+    let topups: Vec<serde_json::Value> = rows.iter().map(|r| serde_json::json!({
+        "id": r.0,
+        "amount": r.1,
+        "type": r.2,
+        "created_at": r.3.format(&Rfc3339).unwrap_or_default(),
+    })).collect();
+
+    Ok(Json(serde_json::json!(topups)))
 }
 
