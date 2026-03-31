@@ -16,6 +16,7 @@ pub struct DeveloperApp {
     pub client_secret_hash: String,
     pub icon_url: Option<String>,
     pub approved: bool,
+    pub suspended: bool,
     pub created_at: OffsetDateTime,
 }
 
@@ -30,6 +31,7 @@ pub struct AppToken {
     pub expires_at: Option<OffsetDateTime>,
     pub last_used_at: Option<OffsetDateTime>,
     pub created_at: OffsetDateTime,
+    pub suspended: bool,
 }
 
 #[derive(Debug, sqlx::FromRow, Clone, Serialize)]
@@ -96,6 +98,18 @@ impl DeveloperApp {
             .bind(id).bind(owner_id).execute(pool).await?;
         Ok(r.rows_affected() > 0)
     }
+
+    pub async fn set_suspended(pool: &PgPool, id: Uuid, suspended: bool) -> Result<bool, sqlx::Error> {
+        let r = sqlx::query("UPDATE developer_apps SET suspended = $1 WHERE id = $2")
+            .bind(suspended).bind(id).execute(pool).await?;
+        Ok(r.rows_affected() > 0)
+    }
+
+    pub async fn set_approved(pool: &PgPool, id: Uuid, approved: bool) -> Result<bool, sqlx::Error> {
+        let r = sqlx::query("UPDATE developer_apps SET approved = $1 WHERE id = $2")
+            .bind(approved).bind(id).execute(pool).await?;
+        Ok(r.rows_affected() > 0)
+    }
 }
 
 impl AppToken {
@@ -136,6 +150,12 @@ impl AppToken {
         sqlx::query("UPDATE app_tokens SET last_used_at = NOW() WHERE id = $1")
             .bind(id).execute(pool).await?;
         Ok(())
+    }
+
+    pub async fn set_suspended(pool: &PgPool, id: Uuid, suspended: bool) -> Result<bool, sqlx::Error> {
+        let r = sqlx::query("UPDATE app_tokens SET suspended = $1 WHERE id = $2")
+            .bind(suspended).bind(id).execute(pool).await?;
+        Ok(r.rows_affected() > 0)
     }
 }
 

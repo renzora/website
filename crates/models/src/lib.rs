@@ -25,4 +25,6 @@ pub mod subscription;
 pub mod team;
 pub mod transaction;
 pub mod user;
+pub mod voucher;
+pub mod launcher_download;
 pub mod withdrawal;

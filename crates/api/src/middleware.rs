@@ -74,6 +74,11 @@ pub async fn require_auth(
             }
         }
 
+        // Check suspension
+        if app_token.suspended {
+            return Err(StatusCode::FORBIDDEN);
+        }
+
         // Update last used
         let _ = renzora_models::developer_app::AppToken::touch_last_used(&db.0, app_token.id).await;
 
@@ -82,6 +87,11 @@ pub async fn require_auth(
             .await
             .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
             .ok_or(StatusCode::UNAUTHORIZED)?;
+
+        // Check app suspension
+        if app.suspended {
+            return Err(StatusCode::FORBIDDEN);
+        }
 
         req.extensions_mut().insert(AuthUser {
             user_id: app.owner_id,
@@ -113,6 +123,11 @@ pub async fn require_auth(
             if expires < time::OffsetDateTime::now_utc() {
                 return Err(StatusCode::UNAUTHORIZED);
             }
+        }
+
+        // Check suspension
+        if api_token.suspended {
+            return Err(StatusCode::FORBIDDEN);
         }
 
         // Skip rate limit for admin users

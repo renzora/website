@@ -115,6 +115,35 @@ pub fn router() -> Router<AppState> {
         .route("/courses", get(list_admin_courses))
         .route("/courses/:id/publish", put(toggle_course_publish))
         .route("/courses/:id", delete(delete_course))
+        // API Tokens (global)
+        .route("/tokens", get(list_all_tokens))
+        .route("/tokens/:id/suspend", put(suspend_token))
+        .route("/tokens/:id", delete(admin_delete_token))
+        // Developer Apps
+        .route("/apps", get(list_all_apps))
+        .route("/apps/:id/approve", put(toggle_app_approval))
+        .route("/apps/:id/suspend", put(suspend_app))
+        .route("/apps/:id/tokens", get(list_app_tokens_admin))
+        .route("/app-tokens/:id/suspend", put(suspend_app_token))
+        .route("/apps/:id/grants", get(list_app_grants))
+        .route("/apps/:id/grants/:user_id", delete(revoke_app_grant))
+        // Teams
+        .route("/teams", get(list_all_teams))
+        .route("/teams/:id", get(team_detail))
+        .route("/teams/:id/members", get(team_members_admin))
+        .route("/teams/:id/edit", put(edit_team))
+        // Transactions
+        .route("/transactions", get(list_all_transactions))
+        .route("/users/:id/credit", post(credit_user))
+        // Vouchers
+        .route("/vouchers", get(list_vouchers))
+        .route("/vouchers", post(create_voucher))
+        .route("/vouchers/:id/toggle", put(toggle_voucher))
+        .route("/vouchers/:id", delete(delete_voucher))
+        // Enhanced Analytics
+        .route("/analytics/monthly/:year/:month", get(monthly_analytics))
+        .route("/analytics/timeseries", get(analytics_timeseries))
+        .route("/analytics/business", get(analytics_business))
         .layer(axum::middleware::from_fn(require_admin))
         .layer(axum::middleware::from_fn(middleware::require_auth))
 }
@@ -1444,5 +1473,642 @@ async fn user_topups(
     })).collect();
 
     Ok(Json(serde_json::json!(topups)))
+}
+
+// ── API Tokens (global) ──
+
+#[derive(Deserialize)]
+struct PaginatedQuery {
+    page: Option<i64>,
+    per_page: Option<i64>,
+    q: Option<String>,
+}
+
+async fn list_all_tokens(
+    State(state): State<AppState>,
+    Extension(auth): Extension<AuthUser>,
+    Query(params): Query<PaginatedQuery>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    verify_admin(&state, auth.user_id).await?;
+    let page = params.page.unwrap_or(1).max(1);
+    let per_page = params.per_page.unwrap_or(50).min(100);
+    let offset = (page - 1) * per_page;
+
+    let search = params.q.unwrap_or_default();
+    let like = format!("%{}%", search);
+
+    let rows = sqlx::query(
+        "SELECT t.id, t.user_id, t.name, t.prefix, t.scopes, t.last_used_at, t.expires_at, t.created_at, t.suspended, u.username, u.email FROM api_tokens t JOIN users u ON u.id = t.user_id WHERE ($1 = '' OR t.name ILIKE $2 OR t.prefix ILIKE $2 OR u.username ILIKE $2) ORDER BY t.created_at DESC LIMIT $3 OFFSET $4"
+    ).bind(&search).bind(&like).bind(per_page).bind(offset)
+    .fetch_all(&state.db).await?;
+
+    let tokens: Vec<serde_json::Value> = rows.iter().map(|r| serde_json::json!({
+        "id": r.get::<Uuid, _>("id"),
+        "user_id": r.get::<Uuid, _>("user_id"),
+        "name": r.get::<String, _>("name"),
+        "prefix": r.get::<String, _>("prefix"),
+        "scopes": r.get::<Vec<String>, _>("scopes"),
+        "last_used_at": r.get::<Option<time::OffsetDateTime>, _>("last_used_at").map(|t| t.format(&Rfc3339).unwrap_or_default()),
+        "expires_at": r.get::<Option<time::OffsetDateTime>, _>("expires_at").map(|t| t.format(&Rfc3339).unwrap_or_default()),
+        "created_at": r.get::<time::OffsetDateTime, _>("created_at").format(&Rfc3339).unwrap_or_default(),
+        "suspended": r.get::<bool, _>("suspended"),
+        "username": r.get::<String, _>("username"),
+        "email": r.get::<String, _>("email"),
+    })).collect();
+
+    Ok(Json(serde_json::json!(tokens)))
+}
+
+#[derive(Deserialize)]
+struct SuspendBody {
+    suspended: bool,
+}
+
+async fn suspend_token(
+    State(state): State<AppState>,
+    Extension(auth): Extension<AuthUser>,
+    Path(id): Path<Uuid>,
+    Json(body): Json<SuspendBody>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    verify_admin(&state, auth.user_id).await?;
+    renzora_models::api_token::ApiToken::set_suspended(&state.db, id, body.suspended).await?;
+    Ok(Json(serde_json::json!({"ok": true, "suspended": body.suspended})))
+}
+
+async fn admin_delete_token(
+    State(state): State<AppState>,
+    Extension(auth): Extension<AuthUser>,
+    Path(id): Path<Uuid>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    verify_admin(&state, auth.user_id).await?;
+    sqlx::query("DELETE FROM api_tokens WHERE id = $1").bind(id).execute(&state.db).await?;
+    Ok(Json(serde_json::json!({"ok": true})))
+}
+
+// ── Developer Apps ──
+
+async fn list_all_apps(
+    State(state): State<AppState>,
+    Extension(auth): Extension<AuthUser>,
+    Query(params): Query<PaginatedQuery>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    verify_admin(&state, auth.user_id).await?;
+    let page = params.page.unwrap_or(1).max(1);
+    let per_page = params.per_page.unwrap_or(50).min(100);
+    let offset = (page - 1) * per_page;
+    let search = params.q.unwrap_or_default();
+    let like = format!("%{}%", search);
+
+    let rows = sqlx::query(
+        "SELECT a.id, a.owner_id, a.name, a.slug, a.description, a.approved, a.suspended, a.created_at, u.username, (SELECT COUNT(*) FROM app_tokens WHERE app_id = a.id) as token_count FROM developer_apps a JOIN users u ON u.id = a.owner_id WHERE ($1 = '' OR a.name ILIKE $2 OR u.username ILIKE $2) ORDER BY a.created_at DESC LIMIT $3 OFFSET $4"
+    ).bind(&search).bind(&like).bind(per_page).bind(offset)
+    .fetch_all(&state.db).await?;
+
+    let apps: Vec<serde_json::Value> = rows.iter().map(|r| serde_json::json!({
+        "id": r.get::<Uuid, _>("id"),
+        "owner_id": r.get::<Uuid, _>("owner_id"),
+        "name": r.get::<String, _>("name"),
+        "slug": r.get::<String, _>("slug"),
+        "description": r.get::<String, _>("description"),
+        "approved": r.get::<bool, _>("approved"),
+        "suspended": r.get::<bool, _>("suspended"),
+        "created_at": r.get::<time::OffsetDateTime, _>("created_at").format(&Rfc3339).unwrap_or_default(),
+        "username": r.get::<String, _>("username"),
+        "token_count": r.get::<i64, _>("token_count"),
+    })).collect();
+
+    Ok(Json(serde_json::json!(apps)))
+}
+
+async fn toggle_app_approval(
+    State(state): State<AppState>,
+    Extension(auth): Extension<AuthUser>,
+    Path(id): Path<Uuid>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    verify_admin(&state, auth.user_id).await?;
+    let current: (bool,) = sqlx::query_as("SELECT approved FROM developer_apps WHERE id = $1")
+        .bind(id).fetch_one(&state.db).await?;
+    renzora_models::developer_app::DeveloperApp::set_approved(&state.db, id, !current.0).await?;
+    Ok(Json(serde_json::json!({"ok": true, "approved": !current.0})))
+}
+
+async fn suspend_app(
+    State(state): State<AppState>,
+    Extension(auth): Extension<AuthUser>,
+    Path(id): Path<Uuid>,
+    Json(body): Json<SuspendBody>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    verify_admin(&state, auth.user_id).await?;
+    renzora_models::developer_app::DeveloperApp::set_suspended(&state.db, id, body.suspended).await?;
+    Ok(Json(serde_json::json!({"ok": true, "suspended": body.suspended})))
+}
+
+async fn list_app_tokens_admin(
+    State(state): State<AppState>,
+    Extension(auth): Extension<AuthUser>,
+    Path(id): Path<Uuid>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    verify_admin(&state, auth.user_id).await?;
+    let rows = sqlx::query(
+        "SELECT id, name, prefix, scopes, last_used_at, expires_at, created_at, suspended FROM app_tokens WHERE app_id = $1 ORDER BY created_at DESC"
+    ).bind(id).fetch_all(&state.db).await?;
+
+    let tokens: Vec<serde_json::Value> = rows.iter().map(|r| serde_json::json!({
+        "id": r.get::<Uuid, _>("id"),
+        "name": r.get::<String, _>("name"),
+        "prefix": r.get::<String, _>("prefix"),
+        "scopes": r.get::<Vec<String>, _>("scopes"),
+        "last_used_at": r.get::<Option<time::OffsetDateTime>, _>("last_used_at").map(|t| t.format(&Rfc3339).unwrap_or_default()),
+        "expires_at": r.get::<Option<time::OffsetDateTime>, _>("expires_at").map(|t| t.format(&Rfc3339).unwrap_or_default()),
+        "created_at": r.get::<time::OffsetDateTime, _>("created_at").format(&Rfc3339).unwrap_or_default(),
+        "suspended": r.get::<bool, _>("suspended"),
+    })).collect();
+
+    Ok(Json(serde_json::json!(tokens)))
+}
+
+async fn suspend_app_token(
+    State(state): State<AppState>,
+    Extension(auth): Extension<AuthUser>,
+    Path(id): Path<Uuid>,
+    Json(body): Json<SuspendBody>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    verify_admin(&state, auth.user_id).await?;
+    renzora_models::developer_app::AppToken::set_suspended(&state.db, id, body.suspended).await?;
+    Ok(Json(serde_json::json!({"ok": true, "suspended": body.suspended})))
+}
+
+async fn list_app_grants(
+    State(state): State<AppState>,
+    Extension(auth): Extension<AuthUser>,
+    Path(id): Path<Uuid>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    verify_admin(&state, auth.user_id).await?;
+    let rows = sqlx::query(
+        "SELECT g.id, g.user_id, g.scopes_granted, g.granted_at, u.username FROM app_user_grants g JOIN users u ON u.id = g.user_id WHERE g.app_id = $1 ORDER BY g.granted_at DESC"
+    ).bind(id).fetch_all(&state.db).await?;
+
+    let grants: Vec<serde_json::Value> = rows.iter().map(|r| serde_json::json!({
+        "id": r.get::<Uuid, _>("id"),
+        "user_id": r.get::<Uuid, _>("user_id"),
+        "username": r.get::<String, _>("username"),
+        "scopes_granted": r.get::<Vec<String>, _>("scopes_granted"),
+        "granted_at": r.get::<time::OffsetDateTime, _>("granted_at").format(&Rfc3339).unwrap_or_default(),
+    })).collect();
+
+    Ok(Json(serde_json::json!(grants)))
+}
+
+async fn revoke_app_grant(
+    State(state): State<AppState>,
+    Extension(auth): Extension<AuthUser>,
+    Path((app_id, user_id)): Path<(Uuid, Uuid)>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    verify_admin(&state, auth.user_id).await?;
+    sqlx::query("DELETE FROM app_user_grants WHERE app_id = $1 AND user_id = $2")
+        .bind(app_id).bind(user_id).execute(&state.db).await?;
+    Ok(Json(serde_json::json!({"ok": true})))
+}
+
+// ── Teams ──
+
+async fn list_all_teams(
+    State(state): State<AppState>,
+    Extension(auth): Extension<AuthUser>,
+    Query(params): Query<PaginatedQuery>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    verify_admin(&state, auth.user_id).await?;
+    let page = params.page.unwrap_or(1).max(1);
+    let per_page = params.per_page.unwrap_or(50).min(100);
+    let offset = (page - 1) * per_page;
+    let search = params.q.unwrap_or_default();
+    let like = format!("%{}%", search);
+
+    let rows = sqlx::query(
+        "SELECT t.id, t.name, t.slug, t.owner_id, t.description, t.created_at, u.username as owner_name, (SELECT COUNT(*) FROM team_members WHERE team_id = t.id) as member_count FROM teams t JOIN users u ON u.id = t.owner_id WHERE ($1 = '' OR t.name ILIKE $2 OR u.username ILIKE $2) ORDER BY t.created_at DESC LIMIT $3 OFFSET $4"
+    ).bind(&search).bind(&like).bind(per_page).bind(offset)
+    .fetch_all(&state.db).await?;
+
+    let teams: Vec<serde_json::Value> = rows.iter().map(|r| serde_json::json!({
+        "id": r.get::<Uuid, _>("id"),
+        "name": r.get::<String, _>("name"),
+        "slug": r.get::<String, _>("slug"),
+        "owner_id": r.get::<Uuid, _>("owner_id"),
+        "owner_name": r.get::<String, _>("owner_name"),
+        "description": r.get::<String, _>("description"),
+        "member_count": r.get::<i64, _>("member_count"),
+        "created_at": r.get::<time::OffsetDateTime, _>("created_at").format(&Rfc3339).unwrap_or_default(),
+    })).collect();
+
+    Ok(Json(serde_json::json!(teams)))
+}
+
+async fn team_detail(
+    State(state): State<AppState>,
+    Extension(auth): Extension<AuthUser>,
+    Path(id): Path<Uuid>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    verify_admin(&state, auth.user_id).await?;
+    let row = sqlx::query(
+        "SELECT t.*, u.username as owner_name, (SELECT COUNT(*) FROM team_members WHERE team_id = t.id) as member_count, (SELECT COUNT(*) FROM team_library WHERE team_id = t.id) as library_count FROM teams t JOIN users u ON u.id = t.owner_id WHERE t.id = $1"
+    ).bind(id).fetch_optional(&state.db).await?.ok_or(ApiError::NotFound)?;
+
+    Ok(Json(serde_json::json!({
+        "id": row.get::<Uuid, _>("id"),
+        "name": row.get::<String, _>("name"),
+        "slug": row.get::<String, _>("slug"),
+        "owner_id": row.get::<Uuid, _>("owner_id"),
+        "owner_name": row.get::<String, _>("owner_name"),
+        "description": row.get::<String, _>("description"),
+        "member_count": row.get::<i64, _>("member_count"),
+        "library_count": row.get::<i64, _>("library_count"),
+        "created_at": row.get::<time::OffsetDateTime, _>("created_at").format(&Rfc3339).unwrap_or_default(),
+        "updated_at": row.get::<time::OffsetDateTime, _>("updated_at").format(&Rfc3339).unwrap_or_default(),
+    })))
+}
+
+async fn team_members_admin(
+    State(state): State<AppState>,
+    Extension(auth): Extension<AuthUser>,
+    Path(id): Path<Uuid>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    verify_admin(&state, auth.user_id).await?;
+    let rows = sqlx::query(
+        "SELECT tm.user_id, tm.role, tm.joined_at, u.username, u.email FROM team_members tm JOIN users u ON u.id = tm.user_id WHERE tm.team_id = $1 ORDER BY tm.joined_at"
+    ).bind(id).fetch_all(&state.db).await?;
+
+    let members: Vec<serde_json::Value> = rows.iter().map(|r| serde_json::json!({
+        "user_id": r.get::<Uuid, _>("user_id"),
+        "role": r.get::<String, _>("role"),
+        "username": r.get::<String, _>("username"),
+        "email": r.get::<String, _>("email"),
+        "joined_at": r.get::<time::OffsetDateTime, _>("joined_at").format(&Rfc3339).unwrap_or_default(),
+    })).collect();
+
+    Ok(Json(serde_json::json!(members)))
+}
+
+#[derive(Deserialize)]
+struct EditTeamBody {
+    name: Option<String>,
+    description: Option<String>,
+}
+
+async fn edit_team(
+    State(state): State<AppState>,
+    Extension(auth): Extension<AuthUser>,
+    Path(id): Path<Uuid>,
+    Json(body): Json<EditTeamBody>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    verify_admin(&state, auth.user_id).await?;
+    if let Some(name) = &body.name {
+        sqlx::query("UPDATE teams SET name = $1, updated_at = NOW() WHERE id = $2")
+            .bind(name).bind(id).execute(&state.db).await?;
+    }
+    if let Some(desc) = &body.description {
+        sqlx::query("UPDATE teams SET description = $1, updated_at = NOW() WHERE id = $2")
+            .bind(desc).bind(id).execute(&state.db).await?;
+    }
+    Ok(Json(serde_json::json!({"ok": true})))
+}
+
+// ── Transactions ──
+
+#[derive(Deserialize)]
+struct TransactionQuery {
+    page: Option<i64>,
+    per_page: Option<i64>,
+    #[serde(rename = "type")]
+    tx_type: Option<String>,
+    user_id: Option<Uuid>,
+    from: Option<String>,
+    to: Option<String>,
+    q: Option<String>,
+}
+
+async fn list_all_transactions(
+    State(state): State<AppState>,
+    Extension(auth): Extension<AuthUser>,
+    Query(params): Query<TransactionQuery>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    verify_admin(&state, auth.user_id).await?;
+    let page = params.page.unwrap_or(1).max(1);
+    let per_page = params.per_page.unwrap_or(50).min(100);
+    let offset = (page - 1) * per_page;
+    let tx_type = params.tx_type.unwrap_or_default();
+    let search = params.q.unwrap_or_default();
+    let like = format!("%{}%", search);
+
+    let rows = sqlx::query(
+        "SELECT t.id, t.user_id, t.type, t.amount, t.asset_id, t.stripe_payment_id, t.reason, t.admin_id, t.created_at, u.username, a.name as asset_name \
+         FROM transactions t \
+         JOIN users u ON u.id = t.user_id \
+         LEFT JOIN assets a ON a.id = t.asset_id \
+         WHERE ($1 = '' OR t.type = $1) \
+         AND ($2::uuid IS NULL OR t.user_id = $2) \
+         AND ($3 = '' OR u.username ILIKE $4) \
+         ORDER BY t.created_at DESC LIMIT $5 OFFSET $6"
+    )
+    .bind(&tx_type)
+    .bind(params.user_id)
+    .bind(&search)
+    .bind(&like)
+    .bind(per_page)
+    .bind(offset)
+    .fetch_all(&state.db).await?;
+
+    let txns: Vec<serde_json::Value> = rows.iter().map(|r| serde_json::json!({
+        "id": r.get::<Uuid, _>("id"),
+        "user_id": r.get::<Uuid, _>("user_id"),
+        "username": r.get::<String, _>("username"),
+        "type": r.get::<String, _>("type"),
+        "amount": r.get::<i64, _>("amount"),
+        "asset_id": r.get::<Option<Uuid>, _>("asset_id"),
+        "asset_name": r.get::<Option<String>, _>("asset_name"),
+        "stripe_payment_id": r.get::<Option<String>, _>("stripe_payment_id"),
+        "reason": r.get::<Option<String>, _>("reason"),
+        "admin_id": r.get::<Option<Uuid>, _>("admin_id"),
+        "created_at": r.get::<time::OffsetDateTime, _>("created_at").format(&Rfc3339).unwrap_or_default(),
+    })).collect();
+
+    Ok(Json(serde_json::json!(txns)))
+}
+
+#[derive(Deserialize)]
+struct CreditUserBody {
+    amount: i64,
+    reason: String,
+}
+
+async fn credit_user(
+    State(state): State<AppState>,
+    Extension(auth): Extension<AuthUser>,
+    Path(id): Path<Uuid>,
+    Json(body): Json<CreditUserBody>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    verify_admin(&state, auth.user_id).await?;
+    if body.amount <= 0 {
+        return Err(ApiError::Validation("Amount must be positive".into()));
+    }
+    if body.reason.trim().is_empty() {
+        return Err(ApiError::Validation("Reason is required".into()));
+    }
+
+    let tx_id = Uuid::new_v4();
+    sqlx::query("INSERT INTO transactions (id, user_id, type, amount, reason, admin_id) VALUES ($1, $2, 'admin_credit', $3, $4, $5)")
+        .bind(tx_id).bind(id).bind(body.amount).bind(&body.reason).bind(auth.user_id)
+        .execute(&state.db).await?;
+    sqlx::query("UPDATE users SET credit_balance = credit_balance + $1 WHERE id = $2")
+        .bind(body.amount).bind(id).execute(&state.db).await?;
+
+    Ok(Json(serde_json::json!({"ok": true, "transaction_id": tx_id})))
+}
+
+// ── Vouchers ──
+
+#[derive(Deserialize)]
+struct CreateVoucherBody {
+    code: String,
+    voucher_type: String,
+    credit_amount: Option<i64>,
+    discount_percent: Option<i32>,
+    max_asset_price: Option<i64>,
+    specific_asset_id: Option<Uuid>,
+    max_uses: Option<i32>,
+    max_uses_per_user: Option<i32>,
+    expires_hours: Option<i64>,
+}
+
+async fn list_vouchers(
+    State(state): State<AppState>,
+    Extension(auth): Extension<AuthUser>,
+) -> Result<Json<Vec<renzora_models::voucher::Voucher>>, ApiError> {
+    verify_admin(&state, auth.user_id).await?;
+    let vouchers = renzora_models::voucher::Voucher::list(&state.db).await?;
+    Ok(Json(vouchers))
+}
+
+async fn create_voucher(
+    State(state): State<AppState>,
+    Extension(auth): Extension<AuthUser>,
+    Json(body): Json<CreateVoucherBody>,
+) -> Result<Json<renzora_models::voucher::Voucher>, ApiError> {
+    verify_admin(&state, auth.user_id).await?;
+    if body.code.trim().is_empty() || body.code.len() > 32 {
+        return Err(ApiError::Validation("Code must be 1-32 characters".into()));
+    }
+    match body.voucher_type.as_str() {
+        "credit" => {
+            if body.credit_amount.unwrap_or(0) <= 0 {
+                return Err(ApiError::Validation("Credit amount must be positive".into()));
+            }
+        }
+        "asset_discount" => {
+            let pct = body.discount_percent.unwrap_or(0);
+            if pct < 1 || pct > 100 {
+                return Err(ApiError::Validation("Discount must be 1-100%".into()));
+            }
+        }
+        _ => return Err(ApiError::Validation("voucher_type must be 'credit' or 'asset_discount'".into())),
+    }
+    let expires_at = body.expires_hours.map(|h| time::OffsetDateTime::now_utc() + time::Duration::hours(h));
+    let v = renzora_models::voucher::Voucher::create(
+        &state.db, &body.code, &body.voucher_type, body.credit_amount, body.discount_percent,
+        body.max_asset_price, body.specific_asset_id, body.max_uses,
+        body.max_uses_per_user.unwrap_or(1), expires_at, auth.user_id,
+    ).await.map_err(|e| {
+        if e.to_string().contains("duplicate") || e.to_string().contains("unique") {
+            ApiError::Validation("A voucher with that code already exists".into())
+        } else {
+            ApiError::Database(e)
+        }
+    })?;
+    Ok(Json(v))
+}
+
+async fn toggle_voucher(
+    State(state): State<AppState>,
+    Extension(auth): Extension<AuthUser>,
+    Path(id): Path<Uuid>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    verify_admin(&state, auth.user_id).await?;
+    let current: (bool,) = sqlx::query_as("SELECT active FROM vouchers WHERE id = $1")
+        .bind(id).fetch_one(&state.db).await?;
+    renzora_models::voucher::Voucher::set_active(&state.db, id, !current.0).await?;
+    Ok(Json(serde_json::json!({"ok": true, "active": !current.0})))
+}
+
+async fn delete_voucher(
+    State(state): State<AppState>,
+    Extension(auth): Extension<AuthUser>,
+    Path(id): Path<Uuid>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    verify_admin(&state, auth.user_id).await?;
+    renzora_models::voucher::Voucher::delete(&state.db, id).await?;
+    Ok(Json(serde_json::json!({"ok": true})))
+}
+
+// ── Enhanced Analytics ──
+
+async fn monthly_analytics(
+    State(state): State<AppState>,
+    Extension(auth): Extension<AuthUser>,
+    Path((year, month)): Path<(i32, u32)>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    verify_admin(&state, auth.user_id).await?;
+
+    let month_start = format!("{}-{:02}-01", year, month);
+    let next_month = if month == 12 { format!("{}-01-01", year + 1) } else { format!("{}-{:02}-01", year, month + 1) };
+
+    // Revenue (topups)
+    let revenue: (i64,) = sqlx::query_as("SELECT COALESCE(SUM(amount),0)::bigint FROM transactions WHERE type='topup' AND created_at >= $1::timestamptz AND created_at < $2::timestamptz")
+        .bind(&month_start).bind(&next_month).fetch_one(&state.db).await?;
+
+    // Purchases
+    let purchases: (i64,) = sqlx::query_as("SELECT COALESCE(SUM(ABS(amount)),0)::bigint FROM transactions WHERE type='purchase' AND created_at >= $1::timestamptz AND created_at < $2::timestamptz")
+        .bind(&month_start).bind(&next_month).fetch_one(&state.db).await?;
+
+    // Creator earnings
+    let earnings: (i64,) = sqlx::query_as("SELECT COALESCE(SUM(amount),0)::bigint FROM transactions WHERE type='earning' AND created_at >= $1::timestamptz AND created_at < $2::timestamptz")
+        .bind(&month_start).bind(&next_month).fetch_one(&state.db).await?;
+
+    let commission = purchases.0 - earnings.0;
+
+    // Withdrawals completed
+    let withdrawals: (i64,) = sqlx::query_as("SELECT COALESCE(SUM(amount_credits),0)::bigint FROM withdrawals WHERE status='completed' AND completed_at >= $1::timestamptz AND completed_at < $2::timestamptz")
+        .bind(&month_start).bind(&next_month).fetch_one(&state.db).await?;
+
+    // Referral payouts
+    let referrals: (i64,) = sqlx::query_as("SELECT COALESCE(SUM(amount),0)::bigint FROM transactions WHERE type='referral' AND created_at >= $1::timestamptz AND created_at < $2::timestamptz")
+        .bind(&month_start).bind(&next_month).fetch_one(&state.db).await?;
+
+    // Admin credits
+    let admin_credits: (i64,) = sqlx::query_as("SELECT COALESCE(SUM(amount),0)::bigint FROM transactions WHERE type='admin_credit' AND created_at >= $1::timestamptz AND created_at < $2::timestamptz")
+        .bind(&month_start).bind(&next_month).fetch_one(&state.db).await?;
+
+    // Credits in circulation (liability) at end of month
+    let liabilities: (i64,) = sqlx::query_as("SELECT COALESCE(SUM(credit_balance),0)::bigint FROM users")
+        .fetch_one(&state.db).await?;
+
+    // New registrations
+    let registrations: (i64,) = sqlx::query_as("SELECT COUNT(*)::bigint FROM users WHERE created_at >= $1::timestamptz AND created_at < $2::timestamptz")
+        .bind(&month_start).bind(&next_month).fetch_one(&state.db).await?;
+
+    // New assets
+    let new_assets: (i64,) = sqlx::query_as("SELECT COUNT(*)::bigint FROM assets WHERE created_at >= $1::timestamptz AND created_at < $2::timestamptz")
+        .bind(&month_start).bind(&next_month).fetch_one(&state.db).await?;
+
+    // Sales count
+    let sales: (i64,) = sqlx::query_as("SELECT COUNT(*)::bigint FROM transactions WHERE type='purchase' AND created_at >= $1::timestamptz AND created_at < $2::timestamptz")
+        .bind(&month_start).bind(&next_month).fetch_one(&state.db).await?;
+
+    Ok(Json(serde_json::json!({
+        "year": year, "month": month,
+        "revenue": revenue.0,
+        "purchases": purchases.0,
+        "creator_earnings": earnings.0,
+        "commission": commission,
+        "withdrawals": withdrawals.0,
+        "referrals": referrals.0,
+        "admin_credits": admin_credits.0,
+        "credits_in_circulation": liabilities.0,
+        "registrations": registrations.0,
+        "new_assets": new_assets.0,
+        "sales_count": sales.0,
+    })))
+}
+
+#[derive(Deserialize)]
+struct TimeseriesQuery {
+    metric: String,
+    months: Option<i32>,
+}
+
+async fn analytics_timeseries(
+    State(state): State<AppState>,
+    Extension(auth): Extension<AuthUser>,
+    Query(params): Query<TimeseriesQuery>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    verify_admin(&state, auth.user_id).await?;
+    let months = params.months.unwrap_or(12);
+
+    let query = match params.metric.as_str() {
+        "revenue" => "SELECT date_trunc('month', created_at) as month, COALESCE(SUM(amount),0)::bigint as value FROM transactions WHERE type='topup' AND created_at > NOW() - make_interval(months => $1) GROUP BY month ORDER BY month",
+        "purchases" => "SELECT date_trunc('month', created_at) as month, COALESCE(SUM(ABS(amount)),0)::bigint as value FROM transactions WHERE type='purchase' AND created_at > NOW() - make_interval(months => $1) GROUP BY month ORDER BY month",
+        "commission" => "SELECT date_trunc('month', t.created_at) as month, (COALESCE(SUM(ABS(CASE WHEN t.type='purchase' THEN t.amount ELSE 0 END)),0) - COALESCE(SUM(CASE WHEN t.type='earning' THEN t.amount ELSE 0 END),0))::bigint as value FROM transactions t WHERE t.type IN ('purchase','earning') AND t.created_at > NOW() - make_interval(months => $1) GROUP BY month ORDER BY month",
+        "withdrawals" => "SELECT date_trunc('month', completed_at) as month, COALESCE(SUM(amount_credits),0)::bigint as value FROM withdrawals WHERE status='completed' AND completed_at > NOW() - make_interval(months => $1) GROUP BY month ORDER BY month",
+        "registrations" => "SELECT date_trunc('month', created_at) as month, COUNT(*)::bigint as value FROM users WHERE created_at > NOW() - make_interval(months => $1) GROUP BY month ORDER BY month",
+        "assets_added" => "SELECT date_trunc('month', created_at) as month, COUNT(*)::bigint as value FROM assets WHERE created_at > NOW() - make_interval(months => $1) GROUP BY month ORDER BY month",
+        "downloads" => "SELECT date_trunc('month', created_at) as month, COUNT(*)::bigint as value FROM launcher_downloads WHERE created_at > NOW() - make_interval(months => $1) GROUP BY month ORDER BY month",
+        _ => return Err(ApiError::Validation("Invalid metric".into())),
+    };
+
+    let rows = sqlx::query(query).bind(months).fetch_all(&state.db).await?;
+    let data: Vec<serde_json::Value> = rows.iter().map(|r| serde_json::json!({
+        "month": r.get::<time::OffsetDateTime, _>("month").format(&Rfc3339).unwrap_or_default(),
+        "value": r.get::<i64, _>("value"),
+    })).collect();
+
+    Ok(Json(serde_json::json!({"metric": params.metric, "data": data})))
+}
+
+async fn analytics_business(
+    State(state): State<AppState>,
+    Extension(auth): Extension<AuthUser>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    verify_admin(&state, auth.user_id).await?;
+
+    // Top creators by earnings
+    let top_creators = sqlx::query(
+        "SELECT u.id, u.username, COALESCE(SUM(t.amount),0)::bigint as total_earnings FROM transactions t JOIN users u ON u.id = t.user_id WHERE t.type = 'earning' GROUP BY u.id, u.username ORDER BY total_earnings DESC LIMIT 10"
+    ).fetch_all(&state.db).await?;
+
+    let creators: Vec<serde_json::Value> = top_creators.iter().map(|r| serde_json::json!({
+        "id": r.get::<Uuid, _>("id"),
+        "username": r.get::<String, _>("username"),
+        "total_earnings": r.get::<i64, _>("total_earnings"),
+    })).collect();
+
+    // Top buyers by spend
+    let top_buyers = sqlx::query(
+        "SELECT u.id, u.username, COALESCE(SUM(ABS(t.amount)),0)::bigint as total_spent FROM transactions t JOIN users u ON u.id = t.user_id WHERE t.type = 'purchase' GROUP BY u.id, u.username ORDER BY total_spent DESC LIMIT 10"
+    ).fetch_all(&state.db).await?;
+
+    let buyers: Vec<serde_json::Value> = top_buyers.iter().map(|r| serde_json::json!({
+        "id": r.get::<Uuid, _>("id"),
+        "username": r.get::<String, _>("username"),
+        "total_spent": r.get::<i64, _>("total_spent"),
+    })).collect();
+
+    // Growth: current month vs last month
+    let current_month_users: (i64,) = sqlx::query_as("SELECT COUNT(*)::bigint FROM users WHERE created_at >= date_trunc('month', NOW())")
+        .fetch_one(&state.db).await?;
+    let last_month_users: (i64,) = sqlx::query_as("SELECT COUNT(*)::bigint FROM users WHERE created_at >= date_trunc('month', NOW()) - INTERVAL '1 month' AND created_at < date_trunc('month', NOW())")
+        .fetch_one(&state.db).await?;
+
+    let current_month_assets: (i64,) = sqlx::query_as("SELECT COUNT(*)::bigint FROM assets WHERE created_at >= date_trunc('month', NOW())")
+        .fetch_one(&state.db).await?;
+    let last_month_assets: (i64,) = sqlx::query_as("SELECT COUNT(*)::bigint FROM assets WHERE created_at >= date_trunc('month', NOW()) - INTERVAL '1 month' AND created_at < date_trunc('month', NOW())")
+        .fetch_one(&state.db).await?;
+
+    // Launcher downloads by platform
+    let platform_rows = sqlx::query("SELECT platform, COUNT(*)::bigint as count FROM launcher_downloads GROUP BY platform ORDER BY count DESC")
+        .fetch_all(&state.db).await?;
+    let platforms: Vec<serde_json::Value> = platform_rows.iter().map(|r| serde_json::json!({
+        "platform": r.get::<String, _>("platform"),
+        "count": r.get::<i64, _>("count"),
+    })).collect();
+
+    Ok(Json(serde_json::json!({
+        "top_creators": creators,
+        "top_buyers": buyers,
+        "growth": {
+            "users_this_month": current_month_users.0,
+            "users_last_month": last_month_users.0,
+            "assets_this_month": current_month_assets.0,
+            "assets_last_month": last_month_assets.0,
+        },
+        "launcher_platforms": platforms,
+    })))
 }
 

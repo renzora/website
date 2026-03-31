@@ -14,6 +14,7 @@ pub struct ApiToken {
     pub last_used_at: Option<OffsetDateTime>,
     pub expires_at: Option<OffsetDateTime>,
     pub created_at: OffsetDateTime,
+    pub suspended: bool,
 }
 
 impl ApiToken {
@@ -70,5 +71,14 @@ impl ApiToken {
             .execute(db)
             .await?;
         Ok(())
+    }
+
+    pub async fn set_suspended(db: &PgPool, id: Uuid, suspended: bool) -> Result<bool, sqlx::Error> {
+        let result = sqlx::query("UPDATE api_tokens SET suspended = $1 WHERE id = $2")
+            .bind(suspended)
+            .bind(id)
+            .execute(db)
+            .await?;
+        Ok(result.rows_affected() > 0)
     }
 }
