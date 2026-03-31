@@ -56,6 +56,19 @@ pub fn ProfilePage() -> impl IntoView {
                     } catch(e) {}
                 }
 
+                // Get friend status
+                var friendStatus = 'none';
+                if (token && !isOwnProfile) {
+                    try {
+                        var fres = await fetch('/api/gameservices/friends', { headers: { 'Authorization': 'Bearer ' + token } });
+                        var friends = await fres.json();
+                        if (Array.isArray(friends)) {
+                            var match = friends.find(function(f) { return f.friend_username === username; });
+                            if (match) friendStatus = 'accepted';
+                        }
+                    } catch(e) {}
+                }
+
                 // Badges
                 const badges = p.badges.map(b => `
                     <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-medium border" style="border-color: ${b.color}30; color: ${b.color}; background: ${b.color}10" title="${b.description}">
@@ -71,6 +84,14 @@ pub fn ProfilePage() -> impl IntoView {
                             : 'bg-accent text-white hover:bg-accent-hover'}">
                         <i class="ph ${p.is_following ? 'ph-user-minus' : 'ph-user-plus'} text-base"></i>
                         ${p.is_following ? 'Unfollow' : 'Follow'}
+                    </button>
+                    <button onclick="toggleFriend('${p.username}')" id="friend-btn"
+                        class="px-4 py-1.5 text-sm font-medium rounded-lg border border-zinc-700 text-zinc-300 hover:bg-zinc-800 transition-colors">
+                        ${friendStatus === 'accepted' ? 'Unfriend' : friendStatus === 'pending' ? 'Pending' : 'Add Friend'}
+                    </button>
+                    <button onclick="blockUser('${p.username}')"
+                        class="px-3 py-1.5 text-sm font-medium rounded-lg border border-red-900/50 text-red-400 hover:bg-red-950/30 transition-colors">
+                        Block
                     </button>` : '';
 
                 // Avatar
@@ -225,6 +246,9 @@ pub fn ProfilePage() -> impl IntoView {
                             <button onclick="showProfileTab('badges')" id="ptab-badges" class="profile-tab px-4 py-2.5 text-sm font-medium border-b-2 border-transparent text-zinc-400 hover:text-zinc-200">
                                 <i class="ph ph-medal"></i> Badges
                             </button>
+                            <button onclick="showProfileTab('posts')" id="ptab-posts" class="profile-tab px-4 py-2.5 text-sm font-medium border-b-2 border-transparent text-zinc-400 hover:text-zinc-200">
+                                <i class="ph ph-article"></i> Posts
+                            </button>
                             ${isStaff ? `<button onclick="showProfileTab('staff')" id="ptab-staff" class="profile-tab px-4 py-2.5 text-sm font-medium border-b-2 border-transparent text-amber-400 hover:text-amber-300">
                                 <i class="ph ph-shield-check"></i> Staff
                             </button>` : ''}
@@ -254,6 +278,8 @@ pub fn ProfilePage() -> impl IntoView {
                             ` : '<p class="text-zinc-500 text-sm py-8 text-center">No badges earned yet.</p>'}
                         </div>
 
+                        <div id="ptab-content-posts" class="hidden"></div>
+
                         <div id="ptab-content-staff" class="hidden">
                             ${staffNotesHtml}
                         </div>
@@ -264,7 +290,7 @@ pub fn ProfilePage() -> impl IntoView {
                 if (isStaff && p.id) loadProfileNotes(p.id);
             })();
 
-            function showProfileTab(name) {
+            async function showProfileTab(name) {
                 document.querySelectorAll('.profile-tab').forEach(t => {
                     t.classList.remove('border-accent', 'text-zinc-50', 'border-amber-400', 'text-amber-400');
                     t.classList.add('border-transparent', 'text-zinc-400');
@@ -278,10 +304,41 @@ pub fn ProfilePage() -> impl IntoView {
                     }
                     tab.classList.remove('border-transparent', 'text-zinc-400');
                 }
-                ['assets', 'badges', 'staff'].forEach(n => {
+                ['assets', 'badges', 'posts', 'staff'].forEach(n => {
                     const el = document.getElementById('ptab-content-' + n);
                     if (el) el.classList.toggle('hidden', n !== name);
                 });
+
+                if (name === 'posts') {
+                    var postsEl = document.getElementById('ptab-content-posts');
+                    if (postsEl && !postsEl.dataset.loaded) {
+                        postsEl.dataset.loaded = '1';
+                        var profileUsername = window.location.pathname.split('/').pop();
+                        var token = document.cookie.match('(^|;)\\s*token\\s*=\\s*([^;]+)')?.pop();
+                        try {
+                            var pres = await fetch('/api/feed/users/' + profileUsername + '/posts?limit=20', {
+                                headers: token ? { 'Authorization': 'Bearer ' + token } : {}
+                            });
+                            var posts = await pres.json();
+                            if (Array.isArray(posts) && posts.length > 0) {
+                                postsEl.innerHTML = posts.map(function(p) {
+                                    return '<div class="p-4 bg-surface-card border border-zinc-800 rounded-xl mb-3">' +
+                                        '<p class="text-sm text-zinc-300 whitespace-pre-wrap">' + escapeHtml(p.body) + '</p>' +
+                                        '<div class="flex items-center gap-3 mt-3 text-xs text-zinc-500">' +
+                                            '<span>' + p.like_count + ' likes</span>' +
+                                            '<span>' + p.comment_count + ' comments</span>' +
+                                            '<span>' + timeAgo(p.created_at) + '</span>' +
+                                        '</div>' +
+                                    '</div>';
+                                }).join('');
+                            } else {
+                                postsEl.innerHTML = '<p class="text-sm text-zinc-500 py-8 text-center">No posts yet</p>';
+                            }
+                        } catch(e) {
+                            postsEl.innerHTML = '<p class="text-sm text-zinc-500 py-8 text-center">No posts yet</p>';
+                        }
+                    }
+                }
             }
 
             function toggleEditProfile() {
@@ -326,6 +383,42 @@ pub fn ProfilePage() -> impl IntoView {
                 if (!token) { window.location.href = '/login'; return; }
                 await fetch('/api/profiles/follow/' + username, { method: 'POST', headers: { 'Authorization': 'Bearer ' + token } });
                 window.location.reload();
+            }
+
+            window.toggleFriend = async function(username) {
+                var token = document.cookie.match('(^|;)\\s*token\\s*=\\s*([^;]+)')?.pop();
+                if (!token) { window.location.href = '/login'; return; }
+                var res = await fetch('/api/profiles/friend/' + username, {
+                    method: 'POST', headers: { 'Authorization': 'Bearer ' + token }
+                });
+                var data = await res.json();
+                var btn = document.getElementById('friend-btn');
+                if (btn) {
+                    if (data.status === 'accepted') btn.textContent = 'Unfriend';
+                    else if (data.status === 'pending') btn.textContent = 'Pending';
+                    else btn.textContent = 'Add Friend';
+                }
+            };
+
+            window.blockUser = async function(username) {
+                if (!confirm('Block ' + username + '? They won\'t be able to message you.')) return;
+                var token = document.cookie.match('(^|;)\\s*token\\s*=\\s*([^;]+)')?.pop();
+                if (!token) return;
+                await fetch('/api/profiles/block/' + username, {
+                    method: 'POST', headers: { 'Authorization': 'Bearer ' + token }
+                });
+                alert('User blocked');
+                window.location.reload();
+            };
+
+            function escapeHtml(s) { var d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+            function timeAgo(iso) {
+                var d = new Date(iso);
+                var diff = (Date.now() - d.getTime()) / 1000;
+                if (diff < 60) return 'just now';
+                if (diff < 3600) return Math.floor(diff / 60) + 'm ago';
+                if (diff < 86400) return Math.floor(diff / 3600) + 'h ago';
+                return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
             }
 
             // ── Staff notes on profile ──

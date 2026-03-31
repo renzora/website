@@ -100,6 +100,56 @@ pub fn SettingsPage() -> impl IntoView {
                     </div>
                 </div>
 
+                // Privacy
+                <div class="mb-8">
+                    <h2 class="text-base font-semibold mb-4 flex items-center gap-2">
+                        <i class="ph ph-eye-slash text-lg text-accent"></i>"Privacy"
+                    </h2>
+                    <div class="p-6 bg-surface-card border border-zinc-800 rounded-lg space-y-4">
+                        <div>
+                            <label class="block text-xs text-zinc-500 mb-1.5">"Who can message me"</label>
+                            <select id="privacy-messages" class="w-full px-3 py-2.5 bg-surface border border-zinc-800 rounded-lg text-zinc-50 text-sm outline-none focus:border-accent transition-colors">
+                                <option value="everyone">"Everyone"</option>
+                                <option value="friends">"Friends only"</option>
+                                <option value="nobody">"Nobody"</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-xs text-zinc-500 mb-1.5">"Profile visibility"</label>
+                            <select id="privacy-visibility" class="w-full px-3 py-2.5 bg-surface border border-zinc-800 rounded-lg text-zinc-50 text-sm outline-none focus:border-accent transition-colors">
+                                <option value="public">"Public"</option>
+                                <option value="friends_only">"Friends only"</option>
+                            </select>
+                        </div>
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <p class="text-sm text-zinc-50">"Show online status"</p>
+                                <p class="text-xs text-zinc-500">"Let others see when you're online"</p>
+                            </div>
+                            <label class="relative inline-flex items-center cursor-pointer">
+                                <input type="checkbox" id="privacy-online" checked class="sr-only peer" />
+                                <div class="w-9 h-5 bg-zinc-700 rounded-full peer peer-checked:bg-accent transition-colors after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:after:translate-x-4"></div>
+                            </label>
+                        </div>
+                        <button id="save-privacy" class="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-accent text-white hover:bg-accent-hover transition-colors">
+                            <i class="ph ph-check text-base"></i>"Save Privacy Settings"
+                        </button>
+                        <div id="privacy-success" class="hidden text-xs text-green-400 mt-1">"Privacy settings saved"</div>
+                    </div>
+                </div>
+
+                // Blocked Users
+                <div class="mb-8">
+                    <h2 class="text-base font-semibold mb-4 flex items-center gap-2">
+                        <i class="ph ph-prohibit text-lg text-accent"></i>"Blocked Users"
+                    </h2>
+                    <div class="p-6 bg-surface-card border border-zinc-800 rounded-lg">
+                        <div id="block-list">
+                            <p class="text-sm text-zinc-500">"Loading..."</p>
+                        </div>
+                    </div>
+                </div>
+
                 // Connected Apps
                 <div class="mb-8">
                     <h2 class="text-base font-semibold mb-4 flex items-center gap-2">
@@ -357,6 +407,69 @@ pub fn SettingsPage() -> impl IntoView {
                 showMsg('success', 'Bank account connected! Payouts are now enabled.');
                 history.replaceState({}, '', '/settings');
             }
+
+            // ── Privacy settings ──
+            (async function() {
+                var token = getToken();
+                if (!token) return;
+
+                // Load current settings
+                try {
+                    var res = await fetch('/api/auth/me', { headers: { 'Authorization': 'Bearer ' + token } });
+                    var user = await res.json();
+                    if (user.message_privacy) document.getElementById('privacy-messages').value = user.message_privacy;
+                    if (user.profile_visibility) document.getElementById('privacy-visibility').value = user.profile_visibility;
+                    var onlineEl = document.getElementById('privacy-online');
+                    if (onlineEl && user.online_status_visible !== undefined) onlineEl.checked = user.online_status_visible;
+                } catch(e) {}
+
+                // Save privacy
+                document.getElementById('save-privacy')?.addEventListener('click', async function() {
+                    var res = await fetch('/api/user/privacy', {
+                        method: 'PUT',
+                        headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            message_privacy: document.getElementById('privacy-messages').value,
+                            profile_visibility: document.getElementById('privacy-visibility').value,
+                            online_status_visible: document.getElementById('privacy-online').checked,
+                        })
+                    });
+                    if (res.ok) {
+                        var el = document.getElementById('privacy-success');
+                        if (el) { el.classList.remove('hidden'); setTimeout(function() { el.classList.add('hidden'); }, 3000); }
+                    }
+                });
+
+                // Load block list
+                try {
+                    var bres = await fetch('/api/user/blocked', { headers: { 'Authorization': 'Bearer ' + token } });
+                    var blocked = await bres.json();
+                    var listEl = document.getElementById('block-list');
+                    if (!Array.isArray(blocked) || blocked.length === 0) {
+                        listEl.innerHTML = '<p class="text-sm text-zinc-500">No blocked users</p>';
+                    } else {
+                        listEl.innerHTML = blocked.map(function(b) {
+                            return '<div class="flex items-center justify-between py-2.5 border-b border-zinc-800/50 last:border-0">' +
+                                '<div class="flex items-center gap-3">' +
+                                    '<div class="w-8 h-8 rounded-full bg-zinc-800 flex items-center justify-center text-xs font-bold text-zinc-400">' + (b.username || '?')[0].toUpperCase() + '</div>' +
+                                    '<span class="text-sm text-zinc-300">' + b.username + '</span>' +
+                                '</div>' +
+                                '<button onclick="unblockUser(\'' + b.user_id + '\')" class="text-xs text-accent hover:text-accent-hover">Unblock</button>' +
+                            '</div>';
+                        }).join('');
+                    }
+                } catch(e) {
+                    var listEl = document.getElementById('block-list');
+                    if (listEl) listEl.innerHTML = '<p class="text-sm text-zinc-500">No blocked users</p>';
+                }
+
+                window.unblockUser = async function(userId) {
+                    await fetch('/api/user/blocked/' + userId, {
+                        method: 'DELETE', headers: { 'Authorization': 'Bearer ' + token }
+                    });
+                    window.location.reload();
+                };
+            })();
             "#
         </script>
     }

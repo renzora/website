@@ -26,6 +26,7 @@ pub fn router() -> Router<AppState> {
         .route("/connect/status", get(connect_status))
         .route("/withdraw", post(request_withdrawal))
         .route("/withdrawals", get(list_withdrawals))
+        .route("/redeem-voucher", post(redeem_voucher))
         .layer(axum::middleware::from_fn(middleware::require_auth));
 
     Router::new()
@@ -643,5 +644,73 @@ fn verify_stripe_signature(payload: &[u8], sig_header: &str, secret: &str) -> Re
         Ok(())
     } else {
         Err("Signature mismatch".into())
+    }
+}
+
+// ── Voucher Redemption ──
+
+#[derive(serde::Deserialize)]
+struct RedeemVoucherBody {
+    code: String,
+}
+
+async fn redeem_voucher(
+    State(state): State<AppState>,
+    Extension(auth): Extension<AuthUser>,
+    Json(body): Json<RedeemVoucherBody>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    let voucher = renzora_models::voucher::Voucher::find_valid(&state.db, &body.code)
+        .await?
+        .ok_or(ApiError::Validation("Invalid or expired voucher code".into()))?;
+
+    // Check per-user usage
+    let usage = renzora_models::voucher::Voucher::check_user_usage(&state.db, voucher.id, auth.user_id).await?;
+    if usage >= voucher.max_uses_per_user as i64 {
+        return Err(ApiError::Validation("You have already used this voucher".into()));
+    }
+
+    match voucher.voucher_type.as_str() {
+        "credit" => {
+            let amount = voucher.credit_amount.unwrap_or(0);
+            if amount <= 0 {
+                return Err(ApiError::Internal("Invalid voucher configuration".into()));
+            }
+
+            // Increment usage
+            sqlx::query("UPDATE vouchers SET times_used = times_used + 1 WHERE id = $1")
+                .bind(voucher.id).execute(&state.db).await?;
+
+            // Record usage
+            sqlx::query("INSERT INTO voucher_uses (voucher_id, user_id, credit_amount) VALUES ($1, $2, $3)")
+                .bind(voucher.id).bind(auth.user_id).bind(amount).execute(&state.db).await?;
+
+            // Create transaction
+            let tx_id = uuid::Uuid::new_v4();
+            sqlx::query("INSERT INTO transactions (id, user_id, type, amount, reason) VALUES ($1, $2, 'voucher_credit', $3, $4)")
+                .bind(tx_id).bind(auth.user_id).bind(amount).bind(format!("Voucher: {}", voucher.code))
+                .execute(&state.db).await?;
+
+            // Add credits
+            sqlx::query("UPDATE users SET credit_balance = credit_balance + $1 WHERE id = $2")
+                .bind(amount).bind(auth.user_id).execute(&state.db).await?;
+
+            Ok(Json(serde_json::json!({
+                "ok": true,
+                "type": "credit",
+                "amount": amount,
+                "message": format!("Credited {} credits to your account", amount),
+            })))
+        }
+        "asset_discount" => {
+            // For asset discounts, we store the voucher info but don't apply it here.
+            // The actual discount happens during purchase. Just validate and confirm.
+            Ok(Json(serde_json::json!({
+                "ok": true,
+                "type": "asset_discount",
+                "discount_percent": voucher.discount_percent,
+                "message": format!("Voucher applied! You'll get {}% off your next eligible purchase.", voucher.discount_percent.unwrap_or(0)),
+            })))
+        }
+        _ => Err(ApiError::Validation("Unknown voucher type".into())),
     }
 }

@@ -171,6 +171,8 @@ async fn main() {
         .route("/developers", get(ssr.clone()))
         .route("/subscription", get(ssr.clone()))
         .route("/teams", get(ssr.clone()))
+        .route("/messages", get(ssr.clone()))
+        .route("/feed", get(ssr.clone()))
         .route("/settings", get(ssr.clone()))
         .route("/embed/preview/:slug", get(embed_ssr.clone()))
         // Layers

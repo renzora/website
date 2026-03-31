@@ -41,6 +41,11 @@ pub fn Nav() -> impl IntoView {
                 </div>
                 // Logged-in
                 <div id="nav-user" class="hidden items-center gap-2">
+                    // Messages
+                    <a href="/messages" class="relative p-1.5 rounded-lg hover:bg-white/5 transition-colors" title="Messages">
+                        <i class="ph ph-chat-circle-dots text-lg text-zinc-400 hover:text-zinc-200"></i>
+                        <span id="msg-badge" class="hidden absolute -top-0.5 -right-0.5 w-4 h-4 bg-accent rounded-full text-[9px] font-bold text-white flex items-center justify-center"></span>
+                    </a>
                     // Notification bell
                     <div class="relative" id="notif-wrap">
                         <button onclick="toggleNotifs()" class="text-sm text-zinc-400 hover:text-zinc-50 hover:bg-surface-card p-1.5 rounded-lg transition-all relative">
@@ -229,6 +234,14 @@ pub fn Nav() -> impl IntoView {
                             if (credits) {
                                 const cur = parseInt(credits.textContent) || 0;
                                 credits.textContent = cur + (msg.data.amount || 0);
+                            }
+                        }
+                        if (msg.event === 'new_message') {
+                            var msgBadge = document.getElementById('msg-badge');
+                            if (msgBadge) {
+                                var current = parseInt(msgBadge.textContent) || 0;
+                                msgBadge.textContent = current + 1;
+                                msgBadge.classList.remove('hidden');
                             }
                         }
                         if (msg.event === 'new_post') {
@@ -423,6 +436,17 @@ pub fn Nav() -> impl IntoView {
 
             updateNav();
             loadNotifs(); // Initial load only
+
+            // Message unread count
+            fetch('/api/messages/unread-count', { headers: { 'Authorization': 'Bearer ' + getCookie('token') } })
+                .then(function(r) { return r.json(); })
+                .then(function(data) {
+                    var badge = document.getElementById('msg-badge');
+                    if (badge && data.count > 0) {
+                        badge.textContent = data.count > 9 ? '9+' : data.count;
+                        badge.classList.remove('hidden');
+                    }
+                }).catch(function() {});
             connectWs();  // Live updates from here on
             checkCreatorStatus();
             "#

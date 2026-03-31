@@ -8,12 +8,14 @@ pub mod discord;
 pub mod credits;
 pub mod docs;
 pub mod error;
+pub mod feed;
 pub mod forum;
 pub mod games;
 pub mod gameservices;
 pub mod jwt;
 pub mod library;
 pub mod marketplace;
+pub mod messages;
 pub mod preview;
 pub mod middleware;
 pub mod notifications;
@@ -23,7 +25,7 @@ pub mod teams;
 pub mod user;
 pub mod ws;
 
-use axum::Router;
+use axum::{extract::State, Json, Router};
 use sqlx::PgPool;
 use std::sync::Arc;
 
@@ -56,13 +58,32 @@ pub fn api_router(state: AppState) -> Router {
         .nest("/articles", articles::router())
         .nest("/forum", forum::router())
         .nest("/notifications", notifications::router())
+        .nest("/feed", feed::router())
         .nest("/profiles", profiles::router())
         .nest("/admin", admin::router())
         .nest("/api-tokens", api_tokens::router())
         .nest("/subscriptions", subscriptions::router())
         .nest("/teams", teams::router())
         .nest("/library", library::router())
+        .nest("/messages", messages::router())
         .nest("/user", user::router())
         .nest("/ws", ws::router())
+        .route("/launcher/download", axum::routing::post(launcher_download_track))
         .with_state(state)
+}
+
+async fn launcher_download_track(
+    State(state): State<AppState>,
+    headers: axum::http::HeaderMap,
+    Json(body): Json<serde_json::Value>,
+) -> axum::http::StatusCode {
+    let platform = body.get("platform").and_then(|v| v.as_str()).unwrap_or("unknown");
+    let version = body.get("version").and_then(|v| v.as_str());
+    let user_agent = headers.get("user-agent").and_then(|v| v.to_str().ok());
+
+    let _ = renzora_models::launcher_download::LauncherDownload::record(
+        &state.db, platform, version, None, user_agent, None,
+    ).await;
+
+    axum::http::StatusCode::OK
 }

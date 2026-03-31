@@ -32,6 +32,8 @@ use crate::pages::{
     upload::UploadPage,
     wallet::WalletPage,
     embed::EmbedPreviewPage,
+    feed::FeedPage,
+    messages::MessagesPage,
 };
 
 #[component]
@@ -83,6 +85,8 @@ pub fn App() -> impl IntoView {
                     <Route path=path!("/developers") view=DevelopersPage />
                     <Route path=path!("/subscription") view=SubscriptionPage />
                     <Route path=path!("/teams") view=TeamsPage />
+                    <Route path=path!("/messages") view=MessagesPage />
+                    <Route path=path!("/feed") view=FeedPage />
                     <Route path=path!("/settings") view=SettingsPage />
                     <Route path=path!("/embed/preview/:slug") view=EmbedPreviewPage />
                 </Routes>

@@ -12,6 +12,8 @@ use crate::{error::ApiError, jwt, marketplace, middleware, middleware::AuthUser,
 pub fn router() -> Router<AppState> {
     let protected = Router::new()
         .route("/follow/:username", post(toggle_follow))
+        .route("/friend/:username", post(toggle_friend))
+        .route("/block/:username", post(block_user))
         .route("/avatar", put(upload_avatar))
         .route("/storefront", put(update_storefront))
         .layer(axum::middleware::from_fn(middleware::require_auth));
@@ -379,4 +381,77 @@ async fn update_storefront(
     .await?;
 
     Ok(Json(serde_json::json!({"message": "Storefront updated"})))
+}
+
+async fn toggle_friend(
+    State(state): State<AppState>,
+    Extension(auth): Extension<AuthUser>,
+    Path(username): Path<String>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    let target = renzora_models::user::User::find_by_username(&state.db, &username).await?.ok_or(ApiError::NotFound)?;
+    if target.id == auth.user_id {
+        return Err(ApiError::Validation("Cannot friend yourself".into()));
+    }
+
+    // Check current status
+    let status = renzora_models::friend::Friend::status(&state.db, auth.user_id, target.id).await?;
+
+    match status.as_deref() {
+        Some("accepted") => {
+            // Remove friend
+            renzora_models::friend::Friend::remove(&state.db, auth.user_id, target.id).await?;
+            Ok(Json(serde_json::json!({"status": "none"})))
+        }
+        Some("pending") => {
+            // Already pending - could be incoming or outgoing
+            // Check if we sent it or they sent it
+            let incoming = renzora_models::friend::Friend::status(&state.db, target.id, auth.user_id).await?;
+            if incoming.as_deref() == Some("pending") {
+                // They sent us a request, accept it
+                renzora_models::friend::Friend::accept(&state.db, auth.user_id, target.id).await?;
+                // Notify them
+                renzora_models::notification::Notification::create(
+                    &state.db, target.id, "friend_accepted",
+                    "Friend request accepted",
+                    &format!("{} accepted your friend request", username),
+                    Some(&format!("/profile/{}", username)),
+                ).await?;
+                Ok(Json(serde_json::json!({"status": "accepted"})))
+            } else {
+                // We already sent a request, cancel it
+                renzora_models::friend::Friend::remove(&state.db, auth.user_id, target.id).await?;
+                Ok(Json(serde_json::json!({"status": "none"})))
+            }
+        }
+        Some("blocked") => {
+            Err(ApiError::Validation("User is blocked".into()))
+        }
+        _ => {
+            // Send friend request
+            renzora_models::friend::Friend::send_request(&state.db, auth.user_id, target.id).await?;
+            // Notify target
+            let sender = renzora_models::user::User::find_by_id(&state.db, auth.user_id).await?.ok_or(ApiError::NotFound)?;
+            renzora_models::notification::Notification::create(
+                &state.db, target.id, "friend_request",
+                "Friend request",
+                &format!("{} sent you a friend request", sender.username),
+                Some(&format!("/profile/{}", sender.username)),
+            ).await?;
+            state.ws_broadcast.send_to_user(target.id, "notification", serde_json::json!({"type": "friend_request"}));
+            Ok(Json(serde_json::json!({"status": "pending"})))
+        }
+    }
+}
+
+async fn block_user(
+    State(state): State<AppState>,
+    Extension(auth): Extension<AuthUser>,
+    Path(username): Path<String>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    let target = renzora_models::user::User::find_by_username(&state.db, &username).await?.ok_or(ApiError::NotFound)?;
+    if target.id == auth.user_id {
+        return Err(ApiError::Validation("Cannot block yourself".into()));
+    }
+    renzora_models::friend::Friend::block(&state.db, auth.user_id, target.id).await?;
+    Ok(Json(serde_json::json!({"ok": true})))
 }
