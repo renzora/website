@@ -1,9 +1,10 @@
 use axum::{
     extract::{Extension, Multipart, Path, State},
     http::HeaderMap,
-    routing::{get, post, put},
+    routing::{delete, get, post, put},
     Json, Router,
 };
+use serde::Deserialize;
 use sqlx::Row;
 use uuid::Uuid;
 
@@ -16,6 +17,9 @@ pub fn router() -> Router<AppState> {
         .route("/block/:username", post(block_user))
         .route("/avatar", put(upload_avatar))
         .route("/storefront", put(update_storefront))
+        .route("/connections", get(list_connections))
+        .route("/connections", post(add_connection))
+        .route("/connections/:platform", delete(remove_connection))
         .layer(axum::middleware::from_fn(middleware::require_auth));
 
     Router::new()
@@ -100,6 +104,9 @@ async fn get_profile(
         false
     };
 
+    // Social connections
+    let connections = renzora_models::social_connection::SocialConnection::list_for_user(&state.db, id).await.unwrap_or_default();
+
     // Published assets by this user
     let asset_rows = sqlx::query(
         "SELECT id, name, slug, description, category, price_credits, thumbnail_url, version, downloads FROM assets WHERE creator_id=$1 AND published=true ORDER BY created_at DESC"
@@ -138,6 +145,7 @@ async fn get_profile(
         "is_following": is_following,
         "badges": badges,
         "assets": assets,
+        "connections": connections,
         "storefront_enabled": row.get::<bool, _>("storefront_enabled"),
         "created_at": row.get::<time::OffsetDateTime, _>("created_at").to_string(),
     })))
@@ -453,5 +461,46 @@ async fn block_user(
         return Err(ApiError::Validation("Cannot block yourself".into()));
     }
     renzora_models::friend::Friend::block(&state.db, auth.user_id, target.id).await?;
+    Ok(Json(serde_json::json!({"ok": true})))
+}
+
+// ── Social Connections ──
+
+async fn list_connections(
+    State(state): State<AppState>,
+    Extension(auth): Extension<AuthUser>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    let conns = renzora_models::social_connection::SocialConnection::list_for_user(&state.db, auth.user_id).await?;
+    Ok(Json(serde_json::json!(conns)))
+}
+
+#[derive(Deserialize)]
+struct AddConnectionBody {
+    platform: String,
+    username: String,
+    url: Option<String>,
+}
+
+async fn add_connection(
+    State(state): State<AppState>,
+    Extension(auth): Extension<AuthUser>,
+    Json(body): Json<AddConnectionBody>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    let valid = ["discord", "twitch", "steam", "xbox", "playstation", "epic", "kick", "youtube", "twitter", "github"];
+    if !valid.contains(&body.platform.as_str()) {
+        return Err(ApiError::Validation("Invalid platform".into()));
+    }
+    let conn = renzora_models::social_connection::SocialConnection::upsert(
+        &state.db, auth.user_id, &body.platform, &body.username, body.url.as_deref(), None, false
+    ).await?;
+    Ok(Json(serde_json::json!(conn)))
+}
+
+async fn remove_connection(
+    State(state): State<AppState>,
+    Extension(auth): Extension<AuthUser>,
+    Path(platform): Path<String>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    renzora_models::social_connection::SocialConnection::delete(&state.db, auth.user_id, &platform).await?;
     Ok(Json(serde_json::json!({"ok": true})))
 }

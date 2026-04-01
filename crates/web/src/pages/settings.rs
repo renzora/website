@@ -3,15 +3,32 @@ use leptos::prelude::*;
 #[component]
 pub fn SettingsPage() -> impl IntoView {
     view! {
-        <section class="py-20 px-6 min-h-[80vh] bg-gradient-to-b from-[#0a0a0e] via-[#060608] to-[#060608]">
-            <div class="max-w-2xl mx-auto">
+        <style>"html { scroll-behavior: smooth; }"</style>
+        <section class="max-w-5xl mx-auto py-8 px-4 flex gap-8 min-h-[80vh]">
+            // Sidebar
+            <nav class="w-48 shrink-0 sticky top-24 self-start hidden md:block">
+                <div class="space-y-1">
+                    <a href="#section-profile" class="block px-3 py-2 text-sm text-zinc-400 hover:text-zinc-200 hover:bg-white/5 rounded-lg transition-colors">"Profile"</a>
+                    <a href="#section-password" class="block px-3 py-2 text-sm text-zinc-400 hover:text-zinc-200 hover:bg-white/5 rounded-lg transition-colors">"Password"</a>
+                    <a href="#section-social" class="block px-3 py-2 text-sm text-zinc-400 hover:text-zinc-200 hover:bg-white/5 rounded-lg transition-colors">"Social Links"</a>
+                    <a href="#section-privacy" class="block px-3 py-2 text-sm text-zinc-400 hover:text-zinc-200 hover:bg-white/5 rounded-lg transition-colors">"Privacy"</a>
+                    <a href="#section-communication" class="block px-3 py-2 text-sm text-zinc-400 hover:text-zinc-200 hover:bg-white/5 rounded-lg transition-colors">"Communication"</a>
+                    <a href="#section-payouts" class="block px-3 py-2 text-sm text-zinc-400 hover:text-zinc-200 hover:bg-white/5 rounded-lg transition-colors">"Payouts"</a>
+                    <a href="#section-connections" class="block px-3 py-2 text-sm text-zinc-400 hover:text-zinc-200 hover:bg-white/5 rounded-lg transition-colors">"Connected Apps"</a>
+                    <a href="#section-blocked" class="block px-3 py-2 text-sm text-zinc-400 hover:text-zinc-200 hover:bg-white/5 rounded-lg transition-colors">"Blocked Users"</a>
+                    <a href="#section-danger" class="block px-3 py-2 text-sm text-zinc-400 hover:text-red-400 hover:bg-red-950/20 rounded-lg transition-colors">"Danger Zone"</a>
+                </div>
+            </nav>
+
+            // Main content
+            <div class="flex-1 space-y-6">
                 <h1 class="text-2xl font-bold mb-8">"Account Settings"</h1>
 
                 <div id="settings-error" class="hidden mb-4 p-3 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-sm"></div>
                 <div id="settings-success" class="hidden mb-4 p-3 rounded-lg bg-green-500/10 border border-green-500/20 text-green-400 text-sm"></div>
 
                 // Profile section
-                <div class="mb-8">
+                <div id="section-profile" class="mb-8">
                     <h2 class="text-base font-semibold mb-4 flex items-center gap-2">
                         <i class="ph ph-user text-lg text-accent"></i>"Profile"
                     </h2>
@@ -31,7 +48,7 @@ pub fn SettingsPage() -> impl IntoView {
                 </div>
 
                 // Password section
-                <div class="mb-8">
+                <div id="section-password" class="mb-8">
                     <h2 class="text-base font-semibold mb-4 flex items-center gap-2">
                         <i class="ph ph-lock text-lg text-accent"></i>"Change Password"
                     </h2>
@@ -54,8 +71,36 @@ pub fn SettingsPage() -> impl IntoView {
                     </div>
                 </div>
 
+                // Social Links section
+                <div id="section-social" class="bg-surface-card border border-zinc-800 rounded-2xl p-6 mb-8">
+                    <h2 class="text-base font-semibold text-zinc-200 mb-4">"Social Connections"</h2>
+                    <p class="text-xs text-zinc-500 mb-4">"Link your gaming and social accounts. OAuth-verified connections show a checkmark."</p>
+                    <div id="social-connections" class="space-y-3">
+                        <p class="text-sm text-zinc-500">"Loading..."</p>
+                    </div>
+                    <div class="mt-4 pt-4 border-t border-zinc-800">
+                        <h3 class="text-sm text-zinc-300 mb-3">"Add Connection"</h3>
+                        <div class="flex gap-2">
+                            <select id="social-platform" class="bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-zinc-200">
+                                <option value="discord">"Discord"</option>
+                                <option value="twitch">"Twitch"</option>
+                                <option value="steam">"Steam"</option>
+                                <option value="xbox">"Xbox"</option>
+                                <option value="playstation">"PlayStation"</option>
+                                <option value="epic">"Epic Games"</option>
+                                <option value="kick">"Kick"</option>
+                                <option value="youtube">"YouTube"</option>
+                                <option value="twitter">"Twitter/X"</option>
+                                <option value="github">"GitHub"</option>
+                            </select>
+                            <input id="social-username" type="text" class="flex-1 bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-zinc-200 placeholder:text-zinc-600" placeholder="Username or profile URL" />
+                            <button id="add-social-btn" class="px-4 py-2 bg-accent hover:bg-accent-hover text-white text-sm font-medium rounded-lg transition-colors">"Add"</button>
+                        </div>
+                    </div>
+                </div>
+
                 // Payouts section
-                <div class="mb-8">
+                <div id="section-payouts" class="mb-8">
                     <h2 class="text-base font-semibold mb-4 flex items-center gap-2">
                         <i class="ph ph-bank text-lg text-accent"></i>"Payouts"
                     </h2>
@@ -88,7 +133,7 @@ pub fn SettingsPage() -> impl IntoView {
                 </div>
 
                 // Communication preferences
-                <div class="mb-8">
+                <div id="section-communication" class="mb-8">
                     <h2 class="text-base font-semibold mb-4 flex items-center gap-2">
                         <i class="ph ph-bell text-lg text-accent"></i>"Communication"
                     </h2>
@@ -101,7 +146,7 @@ pub fn SettingsPage() -> impl IntoView {
                 </div>
 
                 // Privacy
-                <div class="mb-8">
+                <div id="section-privacy" class="mb-8">
                     <h2 class="text-base font-semibold mb-4 flex items-center gap-2">
                         <i class="ph ph-eye-slash text-lg text-accent"></i>"Privacy"
                     </h2>
@@ -139,7 +184,7 @@ pub fn SettingsPage() -> impl IntoView {
                 </div>
 
                 // Blocked Users
-                <div class="mb-8">
+                <div id="section-blocked" class="mb-8">
                     <h2 class="text-base font-semibold mb-4 flex items-center gap-2">
                         <i class="ph ph-prohibit text-lg text-accent"></i>"Blocked Users"
                     </h2>
@@ -151,7 +196,7 @@ pub fn SettingsPage() -> impl IntoView {
                 </div>
 
                 // Connected Apps
-                <div class="mb-8">
+                <div id="section-connections" class="mb-8">
                     <h2 class="text-base font-semibold mb-4 flex items-center gap-2">
                         <i class="ph ph-plugs-connected text-lg text-accent"></i>"Connected Apps"
                     </h2>
@@ -166,7 +211,7 @@ pub fn SettingsPage() -> impl IntoView {
                 </div>
 
                 // Danger zone
-                <div>
+                <div id="section-danger">
                     <h2 class="text-base font-semibold mb-4 flex items-center gap-2 text-red-400">
                         <i class="ph ph-warning text-lg"></i>"Danger Zone"
                     </h2>
@@ -177,7 +222,7 @@ pub fn SettingsPage() -> impl IntoView {
                         </button>
                     </div>
                 </div>
-            </div>
+            </div> // end flex-1
         </section>
 
         <script>
@@ -407,6 +452,64 @@ pub fn SettingsPage() -> impl IntoView {
                 showMsg('success', 'Bank account connected! Payouts are now enabled.');
                 history.replaceState({}, '', '/settings');
             }
+
+            // Social connections
+            (async function() {
+                var token = getToken();
+                if (!token) return;
+
+                var platformIcons = {
+                    discord: 'ph-discord-logo', twitch: 'ph-twitch-logo', steam: 'ph-steam-logo',
+                    xbox: 'ph-game-controller', playstation: 'ph-game-controller', epic: 'ph-game-controller',
+                    kick: 'ph-broadcast', youtube: 'ph-youtube-logo', twitter: 'ph-twitter-logo', github: 'ph-github-logo'
+                };
+
+                async function loadConnections() {
+                    var res = await fetch('/api/profiles/connections', { headers: { 'Authorization': 'Bearer ' + token } });
+                    var data = await res.json();
+                    var el = document.getElementById('social-connections');
+                    if (!Array.isArray(data) || data.length === 0) {
+                        el.innerHTML = '<p class="text-sm text-zinc-500">No connections yet</p>';
+                        return;
+                    }
+                    el.innerHTML = data.map(function(c) {
+                        var icon = platformIcons[c.platform] || 'ph-link';
+                        var verified = c.verified ? '<i class="ph ph-seal-check text-accent text-xs ml-1" title="Verified"></i>' : '';
+                        return '<div class="flex items-center justify-between py-2.5 px-3 bg-zinc-900/50 rounded-lg">' +
+                            '<div class="flex items-center gap-3">' +
+                                '<i class="ph ' + icon + ' text-lg text-zinc-400"></i>' +
+                                '<div>' +
+                                    '<span class="text-sm text-zinc-200">' + c.platform_username + verified + '</span>' +
+                                    '<span class="text-xs text-zinc-500 ml-2 capitalize">' + c.platform + '</span>' +
+                                '</div>' +
+                            '</div>' +
+                            '<button onclick="removeSocial(\'' + c.platform + '\')" class="text-xs text-red-400 hover:text-red-300">Remove</button>' +
+                        '</div>';
+                    }).join('');
+                }
+
+                document.getElementById('add-social-btn')?.addEventListener('click', async function() {
+                    var platform = document.getElementById('social-platform').value;
+                    var username = document.getElementById('social-username').value.trim();
+                    if (!username) return;
+                    await fetch('/api/profiles/connections', {
+                        method: 'POST',
+                        headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ platform: platform, username: username })
+                    });
+                    document.getElementById('social-username').value = '';
+                    loadConnections();
+                });
+
+                window.removeSocial = async function(platform) {
+                    await fetch('/api/profiles/connections/' + platform, {
+                        method: 'DELETE', headers: { 'Authorization': 'Bearer ' + token }
+                    });
+                    loadConnections();
+                };
+
+                loadConnections();
+            })();
 
             // ── Privacy settings ──
             (async function() {

@@ -9,7 +9,7 @@ pub fn router() -> Router<AppState> {
         .route("/", get(list_notifications))
         .route("/count", get(unread_count))
         .route("/read-all", put(mark_all_read))
-        .route("/:id}/read", put(mark_read))
+        .route("/:id/read", put(mark_read))
         .layer(axum::middleware::from_fn(middleware::require_auth))
 }
 

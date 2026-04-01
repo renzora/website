@@ -7,6 +7,8 @@ pub fn Footer() -> impl IntoView {
             <div class="max-w-[1200px] mx-auto px-6 flex items-center justify-between">
                 <p class="text-xs text-zinc-500">"© 2026 Renzora. All rights reserved."</p>
                 <div class="flex items-center gap-5">
+                    <a href="/terms" class="text-xs text-zinc-600 hover:text-zinc-100 transition-colors">"Terms"</a>
+                    <a href="/privacy" class="text-xs text-zinc-600 hover:text-zinc-100 transition-colors">"Privacy"</a>
                     <a href="https://github.com/renzora" target="_blank" rel="noopener noreferrer" class="flex items-center gap-1.5 text-xs text-zinc-600 hover:text-zinc-100 transition-colors">
                         <i class="ph ph-github-logo text-sm"></i>"GitHub"
                     </a>

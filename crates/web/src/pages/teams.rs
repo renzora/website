@@ -30,6 +30,19 @@ pub fn TeamsPage() -> impl IntoView {
                     return;
                 }
 
+                // Check subscription
+                var subRes = await fetch('/api/subscriptions/current', { headers: { 'Authorization': 'Bearer ' + token } });
+                var sub = await subRes.json();
+                if (!sub || sub.plan_id === 'free' || !sub.plan_id) {
+                    document.getElementById('teams-content').innerHTML =
+                        '<div class="text-center py-20">' +
+                            '<h2 class="text-xl font-semibold text-zinc-200 mb-2">Teams requires a subscription</h2>' +
+                            '<p class="text-sm text-zinc-500 mb-4">Upgrade to Pro or higher to create and join teams.</p>' +
+                            '<a href="/subscription" class="px-6 py-2.5 bg-accent hover:bg-accent-hover text-white text-sm font-medium rounded-xl transition-colors inline-block">View Plans</a>' +
+                        '</div>';
+                    return;
+                }
+
                 const headers = { 'Authorization': 'Bearer ' + token };
 
                 const [teamsRes, invitesRes] = await Promise.all([

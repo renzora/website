@@ -13,6 +13,12 @@ pub fn Nav() -> impl IntoView {
                     <a href="/marketplace" class="nav-link text-sm text-zinc-400 hover:text-zinc-50 transition-colors flex items-center gap-1.5" data-path="/marketplace">
                         <i class="ph ph-storefront text-base"></i>"Marketplace"
                     </a>
+                    <a href="/feed" class="nav-link text-sm text-zinc-400 hover:text-zinc-50 transition-colors flex items-center gap-1.5" data-path="/feed">
+                        <i class="ph ph-rss text-base"></i>"Feed"
+                    </a>
+                    <a href="/forum" class="nav-link text-sm text-zinc-400 hover:text-zinc-50 transition-colors flex items-center gap-1.5" data-path="/forum">
+                        <i class="ph ph-chats-circle text-base"></i>"Forum"
+                    </a>
                     <a href="/docs" class="nav-link text-sm text-zinc-400 hover:text-zinc-50 transition-colors flex items-center gap-1.5" data-path="/docs">
                         <i class="ph ph-book-open text-base"></i>"Docs"
                     </a>
@@ -94,6 +100,12 @@ pub fn Nav() -> impl IntoView {
                             </a>
                             <a href="/developers" class="flex items-center gap-2 px-3 py-2.5 text-sm text-zinc-400 hover:text-zinc-50 hover:bg-white/5 transition-all">
                                 <i class="ph ph-code text-base"></i>"Developers"
+                            </a>
+                            <a href="/gifts" class="flex items-center gap-2 px-3 py-2.5 text-sm text-zinc-400 hover:text-zinc-50 hover:bg-white/5 transition-all">
+                                <i class="ph ph-gift text-base"></i>"Gift Cards"
+                            </a>
+                            <a href="/donate" class="flex items-center gap-2 px-3 py-2.5 text-sm text-zinc-400 hover:text-zinc-50 hover:bg-white/5 transition-all">
+                                <i class="ph ph-heart text-base"></i>"Donate"
                             </a>
                             <a href="/settings" class="flex items-center gap-2 px-3 py-2.5 text-sm text-zinc-400 hover:text-zinc-50 hover:bg-white/5 transition-all">
                                 <i class="ph ph-gear text-base"></i>"Settings"

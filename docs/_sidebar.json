@@ -132,6 +132,19 @@
         ]
       },
       {
+        "category": "API Reference",
+        "pages": [
+          { "slug": "developer/api-authentication", "title": "Authentication" },
+          { "slug": "developer/api-rate-limits", "title": "Rate Limits" },
+          { "slug": "developer/api-marketplace", "title": "Marketplace API" },
+          { "slug": "developer/api-game-services", "title": "Game Services API" },
+          { "slug": "developer/api-credits", "title": "Credits API" },
+          { "slug": "developer/api-websocket", "title": "WebSocket API" },
+          { "slug": "developer/api-messaging", "title": "Messaging API" },
+          { "slug": "developer/api-feed", "title": "Feed API" }
+        ]
+      },
+      {
         "category": "Contributing",
         "pages": [
           { "slug": "developer/contributing", "title": "Contributing Guide" },

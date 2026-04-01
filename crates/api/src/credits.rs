@@ -27,10 +27,17 @@ pub fn router() -> Router<AppState> {
         .route("/withdraw", post(request_withdrawal))
         .route("/withdrawals", get(list_withdrawals))
         .route("/redeem-voucher", post(redeem_voucher))
+        .route("/gift-cards/send", post(send_gift_card))
+        .route("/gift-cards/redeem", post(redeem_gift_card))
+        .route("/gift-cards/sent", get(list_sent_gifts))
+        .route("/gift-cards/received", get(list_received_gifts))
+        .route("/donate", post(make_donation))
         .layer(axum::middleware::from_fn(middleware::require_auth));
 
     Router::new()
         .route("/webhook", post(stripe_webhook))
+        .route("/donate/leaderboard", get(donation_leaderboard))
+        .route("/donate/total", get(donation_total))
         .merge(protected)
 }
 
@@ -713,4 +720,174 @@ async fn redeem_voucher(
         }
         _ => Err(ApiError::Validation("Unknown voucher type".into())),
     }
+}
+
+// ── Gift Cards ──
+
+#[derive(serde::Deserialize)]
+struct SendGiftBody {
+    recipient_username: Option<String>,
+    amount: i64,
+    message: Option<String>,
+}
+
+async fn send_gift_card(
+    State(state): State<AppState>,
+    Extension(auth): Extension<AuthUser>,
+    Json(body): Json<SendGiftBody>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    if body.amount < 10 {
+        return Err(ApiError::Validation("Minimum gift is 10 credits".into()));
+    }
+
+    // Check balance
+    let user = User::find_by_id(&state.db, auth.user_id).await?.ok_or(ApiError::NotFound)?;
+    if user.credit_balance < body.amount {
+        return Err(ApiError::Validation("Insufficient credits".into()));
+    }
+
+    // Find recipient if specified
+    let recipient_id = if let Some(ref username) = body.recipient_username {
+        let r = User::find_by_username(&state.db, username).await?.ok_or(ApiError::Validation("User not found".into()))?;
+        Some(r.id)
+    } else {
+        None
+    };
+
+    // Generate code
+    let code = format!("GIFT-{}", &uuid::Uuid::new_v4().to_string()[..8].to_uppercase());
+
+    // Deduct credits from sender
+    sqlx::query("UPDATE users SET credit_balance = credit_balance - $1 WHERE id = $2")
+        .bind(body.amount).bind(auth.user_id).execute(&state.db).await?;
+
+    // Record transaction
+    sqlx::query("INSERT INTO transactions (id, user_id, type, amount, reason) VALUES ($1, $2, 'gift_sent', $3, $4)")
+        .bind(uuid::Uuid::new_v4()).bind(auth.user_id).bind(-body.amount).bind(format!("Gift card: {}", code))
+        .execute(&state.db).await?;
+
+    let gift = renzora_models::gift_card::GiftCard::create(&state.db, auth.user_id, recipient_id, &code, body.amount, body.message.as_deref().unwrap_or("")).await?;
+
+    // If direct recipient, auto-redeem and notify
+    if let Some(rid) = recipient_id {
+        renzora_models::gift_card::GiftCard::redeem(&state.db, gift.id, rid).await?;
+        sqlx::query("UPDATE users SET credit_balance = credit_balance + $1 WHERE id = $2")
+            .bind(body.amount).bind(rid).execute(&state.db).await?;
+        sqlx::query("INSERT INTO transactions (id, user_id, type, amount, reason) VALUES ($1, $2, 'gift_received', $3, $4)")
+            .bind(uuid::Uuid::new_v4()).bind(rid).bind(body.amount).bind(format!("Gift from {}", user.username))
+            .execute(&state.db).await?;
+
+        // Notify recipient
+        renzora_models::notification::Notification::create(&state.db, rid, "gift",
+            &format!("{} sent you a gift!", user.username),
+            &format!("{} credits", body.amount),
+            Some("/wallet"),
+        ).await?;
+        state.ws_broadcast.send_to_user(rid, "credit_update", serde_json::json!({"amount": body.amount}));
+    }
+
+    Ok(Json(serde_json::json!({"code": gift.code, "amount": gift.amount, "auto_redeemed": recipient_id.is_some()})))
+}
+
+async fn redeem_gift_card(
+    State(state): State<AppState>,
+    Extension(auth): Extension<AuthUser>,
+    Json(body): Json<RedeemVoucherBody>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    let gift = renzora_models::gift_card::GiftCard::find_by_code(&state.db, &body.code).await?.ok_or(ApiError::Validation("Invalid or expired gift card".into()))?;
+
+    renzora_models::gift_card::GiftCard::redeem(&state.db, gift.id, auth.user_id).await?;
+    sqlx::query("UPDATE users SET credit_balance = credit_balance + $1 WHERE id = $2")
+        .bind(gift.amount).bind(auth.user_id).execute(&state.db).await?;
+    sqlx::query("INSERT INTO transactions (id, user_id, type, amount, reason) VALUES ($1, $2, 'gift_received', $3, $4)")
+        .bind(uuid::Uuid::new_v4()).bind(auth.user_id).bind(gift.amount).bind(format!("Gift card: {}", gift.code))
+        .execute(&state.db).await?;
+
+    Ok(Json(serde_json::json!({"ok": true, "amount": gift.amount})))
+}
+
+async fn list_sent_gifts(
+    State(state): State<AppState>,
+    Extension(auth): Extension<AuthUser>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    let gifts = renzora_models::gift_card::GiftCard::list_sent(&state.db, auth.user_id).await?;
+    Ok(Json(serde_json::json!(gifts)))
+}
+
+async fn list_received_gifts(
+    State(state): State<AppState>,
+    Extension(auth): Extension<AuthUser>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    let gifts = renzora_models::gift_card::GiftCard::list_received(&state.db, auth.user_id).await?;
+    Ok(Json(serde_json::json!(gifts)))
+}
+
+// ── Donations ──
+
+#[derive(serde::Deserialize)]
+struct DonateBody {
+    amount: i64,
+    message: Option<String>,
+    anonymous: Option<bool>,
+}
+
+async fn make_donation(
+    State(state): State<AppState>,
+    Extension(auth): Extension<AuthUser>,
+    Json(body): Json<DonateBody>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    if body.amount < 1 {
+        return Err(ApiError::Validation("Minimum donation is 1 credit".into()));
+    }
+
+    let user = User::find_by_id(&state.db, auth.user_id).await?.ok_or(ApiError::NotFound)?;
+    if user.credit_balance < body.amount {
+        return Err(ApiError::Validation("Insufficient credits".into()));
+    }
+
+    // Deduct credits
+    sqlx::query("UPDATE users SET credit_balance = credit_balance - $1 WHERE id = $2")
+        .bind(body.amount).bind(auth.user_id).execute(&state.db).await?;
+    sqlx::query("INSERT INTO transactions (id, user_id, type, amount, reason) VALUES ($1, $2, 'donation', $3, $4)")
+        .bind(uuid::Uuid::new_v4()).bind(auth.user_id).bind(-body.amount).bind("Donation to Renzora")
+        .execute(&state.db).await?;
+
+    let donation = renzora_models::donation::Donation::create(
+        &state.db, auth.user_id, body.amount, body.message.as_deref().unwrap_or(""), body.anonymous.unwrap_or(false)
+    ).await?;
+
+    // Check donation badge thresholds
+    let total: (i64,) = sqlx::query_as("SELECT COALESCE(SUM(amount), 0)::bigint FROM donations WHERE user_id = $1")
+        .bind(auth.user_id).fetch_one(&state.db).await?;
+    // Award badges at thresholds (100, 500, 1000, 5000)
+    let badges = [(100, "donor_bronze"), (500, "donor_silver"), (1000, "donor_gold"), (5000, "donor_platinum")];
+    for (threshold, badge_slug) in &badges {
+        if total.0 >= *threshold {
+            let _ = sqlx::query("INSERT INTO user_badges (user_id, badge_id) SELECT $1, id FROM badges WHERE slug = $2 ON CONFLICT DO NOTHING")
+                .bind(auth.user_id).bind(badge_slug).execute(&state.db).await;
+        }
+    }
+
+    Ok(Json(serde_json::json!({"ok": true, "amount": donation.amount, "total_donated": total.0})))
+}
+
+async fn donation_leaderboard(
+    State(state): State<AppState>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    let leaders = renzora_models::donation::Donation::leaderboard(&state.db, 20).await?;
+    let items: Vec<serde_json::Value> = leaders.iter().map(|(uid, username, avatar, total, anon)| {
+        if *anon {
+            serde_json::json!({"username": "Anonymous", "total": total})
+        } else {
+            serde_json::json!({"user_id": uid, "username": username, "avatar_url": avatar, "total": total})
+        }
+    }).collect();
+    Ok(Json(serde_json::json!(items)))
+}
+
+async fn donation_total(
+    State(state): State<AppState>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    let total = renzora_models::donation::Donation::total(&state.db).await?;
+    Ok(Json(serde_json::json!({"total": total})))
 }

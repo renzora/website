@@ -198,6 +198,22 @@ pub fn MessagesPage() -> impl IntoView {
             }
 
             await loadConversations();
+
+            // Auto-open conversation from URL param
+            var params = new URLSearchParams(window.location.search);
+            var convParam = params.get('conv');
+            if (convParam) {
+                // Wait a moment for conversations to load, then find and open it
+                setTimeout(function() {
+                    var item = document.querySelector('.conv-item[data-id="' + convParam + '"]');
+                    if (item) {
+                        item.click();
+                    } else {
+                        // Conversation not in list yet, open it directly
+                        openConversation(convParam, 'Chat');
+                    }
+                }, 500);
+            }
         })();
         "##
         </script>

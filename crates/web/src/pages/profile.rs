@@ -76,6 +76,20 @@ pub fn ProfilePage() -> impl IntoView {
                     </span>
                 `).join('');
 
+                // Social connections
+                var socialHtml = '';
+                if (p.connections && p.connections.length > 0) {
+                    var icons = { discord: 'ph-discord-logo', twitch: 'ph-twitch-logo', steam: 'ph-steam-logo', xbox: 'ph-game-controller', playstation: 'ph-game-controller', epic: 'ph-game-controller', kick: 'ph-broadcast', youtube: 'ph-youtube-logo', twitter: 'ph-twitter-logo', github: 'ph-github-logo' };
+                    socialHtml = '<div class="flex flex-wrap gap-2 mt-3">' + p.connections.map(function(c) {
+                        var icon = icons[c.platform] || 'ph-link';
+                        var verified = c.verified ? ' <i class="ph ph-seal-check text-accent text-[10px]"></i>' : '';
+                        var url = c.platform_url || '#';
+                        return '<a href="' + url + '" target="_blank" rel="noopener" class="flex items-center gap-1.5 px-2.5 py-1 bg-zinc-800/50 border border-zinc-700/50 rounded-lg text-xs text-zinc-400 hover:text-zinc-200 transition-colors" title="' + c.platform + '">' +
+                            '<i class="ph ' + icon + '"></i> ' + c.platform_username + verified +
+                        '</a>';
+                    }).join('') + '</div>';
+                }
+
                 // Follow button
                 const followBtn = !isOwnProfile && token ? `
                     <button onclick="toggleFollow('${p.username}')" id="follow-btn"
@@ -92,7 +106,8 @@ pub fn ProfilePage() -> impl IntoView {
                     <button onclick="blockUser('${p.username}')"
                         class="px-3 py-1.5 text-sm font-medium rounded-lg border border-red-900/50 text-red-400 hover:bg-red-950/30 transition-colors">
                         Block
-                    </button>` : '';
+                    </button>
+                    <button onclick="messageUser('${p.id}')" class="px-4 py-1.5 text-sm font-medium rounded-lg bg-accent hover:bg-accent-hover text-white transition-colors">Message</button>` : '';
 
                 // Avatar
                 const avatarImg = p.avatar_url
@@ -189,6 +204,7 @@ pub fn ProfilePage() -> impl IntoView {
                                 </div>
 
                                 ${badges ? `<div class="flex flex-wrap gap-2 mt-3">${badges}</div>` : ''}
+                                ${socialHtml}
                             </div>
                         </div>
 
@@ -397,6 +413,18 @@ pub fn ProfilePage() -> impl IntoView {
                     if (data.status === 'accepted') btn.textContent = 'Unfriend';
                     else if (data.status === 'pending') btn.textContent = 'Pending';
                     else btn.textContent = 'Add Friend';
+                }
+            };
+
+            window.messageUser = async function(userId) {
+                var token = document.cookie.match('(^|;)\\s*token\\s*=\\s*([^;]+)')?.pop();
+                if (!token) { window.location.href = '/login'; return; }
+                var res = await fetch('/api/messages/conversations/dm/' + userId, {
+                    method: 'POST', headers: { 'Authorization': 'Bearer ' + token }
+                });
+                var data = await res.json();
+                if (data.conversation_id) {
+                    window.location.href = '/messages?conv=' + data.conversation_id;
                 }
             };
 

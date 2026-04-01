@@ -15,8 +15,10 @@ pub fn router() -> Router<AppState> {
     let protected = Router::new()
         .route("/me", get(me).put(update_me))
         .route("/discord/link", get(discord_link))
-        .route("/discord/callback", get(discord_callback))
         .route("/discord/unlink", delete(discord_unlink))
+        .route("/twitch/link", get(twitch_link))
+        .route("/github/link", get(github_link))
+        .route("/steam/link", get(steam_link))
         .route("/2fa/setup", post(totp_setup))
         .route("/2fa/verify", post(totp_verify_setup))
         .route("/2fa/disable", post(totp_disable))
@@ -28,6 +30,10 @@ pub fn router() -> Router<AppState> {
         .route("/login/2fa", post(login_2fa))
         .route("/refresh", post(refresh))
         .route("/forgot", post(forgot_password))
+        .route("/discord/callback", get(discord_callback))
+        .route("/twitch/callback", get(twitch_callback))
+        .route("/github/callback", get(github_callback))
+        .route("/steam/callback", get(steam_callback))
         .merge(protected)
 }
 
@@ -216,6 +222,20 @@ async fn update_me(
     Ok(Json(user_to_profile(&user)))
 }
 
+// ── Shared helpers ──
+
+/// Simple percent-encoding for URL parameters.
+fn percent_encode(s: &str) -> String {
+    s.bytes()
+        .map(|b| match b {
+            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => {
+                String::from(b as char)
+            }
+            _ => format!("%{:02X}", b),
+        })
+        .collect()
+}
+
 // ── Discord OAuth2 ──
 
 /// Returns the Discord OAuth2 authorization URL.
@@ -233,21 +253,11 @@ async fn discord_link(
     let token = jwt::create_access_token(auth.user_id, &state.jwt_secret)
         .map_err(|e| ApiError::Internal(e.to_string()))?;
 
-    // Simple percent-encoding for URL params
-    let encode = |s: &str| -> String {
-        s.bytes().map(|b| match b {
-            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => {
-                String::from(b as char)
-            }
-            _ => format!("%{:02X}", b),
-        }).collect()
-    };
-
     let url = format!(
         "https://discord.com/api/oauth2/authorize?client_id={}&redirect_uri={}&response_type=code&scope=identify&state={}",
         client_id,
-        encode(&redirect_uri),
-        encode(&token),
+        percent_encode(&redirect_uri),
+        percent_encode(&token),
     );
 
     Ok(Json(serde_json::json!({ "url": url })))
@@ -370,6 +380,344 @@ async fn discord_unlink(
     Ok(Json(MessageResponse {
         message: "Discord unlinked".into(),
     }))
+}
+
+// ── Twitch OAuth2 ──
+
+/// Returns the Twitch OAuth2 authorization URL.
+async fn twitch_link(
+    State(state): State<AppState>,
+    Extension(auth): Extension<AuthUser>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    let client_id = std::env::var("TWITCH_CLIENT_ID")
+        .map_err(|_| ApiError::Internal("TWITCH_CLIENT_ID not configured".into()))?;
+    let redirect_uri = std::env::var("TWITCH_REDIRECT_URI")
+        .unwrap_or_else(|_| format!("{}/api/auth/twitch/callback", state.site_url));
+
+    let token = jwt::create_access_token(auth.user_id, &state.jwt_secret)
+        .map_err(|e| ApiError::Internal(e.to_string()))?;
+
+    let url = format!(
+        "https://id.twitch.tv/oauth2/authorize?client_id={}&redirect_uri={}&response_type=code&scope=user:read:email&state={}",
+        client_id,
+        percent_encode(&redirect_uri),
+        percent_encode(&token),
+    );
+
+    Ok(Json(serde_json::json!({ "url": url })))
+}
+
+#[derive(Deserialize)]
+struct TwitchCallbackQuery {
+    code: String,
+    state: String,
+}
+
+#[derive(Deserialize)]
+struct TwitchTokenResponse {
+    access_token: String,
+}
+
+#[derive(Deserialize)]
+struct TwitchUsersResponse {
+    data: Vec<TwitchUser>,
+}
+
+#[derive(Deserialize)]
+struct TwitchUser {
+    id: String,
+    login: String,
+    display_name: String,
+    profile_image_url: Option<String>,
+}
+
+/// Twitch OAuth2 callback — exchanges code for token, fetches user, links account.
+async fn twitch_callback(
+    State(state): State<AppState>,
+    Query(params): Query<TwitchCallbackQuery>,
+) -> Result<Redirect, ApiError> {
+    let client_id = std::env::var("TWITCH_CLIENT_ID")
+        .map_err(|_| ApiError::Internal("TWITCH_CLIENT_ID not configured".into()))?;
+    let client_secret = std::env::var("TWITCH_CLIENT_SECRET")
+        .map_err(|_| ApiError::Internal("TWITCH_CLIENT_SECRET not configured".into()))?;
+    let redirect_uri = std::env::var("TWITCH_REDIRECT_URI")
+        .unwrap_or_else(|_| format!("{}/api/auth/twitch/callback", state.site_url));
+
+    let claims = jwt::validate_token(&params.state, &state.jwt_secret)
+        .map_err(|_| ApiError::Unauthorized)?;
+
+    // Exchange code for Twitch access token
+    let http = reqwest::Client::new();
+    let token_resp = http
+        .post("https://id.twitch.tv/oauth2/token")
+        .form(&[
+            ("client_id", client_id.as_str()),
+            ("client_secret", client_secret.as_str()),
+            ("grant_type", "authorization_code"),
+            ("code", &params.code),
+            ("redirect_uri", &redirect_uri),
+        ])
+        .send()
+        .await
+        .map_err(|e| ApiError::Internal(format!("Twitch token exchange failed: {}", e)))?;
+
+    if !token_resp.status().is_success() {
+        return Err(ApiError::Internal("Twitch token exchange failed".into()));
+    }
+
+    let token_data: TwitchTokenResponse = token_resp
+        .json()
+        .await
+        .map_err(|e| ApiError::Internal(format!("Failed to parse Twitch token: {}", e)))?;
+
+    // Fetch Twitch user info
+    let user_resp = http
+        .get("https://api.twitch.tv/helix/users")
+        .header("Authorization", format!("Bearer {}", token_data.access_token))
+        .header("Client-Id", &client_id)
+        .send()
+        .await
+        .map_err(|e| ApiError::Internal(format!("Failed to fetch Twitch user: {}", e)))?;
+
+    let twitch_users: TwitchUsersResponse = user_resp
+        .json()
+        .await
+        .map_err(|e| ApiError::Internal(format!("Failed to parse Twitch user: {}", e)))?;
+
+    let twitch_user = twitch_users.data.into_iter().next()
+        .ok_or_else(|| ApiError::Internal("No Twitch user returned".into()))?;
+
+    renzora_models::social_connection::SocialConnection::upsert(
+        &state.db,
+        claims.sub,
+        "twitch",
+        &twitch_user.display_name,
+        twitch_user.profile_image_url.as_deref(),
+        Some(&twitch_user.id),
+        true,
+    )
+    .await
+    .map_err(|e| ApiError::Internal(format!("Failed to link Twitch: {}", e)))?;
+
+    Ok(Redirect::to(&format!("{}/settings?twitch=linked", state.site_url)))
+}
+
+// ── GitHub OAuth2 ──
+
+/// Returns the GitHub OAuth2 authorization URL.
+async fn github_link(
+    State(state): State<AppState>,
+    Extension(auth): Extension<AuthUser>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    let client_id = std::env::var("GITHUB_CLIENT_ID")
+        .map_err(|_| ApiError::Internal("GITHUB_CLIENT_ID not configured".into()))?;
+    let redirect_uri = std::env::var("GITHUB_REDIRECT_URI")
+        .unwrap_or_else(|_| format!("{}/api/auth/github/callback", state.site_url));
+
+    let token = jwt::create_access_token(auth.user_id, &state.jwt_secret)
+        .map_err(|e| ApiError::Internal(e.to_string()))?;
+
+    let url = format!(
+        "https://github.com/login/oauth/authorize?client_id={}&redirect_uri={}&scope=read:user&state={}",
+        client_id,
+        percent_encode(&redirect_uri),
+        percent_encode(&token),
+    );
+
+    Ok(Json(serde_json::json!({ "url": url })))
+}
+
+#[derive(Deserialize)]
+struct GitHubCallbackQuery {
+    code: String,
+    state: String,
+}
+
+#[derive(Deserialize)]
+struct GitHubTokenResponse {
+    access_token: String,
+}
+
+#[derive(Deserialize)]
+struct GitHubUser {
+    id: i64,
+    login: String,
+    avatar_url: Option<String>,
+}
+
+/// GitHub OAuth2 callback — exchanges code for token, fetches user, links account.
+async fn github_callback(
+    State(state): State<AppState>,
+    Query(params): Query<GitHubCallbackQuery>,
+) -> Result<Redirect, ApiError> {
+    let client_id = std::env::var("GITHUB_CLIENT_ID")
+        .map_err(|_| ApiError::Internal("GITHUB_CLIENT_ID not configured".into()))?;
+    let client_secret = std::env::var("GITHUB_CLIENT_SECRET")
+        .map_err(|_| ApiError::Internal("GITHUB_CLIENT_SECRET not configured".into()))?;
+    let redirect_uri = std::env::var("GITHUB_REDIRECT_URI")
+        .unwrap_or_else(|_| format!("{}/api/auth/github/callback", state.site_url));
+
+    let claims = jwt::validate_token(&params.state, &state.jwt_secret)
+        .map_err(|_| ApiError::Unauthorized)?;
+
+    // Exchange code for GitHub access token
+    let http = reqwest::Client::new();
+    let token_resp = http
+        .post("https://github.com/login/oauth/access_token")
+        .header("Accept", "application/json")
+        .form(&[
+            ("client_id", client_id.as_str()),
+            ("client_secret", client_secret.as_str()),
+            ("code", &params.code),
+            ("redirect_uri", &redirect_uri),
+        ])
+        .send()
+        .await
+        .map_err(|e| ApiError::Internal(format!("GitHub token exchange failed: {}", e)))?;
+
+    if !token_resp.status().is_success() {
+        return Err(ApiError::Internal("GitHub token exchange failed".into()));
+    }
+
+    let token_data: GitHubTokenResponse = token_resp
+        .json()
+        .await
+        .map_err(|e| ApiError::Internal(format!("Failed to parse GitHub token: {}", e)))?;
+
+    // Fetch GitHub user info
+    let user_resp = http
+        .get("https://api.github.com/user")
+        .header("Authorization", format!("Bearer {}", token_data.access_token))
+        .header("User-Agent", "renzora")
+        .send()
+        .await
+        .map_err(|e| ApiError::Internal(format!("Failed to fetch GitHub user: {}", e)))?;
+
+    let github_user: GitHubUser = user_resp
+        .json()
+        .await
+        .map_err(|e| ApiError::Internal(format!("Failed to parse GitHub user: {}", e)))?;
+
+    renzora_models::social_connection::SocialConnection::upsert(
+        &state.db,
+        claims.sub,
+        "github",
+        &github_user.login,
+        github_user.avatar_url.as_deref(),
+        Some(&github_user.id.to_string()),
+        true,
+    )
+    .await
+    .map_err(|e| ApiError::Internal(format!("Failed to link GitHub: {}", e)))?;
+
+    Ok(Redirect::to(&format!("{}/settings?github=linked", state.site_url)))
+}
+
+// ── Steam OpenID ──
+
+/// Returns the Steam OpenID authorization URL.
+async fn steam_link(
+    State(state): State<AppState>,
+    Extension(auth): Extension<AuthUser>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    let redirect_uri = std::env::var("STEAM_REDIRECT_URI")
+        .unwrap_or_else(|_| format!("{}/api/auth/steam/callback", state.site_url));
+
+    let token = jwt::create_access_token(auth.user_id, &state.jwt_secret)
+        .map_err(|e| ApiError::Internal(e.to_string()))?;
+
+    let url = format!(
+        "https://steamcommunity.com/openid/login\
+         ?openid.mode=checkid_setup\
+         &openid.ns=http://specs.openid.net/auth/2.0\
+         &openid.return_to={}?state={}\
+         &openid.realm={}\
+         &openid.identity=http://specs.openid.net/auth/2.0/identifier_select\
+         &openid.claimed_id=http://specs.openid.net/auth/2.0/identifier_select",
+        percent_encode(&redirect_uri),
+        percent_encode(&token),
+        percent_encode(&state.site_url),
+    );
+
+    Ok(Json(serde_json::json!({ "url": url })))
+}
+
+#[derive(Deserialize)]
+struct SteamCallbackQuery {
+    state: String,
+    #[serde(rename = "openid.claimed_id")]
+    openid_claimed_id: String,
+}
+
+#[derive(Deserialize)]
+struct SteamPlayerSummariesResponse {
+    response: SteamPlayersWrapper,
+}
+
+#[derive(Deserialize)]
+struct SteamPlayersWrapper {
+    players: Vec<SteamPlayer>,
+}
+
+#[derive(Deserialize)]
+struct SteamPlayer {
+    steamid: String,
+    personaname: String,
+    avatarfull: Option<String>,
+}
+
+/// Steam OpenID callback — extracts Steam ID from claimed_id, fetches profile, links account.
+async fn steam_callback(
+    State(state): State<AppState>,
+    Query(params): Query<SteamCallbackQuery>,
+) -> Result<Redirect, ApiError> {
+    let api_key = std::env::var("STEAM_API_KEY")
+        .map_err(|_| ApiError::Internal("STEAM_API_KEY not configured".into()))?;
+
+    let claims = jwt::validate_token(&params.state, &state.jwt_secret)
+        .map_err(|_| ApiError::Unauthorized)?;
+
+    // Extract Steam ID from claimed_id URL
+    // Format: https://steamcommunity.com/openid/id/STEAMID64
+    let steam_id = params
+        .openid_claimed_id
+        .rsplit('/')
+        .next()
+        .ok_or_else(|| ApiError::Internal("Invalid Steam claimed_id".into()))?
+        .to_string();
+
+    // Fetch Steam player summary
+    let http = reqwest::Client::new();
+    let user_resp = http
+        .get(format!(
+            "https://api.steampowered.com/ISteamUser/GetPlayerSummaries/v2/?key={}&steamids={}",
+            api_key, steam_id
+        ))
+        .send()
+        .await
+        .map_err(|e| ApiError::Internal(format!("Failed to fetch Steam user: {}", e)))?;
+
+    let summary: SteamPlayerSummariesResponse = user_resp
+        .json()
+        .await
+        .map_err(|e| ApiError::Internal(format!("Failed to parse Steam user: {}", e)))?;
+
+    let player = summary.response.players.into_iter().next()
+        .ok_or_else(|| ApiError::Internal("No Steam player returned".into()))?;
+
+    renzora_models::social_connection::SocialConnection::upsert(
+        &state.db,
+        claims.sub,
+        "steam",
+        &player.personaname,
+        player.avatarfull.as_deref(),
+        Some(&player.steamid),
+        true,
+    )
+    .await
+    .map_err(|e| ApiError::Internal(format!("Failed to link Steam: {}", e)))?;
+
+    Ok(Redirect::to(&format!("{}/settings?steam=linked", state.site_url)))
 }
 
 // ── Two-Factor Authentication ──

@@ -13,12 +13,14 @@ use crate::pages::{
     dashboard::DashboardPage,
     developers::DevelopersPage,
     docs::{DocsPage, DocsSectionPage, DocArticle},
+    donate::DonatePage,
     courses::{CoursesPage, CourseDetailPage, ChapterViewPage, CreateCoursePage, EditCoursePage},
     download::DownloadPage,
     forum::{ForumPage, ForumCategoryPage, ForumThreadPage, NewThreadPage},
     game_store::GameStorePage,
     game_detail::GameDetailPage,
     game_upload::GameUploadPage,
+    gifts::GiftsPage,
     home::HomePage,
     library::LibraryPage,
     login::{LoginPage, RegisterPage},
@@ -34,6 +36,8 @@ use crate::pages::{
     embed::EmbedPreviewPage,
     feed::FeedPage,
     messages::MessagesPage,
+    terms::TermsPage,
+    privacy::PrivacyPage,
 };
 
 #[component]
@@ -87,6 +91,10 @@ pub fn App() -> impl IntoView {
                     <Route path=path!("/teams") view=TeamsPage />
                     <Route path=path!("/messages") view=MessagesPage />
                     <Route path=path!("/feed") view=FeedPage />
+                    <Route path=path!("/donate") view=DonatePage />
+                    <Route path=path!("/gifts") view=GiftsPage />
+                    <Route path=path!("/terms") view=TermsPage />
+                    <Route path=path!("/privacy") view=PrivacyPage />
                     <Route path=path!("/settings") view=SettingsPage />
                     <Route path=path!("/embed/preview/:slug") view=EmbedPreviewPage />
                 </Routes>

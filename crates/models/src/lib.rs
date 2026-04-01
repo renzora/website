@@ -31,3 +31,6 @@ pub mod user;
 pub mod voucher;
 pub mod launcher_download;
 pub mod withdrawal;
+pub mod social_connection;
+pub mod gift_card;
+pub mod donation;

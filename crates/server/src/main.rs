@@ -173,6 +173,10 @@ async fn main() {
         .route("/teams", get(ssr.clone()))
         .route("/messages", get(ssr.clone()))
         .route("/feed", get(ssr.clone()))
+        .route("/donate", get(ssr.clone()))
+        .route("/gifts", get(ssr.clone()))
+        .route("/terms", get(ssr.clone()))
+        .route("/privacy", get(ssr.clone()))
         .route("/settings", get(ssr.clone()))
         .route("/embed/preview/:slug", get(embed_ssr.clone()))
         // Layers
