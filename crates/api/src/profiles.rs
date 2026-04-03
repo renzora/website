@@ -24,6 +24,7 @@ pub fn router() -> Router<AppState> {
 
     Router::new()
         .route("/view/:username", get(get_profile))
+        .route("/:username/assets", get(get_profile_assets))
         .route("/shop/:username", get(get_storefront))
         .route("/search", get(search_users))
         .merge(protected)
@@ -73,7 +74,7 @@ async fn get_profile(
         .and_then(|token| jwt::validate_token(token, &jwt_secret.0).ok())
         .filter(|c| c.token_type == "access")
         .map(|c| c.sub);
-    let row = sqlx::query("SELECT id, username, role, bio, website, location, gender, profile_color, banner_color, avatar_url, follower_count, following_count, post_count, credit_balance, created_at, storefront_enabled FROM users WHERE username=$1")
+    let row = sqlx::query("SELECT id, username, role, bio, website, location, gender, profile_color, banner_color, avatar_url, follower_count, following_count, post_count, credit_balance, total_xp, level, seller_level, seller_xp, created_at, storefront_enabled FROM users WHERE username=$1")
         .bind(&username)
         .fetch_optional(&state.db)
         .await?
@@ -107,25 +108,13 @@ async fn get_profile(
     // Social connections
     let connections = renzora_models::social_connection::SocialConnection::list_for_user(&state.db, id).await.unwrap_or_default();
 
-    // Published assets by this user
-    let asset_rows = sqlx::query(
-        "SELECT id, name, slug, description, category, price_credits, thumbnail_url, version, downloads FROM assets WHERE creator_id=$1 AND published=true ORDER BY created_at DESC"
+    // Count published assets
+    let asset_count: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM assets WHERE creator_id=$1 AND published=true"
     )
     .bind(id)
-    .fetch_all(&state.db)
+    .fetch_one(&state.db)
     .await?;
-
-    let assets: Vec<serde_json::Value> = asset_rows.iter().map(|r| serde_json::json!({
-        "id": r.get::<Uuid, _>("id"),
-        "name": r.get::<String, _>("name"),
-        "slug": r.get::<String, _>("slug"),
-        "description": r.get::<String, _>("description"),
-        "category": r.get::<String, _>("category"),
-        "price_credits": r.get::<i64, _>("price_credits"),
-        "thumbnail_url": r.get::<Option<String>, _>("thumbnail_url"),
-        "version": r.get::<String, _>("version"),
-        "downloads": r.get::<i64, _>("downloads"),
-    })).collect();
 
     Ok(Json(serde_json::json!({
         "id": id,
@@ -142,12 +131,71 @@ async fn get_profile(
         "following_count": row.get::<i32, _>("following_count"),
         "post_count": row.get::<i32, _>("post_count"),
         "credit_balance": row.get::<i64, _>("credit_balance"),
+        "total_xp": row.get::<i64, _>("total_xp"),
+        "level": row.get::<i32, _>("level"),
+        "seller_level": row.get::<i32, _>("seller_level"),
+        "seller_xp": row.get::<i64, _>("seller_xp"),
         "is_following": is_following,
         "badges": badges,
-        "assets": assets,
+        "asset_count": asset_count,
         "connections": connections,
         "storefront_enabled": row.get::<bool, _>("storefront_enabled"),
         "created_at": row.get::<time::OffsetDateTime, _>("created_at").to_string(),
+    })))
+}
+
+#[derive(Deserialize)]
+struct ProfileAssetsQuery {
+    page: Option<i64>,
+}
+
+async fn get_profile_assets(
+    State(state): State<AppState>,
+    Path(username): Path<String>,
+    axum::extract::Query(params): axum::extract::Query<ProfileAssetsQuery>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    let page = params.page.unwrap_or(1).max(1);
+    let per_page: i64 = 12;
+    let offset = (page - 1) * per_page;
+
+    let user_id: Uuid = sqlx::query_scalar("SELECT id FROM users WHERE username=$1")
+        .bind(&username)
+        .fetch_optional(&state.db)
+        .await?
+        .ok_or(ApiError::NotFound)?;
+
+    let total: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM assets WHERE creator_id=$1 AND published=true"
+    )
+    .bind(user_id)
+    .fetch_one(&state.db)
+    .await?;
+
+    let rows = sqlx::query(
+        "SELECT id, name, slug, category, price_credits, thumbnail_url, downloads FROM assets WHERE creator_id=$1 AND published=true ORDER BY created_at DESC LIMIT $2 OFFSET $3"
+    )
+    .bind(user_id)
+    .bind(per_page)
+    .bind(offset)
+    .fetch_all(&state.db)
+    .await?;
+
+    let assets: Vec<serde_json::Value> = rows.iter().map(|r| serde_json::json!({
+        "id": r.get::<Uuid, _>("id"),
+        "name": r.get::<String, _>("name"),
+        "slug": r.get::<String, _>("slug"),
+        "category": r.get::<String, _>("category"),
+        "price_credits": r.get::<i64, _>("price_credits"),
+        "thumbnail_url": r.get::<Option<String>, _>("thumbnail_url"),
+        "downloads": r.get::<i64, _>("downloads"),
+    })).collect();
+
+    Ok(Json(serde_json::json!({
+        "assets": assets,
+        "total": total,
+        "page": page,
+        "per_page": per_page,
+        "has_more": offset + per_page < total,
     })))
 }
 

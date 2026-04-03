@@ -504,3 +504,88 @@ pub struct EarningEntry {
     pub asset_name: String,
     pub created_at: String,
 }
+
+// ── Avatar types ──
+
+#[derive(Debug, Serialize)]
+pub struct AvatarPartResponse {
+    pub id: Uuid,
+    pub slot: String,
+    pub name: String,
+    pub slug: String,
+    pub part_data: serde_json::Value,
+    pub price_credits: i64,
+    pub is_default: bool,
+    pub owned: bool,
+}
+
+#[derive(Debug, Serialize)]
+pub struct AvatarPartsListResponse {
+    pub parts: std::collections::HashMap<String, Vec<AvatarPartResponse>>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct UserAvatarResponse {
+    pub skin_color: String,
+    pub eye_color: String,
+    pub hair_color: String,
+    pub equipped_parts: serde_json::Value,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct SaveAvatarRequest {
+    pub skin_color: String,
+    pub eye_color: String,
+    pub hair_color: String,
+    pub equipped_parts: serde_json::Value,
+}
+
+#[derive(Debug, Serialize)]
+pub struct PurchasePartResponse {
+    pub message: String,
+    pub new_balance: i64,
+}
+
+// ── XP / Level types ──
+
+#[derive(Debug, Serialize)]
+pub struct UserLevelResponse {
+    pub total_xp: i64,
+    pub level: i32,
+    pub xp_for_current_level: i64,
+    pub xp_for_next_level: i64,
+    pub progress_percent: f64,
+    pub seller_level: i32,
+    pub seller_xp: i64,
+    pub seller_level_name: String,
+    pub seller_level_color: String,
+    pub next_seller_level_xp: i64,
+    pub seller_progress_percent: f64,
+}
+
+#[derive(Debug, Serialize)]
+pub struct SellerProgressResponse {
+    pub current_level: serde_json::Value,
+    pub next_level: Option<serde_json::Value>,
+    pub tasks: Vec<SellerTaskProgress>,
+    pub seller_xp: i64,
+    pub xp_to_next: i64,
+    pub progress_percent: f64,
+}
+
+#[derive(Debug, Serialize)]
+pub struct SellerTaskProgress {
+    pub description: String,
+    pub task_type: String,
+    pub target_value: i64,
+    pub current_value: i64,
+    pub completed: bool,
+    pub xp_reward: i64,
+}
+
+#[derive(Debug, Serialize)]
+pub struct XpEventResponse {
+    pub amount: i64,
+    pub reason: String,
+    pub created_at: String,
+}

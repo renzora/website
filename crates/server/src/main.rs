@@ -177,6 +177,7 @@ async fn main() {
         .route("/gifts", get(ssr.clone()))
         .route("/terms", get(ssr.clone()))
         .route("/privacy", get(ssr.clone()))
+        .route("/avatar/edit", get(ssr.clone()))
         .route("/settings", get(ssr.clone()))
         .route("/embed/preview/:slug", get(embed_ssr.clone()))
         // Layers

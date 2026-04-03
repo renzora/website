@@ -278,6 +278,16 @@ pub async fn process_purchase_full(
 
     tx.commit().await.map_err(|e| e.to_string())?;
 
+    // Award XP (after commit, non-blocking)
+    let _ = crate::xp::award_xp(pool, buyer_id, crate::xp::XP_PURCHASE, "purchase", Some(asset_id)).await;
+    let _ = crate::xp::award_xp(pool, creator_id, crate::xp::XP_SALE, "sale", Some(asset_id)).await;
+    let _ = crate::xp::award_seller_xp(pool, creator_id, crate::xp::SELLER_XP_SALE, "sale", Some(asset_id)).await;
+    if let Some(ref_id) = referrer_id {
+        if referral_share > 0 {
+            let _ = crate::xp::award_xp(pool, ref_id, crate::xp::XP_REFERRAL, "referral", Some(asset_id)).await;
+        }
+    }
+
     Ok(())
 }
 

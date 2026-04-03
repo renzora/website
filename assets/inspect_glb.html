@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html><head><title>GLB Inspector</title></head>
+<body style="background:#111;color:#eee;font-family:monospace;padding:20px">
+<h2>GLB Bone Inspector</h2>
+<script type="importmap">{"imports":{"three":"https://unpkg.com/three@0.170.0/build/three.module.js","three/addons/":"https://unpkg.com/three@0.170.0/examples/jsm/"}}</script>
+<script type="module">
+import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+const loader = new GLTFLoader();
+const files = [
+    '/assets/avatar/characters/Knight.glb',
+    '/assets/avatar/characters/Barbarian.glb',
+    '/assets/avatar/items/sword_1handed.gltf',
+    '/assets/avatar/items/shield_round.gltf',
+    '/assets/avatar/animations/Rig_Medium_General.glb',
+];
+for (const f of files) {
+    try {
+        const gltf = await new Promise((res, rej) => loader.load(f, res, undefined, rej));
+        const div = document.createElement('div');
+        div.style.marginBottom = '20px';
+        let html = `<h3 style="color:#6366f1">${f}</h3>`;
+        // List all objects
+        html += '<pre>';
+        gltf.scene.traverse(c => {
+            const indent = '  '.repeat(getDepth(c, gltf.scene));
+            const type = c.isBone ? 'BONE' : c.isMesh ? 'MESH' : c.isGroup ? 'GROUP' : 'OBJ';
+            html += `${indent}[${type}] ${c.name}`;
+            if (c.isMesh) html += ` (geo: ${c.geometry?.attributes?.position?.count || '?'} verts)`;
+            html += '\n';
+        });
+        html += '</pre>';
+        // Animations
+        if (gltf.animations?.length) {
+            html += `<div style="color:#14b8a6">Animations (${gltf.animations.length}):</div><pre>`;
+            gltf.animations.forEach(a => { html += `  ${a.name} (${a.duration.toFixed(2)}s, ${a.tracks.length} tracks)\n`; });
+            html += '</pre>';
+        }
+        div.innerHTML = html;
+        document.body.appendChild(div);
+    } catch(e) {
+        document.body.innerHTML += `<p style="color:red">${f}: ${e}</p>`;
+    }
+}
+function getDepth(obj, root) {
+    let d = 0; let p = obj.parent;
+    while (p && p !== root) { d++; p = p.parent; }
+    return d;
+}
+</script>
+</body></html>

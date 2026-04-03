@@ -58,7 +58,7 @@ async fn list_assets(
     Query(params): Query<MarketplaceQuery>,
 ) -> Result<Json<MarketplaceListResponse>, ApiError> {
     let page = params.page.unwrap_or(1).max(1);
-    let per_page: i64 = 24;
+    let per_page: i64 = 100;
     let sort = params.sort.as_deref().unwrap_or("newest");
 
     let (assets, total) = Asset::list_published_filtered(
@@ -494,6 +494,9 @@ async fn upload_asset(
             .await?;
     }
 
+    // Auto-publish the asset
+    Asset::update_metadata(&state.db, asset.id, None, None, None, None, Some(true)).await?;
+
     // Re-fetch with updated URLs
     let asset = Asset::find_by_id(&state.db, asset.id)
         .await?
@@ -510,6 +513,9 @@ async fn upload_asset(
             .execute(&state.db)
             .await?;
     }
+
+    // Award XP for uploading
+    let _ = renzora_models::xp::award_xp(&state.db, auth.user_id, renzora_models::xp::XP_UPLOAD_ASSET, "upload_asset", Some(asset.id)).await;
 
     Ok(Json(asset_to_detail(&asset, &creator, Some(true))))
 }
@@ -856,7 +862,7 @@ async fn delete_asset(
 
     // Delete DB records (cascading: media, reviews, comments, purchases)
     sqlx::query("DELETE FROM asset_media WHERE asset_id = $1").bind(id).execute(&state.db).await?;
-    sqlx::query("DELETE FROM reviews WHERE asset_id = $1").bind(id).execute(&state.db).await?;
+    sqlx::query("DELETE FROM asset_reviews WHERE asset_id = $1").bind(id).execute(&state.db).await?;
     sqlx::query("DELETE FROM asset_comments WHERE asset_id = $1").bind(id).execute(&state.db).await?;
     sqlx::query("DELETE FROM user_assets WHERE asset_id = $1").bind(id).execute(&state.db).await?;
     sqlx::query("DELETE FROM transactions WHERE asset_id = $1").bind(id).execute(&state.db).await?;
@@ -1137,6 +1143,13 @@ async fn submit_review(
     )
     .await
     .map_err(|e| ApiError::Internal(e))?;
+
+    // Award XP for reviewing
+    let _ = renzora_models::xp::award_xp(&state.db, auth.user_id, renzora_models::xp::XP_REVIEW, "review", Some(id)).await;
+    // Award seller XP to asset creator for receiving a review
+    if body.rating >= 4 {
+        let _ = renzora_models::xp::award_seller_xp(&state.db, asset.creator_id, renzora_models::xp::SELLER_XP_REVIEW, "review_received", Some(id)).await;
+    }
 
     Ok(Json(serde_json::json!({
         "id": review.id,

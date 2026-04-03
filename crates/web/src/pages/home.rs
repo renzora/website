@@ -221,51 +221,130 @@ pub fn HomePage() -> impl IntoView {
                 draw();
             })();
 
-            // ── Scroll-triggered animations (IntersectionObserver) ──
+            // ── anime.js powered animations ──
             (function() {
-                const observer = new IntersectionObserver((entries) => {
-                    entries.forEach(entry => {
-                        if (entry.isIntersecting) {
-                            entry.target.classList.add('animate-in');
-                            observer.unobserve(entry.target);
-                        }
-                    });
-                }, { threshold: 0.1, rootMargin: '0px 0px -50px 0px' });
+                // Hero entrance — staggered fade up
+                anime.timeline({ easing: 'easeOutExpo' })
+                    .add({ targets: '.hero-title', opacity: [0,1], translateY: [40,0], duration: 1200 })
+                    .add({ targets: '.relative.z-10 p', opacity: [0,1], translateY: [20,0], duration: 800 }, '-=800')
+                    .add({ targets: '.relative.z-10 .flex a', opacity: [0,1], translateY: [20,0], scale: [0.9,1], delay: anime.stagger(100), duration: 600 }, '-=500')
+                    .add({ targets: '.scroll-dot', opacity: [0,1], duration: 600 }, '-=300');
 
-                // Feature cards stagger
-                document.querySelectorAll('.feature-card').forEach((card, i) => {
-                    card.style.transitionDelay = `${i * 60}ms`;
-                    observer.observe(card);
+                // Scroll observer using anime.js
+                function onReveal(selector, animProps, stagger) {
+                    const obs = new IntersectionObserver((entries) => {
+                        entries.forEach(entry => {
+                            if (entry.isIntersecting) {
+                                if (stagger) {
+                                    anime({ targets: entry.target.querySelectorAll(stagger), ...animProps });
+                                } else {
+                                    anime({ targets: entry.target, ...animProps });
+                                }
+                                obs.unobserve(entry.target);
+                            }
+                        });
+                    }, { threshold: 0.1, rootMargin: '0px 0px -40px 0px' });
+                    document.querySelectorAll(selector).forEach(el => obs.observe(el));
+                }
+
+                // Feature cards — elastic stagger
+                onReveal('.feature-grid', {
+                    opacity: [0,1],
+                    translateY: [50,0],
+                    scale: [0.85,1],
+                    delay: anime.stagger(80, {from: 'first'}),
+                    duration: 800,
+                    easing: 'easeOutElastic(1, 0.6)'
+                }, '.feature-card');
+
+                // Editor screenshot — dramatic scale up
+                onReveal('.editor-reveal', {
+                    opacity: [0,1],
+                    translateY: [60,0],
+                    scale: [0.92,1],
+                    duration: 1000,
+                    easing: 'easeOutCubic'
                 });
 
-                // Editor screenshot
-                document.querySelectorAll('.editor-reveal').forEach(el => observer.observe(el));
-
-                // Counters
-                document.querySelectorAll('.counter').forEach(el => observer.observe(el));
-            })();
-
-            // ── Counter animation ──
-            (function() {
-                const observer = new IntersectionObserver((entries) => {
+                // Stats counters — animated numbers + bounce in
+                const counterObs = new IntersectionObserver((entries) => {
                     entries.forEach(entry => {
                         if (entry.isIntersecting) {
                             const el = entry.target;
                             const target = parseInt(el.dataset.target);
                             if (!target) return;
                             const suffix = target === 100 ? '%' : '+';
-                            let current = 0;
-                            const step = Math.max(1, Math.floor(target / 40));
-                            const timer = setInterval(() => {
-                                current += step;
-                                if (current >= target) { current = target; clearInterval(timer); }
-                                el.textContent = current + suffix;
-                            }, 30);
-                            observer.unobserve(el);
+                            const obj = { val: 0 };
+                            anime({
+                                targets: obj,
+                                val: target,
+                                round: 1,
+                                duration: 1500,
+                                easing: 'easeOutExpo',
+                                update: () => { el.textContent = obj.val + suffix; }
+                            });
+                            // Bounce the card
+                            anime({
+                                targets: el.closest('.rounded-xl'),
+                                scale: [0.8, 1],
+                                opacity: [0, 1],
+                                duration: 600,
+                                easing: 'easeOutBack'
+                            });
+                            counterObs.unobserve(el);
                         }
                     });
                 }, { threshold: 0.5 });
-                document.querySelectorAll('.counter').forEach(el => observer.observe(el));
+                document.querySelectorAll('.counter').forEach(el => counterObs.observe(el));
+
+                // Explore cards — slide in from left
+                onReveal('.grid.grid-cols-1.sm\\:grid-cols-3', {
+                    opacity: [0,1],
+                    translateX: [-40,0],
+                    delay: anime.stagger(120),
+                    duration: 700,
+                    easing: 'easeOutCubic'
+                }, 'a');
+
+                // CTA section — fade up
+                onReveal('.relative.overflow-hidden.text-center', {
+                    opacity: [0,1],
+                    translateY: [30,0],
+                    duration: 800,
+                    easing: 'easeOutCubic'
+                });
+
+                // Feature cards — playful hover tilt
+                document.querySelectorAll('.feature-card').forEach(card => {
+                    card.addEventListener('mouseenter', () => {
+                        anime({ targets: card, scale: 1.03, duration: 200, easing: 'easeOutQuad' });
+                    });
+                    card.addEventListener('mouseleave', () => {
+                        anime({ targets: card, scale: 1, duration: 400, easing: 'easeOutElastic(1, 0.5)' });
+                    });
+                });
+
+                // Explore cards — bounce on hover
+                document.querySelectorAll('.group').forEach(card => {
+                    if (!card.closest('section:nth-of-type(4)')) return;
+                    card.addEventListener('mouseenter', () => {
+                        anime({ targets: card.querySelector('.shrink-0'), scale: 1.15, rotate: '8deg', duration: 300, easing: 'easeOutBack' });
+                    });
+                    card.addEventListener('mouseleave', () => {
+                        anime({ targets: card.querySelector('.shrink-0'), scale: 1, rotate: '0deg', duration: 500, easing: 'easeOutElastic(1, 0.4)' });
+                    });
+                });
+
+                // CTA buttons — pulse glow
+                document.querySelectorAll('a[href="/download"]').forEach(btn => {
+                    anime({
+                        targets: btn,
+                        boxShadow: ['0 0 0px rgba(99,102,241,0)', '0 0 25px rgba(99,102,241,0.3)', '0 0 0px rgba(99,102,241,0)'],
+                        duration: 2500,
+                        loop: true,
+                        easing: 'easeInOutSine'
+                    });
+                });
             })();
             "#
         </script>
@@ -301,27 +380,12 @@ pub fn HomePage() -> impl IntoView {
                 50% { transform: translateY(6px); opacity: 0.3; }
             }
 
-            /* Feature card animation */
-            .feature-card {
-                opacity: 0;
-                transform: translateY(24px);
-                transition: opacity 0.5s ease, transform 0.5s ease;
-            }
-            .feature-card.animate-in {
-                opacity: 1;
-                transform: translateY(0);
-            }
-
-            /* Editor reveal */
-            .editor-reveal {
-                opacity: 0;
-                transform: translateY(40px) scale(0.97);
-                transition: opacity 0.8s ease, transform 0.8s ease;
-            }
-            .editor-reveal.animate-in {
-                opacity: 1;
-                transform: translateY(0) scale(1);
-            }
+            /* Initial hidden states — anime.js reveals these */
+            .feature-card { opacity: 0; }
+            .editor-reveal { opacity: 0; }
+            .hero-title { opacity: 0; }
+            .relative.z-10 p { opacity: 0; }
+            .relative.z-10 .flex a { opacity: 0; }
 
             /* Feature card glow on hover */
             .feature-card::before {

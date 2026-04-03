@@ -3,63 +3,88 @@ use leptos::prelude::*;
 #[component]
 pub fn Nav() -> impl IntoView {
     view! {
-        <nav class="sticky top-0 z-50 bg-[rgba(6,6,8,0.85)] backdrop-blur-xl border-b border-zinc-900 shadow-[0_1px_12px_rgba(0,0,0,0.6)]">
-            <div class="px-6 h-14 flex items-center gap-8">
-                <a href="/" class="text-lg font-bold tracking-tight">"Renzora"</a>
-                <div class="flex gap-6 flex-1" id="nav-links">
-                    <a href="/download" class="nav-link text-sm text-zinc-400 hover:text-zinc-50 transition-colors flex items-center gap-1.5" data-path="/download">
-                        <i class="ph ph-download-simple text-base"></i>"Download Engine"
+        <nav id="main-nav" class="sticky top-0 z-50 transition-all duration-300" style="text-shadow: 0 1px 4px rgba(0,0,0,0.5)">
+            <div class="max-w-[1400px] mx-auto w-full px-6 h-14 flex items-center gap-6">
+                // Logo
+                <a href="/" class="text-lg font-bold tracking-tight text-white hover:text-accent transition-colors">"Renzora"</a>
+
+                // Nav links
+                <div class="flex gap-1 flex-1" id="nav-links">
+                    <a href="/download" class="nav-link text-base text-zinc-400 hover:text-white hover:bg-white/[0.06] px-3.5 py-1.5 rounded-lg transition-all flex items-center gap-1.5" data-path="/download">
+                        <i class="ph ph-download-simple text-lg"></i>"Engine"
                     </a>
-                    <a href="/marketplace" class="nav-link text-sm text-zinc-400 hover:text-zinc-50 transition-colors flex items-center gap-1.5" data-path="/marketplace">
-                        <i class="ph ph-storefront text-base"></i>"Marketplace"
+                    <a href="/marketplace" class="nav-link text-base text-zinc-400 hover:text-white hover:bg-white/[0.06] px-3.5 py-1.5 rounded-lg transition-all flex items-center gap-1.5" data-path="/marketplace">
+                        <i class="ph ph-storefront text-lg"></i>"Marketplace"
                     </a>
-                    <a href="/feed" class="nav-link text-sm text-zinc-400 hover:text-zinc-50 transition-colors flex items-center gap-1.5" data-path="/feed">
-                        <i class="ph ph-rss text-base"></i>"Feed"
+                    <a href="/games" class="nav-link text-base text-zinc-400 hover:text-white hover:bg-white/[0.06] px-3.5 py-1.5 rounded-lg transition-all flex items-center gap-1.5" data-path="/games">
+                        <i class="ph ph-game-controller text-lg"></i>"Games"
                     </a>
-                    <a href="/forum" class="nav-link text-sm text-zinc-400 hover:text-zinc-50 transition-colors flex items-center gap-1.5" data-path="/forum">
-                        <i class="ph ph-chats-circle text-base"></i>"Forum"
+                    <a href="/feed" class="nav-link text-base text-zinc-400 hover:text-white hover:bg-white/[0.06] px-3.5 py-1.5 rounded-lg transition-all flex items-center gap-1.5" data-path="/feed">
+                        <i class="ph ph-users text-lg"></i>"Social"
                     </a>
-                    <a href="/docs" class="nav-link text-sm text-zinc-400 hover:text-zinc-50 transition-colors flex items-center gap-1.5" data-path="/docs">
-                        <i class="ph ph-book-open text-base"></i>"Docs"
+                    <a href="/docs" class="nav-link text-base text-zinc-400 hover:text-white hover:bg-white/[0.06] px-3.5 py-1.5 rounded-lg transition-all flex items-center gap-1.5" data-path="/docs">
+                        <i class="ph ph-book-open text-lg"></i>"Docs"
                     </a>
                 </div>
-                // Global search
+
+                // XP bar (logged in only)
+                <div id="nav-xp-wrap" class="hidden items-center gap-2">
+                    <div class="flex items-center gap-2">
+                        <div class="relative flex items-center">
+                            // Level badge
+                            <div class="w-8 h-8 rounded-lg flex items-center justify-center z-10">
+                                <span id="nav-level" class="text-[11px] font-black text-accent">"1"</span>
+                            </div>
+                            // XP bar
+                            <div class="w-28 h-4 -ml-1 bg-black/40 border border-white/[0.08] rounded-r-lg overflow-hidden shadow-inner">
+                                <div id="nav-xp-bar" class="h-full bg-gradient-to-r from-accent to-purple-500 rounded-r-lg transition-all relative" style="width:0%">
+                                    <div class="absolute inset-0 bg-[linear-gradient(90deg,transparent_25%,rgba(255,255,255,0.15)_50%,transparent_75%)] bg-[length:200%_100%] animate-[xpShimmer_2s_linear_infinite]"></div>
+                                </div>
+                            </div>
+                        </div>
+                        <span id="nav-xp-text" class="text-[10px] text-zinc-500 font-medium">"0 XP"</span>
+                    </div>
+                </div>
+
+                // Search
                 <div class="relative" id="global-search-wrap">
-                    <button onclick="toggleGlobalSearch()" class="text-sm text-zinc-400 hover:text-zinc-50 hover:bg-surface-card p-1.5 rounded-lg transition-all" title="Search">
+                    <button onclick="toggleGlobalSearch()" class="text-zinc-400 hover:text-white p-2 rounded-lg hover:bg-white/[0.06] transition-all" title="Search (Ctrl+K)">
                         <i class="ph ph-magnifying-glass text-lg"></i>
                     </button>
-                    <div id="global-search-panel" class="hidden absolute right-0 top-full mt-2 w-[420px] bg-surface-card border border-zinc-800 rounded-xl shadow-2xl shadow-black/50 overflow-hidden z-50">
-                        <div class="flex items-center gap-2 px-4 py-3 border-b border-zinc-800">
+                    <div id="global-search-panel" class="hidden absolute right-0 top-full mt-2 w-[420px] bg-[rgba(10,10,16,0.95)] backdrop-blur-2xl border border-white/[0.08] rounded-xl shadow-2xl shadow-black/60 overflow-hidden z-50">
+                        <div class="flex items-center gap-2 px-4 py-3 border-b border-white/[0.06]">
                             <i class="ph ph-magnifying-glass text-zinc-500"></i>
                             <input type="text" id="global-search-input" placeholder="Search assets, users, docs..." oninput="globalSearch(this.value)" class="flex-1 bg-transparent text-sm text-zinc-50 outline-none placeholder:text-zinc-600" />
-                            <kbd class="text-[10px] text-zinc-600 border border-zinc-800 rounded px-1.5 py-0.5">"Esc"</kbd>
+                            <kbd class="text-[10px] text-zinc-600 border border-white/[0.08] rounded px-1.5 py-0.5">"Esc"</kbd>
                         </div>
                         <div id="global-search-results" class="max-h-[400px] overflow-y-auto">
                             <div class="px-4 py-8 text-center text-xs text-zinc-600">"Type to search across marketplace, users, and docs."</div>
                         </div>
                     </div>
                 </div>
+
                 // Logged-out
                 <div id="nav-guest" class="flex gap-2">
-                    <a href="/login" class="text-sm text-zinc-400 hover:text-zinc-50 hover:bg-surface-card px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5">
+                    <a id="nav-signin-link" href="/login" class="text-sm text-zinc-300 hover:text-white bg-accent/80 hover:bg-accent px-4 py-1.5 rounded-lg transition-all flex items-center gap-1.5">
                         <i class="ph ph-sign-in text-base"></i>"Sign In"
                     </a>
                 </div>
+
                 // Logged-in
                 <div id="nav-user" class="hidden items-center gap-2">
                     // Messages
-                    <a href="/messages" class="relative p-1.5 rounded-lg hover:bg-white/5 transition-colors" title="Messages">
+                    <a href="/messages" class="relative p-2 rounded-lg hover:bg-white/[0.06] transition-colors" title="Messages">
                         <i class="ph ph-chat-circle-dots text-lg text-zinc-400 hover:text-zinc-200"></i>
                         <span id="msg-badge" class="hidden absolute -top-0.5 -right-0.5 w-4 h-4 bg-accent rounded-full text-[9px] font-bold text-white flex items-center justify-center"></span>
                     </a>
-                    // Notification bell
+                    // Notifications
                     <div class="relative" id="notif-wrap">
-                        <button onclick="toggleNotifs()" class="text-sm text-zinc-400 hover:text-zinc-50 hover:bg-surface-card p-1.5 rounded-lg transition-all relative">
+                        <button onclick="toggleNotifs()" class="text-zinc-400 hover:text-white p-2 rounded-lg hover:bg-white/[0.06] transition-all relative">
                             <i class="ph ph-bell text-lg"></i>
-                            <span id="notif-badge" class="hidden absolute -top-0.5 -right-0.5 w-4 h-4 bg-red-500 rounded-full text-[10px] text-white flex items-center justify-center font-bold"></span>
+                            <span id="notif-badge" class="hidden absolute -top-0.5 -right-0.5 w-4 h-4 bg-red-500 rounded-full text-[9px] text-white flex items-center justify-center font-bold"></span>
                         </button>
-                        <div id="notif-dropdown" class="hidden absolute right-0 top-full mt-1 w-80 bg-surface-card border border-zinc-800 rounded-lg shadow-xl overflow-hidden z-50">
-                            <div class="flex justify-between items-center px-3 py-2 border-b border-zinc-800">
+                        <div id="notif-dropdown" class="hidden absolute right-0 top-full mt-2 w-80 bg-[rgba(10,10,16,0.95)] backdrop-blur-2xl border border-white/[0.08] rounded-xl shadow-2xl overflow-hidden z-50">
+                            <div class="flex justify-between items-center px-3 py-2.5 border-b border-white/[0.06]">
                                 <span class="text-xs font-semibold text-zinc-300">"Notifications"</span>
                                 <button onclick="markAllRead()" class="text-xs text-accent hover:text-accent-hover">"Mark all read"</button>
                             </div>
@@ -68,50 +93,42 @@ pub fn Nav() -> impl IntoView {
                             </div>
                         </div>
                     </div>
-                    // Wallet with credit amount
-                    <a href="/wallet" class="text-sm text-zinc-400 hover:text-zinc-50 hover:bg-surface-card px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5">
-                        <i class="ph ph-wallet text-base"></i>
-                        <span id="nav-credits" class="text-zinc-50 font-semibold text-base">"0"</span>
-                        <span class="text-zinc-400 text-xs">"credits"</span>
+                    // Credits
+                    <a href="/wallet" class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/[0.04] border border-white/[0.05] hover:bg-white/[0.08] transition-all">
+                        <i class="ph ph-coins text-sm text-amber-400"></i>
+                        <span id="nav-credits" class="text-sm text-white font-semibold">"0"</span>
                     </a>
-                    <div class="w-px h-5 bg-zinc-800 mx-1"></div>
-                    // User dropdown
+                    // User
                     <div class="relative" id="user-dropdown-wrap">
-                        <button onclick="toggleDropdown()" id="user-dropdown-btn" class="text-sm text-zinc-300 hover:text-zinc-50 hover:bg-surface-card px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 cursor-pointer">
-                            <i class="ph ph-user-circle text-base"></i>
-                            <span id="nav-username"></span>
-                            <i class="ph ph-caret-down text-xs"></i>
+                        <button onclick="toggleDropdown()" id="user-dropdown-btn" class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/[0.04] border border-white/[0.05] hover:bg-white/[0.08] transition-all cursor-pointer">
+                            <i class="ph ph-user-circle text-base text-zinc-300"></i>
+                            <span id="nav-username" class="text-sm text-zinc-200"></span>
+                            <i class="ph ph-caret-down text-xs text-zinc-500"></i>
                         </button>
-                        <div id="user-dropdown" class="hidden absolute right-0 top-full mt-1 w-48 bg-surface-card border border-zinc-800 rounded-lg shadow-xl overflow-hidden z-50">
-                            <a id="nav-profile-link" href="/profile" class="flex items-center gap-2 px-3 py-2.5 text-sm text-zinc-400 hover:text-zinc-50 hover:bg-white/5 transition-all">
+                        <div id="user-dropdown" class="hidden absolute right-0 top-full mt-2 w-52 bg-[rgba(10,10,16,0.95)] backdrop-blur-2xl border border-white/[0.08] rounded-xl shadow-2xl overflow-hidden z-50 py-1">
+                            <a id="nav-profile-link" href="/profile" class="flex items-center gap-2.5 px-4 py-2.5 text-sm text-zinc-400 hover:text-white hover:bg-white/[0.06] transition-all">
                                 <i class="ph ph-user text-base"></i>"Profile"
                             </a>
-                            <a href="/library" class="flex items-center gap-2 px-3 py-2.5 text-sm text-zinc-400 hover:text-zinc-50 hover:bg-white/5 transition-all">
+                            <a href="/library" class="flex items-center gap-2.5 px-4 py-2.5 text-sm text-zinc-400 hover:text-white hover:bg-white/[0.06] transition-all">
                                 <i class="ph ph-books text-base"></i>"My Library"
                             </a>
-                            <a id="nav-sell-link" href="/marketplace/sell" class="flex items-center gap-2 px-3 py-2.5 text-sm text-zinc-400 hover:text-zinc-50 hover:bg-white/5 transition-all">
+                            <a id="nav-sell-link" href="/marketplace/sell" class="flex items-center gap-2.5 px-4 py-2.5 text-sm text-zinc-400 hover:text-white hover:bg-white/[0.06] transition-all">
                                 <i class="ph ph-storefront text-base" id="nav-sell-icon"></i><span id="nav-sell-text">"Sell on Marketplace"</span>
                             </a>
-                            <a href="/teams" class="flex items-center gap-2 px-3 py-2.5 text-sm text-zinc-400 hover:text-zinc-50 hover:bg-white/5 transition-all">
+                            <a href="/teams" class="flex items-center gap-2.5 px-4 py-2.5 text-sm text-zinc-400 hover:text-white hover:bg-white/[0.06] transition-all">
                                 <i class="ph ph-users-three text-base"></i>"Teams"
                             </a>
-                            <a href="/subscription" class="flex items-center gap-2 px-3 py-2.5 text-sm text-zinc-400 hover:text-zinc-50 hover:bg-white/5 transition-all">
+                            <a href="/subscription" class="flex items-center gap-2.5 px-4 py-2.5 text-sm text-zinc-400 hover:text-white hover:bg-white/[0.06] transition-all">
                                 <i class="ph ph-crown text-base"></i>"Subscription"
                             </a>
-                            <a href="/developers" class="flex items-center gap-2 px-3 py-2.5 text-sm text-zinc-400 hover:text-zinc-50 hover:bg-white/5 transition-all">
+                            <a href="/developers" class="flex items-center gap-2.5 px-4 py-2.5 text-sm text-zinc-400 hover:text-white hover:bg-white/[0.06] transition-all">
                                 <i class="ph ph-code text-base"></i>"Developers"
                             </a>
-                            <a href="/gifts" class="flex items-center gap-2 px-3 py-2.5 text-sm text-zinc-400 hover:text-zinc-50 hover:bg-white/5 transition-all">
-                                <i class="ph ph-gift text-base"></i>"Gift Cards"
-                            </a>
-                            <a href="/donate" class="flex items-center gap-2 px-3 py-2.5 text-sm text-zinc-400 hover:text-zinc-50 hover:bg-white/5 transition-all">
-                                <i class="ph ph-heart text-base"></i>"Donate"
-                            </a>
-                            <a href="/settings" class="flex items-center gap-2 px-3 py-2.5 text-sm text-zinc-400 hover:text-zinc-50 hover:bg-white/5 transition-all">
+                            <a href="/settings" class="flex items-center gap-2.5 px-4 py-2.5 text-sm text-zinc-400 hover:text-white hover:bg-white/[0.06] transition-all">
                                 <i class="ph ph-gear text-base"></i>"Settings"
                             </a>
-                            <div class="border-t border-zinc-800"></div>
-                            <button onclick="handleLogout()" class="w-full flex items-center gap-2 px-3 py-2.5 text-sm text-red-400 hover:text-red-300 hover:bg-white/5 transition-all cursor-pointer">
+                            <div class="border-t border-white/[0.06] my-1"></div>
+                            <button onclick="handleLogout()" class="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-red-400 hover:text-red-300 hover:bg-white/[0.06] transition-all cursor-pointer">
                                 <i class="ph ph-sign-out text-base"></i>"Sign Out"
                             </button>
                         </div>
@@ -119,6 +136,7 @@ pub fn Nav() -> impl IntoView {
                 </div>
             </div>
         </nav>
+
 
         <script>
             r#"
@@ -441,13 +459,43 @@ pub fn Nav() -> impl IntoView {
                     const linkPath = link.getAttribute('data-path');
                     if (path === linkPath || path.startsWith(linkPath + '/')) {
                         link.classList.remove('text-zinc-400');
-                        link.classList.add('text-zinc-50');
+                        link.classList.add('text-white', 'bg-white/[0.06]');
                     }
                 });
+                // Highlight parent for child pages
+                const parents = { '/games': '/games', '/courses': '/marketplace', '/forum': '/feed', '/community': '/feed', '/messages': '/feed', '/developers': '/docs' };
+                for (const [sub, parent] of Object.entries(parents)) {
+                    if (path === sub || path.startsWith(sub + '/')) {
+                        const parentLink = document.querySelector(`.nav-link[data-path="${parent}"]`);
+                        if (parentLink) { parentLink.classList.remove('text-zinc-400'); parentLink.classList.add('text-white', 'bg-white/[0.06]'); }
+                    }
+                }
             })();
 
+            // Set redirect param on sign in link
+            const signinLink = document.getElementById('nav-signin-link');
+            if (signinLink && window.location.pathname !== '/login' && window.location.pathname !== '/register') {
+                signinLink.href = '/login?redirect=' + encodeURIComponent(window.location.pathname + window.location.search);
+            }
+
             updateNav();
-            loadNotifs(); // Initial load only
+            loadNotifs();
+
+            // Load XP bar
+            (async function() {
+                const t = getCookie('token');
+                if (!t) return;
+                try {
+                    const res = await fetch('/api/levels/me', { headers: { 'Authorization': 'Bearer ' + t } });
+                    if (!res.ok) return;
+                    const d = await res.json();
+                    document.getElementById('nav-xp-wrap')?.classList.remove('hidden');
+                    document.getElementById('nav-xp-wrap')?.classList.add('flex');
+                    document.getElementById('nav-level').textContent = d.level;
+                    document.getElementById('nav-xp-bar').style.width = d.progress_percent.toFixed(0) + '%';
+                    document.getElementById('nav-xp-text').textContent = d.total_xp.toLocaleString() + ' XP';
+                } catch(e) {}
+            })();
 
             // Message unread count
             fetch('/api/messages/unread-count', { headers: { 'Authorization': 'Bearer ' + getCookie('token') } })
@@ -461,7 +509,33 @@ pub fn Nav() -> impl IntoView {
                 }).catch(function() {});
             connectWs();  // Live updates from here on
             checkCreatorStatus();
+
+            // ── Nav scroll effect — transparent at top, glass on scroll ──
+            let navScrolled = false;
+            const nav = document.getElementById('main-nav');
+            window.addEventListener('scroll', function() {
+                if (window.scrollY > 20 && !navScrolled) {
+                    navScrolled = true;
+                    nav.style.background = 'rgba(6,6,8,0.75)';
+                    nav.style.backdropFilter = 'blur(24px)';
+                    nav.style.webkitBackdropFilter = 'blur(24px)';
+                } else if (window.scrollY <= 20 && navScrolled) {
+                    navScrolled = false;
+                    nav.style.background = 'transparent';
+                    nav.style.backdropFilter = 'none';
+                    nav.style.webkitBackdropFilter = 'none';
+                }
+            });
             "#
         </script>
+
+        <style>
+            r#"
+            @keyframes xpShimmer {
+                0% { background-position: -200% 0; }
+                100% { background-position: 200% 0; }
+            }
+            "#
+        </style>
     }
 }

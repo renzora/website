@@ -1,5 +1,7 @@
 pub mod admin;
 pub mod api_tokens;
+pub mod avatar;
+pub mod levels;
 pub mod articles;
 pub mod auth;
 pub mod creator;
@@ -68,6 +70,8 @@ pub fn api_router(state: AppState) -> Router {
         .nest("/messages", messages::router())
         .nest("/user", user::router())
         .nest("/ws", ws::router())
+        .nest("/avatar", avatar::router())
+        .nest("/levels", levels::router())
         .route("/launcher/download", axum::routing::post(launcher_download_track))
         .with_state(state)
 }

@@ -1,0 +1,14 @@
+<!DOCTYPE html><html><head></head>
+<body style="background:#111;color:#eee;font-family:monospace;padding:20px">
+<script type="importmap">{"imports":{"three":"https://unpkg.com/three@0.170.0/build/three.module.js","three/addons/":"https://unpkg.com/three@0.170.0/examples/jsm/"}}</script>
+<script type="module">
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+const loader = new GLTFLoader();
+const files = ['General','CombatMelee','CombatRanged','MovementBasic','MovementAdvanced','Simulation','Special','Tools'];
+for (const f of files) {
+    try {
+        const gltf = await new Promise((r,e) => loader.load('/assets/avatar/animations/Rig_Medium_'+f+'.glb', r, undefined, e));
+        document.body.innerHTML += '<h3 style="color:#14b8a6">'+f+' ('+gltf.animations.length+')</h3><pre>'+gltf.animations.map(a => a.name+' ('+a.duration.toFixed(1)+'s)').join('\n')+'</pre>';
+    } catch(e) { document.body.innerHTML += '<p style="color:red">'+f+': '+e+'</p>'; }
+}
+</script></body></html>

@@ -70,6 +70,9 @@ async fn create_thread(
     let cat = ForumCategory::find_by_slug(&state.db, &body.category_slug).await?.ok_or(ApiError::NotFound)?;
     let (thread, _post) = ForumThread::create(&state.db, cat.id, auth.user_id, &body.title, &body.content).await?;
 
+    // Award XP for forum post
+    let _ = renzora_models::xp::award_xp(&state.db, auth.user_id, renzora_models::xp::XP_FORUM_POST, "forum_thread", Some(thread.id)).await;
+
     // Broadcast new thread to all connected clients
     state.ws_broadcast.broadcast("new_thread", serde_json::json!({
         "thread_id": thread.id,
@@ -97,6 +100,9 @@ async fn create_reply(
     let thread = ForumThread::find_by_slug(&state.db, &slug).await?.ok_or(ApiError::NotFound)?;
     if thread.locked { return Err(ApiError::Validation("Thread is locked".into())); }
     let post = ForumPost::create_reply(&state.db, thread.id, auth.user_id, &body.content).await?;
+
+    // Award XP for reply
+    let _ = renzora_models::xp::award_xp(&state.db, auth.user_id, renzora_models::xp::XP_FORUM_POST, "forum_reply", Some(post.id)).await;
 
     // Notify thread author if someone else replied
     if thread.author_id != auth.user_id {

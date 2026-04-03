@@ -34,6 +34,10 @@ pub struct User {
     pub online_status_visible: bool,
     pub profile_visibility: String,
     pub last_seen_at: Option<OffsetDateTime>,
+    pub total_xp: i64,
+    pub level: i32,
+    pub seller_level: i32,
+    pub seller_xp: i64,
 }
 
 impl User {

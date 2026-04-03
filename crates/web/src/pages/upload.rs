@@ -506,14 +506,9 @@ pub fn UploadPage() -> impl IntoView {
                             <button type="button" onclick="prevStep()" class="px-5 py-2.5 rounded-xl text-sm font-medium bg-white/[0.05] border border-zinc-800/50 text-zinc-400 hover:border-zinc-600 hover:text-zinc-200 transition-all">
                                 <i class="ph ph-arrow-left mr-1"></i>"Back"
                             </button>
-                            // Game: draft + publish. Asset: draft only.
-                            <button type="button" onclick="handleSubmit(false)" id="draft-btn"
-                                class="flex-1 inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl text-sm font-medium bg-white/[0.05] border border-zinc-800/50 text-zinc-400 hover:border-zinc-600 hover:text-zinc-200 transition-all hidden">
-                                <i class="ph ph-floppy-disk"></i>"Save as Draft"
-                            </button>
                             <button type="button" onclick="handleSubmit(true)" id="publish-btn"
                                 class="flex-1 inline-flex items-center justify-center gap-2 px-5 py-3 rounded-xl text-sm font-semibold bg-accent text-white hover:bg-accent-hover transition-all hover:shadow-[0_0_20px_rgba(99,102,241,0.2)]">
-                                <i class="ph ph-upload-simple text-lg"></i><span id="publish-btn-text">"Upload"</span>
+                                <i class="ph ph-rocket-launch text-lg"></i>"Publish"
                             </button>
                         </div>
 
@@ -993,16 +988,7 @@ pub fn UploadPage() -> impl IntoView {
             html += '</div>';
             summary.innerHTML = html;
 
-            // Show/hide buttons
-            const draftBtn = document.getElementById('draft-btn');
-            const publishBtnText = document.getElementById('publish-btn-text');
-            if (W.contentType === 'game') {
-                draftBtn.classList.remove('hidden');
-                publishBtnText.textContent = 'Publish';
-            } else {
-                draftBtn.classList.add('hidden');
-                publishBtnText.textContent = 'Upload as Draft';
-            }
+            // No draft mode — always publish directly
         }
 
         function reviewRow(label, value) {
@@ -1024,14 +1010,10 @@ pub fn UploadPage() -> impl IntoView {
             errEl.classList.add('hidden');
             okEl.classList.add('hidden');
 
-            const btn = publish ? document.getElementById('publish-btn') : document.getElementById('draft-btn');
+            const btn = document.getElementById('publish-btn');
             const originalHtml = btn.innerHTML;
-            btn.innerHTML = '<div class="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div> Uploading...';
+            btn.innerHTML = '<div class="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div> Publishing...';
             btn.disabled = true;
-
-            // Disable the other button too
-            const otherBtn = publish ? document.getElementById('draft-btn') : document.getElementById('publish-btn');
-            if (otherBtn) otherBtn.disabled = true;
 
             try {
                 const name = document.getElementById('w-name').value.trim();
@@ -1088,15 +1070,6 @@ pub fn UploadPage() -> impl IntoView {
                     itemId = data.id;
                     itemSlug = data.slug;
 
-                    // Publish if requested
-                    if (publish) {
-                        await fetch('/api/games/' + itemId + '/update', {
-                            method: 'PUT',
-                            headers: { ...headers, 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ published: true })
-                        });
-                    }
-
                     // Upload screenshots
                     for (let i = 0; i < Math.min(screenshots.length, 10); i++) {
                         const mfd = new FormData();
@@ -1111,9 +1084,7 @@ pub fn UploadPage() -> impl IntoView {
                     }
 
                     const link = '/games/' + itemSlug;
-                    document.getElementById('wizard-success-text').innerHTML = publish
-                        ? 'Game published! <a href="' + link + '" class="underline">View your game \u2192</a>'
-                        : 'Draft saved! <a href="' + link + '" class="underline">View draft \u2192</a>';
+                    document.getElementById('wizard-success-text').innerHTML = 'Game published! <a href="' + link + '" class="underline">View your game <i class="ph ph-arrow-right"></i></a>';
 
                 } else {
                     const res = await fetch('/api/marketplace/upload', {
@@ -1163,7 +1134,8 @@ pub fn UploadPage() -> impl IntoView {
                         });
                     }
 
-                    document.getElementById('wizard-success-text').innerHTML = 'Asset uploaded successfully! You can publish it from your <a href="/dashboard" class="underline">dashboard</a>.';
+                    const assetLink = '/marketplace/asset/' + itemSlug;
+                    document.getElementById('wizard-success-text').innerHTML = 'Asset published! <a href="' + assetLink + '" class="underline">View your asset <i class="ph ph-arrow-right"></i></a>';
                 }
 
                 okEl.classList.remove('hidden');
@@ -1175,7 +1147,6 @@ pub fn UploadPage() -> impl IntoView {
 
             btn.innerHTML = originalHtml;
             btn.disabled = false;
-            if (otherBtn) otherBtn.disabled = false;
         }
 
         // ──────────────────────────────────────

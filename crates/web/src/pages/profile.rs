@@ -3,489 +3,423 @@ use leptos::prelude::*;
 #[component]
 pub fn ProfilePage() -> impl IntoView {
     view! {
-        <section class="py-0 px-0">
-            <div id="profile-content" class="min-h-[60vh]">
-                <div class="flex items-center justify-center py-20">
-                    <div class="inline-block animate-spin w-5 h-5 border-2 border-zinc-700 border-t-accent rounded-full"></div>
+        <section class="min-h-screen relative overflow-hidden">
+            // Glow orbs
+            <div class="fixed top-20 right-1/4 w-[500px] h-[500px] bg-accent/10 rounded-full blur-[150px] pointer-events-none"></div>
+            <div class="fixed bottom-20 left-1/4 w-[400px] h-[400px] bg-purple-600/10 rounded-full blur-[120px] pointer-events-none"></div>
+
+            <div id="pf-loading" class="flex items-center justify-center py-32">
+                <div class="w-8 h-8 border-2 border-zinc-800 border-t-accent rounded-full animate-spin"></div>
+            </div>
+            <div id="pf-404" class="hidden flex items-center justify-center py-32">
+                <div class="text-center"><i class="ph ph-user-circle text-5xl text-zinc-700 mb-3"></i><p class="text-zinc-500">"User not found."</p></div>
+            </div>
+            <div id="pf-content" class="hidden"></div>
+
+            // Edit modal
+            <div id="pf-edit-overlay" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+                <div class="w-[480px] bg-[#12121a] border border-white/[0.08] rounded-2xl p-6 shadow-2xl">
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="text-sm font-semibold">"Edit Profile"</h3>
+                        <button onclick="window._closeEdit()" class="text-zinc-500 hover:text-white"><i class="ph ph-x text-lg"></i></button>
+                    </div>
+                    <div class="grid grid-cols-2 gap-3 mb-4">
+                        <div class="col-span-2"><label class="block text-[10px] text-zinc-500 mb-1">"Bio"</label><textarea id="ed-bio" rows="2" class="w-full px-3 py-2 bg-black/40 border border-white/[0.06] rounded-xl text-sm text-zinc-50 outline-none focus:border-accent resize-none"></textarea></div>
+                        <div><label class="block text-[10px] text-zinc-500 mb-1">"Location"</label><input id="ed-loc" type="text" class="w-full px-3 py-2 bg-black/40 border border-white/[0.06] rounded-xl text-sm text-zinc-50 outline-none focus:border-accent" /></div>
+                        <div><label class="block text-[10px] text-zinc-500 mb-1">"Website"</label><input id="ed-web" type="url" class="w-full px-3 py-2 bg-black/40 border border-white/[0.06] rounded-xl text-sm text-zinc-50 outline-none focus:border-accent" /></div>
+                        <div><label class="block text-[10px] text-zinc-500 mb-1">"Profile Color"</label><input id="ed-pc" type="color" value="#6366f1" class="w-full h-9 rounded-xl cursor-pointer bg-transparent border border-white/[0.06]" /></div>
+                        <div><label class="block text-[10px] text-zinc-500 mb-1">"Banner Color"</label><input id="ed-bc" type="color" value="#1e1b4b" class="w-full h-9 rounded-xl cursor-pointer bg-transparent border border-white/[0.06]" /></div>
+                    </div>
+                    <div class="flex gap-2">
+                        <button onclick="window._saveProfile()" class="px-5 py-2 rounded-xl text-sm font-medium bg-accent text-white hover:bg-accent-hover">"Save"</button>
+                        <button onclick="window._closeEdit()" class="px-5 py-2 rounded-xl text-sm text-zinc-400 hover:text-white">"Cancel"</button>
+                    </div>
                 </div>
             </div>
         </section>
-        <script>
-            r##"
-            let profileData = null;
-            let isOwnProfile = false;
-            let isStaff = false;
 
-            function parseDate(s) {
-                if (!s) return null;
-                // Try direct parse first (ISO 8601 / RFC 3339)
-                let d = new Date(s);
-                if (!isNaN(d.getTime())) return d;
-                // Fallback: Rust OffsetDateTime format "2024-01-15 10:30:00.123 +00:00:00"
-                const iso = s.replace(/^(\d{4}-\d{2}-\d{2})\s+(\d{2}:\d{2}:\d{2}).*?\s*([+-]\d{2}):?(\d{2}).*$/, '$1T$2$3:$4');
-                d = new Date(iso);
-                return isNaN(d.getTime()) ? null : d;
-            }
+        <script>
+            r#"
+            const username = window.location.pathname.split('/').pop();
+            const token = document.cookie.match('(^|;)\\s*token\\s*=\\s*([^;]+)')?.pop();
+            const hdrs = token ? { 'Authorization': 'Bearer ' + token } : {};
+
+            // Register functions immediately
+            window._ptab = ptab;
+            window._openEdit = () => document.getElementById('pf-edit-overlay').classList.remove('hidden');
+            window._closeEdit = () => document.getElementById('pf-edit-overlay').classList.add('hidden');
+            window._saveProfile = saveProfile;
+            window._follow = doFollow;
+            window._msg = doMsg;
+
+            let assetPage = 0;
+            let assetHasMore = true;
+            let assetLoading = false;
 
             (async function() {
-                const username = window.location.pathname.split('/').pop();
-                const token = document.cookie.match('(^|;)\\s*token\\s*=\\s*([^;]+)')?.pop();
+                const res = await fetch('/api/profiles/view/' + username, { headers: hdrs });
+                document.getElementById('pf-loading').classList.add('hidden');
 
-                const headers = {};
-                if (token) headers['Authorization'] = 'Bearer ' + token;
+                if (!res.ok) { document.getElementById('pf-404').classList.remove('hidden'); return; }
 
-                const res = await fetch('/api/profiles/view/' + username, { headers });
-                if (!res.ok) {
-                    document.getElementById('profile-content').innerHTML = `
-                        <div class="text-center py-20">
-                            <i class="ph ph-user-circle text-5xl text-zinc-700 mb-3"></i>
-                            <p class="text-zinc-500">User not found.</p>
-                        </div>`;
-                    return;
-                }
-
-                profileData = await res.json();
-                const p = profileData;
+                const p = await res.json();
 
                 const userCookie = document.cookie.match('(^|;)\\s*user\\s*=\\s*([^;]+)')?.pop();
-                if (userCookie) {
-                    try {
-                        const u = JSON.parse(decodeURIComponent(userCookie));
-                        isOwnProfile = u.username === username;
-                        isStaff = u.role === 'admin' || u.role === 'moderator';
-                    } catch(e) {}
+                let isOwn = false;
+                if (userCookie) { try { isOwn = JSON.parse(decodeURIComponent(userCookie)).username === username; } catch(e) {} }
+
+                // XP
+                const lvl = p.level || 1, xp = p.total_xp || 0;
+                const curXp = lvl*(lvl-1)*50, nxtXp = (lvl+1)*lvl*50;
+                const pct = nxtXp > curXp ? Math.min(100, (xp-curXp)/(nxtXp-curXp)*100).toFixed(0) : 100;
+
+                // Seller
+                const sNames = ['','Bronze','Silver','Gold','Platinum','Diamond'];
+                const sColors = ['','#CD7F32','#C0C0C0','#FFD700','#E5E4E2','#B9F2FF'];
+                const sLvl = p.seller_level || 0;
+                const sellerBadge = sLvl > 0 ? `<span class="text-[10px] font-bold px-2 py-0.5 rounded-md" style="background:${sColors[sLvl]}15;color:${sColors[sLvl]};border:1px solid ${sColors[sLvl]}30">${sNames[sLvl]} Seller</span>` : '';
+
+                // Role
+                const rc = {admin:'#ef4444',creator:'#8b5cf6',moderator:'#f59e0b',user:'#6b7280'}[p.role]||'#6b7280';
+
+                // Avatar — 3D canvas or fallback image
+                const avatarFallback = p.avatar_url
+                    ? `<img src="${p.avatar_url}" class="w-full h-full object-cover" />`
+                    : `<div class="w-full h-full flex items-center justify-center bg-gradient-to-br from-accent/20 to-purple-500/20"><i class="ph ph-user text-4xl" style="color:${p.profile_color||'#6366f1'}"></i></div>`;
+                const avatar = `<canvas id="pf-avatar-3d" class="w-full h-full hidden"></canvas><div id="pf-avatar-fallback">${avatarFallback}</div>`;
+
+                // Joined
+                const jd = new Date(p.created_at);
+                const joined = !isNaN(jd) ? jd.toLocaleDateString('en-US',{month:'long',year:'numeric'}) : '';
+
+                // Actions
+                let actions = '';
+                if (!isOwn && token) {
+                    actions += `<button onclick="window._follow('${p.username}')" class="px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${p.is_following?'bg-white/[0.06] border border-white/[0.06] text-zinc-300 hover:text-red-400':'bg-accent text-white hover:bg-accent-hover'}">${p.is_following?'Unfollow':'Follow'}</button>`;
+                    actions += `<button onclick="window._friend('${p.username}')" id="pf-friend-btn" class="px-3 py-1.5 rounded-lg text-xs font-medium bg-white/[0.06] border border-white/[0.06] text-zinc-300 hover:text-white transition-all"><i class="ph ph-user-plus mr-1"></i>Add Friend</button>`;
+                    actions += `<button onclick="window._msg('${p.id}')" class="px-3 py-1.5 rounded-lg text-xs font-medium bg-white/[0.06] border border-white/[0.06] text-zinc-300 hover:text-white transition-all"><i class="ph ph-chat-circle-dots mr-1"></i>Message</button>`;
+                    actions += `<button onclick="window._block('${p.username}')" class="px-3 py-1.5 rounded-lg text-xs font-medium bg-white/[0.04] border border-red-900/30 text-red-400/70 hover:text-red-400 hover:bg-red-950/20 transition-all"><i class="ph ph-prohibit mr-1"></i>Block</button>`;
+                }
+                if (isOwn) {
+                    actions += `<button onclick="window._openEdit()" class="px-3 py-1.5 rounded-lg text-xs font-medium bg-white/[0.06] border border-white/[0.06] text-zinc-300 hover:text-white transition-all"><i class="ph ph-pencil-simple mr-1"></i>Edit</button>`;
+                    actions += `<a href="/avatar/edit" class="px-3 py-1.5 rounded-lg text-xs font-medium bg-accent/20 border border-accent/30 text-accent hover:bg-accent/30 transition-all inline-flex items-center"><i class="ph ph-person-arms-spread mr-1"></i>Avatar</a>`;
                 }
 
-                // Get friend status
-                var friendStatus = 'none';
-                if (token && !isOwnProfile) {
+                // Check friend status
+                if (!isOwn && token) {
                     try {
                         var fres = await fetch('/api/gameservices/friends', { headers: { 'Authorization': 'Bearer ' + token } });
                         var friends = await fres.json();
                         if (Array.isArray(friends)) {
                             var match = friends.find(function(f) { return f.friend_username === username; });
-                            if (match) friendStatus = 'accepted';
+                            if (match) {
+                                var fbtn = document.getElementById('pf-friend-btn');
+                                if (fbtn) { fbtn.innerHTML = '<i class="ph ph-user-minus mr-1"></i>Unfriend'; }
+                            }
                         }
                     } catch(e) {}
                 }
 
+                // Social icons
+                const si = {discord:'ph-discord-logo',twitch:'ph-twitch-logo',youtube:'ph-youtube-logo',twitter:'ph-twitter-logo',github:'ph-github-logo'};
+                const socialHtml = (p.connections||[]).map(c =>
+                    `<a href="${c.platform_url||'#'}" target="_blank" class="w-8 h-8 rounded-lg bg-white/[0.04] border border-white/[0.04] flex items-center justify-center text-zinc-400 hover:text-white hover:bg-white/[0.08] transition-all" title="${c.platform}"><i class="ph ${si[c.platform]||'ph-link'}"></i></a>`
+                ).join('');
+
                 // Badges
-                const badges = p.badges.map(b => `
-                    <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-medium border" style="border-color: ${b.color}30; color: ${b.color}; background: ${b.color}10" title="${b.description}">
-                        <i class="ph ${b.icon}"></i>${b.name}
-                    </span>
-                `).join('');
+                const badgesHtml = p.badges.length ? p.badges.map(b =>
+                    `<div class="flex items-center gap-2 p-2.5 rounded-xl bg-white/[0.03] border border-white/[0.04] hover:border-white/[0.08] transition-all" title="${b.description}"><div class="w-8 h-8 rounded-lg flex items-center justify-center" style="background:${b.color}15"><i class="ph ${b.icon} text-lg" style="color:${b.color}"></i></div><div><div class="text-xs font-medium" style="color:${b.color}">${b.name}</div><div class="text-[9px] text-zinc-600">${b.description}</div></div></div>`
+                ).join('') : '<p class="text-zinc-600 text-sm text-center py-6 col-span-full">No badges yet</p>';
 
-                // Social connections
-                var socialHtml = '';
-                if (p.connections && p.connections.length > 0) {
-                    var icons = { discord: 'ph-discord-logo', twitch: 'ph-twitch-logo', steam: 'ph-steam-logo', xbox: 'ph-game-controller', playstation: 'ph-game-controller', epic: 'ph-game-controller', kick: 'ph-broadcast', youtube: 'ph-youtube-logo', twitter: 'ph-twitter-logo', github: 'ph-github-logo' };
-                    socialHtml = '<div class="flex flex-wrap gap-2 mt-3">' + p.connections.map(function(c) {
-                        var icon = icons[c.platform] || 'ph-link';
-                        var verified = c.verified ? ' <i class="ph ph-seal-check text-accent text-[10px]"></i>' : '';
-                        var url = c.platform_url || '#';
-                        return '<a href="' + url + '" target="_blank" rel="noopener" class="flex items-center gap-1.5 px-2.5 py-1 bg-zinc-800/50 border border-zinc-700/50 rounded-lg text-xs text-zinc-400 hover:text-zinc-200 transition-colors" title="' + c.platform + '">' +
-                            '<i class="ph ' + icon + '"></i> ' + c.platform_username + verified +
-                        '</a>';
-                    }).join('') + '</div>';
-                }
-
-                // Follow button
-                const followBtn = !isOwnProfile && token ? `
-                    <button onclick="toggleFollow('${p.username}')" id="follow-btn"
-                        class="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${p.is_following
-                            ? 'bg-surface-card border border-zinc-800 text-zinc-300 hover:border-red-500 hover:text-red-400'
-                            : 'bg-accent text-white hover:bg-accent-hover'}">
-                        <i class="ph ${p.is_following ? 'ph-user-minus' : 'ph-user-plus'} text-base"></i>
-                        ${p.is_following ? 'Unfollow' : 'Follow'}
-                    </button>
-                    <button onclick="toggleFriend('${p.username}')" id="friend-btn"
-                        class="px-4 py-1.5 text-sm font-medium rounded-lg border border-zinc-700 text-zinc-300 hover:bg-zinc-800 transition-colors">
-                        ${friendStatus === 'accepted' ? 'Unfriend' : friendStatus === 'pending' ? 'Pending' : 'Add Friend'}
-                    </button>
-                    <button onclick="blockUser('${p.username}')"
-                        class="px-3 py-1.5 text-sm font-medium rounded-lg border border-red-900/50 text-red-400 hover:bg-red-950/30 transition-colors">
-                        Block
-                    </button>
-                    <button onclick="messageUser('${p.id}')" class="px-4 py-1.5 text-sm font-medium rounded-lg bg-accent hover:bg-accent-hover text-white transition-colors">Message</button>` : '';
-
-                // Avatar
-                const avatarImg = p.avatar_url
-                    ? `<img src="${p.avatar_url}" class="w-full h-full object-cover rounded-full" />`
-                    : `<i class="ph ph-user text-4xl" style="color: ${p.profile_color}"></i>`;
-
-                const avatarOverlay = isOwnProfile ? `
-                    <label class="absolute inset-0 flex items-center justify-center bg-black/50 rounded-full opacity-0 hover:opacity-100 transition-opacity cursor-pointer">
-                        <i class="ph ph-camera text-white text-xl"></i>
-                        <input type="file" accept="image/*" onchange="uploadAvatar(this)" class="hidden" />
-                    </label>` : '';
-
-                // Info pills
-                const joinedDate = parseDate(p.created_at);
-                const joinedStr = joinedDate ? joinedDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' }) : 'Unknown';
-                const infoPills = [
-                    p.location ? `<span class="inline-flex items-center gap-1 text-xs text-zinc-400"><i class="ph ph-map-pin"></i>${p.location}</span>` : '',
-                    p.website ? `<a href="${p.website}" target="_blank" class="inline-flex items-center gap-1 text-xs text-accent hover:text-accent-hover"><i class="ph ph-link"></i>${p.website.replace(/^https?:\/\//, '')}</a>` : '',
-                    `<span class="inline-flex items-center gap-1 text-xs text-zinc-500"><i class="ph ph-calendar"></i>Joined ${joinedStr}</span>`,
-                ].filter(Boolean).join('');
-
-                // Role badge
-                const roleColors = { admin: '#ef4444', creator: '#8b5cf6', moderator: '#f59e0b', user: '#6b7280' };
-                const roleColor = roleColors[p.role] || roleColors.user;
-
-                // Assets grid
-                const assetsHtml = (p.assets && p.assets.length) ? p.assets.map(a => `
-                    <a href="/marketplace/asset/${a.slug}" class="block group">
-                        <div class="bg-surface-card border border-zinc-800 rounded-xl overflow-hidden hover:border-zinc-700 transition-all">
-                            <div class="h-32 bg-surface flex items-center justify-center relative">
-                                ${a.thumbnail_url ? `<img src="${a.thumbnail_url}" class="w-full h-full object-cover" />` : `<i class="ph ph-package text-3xl text-zinc-700"></i>`}
-                                <span class="absolute top-2 right-2 text-[10px] px-1.5 py-0.5 rounded bg-black/50 text-zinc-300 backdrop-blur-sm">${a.category}</span>
-                            </div>
-                            <div class="p-3">
-                                <h3 class="text-sm font-semibold group-hover:text-accent transition-colors truncate">${a.name}</h3>
-                                <div class="flex items-center justify-between mt-2">
-                                    <span class="text-xs text-zinc-500"><i class="ph ph-download-simple"></i> ${a.downloads}</span>
-                                    <span class="text-xs font-semibold ${a.price_credits === 0 ? 'text-green-400' : 'text-zinc-50'}">${a.price_credits === 0 ? 'Free' : a.price_credits + ' credits'}</span>
-                                </div>
-                            </div>
-                        </div>
-                    </a>
-                `).join('') : '<p class="text-zinc-500 text-sm py-8 text-center">No published assets yet.</p>';
-
-                // Staff notes section (only for staff viewing other profiles)
-                const staffNotesHtml = isStaff ? `
-                    <div class="bg-surface-card border border-amber-500/20 rounded-xl p-4">
-                        <div class="flex items-center gap-2 mb-3">
-                            <i class="ph ph-shield-check text-amber-400"></i>
-                            <h3 class="text-sm font-semibold text-amber-400">Staff Notes</h3>
-                        </div>
-                        <div id="profile-notes-list" class="space-y-2 mb-3"><p class="text-xs text-zinc-500">Loading...</p></div>
-                        <div class="flex gap-2">
-                            <input type="text" id="profile-note-input" placeholder="Add a staff note..." class="flex-1 px-3 py-2 bg-surface border border-zinc-800 rounded-lg text-sm text-zinc-50 outline-none focus:border-accent" />
-                            <button onclick="addProfileNote()" class="px-3 py-2 rounded-lg text-xs font-medium bg-accent text-white hover:bg-accent-hover">Add</button>
-                        </div>
-                    </div>` : '';
-
-                const el = document.getElementById('profile-content');
+                const el = document.getElementById('pf-content');
+                el.classList.remove('hidden');
                 el.innerHTML = `
-                    <!-- Banner -->
-                    <div class="h-40 relative" style="background: linear-gradient(135deg, ${p.banner_color}, ${p.banner_color}88, ${p.profile_color}44)">
-                        <div class="absolute inset-0 bg-gradient-to-b from-transparent to-[#0a0a0b]"></div>
-                    </div>
+                <div class="max-w-[1100px] mx-auto px-6 py-8 relative z-10">
 
-                    <!-- Profile card -->
-                    <div class="max-w-[1000px] mx-auto px-6 -mt-16 relative z-10">
-                        <div class="flex flex-col sm:flex-row gap-5">
-                            <!-- Avatar -->
-                            <div class="relative w-28 h-28 rounded-full border-4 border-[#0a0a0b] bg-surface-card flex items-center justify-center flex-shrink-0 overflow-hidden" style="box-shadow: 0 0 0 3px ${p.profile_color}40">
-                                ${avatarImg}
-                                ${avatarOverlay}
-                            </div>
+                    <!-- Top row: Avatar card + Info -->
+                    <div class="flex flex-col lg:flex-row gap-5 mb-5">
 
-                            <!-- Info -->
-                            <div class="flex-1 pt-2">
-                                <div class="flex flex-wrap items-center gap-3 mb-2">
-                                    <h1 class="text-2xl font-bold">${p.username}</h1>
-                                    <span class="text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full" style="background: ${roleColor}15; color: ${roleColor}; border: 1px solid ${roleColor}30">${p.role}</span>
-                                    ${followBtn}
-                                    ${isOwnProfile ? `
-                                        <button onclick="toggleEditProfile()" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-surface-card border border-zinc-800 text-zinc-400 hover:border-zinc-600 hover:text-zinc-200 transition-colors"><i class="ph ph-pencil-simple"></i>Edit</button>
-                                    ` : ''}
+                        <!-- Avatar card -->
+                        <div class="w-full lg:w-[280px] shrink-0">
+                            <div class="rounded-2xl border border-white/[0.06] bg-[#0e0e16]/80 backdrop-blur-xl overflow-hidden shadow-xl shadow-black/30">
+                                <div class="aspect-square overflow-hidden relative">
+                                    ${avatar}
                                 </div>
 
-                                ${p.bio ? `<p class="text-sm text-zinc-400 mb-3 max-w-lg">${p.bio}</p>` : ''}
-
-                                <div class="flex flex-wrap items-center gap-3 mb-3">${infoPills}</div>
-
-                                <div class="flex gap-5 text-sm">
-                                    <div><span class="font-semibold text-zinc-50">${p.follower_count.toLocaleString()}</span> <span class="text-zinc-500">followers</span></div>
-                                    <div><span class="font-semibold text-zinc-50">${p.following_count.toLocaleString()}</span> <span class="text-zinc-500">following</span></div>
-                                    ${p.assets ? `<div><span class="font-semibold text-zinc-50">${p.assets.length}</span> <span class="text-zinc-500">assets</span></div>` : ''}
-                                </div>
-
-                                ${badges ? `<div class="flex flex-wrap gap-2 mt-3">${badges}</div>` : ''}
-                                ${socialHtml}
-                            </div>
-                        </div>
-
-                        <!-- Edit form (hidden) -->
-                        <div id="edit-profile" class="hidden mt-6 p-6 bg-surface-card border border-zinc-800 rounded-xl">
-                            <h3 class="text-base font-semibold mb-4">Edit Profile</h3>
-                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
-                                <div>
-                                    <label class="block text-xs text-zinc-500 mb-1">Bio</label>
-                                    <textarea id="edit-bio" rows="3" class="w-full px-3 py-2 bg-surface border border-zinc-800 rounded-lg text-sm text-zinc-50 outline-none focus:border-accent resize-y">${p.bio || ''}</textarea>
-                                </div>
-                                <div class="space-y-3">
-                                    <div>
-                                        <label class="block text-xs text-zinc-500 mb-1">Location</label>
-                                        <input id="edit-location" type="text" value="${p.location || ''}" class="w-full px-3 py-2 bg-surface border border-zinc-800 rounded-lg text-sm text-zinc-50 outline-none focus:border-accent" />
-                                    </div>
-                                    <div>
-                                        <label class="block text-xs text-zinc-500 mb-1">Website</label>
-                                        <input id="edit-website" type="url" value="${p.website || ''}" class="w-full px-3 py-2 bg-surface border border-zinc-800 rounded-lg text-sm text-zinc-50 outline-none focus:border-accent" />
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-4">
-                                <div>
-                                    <label class="block text-xs text-zinc-500 mb-1">Gender</label>
-                                    <select id="edit-gender" class="w-full px-3 py-2 bg-surface border border-zinc-800 rounded-lg text-sm text-zinc-50">
-                                        <option value="" ${!p.gender?'selected':''}>—</option>
-                                        <option value="Male" ${p.gender==='Male'?'selected':''}>Male</option>
-                                        <option value="Female" ${p.gender==='Female'?'selected':''}>Female</option>
-                                        <option value="Non-binary" ${p.gender==='Non-binary'?'selected':''}>Non-binary</option>
-                                    </select>
-                                </div>
-                                <div>
-                                    <label class="block text-xs text-zinc-500 mb-1">Profile Color</label>
-                                    <input id="edit-profile-color" type="color" value="${p.profile_color || '#6366f1'}" class="w-full h-9 rounded cursor-pointer bg-transparent border border-zinc-800" />
-                                </div>
-                                <div>
-                                    <label class="block text-xs text-zinc-500 mb-1">Banner Color</label>
-                                    <input id="edit-banner-color" type="color" value="${p.banner_color || '#1e1b4b'}" class="w-full h-9 rounded cursor-pointer bg-transparent border border-zinc-800" />
-                                </div>
-                            </div>
-                            <div class="flex gap-2">
-                                <button onclick="saveProfile()" class="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium bg-accent text-white hover:bg-accent-hover"><i class="ph ph-check"></i>Save</button>
-                                <button onclick="toggleEditProfile()" class="px-4 py-2 rounded-lg text-sm text-zinc-400 hover:text-zinc-50">Cancel</button>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Tabbed content area -->
-                    <div class="max-w-[1000px] mx-auto px-6 mt-8 mb-12">
-                        <div class="flex gap-1 border-b border-zinc-800 mb-6">
-                            <button onclick="showProfileTab('assets')" id="ptab-assets" class="profile-tab px-4 py-2.5 text-sm font-medium border-b-2 border-accent text-zinc-50">
-                                <i class="ph ph-package"></i> Assets
-                            </button>
-                            <button onclick="showProfileTab('badges')" id="ptab-badges" class="profile-tab px-4 py-2.5 text-sm font-medium border-b-2 border-transparent text-zinc-400 hover:text-zinc-200">
-                                <i class="ph ph-medal"></i> Badges
-                            </button>
-                            <button onclick="showProfileTab('posts')" id="ptab-posts" class="profile-tab px-4 py-2.5 text-sm font-medium border-b-2 border-transparent text-zinc-400 hover:text-zinc-200">
-                                <i class="ph ph-article"></i> Posts
-                            </button>
-                            ${isStaff ? `<button onclick="showProfileTab('staff')" id="ptab-staff" class="profile-tab px-4 py-2.5 text-sm font-medium border-b-2 border-transparent text-amber-400 hover:text-amber-300">
-                                <i class="ph ph-shield-check"></i> Staff
-                            </button>` : ''}
-                        </div>
-
-                        <div id="ptab-content-assets">
-                            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                                ${assetsHtml}
-                            </div>
-                        </div>
-
-                        <div id="ptab-content-badges" class="hidden">
-                            ${p.badges.length ? `
-                                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                    ${p.badges.map(b => `
-                                        <div class="flex items-center gap-3 p-4 bg-surface-card border border-zinc-800 rounded-xl">
-                                            <div class="w-10 h-10 rounded-full flex items-center justify-center" style="background: ${b.color}15; border: 1px solid ${b.color}30">
-                                                <i class="ph ${b.icon} text-xl" style="color: ${b.color}"></i>
-                                            </div>
-                                            <div>
-                                                <div class="text-sm font-semibold" style="color: ${b.color}">${b.name}</div>
-                                                <div class="text-xs text-zinc-500">${b.description}</div>
+                                <!-- XP bar under avatar -->
+                                <div class="px-4 pt-3 pb-1">
+                                    <div class="flex items-center gap-2 text-xs mb-1">
+                                        <span class="font-bold text-accent">Lv ${lvl}</span>
+                                        <div class="flex-1 h-2 bg-black/40 border border-white/[0.06] rounded-full overflow-hidden">
+                                            <div class="h-full bg-gradient-to-r from-accent to-purple-500 rounded-full relative" style="width:${pct}%">
+                                                <div class="absolute inset-0 bg-[linear-gradient(90deg,transparent_25%,rgba(255,255,255,0.15)_50%,transparent_75%)] bg-[length:200%_100%] animate-[xpShimmer_2s_linear_infinite]"></div>
                                             </div>
                                         </div>
-                                    `).join('')}
+                                        <span class="text-[9px] text-zinc-500">${pct}%</span>
+                                    </div>
+                                    <div class="text-[9px] text-zinc-600 text-right">${xp.toLocaleString()} / ${nxtXp.toLocaleString()} XP</div>
                                 </div>
-                            ` : '<p class="text-zinc-500 text-sm py-8 text-center">No badges earned yet.</p>'}
+                                <!-- Name under avatar -->
+                                <div class="p-4 pt-2">
+                                    <div class="flex items-center gap-2 flex-wrap">
+                                        <h1 class="text-lg font-bold">${p.username}</h1>
+                                        <span class="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-md" style="background:${rc}15;color:${rc};border:1px solid ${rc}30">${p.role}</span>
+                                        ${sellerBadge}
+                                    </div>
+                                    ${p.bio ? `<p class="text-xs text-zinc-400 mt-2 leading-relaxed">${p.bio}</p>` : ''}
+                                    <div class="flex flex-wrap gap-x-3 gap-y-1 mt-2 text-[10px] text-zinc-500">
+                                        ${p.location ? `<span class="flex items-center gap-1"><i class="ph ph-map-pin"></i>${p.location}</span>` : ''}
+                                        ${p.website ? `<a href="${p.website}" target="_blank" class="flex items-center gap-1 text-accent hover:underline"><i class="ph ph-link"></i>${p.website.replace('https://','').replace('http://','')}</a>` : ''}
+                                        ${joined ? `<span class="flex items-center gap-1"><i class="ph ph-calendar"></i>${joined}</span>` : ''}
+                                    </div>
+                                    ${socialHtml ? `<div class="flex gap-1.5 mt-3">${socialHtml}</div>` : ''}
+                                    <div class="flex flex-wrap gap-2 mt-3">${actions}</div>
+                                </div>
+                            </div>
                         </div>
 
-                        <div id="ptab-content-posts" class="hidden"></div>
+                        <!-- Right column -->
+                        <div class="flex-1 flex flex-col gap-5 min-w-0">
 
-                        <div id="ptab-content-staff" class="hidden">
-                            ${staffNotesHtml}
+                            <!-- Stats row -->
+                            <div class="grid grid-cols-4 gap-3">
+                                <div class="rounded-xl border border-white/[0.06] bg-[#0e0e16]/80 backdrop-blur-xl p-4 text-center">
+                                    <div class="text-2xl font-bold text-white">${(p.follower_count||0).toLocaleString()}</div>
+                                    <div class="text-[10px] text-zinc-500 mt-0.5">Followers</div>
+                                </div>
+                                <div class="rounded-xl border border-white/[0.06] bg-[#0e0e16]/80 backdrop-blur-xl p-4 text-center">
+                                    <div class="text-2xl font-bold text-white">${(p.following_count||0).toLocaleString()}</div>
+                                    <div class="text-[10px] text-zinc-500 mt-0.5">Following</div>
+                                </div>
+                                <div class="rounded-xl border border-white/[0.06] bg-[#0e0e16]/80 backdrop-blur-xl p-4 text-center">
+                                    <div class="text-2xl font-bold text-white">${(p.asset_count||0).toLocaleString()}</div>
+                                    <div class="text-[10px] text-zinc-500 mt-0.5">Assets</div>
+                                </div>
+                                <div class="rounded-xl border border-white/[0.06] bg-[#0e0e16]/80 backdrop-blur-xl p-4 text-center">
+                                    <div class="text-2xl font-bold text-accent">${xp.toLocaleString()}</div>
+                                    <div class="text-[10px] text-zinc-500 mt-0.5">Total XP</div>
+                                </div>
+                            </div>
+
+                            <!-- Badges -->
+                            <div class="rounded-2xl border border-white/[0.06] bg-[#0e0e16]/80 backdrop-blur-xl p-5">
+                                <div class="flex items-center justify-between mb-3">
+                                    <h2 class="text-sm font-semibold flex items-center gap-1.5"><i class="ph ph-medal text-accent"></i>Badges</h2>
+                                    <span class="text-[10px] text-zinc-600">${p.badges.length} earned</span>
+                                </div>
+                                <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">${badgesHtml}</div>
+                            </div>
                         </div>
                     </div>
-                `;
 
-                // Load staff notes if staff
-                if (isStaff && p.id) loadProfileNotes(p.id);
+                    <!-- Tabs: Assets & Activity -->
+                    <div class="rounded-2xl border border-white/[0.06] bg-[#0e0e16]/80 backdrop-blur-xl overflow-hidden">
+                        <div class="flex border-b border-white/[0.05]">
+                            <button onclick="window._ptab('assets')" id="ptab-assets" class="ptab flex-1 py-3 text-sm font-medium text-white border-b-2 border-accent transition-all"><i class="ph ph-package mr-1.5"></i>Assets</button>
+                            <button onclick="window._ptab('activity')" id="ptab-activity" class="ptab flex-1 py-3 text-sm font-medium text-zinc-500 border-b-2 border-transparent hover:text-zinc-300 transition-all"><i class="ph ph-clock-counter-clockwise mr-1.5"></i>Activity</button>
+                        </div>
+                        <div id="pf-tab" class="p-5"></div>
+                    </div>
+                </div>`;
+
+                // Prefill edit form
+                if (isOwn) {
+                    document.getElementById('ed-bio').value = p.bio || '';
+                    document.getElementById('ed-loc').value = p.location || '';
+                    document.getElementById('ed-web').value = p.website || '';
+                    document.getElementById('ed-pc').value = p.profile_color || '#6366f1';
+                    document.getElementById('ed-bc').value = p.banner_color || '#1e1b4b';
+                }
+
+                ptab('assets');
+
+                // Animate
+                if (typeof anime !== 'undefined') {
+                    anime({ targets: '#pf-content .rounded-2xl, #pf-content .rounded-xl', opacity: [0,1], translateY: [25,0], delay: anime.stagger(60), duration: 600, easing: 'easeOutCubic' });
+                }
+
+                // Load 3D avatar
+                load3DAvatar(p.id);
             })();
 
-            async function showProfileTab(name) {
-                document.querySelectorAll('.profile-tab').forEach(t => {
-                    t.classList.remove('border-accent', 'text-zinc-50', 'border-amber-400', 'text-amber-400');
-                    t.classList.add('border-transparent', 'text-zinc-400');
-                });
-                const tab = document.getElementById('ptab-' + name);
-                if (tab) {
-                    if (name === 'staff') {
-                        tab.classList.add('border-amber-400', 'text-amber-400');
-                    } else {
-                        tab.classList.add('border-accent', 'text-zinc-50');
-                    }
-                    tab.classList.remove('border-transparent', 'text-zinc-400');
-                }
-                ['assets', 'badges', 'posts', 'staff'].forEach(n => {
-                    const el = document.getElementById('ptab-content-' + n);
-                    if (el) el.classList.toggle('hidden', n !== name);
-                });
+            function renderAssetCard(a) {
+                return '<a href="/marketplace/asset/' + a.slug + '" class="block group"><div class="rounded-xl border border-white/[0.04] bg-white/[0.02] overflow-hidden hover:border-white/[0.1] transition-all"><div class="aspect-[4/3] bg-black/20 overflow-hidden">' + (a.thumbnail_url ? '<img src="' + a.thumbnail_url + '" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />' : '<div class="w-full h-full flex items-center justify-center"><i class="ph ph-package text-2xl text-zinc-700"></i></div>') + '</div><div class="p-3"><div class="text-sm font-medium truncate group-hover:text-accent transition-colors">' + a.name + '</div><div class="flex justify-between mt-1.5 text-xs text-zinc-500"><span>' + a.downloads + ' dl</span><span class="font-semibold ' + (a.price_credits===0?'text-emerald-400':'text-zinc-300') + '">' + (a.price_credits===0?'Free':a.price_credits+' cr') + '</span></div></div></div></a>';
+            }
 
-                if (name === 'posts') {
-                    var postsEl = document.getElementById('ptab-content-posts');
-                    if (postsEl && !postsEl.dataset.loaded) {
-                        postsEl.dataset.loaded = '1';
-                        var profileUsername = window.location.pathname.split('/').pop();
-                        var token = document.cookie.match('(^|;)\\s*token\\s*=\\s*([^;]+)')?.pop();
-                        try {
-                            var pres = await fetch('/api/feed/users/' + profileUsername + '/posts?limit=20', {
-                                headers: token ? { 'Authorization': 'Bearer ' + token } : {}
-                            });
-                            var posts = await pres.json();
-                            if (Array.isArray(posts) && posts.length > 0) {
-                                postsEl.innerHTML = posts.map(function(p) {
-                                    return '<div class="p-4 bg-surface-card border border-zinc-800 rounded-xl mb-3">' +
-                                        '<p class="text-sm text-zinc-300 whitespace-pre-wrap">' + escapeHtml(p.body) + '</p>' +
-                                        '<div class="flex items-center gap-3 mt-3 text-xs text-zinc-500">' +
-                                            '<span>' + p.like_count + ' likes</span>' +
-                                            '<span>' + p.comment_count + ' comments</span>' +
-                                            '<span>' + timeAgo(p.created_at) + '</span>' +
-                                        '</div>' +
-                                    '</div>';
-                                }).join('');
-                            } else {
-                                postsEl.innerHTML = '<p class="text-sm text-zinc-500 py-8 text-center">No posts yet</p>';
-                            }
-                        } catch(e) {
-                            postsEl.innerHTML = '<p class="text-sm text-zinc-500 py-8 text-center">No posts yet</p>';
-                        }
+            async function loadAssets() {
+                if (assetLoading || !assetHasMore) return;
+                assetLoading = true;
+                assetPage++;
+                var grid = document.getElementById('pf-assets-grid');
+                var btn = document.getElementById('pf-assets-more');
+                if (btn) btn.disabled = true;
+                try {
+                    var r = await fetch('/api/profiles/' + username + '/assets?page=' + assetPage);
+                    if (!r.ok) { assetLoading = false; return; }
+                    var data = await r.json();
+                    assetHasMore = data.has_more;
+                    if (!grid) return;
+                    var items = data.assets || [];
+                    if (assetPage === 1 && items.length === 0) {
+                        grid.parentElement.innerHTML = '<p class="text-zinc-600 text-sm text-center py-10">No published assets yet.</p>';
+                        return;
                     }
+                    grid.insertAdjacentHTML('beforeend', items.map(renderAssetCard).join(''));
+                    if (!assetHasMore && btn) btn.remove();
+                    else if (btn) btn.disabled = false;
+                } catch(e) {}
+                assetLoading = false;
+            }
+            window._loadMoreAssets = loadAssets;
+
+            function ptab(name) {
+                document.querySelectorAll('.ptab').forEach(t => {
+                    const a = t.id === 'ptab-' + name;
+                    t.className = 'ptab flex-1 py-3 text-sm font-medium transition-all ' + (a ? 'text-white border-b-2 border-accent' : 'text-zinc-500 border-b-2 border-transparent hover:text-zinc-300');
+                });
+                const el = document.getElementById('pf-tab');
+                if (!el) return;
+                if (name === 'assets') {
+                    assetPage = 0;
+                    assetHasMore = true;
+                    el.innerHTML = '<div id="pf-assets-grid" class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3"></div><div class="flex justify-center mt-4" id="pf-assets-more-wrap"><button id="pf-assets-more" onclick="window._loadMoreAssets()" class="px-5 py-2 rounded-xl text-sm font-medium bg-white/[0.06] border border-white/[0.06] text-zinc-300 hover:text-white hover:bg-white/[0.08] transition-all">Load More</button></div>';
+                    loadAssets();
+                } else {
+                    el.innerHTML = '<div id="pf-feed"><p class="text-zinc-600 text-sm text-center py-10">Loading...</p></div>';
+                    loadFeed();
                 }
             }
 
-            function toggleEditProfile() {
-                document.getElementById('edit-profile')?.classList.toggle('hidden');
+            async function loadFeed() {
+                var el = document.getElementById('pf-feed');
+                if (!el) return;
+                try {
+                    var r = await fetch('/api/feed/users/' + username + '/posts?limit=20', { headers: hdrs });
+                    var posts = await r.json();
+                    if (Array.isArray(posts) && posts.length) {
+                        el.innerHTML = posts.map(function(p) {
+                            var d = new Date(p.created_at);
+                            var diff = (Date.now() - d) / 1000;
+                            var ago = diff < 3600 ? Math.floor(diff/60) + 'm ago' : diff < 86400 ? Math.floor(diff/3600) + 'h ago' : d.toLocaleDateString('en-US', {month:'short',day:'numeric'});
+                            var div = document.createElement('div'); div.textContent = p.body;
+                            return '<div class="p-4 rounded-xl bg-white/[0.02] border border-white/[0.04] mb-2"><p class="text-sm text-zinc-300">' + div.innerHTML + '</p><div class="flex gap-4 mt-2 text-xs text-zinc-600"><span><i class="ph ph-heart"></i> ' + p.like_count + '</span><span><i class="ph ph-chat-circle"></i> ' + p.comment_count + '</span><span>' + ago + '</span></div></div>';
+                        }).join('');
+                    } else { el.innerHTML = '<p class="text-zinc-600 text-sm text-center py-10">No activity yet.</p>'; }
+                } catch(e) { el.innerHTML = '<p class="text-zinc-600 text-sm text-center py-10">No activity yet.</p>'; }
             }
 
             async function saveProfile() {
-                const token = document.cookie.match('(^|;)\\s*token\\s*=\\s*([^;]+)')?.pop();
                 if (!token) return;
-                const body = {
-                    bio: document.getElementById('edit-bio').value,
-                    location: document.getElementById('edit-location').value,
-                    gender: document.getElementById('edit-gender').value,
-                    website: document.getElementById('edit-website').value,
-                    profile_color: document.getElementById('edit-profile-color').value,
-                    banner_color: document.getElementById('edit-banner-color').value,
-                };
-                const res = await fetch('/api/auth/me', {
-                    method: 'PUT',
-                    headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' },
-                    body: JSON.stringify(body)
-                });
-                if (res.ok) window.location.reload();
-                else alert('Failed to save');
+                var body = { bio: document.getElementById('ed-bio').value, location: document.getElementById('ed-loc').value, website: document.getElementById('ed-web').value, profile_color: document.getElementById('ed-pc').value, banner_color: document.getElementById('ed-bc').value };
+                var r = await fetch('/api/auth/me', { method: 'PUT', headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+                if (r.ok) window.location.reload(); else alert('Failed to save');
             }
 
-            async function uploadAvatar(input) {
-                const file = input.files[0];
-                if (!file) return;
-                if (file.size > 2 * 1024 * 1024) { alert('Avatar must be under 2MB'); return; }
-                const token = document.cookie.match('(^|;)\\s*token\\s*=\\s*([^;]+)')?.pop();
-                if (!token) return;
-                const form = new FormData();
-                form.append('avatar', file);
-                const res = await fetch('/api/profiles/avatar', { method: 'PUT', headers: { 'Authorization': 'Bearer ' + token }, body: form });
-                if (res.ok) window.location.reload();
-                else { const d = await res.json().catch(() => ({})); alert(d.error || 'Upload failed'); }
-            }
-
-            async function toggleFollow(username) {
-                const token = document.cookie.match('(^|;)\\s*token\\s*=\\s*([^;]+)')?.pop();
+            async function doFollow(u) {
                 if (!token) { window.location.href = '/login'; return; }
-                await fetch('/api/profiles/follow/' + username, { method: 'POST', headers: { 'Authorization': 'Bearer ' + token } });
+                await fetch('/api/profiles/follow/' + u, { method: 'POST', headers: { 'Authorization': 'Bearer ' + token } });
                 window.location.reload();
             }
 
-            window.toggleFriend = async function(username) {
-                var token = document.cookie.match('(^|;)\\s*token\\s*=\\s*([^;]+)')?.pop();
+            async function doMsg(uid) {
                 if (!token) { window.location.href = '/login'; return; }
-                var res = await fetch('/api/profiles/friend/' + username, {
-                    method: 'POST', headers: { 'Authorization': 'Bearer ' + token }
-                });
-                var data = await res.json();
-                var btn = document.getElementById('friend-btn');
+                var r = await fetch('/api/messages/conversations/dm/' + uid, { method: 'POST', headers: { 'Authorization': 'Bearer ' + token } });
+                var d = await r.json();
+                if (d.conversation_id) window.location.href = '/messages?conv=' + d.conversation_id;
+            }
+
+            async function doFriend(u) {
+                if (!token) { window.location.href = '/login'; return; }
+                var r = await fetch('/api/profiles/friend/' + u, { method: 'POST', headers: { 'Authorization': 'Bearer ' + token } });
+                var d = await r.json();
+                var btn = document.getElementById('pf-friend-btn');
                 if (btn) {
-                    if (data.status === 'accepted') btn.textContent = 'Unfriend';
-                    else if (data.status === 'pending') btn.textContent = 'Pending';
-                    else btn.textContent = 'Add Friend';
+                    if (d.status === 'accepted') btn.innerHTML = '<i class="ph ph-user-minus mr-1"></i>Unfriend';
+                    else if (d.status === 'pending') btn.innerHTML = '<i class="ph ph-clock mr-1"></i>Pending';
+                    else btn.innerHTML = '<i class="ph ph-user-plus mr-1"></i>Add Friend';
                 }
-            };
+            }
 
-            window.messageUser = async function(userId) {
-                var token = document.cookie.match('(^|;)\\s*token\\s*=\\s*([^;]+)')?.pop();
-                if (!token) { window.location.href = '/login'; return; }
-                var res = await fetch('/api/messages/conversations/dm/' + userId, {
-                    method: 'POST', headers: { 'Authorization': 'Bearer ' + token }
-                });
-                var data = await res.json();
-                if (data.conversation_id) {
-                    window.location.href = '/messages?conv=' + data.conversation_id;
-                }
-            };
-
-            window.blockUser = async function(username) {
-                if (!confirm('Block ' + username + '? They won\'t be able to message you.')) return;
-                var token = document.cookie.match('(^|;)\\s*token\\s*=\\s*([^;]+)')?.pop();
+            async function doBlock(u) {
+                if (!confirm('Block ' + u + '?')) return;
                 if (!token) return;
-                await fetch('/api/profiles/block/' + username, {
-                    method: 'POST', headers: { 'Authorization': 'Bearer ' + token }
-                });
-                alert('User blocked');
+                await fetch('/api/profiles/block/' + u, { method: 'POST', headers: { 'Authorization': 'Bearer ' + token } });
                 window.location.reload();
-            };
-
-            function escapeHtml(s) { var d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
-            function timeAgo(iso) {
-                var d = new Date(iso);
-                var diff = (Date.now() - d.getTime()) / 1000;
-                if (diff < 60) return 'just now';
-                if (diff < 3600) return Math.floor(diff / 60) + 'm ago';
-                if (diff < 86400) return Math.floor(diff / 3600) + 'h ago';
-                return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
             }
 
-            // ── Staff notes on profile ──
-            async function loadProfileNotes(userId) {
-                const token = document.cookie.match('(^|;)\\s*token\\s*=\\s*([^;]+)')?.pop();
-                if (!token) return;
+            // ── 3D Avatar render ──
+            async function load3DAvatar(userId) {
                 try {
-                    const res = await fetch('/api/admin/users/' + userId + '/notes', { headers: { 'Authorization': 'Bearer ' + token } });
-                    if (!res.ok) return;
-                    const notes = await res.json();
-                    const el = document.getElementById('profile-notes-list');
-                    if (!el) return;
-                    el.innerHTML = notes.length ? notes.map(n => `
-                        <div class="p-2.5 bg-surface border border-zinc-800 rounded-lg">
-                            <div class="flex justify-between items-center">
-                                <span class="text-xs text-accent">${n.author_name}</span>
-                                <span class="text-[10px] text-zinc-600">${new Date(n.created_at).toLocaleString()}</span>
-                            </div>
-                            <p class="text-xs text-zinc-300 mt-1">${n.content}</p>
-                        </div>
-                    `).join('') : '<p class="text-xs text-zinc-600">No notes yet.</p>';
-                } catch(e) {}
+                    var avRes = await fetch('/api/avatar/user/' + userId);
+                    if (!avRes.ok) return;
+                    var av = await avRes.json();
+                    if (!av.equipped_parts || !av.equipped_parts.character) return;
+
+                    var s = document.createElement('script');
+                    s.type = 'module';
+                    s.textContent = `
+                        import * as THREE from 'three';
+                        import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+                        const loader = new GLTFLoader();
+                        const load = u => new Promise((r,e) => loader.load(u, r, undefined, e));
+                        const canvas = document.getElementById('pf-avatar-3d');
+                        if (!canvas) throw 'no canvas';
+                        const w = canvas.parentElement.clientWidth, h = canvas.parentElement.clientHeight;
+                        const scene = new THREE.Scene();
+                        const cam = new THREE.PerspectiveCamera(25, w/h, 0.1, 20);
+                        cam.position.set(0, 0.9, 3.2);
+                        const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
+                        renderer.setSize(w, h);
+                        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+                        renderer.setClearColor(0x000000, 0);
+                        renderer.outputColorSpace = THREE.SRGBColorSpace;
+                        scene.add(new THREE.AmbientLight(0xffffff, 1.0));
+                        const dir = new THREE.DirectionalLight(0xffffff, 1.2);
+                        dir.position.set(2, 3, 3); scene.add(dir);
+                        const gltf = await load('/assets/avatar/characters/${av.equipped_parts.character}.glb');
+                        const model = gltf.scene;
+                        const colors = ${JSON.stringify(av.equipped_parts.colors || {})};
+                        model.traverse(ch => {
+                            if (ch.isMesh) { ch.material.side = THREE.FrontSide; ch.material.depthWrite = true; ch.material.transparent = false;
+                                if (colors[ch.name]) { ch.material = ch.material.clone(); ch.material.color.set(colors[ch.name]); }
+                            }
+                        });
+                        scene.add(model);
+                        // Attach items
+                        let rSlot, lSlot;
+                        model.traverse(ch => { if(ch.isBone && ch.name==='handslotr') rSlot=ch; if(ch.isBone && ch.name==='handslotl') lSlot=ch; });
+                        const wp = '${av.equipped_parts.weapon||'none'}';
+                        const sh = '${av.equipped_parts.shield||'none'}';
+                        if (wp !== 'none' && rSlot) { try { const g = await load('/assets/avatar/items/'+wp+'.gltf'); rSlot.add(g.scene); } catch(e){} }
+                        if (sh !== 'none' && lSlot) { try { const g = await load('/assets/avatar/items/'+sh+'.gltf'); lSlot.add(g.scene); } catch(e){} }
+                        // Animation
+                        let mixer;
+                        try {
+                            const animG = await load('/assets/avatar/animations/Rig_Medium_General.glb');
+                            const animName = '${av.equipped_parts.anim||'Idle_A'}';
+                            const clip = animG.animations.find(a => a.name === animName) || animG.animations.find(a => a.name === 'Idle_A');
+                            if (clip) { mixer = new THREE.AnimationMixer(model); mixer.clipAction(clip).play(); }
+                        } catch(e) {}
+                        canvas.classList.remove('hidden');
+                        document.getElementById('pf-avatar-fallback').classList.add('hidden');
+                        const clock = new THREE.Clock();
+                        let angle = 0;
+                        function anim() { requestAnimationFrame(anim); if(mixer) mixer.update(clock.getDelta()); angle += 0.003; model.rotation.y = Math.sin(angle)*0.3; renderer.render(scene, cam); }
+                        anim();
+                    `;
+                    document.body.appendChild(s);
+                } catch(e) { /* 3D avatar load failed, fallback stays visible */ }
             }
 
-            async function addProfileNote() {
-                const token = document.cookie.match('(^|;)\\s*token\\s*=\\s*([^;]+)')?.pop();
-                if (!token || !profileData?.id) return;
-                const input = document.getElementById('profile-note-input');
-                const content = input.value.trim();
-                if (!content) return;
-                await fetch('/api/admin/users/' + profileData.id + '/notes', {
-                    method: 'POST',
-                    headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ content })
-                });
-                input.value = '';
-                loadProfileNotes(profileData.id);
-            }
-            "##
+            window._friend = doFriend;
+            window._block = doBlock;
+            "#
         </script>
+
+        <style>
+            r#"
+            @keyframes xpShimmer { 0% { background-position: -200% 0; } 100% { background-position: 200% 0; } }
+            "#
+        </style>
     }
 }

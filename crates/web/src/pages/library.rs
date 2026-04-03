@@ -3,7 +3,7 @@ use leptos::prelude::*;
 #[component]
 pub fn LibraryPage() -> impl IntoView {
     view! {
-        <section class="py-8 px-6 min-h-[80vh] bg-gradient-to-b from-[#090a0e] via-[#060608] to-[#060608]">
+        <section class="py-8 px-6 min-h-[80vh]">
             <div class="max-w-[1200px] mx-auto">
                 <div class="flex justify-between items-center mb-8">
                     <div>
@@ -41,6 +41,21 @@ pub fn LibraryPage() -> impl IntoView {
                     </div>
                 </div>
 
+                // Pagination
+                <div id="lib-pagination" class="hidden flex items-center justify-center gap-3 py-4 mt-4">
+                    <button onclick="libGoPage(libPage-1)" id="lib-prev" class="w-8 h-8 rounded-lg bg-white/[0.03] border border-zinc-800/50 text-zinc-400 hover:text-zinc-200 hover:border-zinc-600 transition-all disabled:opacity-30 disabled:pointer-events-none flex items-center justify-center">
+                        <i class="ph ph-caret-left text-sm"></i>
+                    </button>
+                    <div class="flex items-center gap-2 text-xs text-zinc-500">
+                        "Page "
+                        <input type="number" id="lib-page-input" min="1" value="1" onchange="libGoPage(parseInt(this.value)||1)" class="w-12 px-2 py-1 bg-white/[0.03] border border-zinc-800/50 rounded-lg text-zinc-50 text-xs text-center outline-none focus:border-accent/50 transition-all" />
+                        " of "<span id="lib-total-pages">"1"</span>
+                    </div>
+                    <button onclick="libGoPage(libPage+1)" id="lib-next" class="w-8 h-8 rounded-lg bg-white/[0.03] border border-zinc-800/50 text-zinc-400 hover:text-zinc-200 hover:border-zinc-600 transition-all disabled:opacity-30 disabled:pointer-events-none flex items-center justify-center">
+                        <i class="ph ph-caret-right text-sm"></i>
+                    </button>
+                </div>
+
                 // Sign-in prompt
                 <div id="lib-signin" class="hidden text-center py-20">
                     <div class="w-16 h-16 bg-zinc-800/50 rounded-2xl flex items-center justify-center mx-auto mb-4">
@@ -55,6 +70,8 @@ pub fn LibraryPage() -> impl IntoView {
             r##"
             let allAssets = [];
             let currentView = 'grid';
+            let libPage = 1;
+            const LIB_PER_PAGE = 20;
 
             (async function() {
                 const token = document.cookie.match('(^|;)\\s*token\\s*=\\s*([^;]+)')?.pop();
@@ -81,6 +98,7 @@ pub fn LibraryPage() -> impl IntoView {
                         catEl.appendChild(opt);
                     });
 
+                    filteredAssets = allAssets;
                     renderLibrary(allAssets);
                 } catch (e) {
                     document.getElementById('lib-grid').innerHTML = `
@@ -98,19 +116,43 @@ pub fn LibraryPage() -> impl IntoView {
                 filterLibrary();
             }
 
+            let filteredAssets = [];
             function filterLibrary() {
                 const q = (document.getElementById('lib-search')?.value || '').toLowerCase();
                 const cat = document.getElementById('lib-category')?.value || 'all';
-                const filtered = allAssets.filter(a => {
+                filteredAssets = allAssets.filter(a => {
                     const matchQ = !q || a.name.toLowerCase().includes(q) || a.description.toLowerCase().includes(q);
                     const matchCat = cat === 'all' || a.category === cat;
                     return matchQ && matchCat;
                 });
-                renderLibrary(filtered);
+                libPage = 1;
+                renderLibrary(filteredAssets);
+            }
+
+            function libGoPage(pg) {
+                const totalPages = Math.ceil(filteredAssets.length / LIB_PER_PAGE);
+                libPage = Math.max(1, Math.min(pg, totalPages));
+                renderLibrary(filteredAssets);
+                window.scrollTo({ top: 0, behavior: 'smooth' });
             }
 
             function renderLibrary(assets) {
                 const el = document.getElementById('lib-grid');
+                const totalPages = Math.ceil(assets.length / LIB_PER_PAGE);
+                const start = (libPage - 1) * LIB_PER_PAGE;
+                const pageAssets = assets.slice(start, start + LIB_PER_PAGE);
+
+                // Pagination
+                const pagEl = document.getElementById('lib-pagination');
+                if (totalPages > 1) {
+                    pagEl.classList.remove('hidden');
+                    document.getElementById('lib-page-input').value = libPage;
+                    document.getElementById('lib-page-input').max = totalPages;
+                    document.getElementById('lib-total-pages').textContent = totalPages;
+                    document.getElementById('lib-prev').disabled = libPage <= 1;
+                    document.getElementById('lib-next').disabled = libPage >= totalPages;
+                } else { pagEl.classList.add('hidden'); }
+
                 if (!assets.length) {
                     el.className = 'grid grid-cols-1 gap-4';
                     el.innerHTML = `
@@ -126,7 +168,7 @@ pub fn LibraryPage() -> impl IntoView {
 
                 if (currentView === 'list') {
                     el.className = 'flex flex-col gap-2';
-                    el.innerHTML = assets.map((a, i) => `
+                    el.innerHTML = pageAssets.map((a, i) => `
                         <div class="flex items-center gap-4 p-4 bg-white/[0.02] border border-zinc-800/50 rounded-xl hover:border-zinc-700 hover:bg-white/[0.04] transition-all group" style="animation: fadeSlideUp 0.3s ease both; animation-delay: ${i * 30}ms">
                             <div class="w-14 h-14 rounded-lg bg-surface-panel border border-zinc-800/50 flex items-center justify-center shrink-0 overflow-hidden">
                                 ${a.thumbnail_url ? `<img src="${a.thumbnail_url}" class="w-full h-full object-cover" />` : `<i class="ph ph-package text-xl text-zinc-700"></i>`}
@@ -154,7 +196,7 @@ pub fn LibraryPage() -> impl IntoView {
                     `).join('');
                 } else {
                     el.className = 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4';
-                    el.innerHTML = assets.map((a, i) => `
+                    el.innerHTML = pageAssets.map((a, i) => `
                         <div class="bg-white/[0.02] border border-zinc-800/50 rounded-xl overflow-hidden hover:border-zinc-700 hover:bg-white/[0.04] transition-all group" style="animation: fadeSlideUp 0.4s ease both; animation-delay: ${i * 50}ms">
                             <div class="h-36 bg-surface-panel flex items-center justify-center relative overflow-hidden">
                                 ${a.thumbnail_url ? `<img src="${a.thumbnail_url}" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />` : `<i class="ph ph-package text-3xl text-zinc-700"></i>`}

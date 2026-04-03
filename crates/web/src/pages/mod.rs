@@ -29,3 +29,4 @@ pub mod upload;
 pub mod privacy;
 pub mod terms;
 pub mod wallet;
+pub mod avatar_editor;

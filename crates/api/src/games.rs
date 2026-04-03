@@ -196,6 +196,9 @@ async fn upload_game(
 
     let game = Game::create(&state.db, auth.user_id, &name, &description, &category, price_credits, &version).await?;
 
+    // Auto-publish the game
+    Game::update_metadata(&state.db, game.id, None, None, None, None, Some(true)).await?;
+
     if let Some(url) = &file_url {
         Game::update_file_url(&state.db, game.id, url).await?;
     }

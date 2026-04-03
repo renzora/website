@@ -38,6 +38,7 @@ use crate::pages::{
     messages::MessagesPage,
     terms::TermsPage,
     privacy::PrivacyPage,
+    avatar_editor::AvatarEditorPage,
 };
 
 #[component]
@@ -96,6 +97,7 @@ pub fn App() -> impl IntoView {
                     <Route path=path!("/terms") view=TermsPage />
                     <Route path=path!("/privacy") view=PrivacyPage />
                     <Route path=path!("/settings") view=SettingsPage />
+                    <Route path=path!("/avatar/edit") view=AvatarEditorPage />
                     <Route path=path!("/embed/preview/:slug") view=EmbedPreviewPage />
                 </Routes>
             </main>
