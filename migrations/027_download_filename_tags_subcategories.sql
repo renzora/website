@@ -1,8 +1,5 @@
 -- 027: Download filename, proper tags table, subcategories
 
--- Enable trigram extension for fuzzy tag search (idempotent)
-CREATE EXTENSION IF NOT EXISTS pg_trgm;
-
 -- ── Download filename ──────────────────────────────────────────────────────
 -- Stores the human-readable filename for downloads instead of using the UUID key.
 ALTER TABLE assets ADD COLUMN IF NOT EXISTS download_filename VARCHAR(255) NOT NULL DEFAULT '';
@@ -48,3 +45,6 @@ CREATE INDEX IF NOT EXISTS idx_subcategories_approved ON subcategories(approved)
 
 -- Add subcategory reference to assets
 ALTER TABLE assets ADD COLUMN IF NOT EXISTS subcategory VARCHAR(128) NOT NULL DEFAULT '';
+
+-- Enable trigram extension for fuzzy tag search (idempotent)
+CREATE EXTENSION IF NOT EXISTS pg_trgm;
