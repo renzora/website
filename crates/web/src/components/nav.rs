@@ -16,12 +16,6 @@ pub fn Nav() -> impl IntoView {
                     <a href="/marketplace" class="nav-link text-base text-zinc-400 hover:text-white hover:bg-white/[0.06] px-3.5 py-1.5 rounded-lg transition-all flex items-center gap-1.5" data-path="/marketplace">
                         <i class="ph ph-storefront text-lg"></i>"Marketplace"
                     </a>
-                    <a href="/games" class="nav-link text-base text-zinc-400 hover:text-white hover:bg-white/[0.06] px-3.5 py-1.5 rounded-lg transition-all flex items-center gap-1.5" data-path="/games">
-                        <i class="ph ph-game-controller text-lg"></i>"Games"
-                    </a>
-                    <a href="/feed" class="nav-link text-base text-zinc-400 hover:text-white hover:bg-white/[0.06] px-3.5 py-1.5 rounded-lg transition-all flex items-center gap-1.5" data-path="/feed">
-                        <i class="ph ph-users text-lg"></i>"Social"
-                    </a>
                     <a href="/docs" class="nav-link text-base text-zinc-400 hover:text-white hover:bg-white/[0.06] px-3.5 py-1.5 rounded-lg transition-all flex items-center gap-1.5" data-path="/docs">
                         <i class="ph ph-book-open text-lg"></i>"Docs"
                     </a>
@@ -412,13 +406,13 @@ pub fn Nav() -> impl IntoView {
                     if (docs.length) {
                         html += '<div class="px-4 pt-3 pb-1 border-t border-zinc-800/50"><span class="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">Documentation</span></div>';
                         html += docs.map(d => `
-                            <a href="/docs/${d.slug}" class="flex items-center gap-3 px-4 py-2.5 hover:bg-white/[0.03] transition-all">
+                            <a href="/docs/${d.version}/${d.slug}" class="flex items-center gap-3 px-4 py-2.5 hover:bg-white/[0.03] transition-all">
                                 <div class="w-8 h-8 rounded-lg bg-accent/10 flex items-center justify-center shrink-0">
                                     <i class="ph ph-book-open text-sm text-accent"></i>
                                 </div>
                                 <div class="flex-1 min-w-0">
                                     <div class="text-sm text-zinc-200">${d.title}</div>
-                                    <div class="text-[11px] text-zinc-600">${d.section} · ${d.category}</div>
+                                    <div class="text-[11px] text-zinc-600">${d.group} · ${d.category}</div>
                                 </div>
                             </a>
                         `).join('');
@@ -463,7 +457,7 @@ pub fn Nav() -> impl IntoView {
                     }
                 });
                 // Highlight parent for child pages
-                const parents = { '/games': '/games', '/courses': '/marketplace', '/forum': '/feed', '/community': '/feed', '/messages': '/feed', '/developers': '/docs' };
+                const parents = { '/courses': '/marketplace', '/developers': '/docs' };
                 for (const [sub, parent] of Object.entries(parents)) {
                     if (path === sub || path.startsWith(sub + '/')) {
                         const parentLink = document.querySelector(`.nav-link[data-path="${parent}"]`);
@@ -535,6 +529,53 @@ pub fn Nav() -> impl IntoView {
                 0% { background-position: -200% 0; }
                 100% { background-position: 200% 0; }
             }
+            "#
+        </style>
+
+        // Global image lightbox — any <img data-zoom> opens full-size on click (site-wide)
+        <script>
+            r##"
+            (function() {
+                if (window.__imgZoomBound) return;
+                window.__imgZoomBound = true;
+                function openZoom(src, cap) {
+                    let ov = document.getElementById('img-zoom');
+                    if (!ov) {
+                        ov = document.createElement('div');
+                        ov.id = 'img-zoom';
+                        ov.className = 'img-zoom';
+                        ov.innerHTML = '<button class="img-zoom-close" aria-label="Close">&times;</button><img alt="" /><div class="img-zoom-cap"></div>';
+                        ov.addEventListener('click', (e) => { if (e.target === ov || e.target.classList.contains('img-zoom-close')) closeZoom(); });
+                        document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeZoom(); });
+                        document.body.appendChild(ov);
+                    }
+                    ov.querySelector('img').src = src;
+                    ov.querySelector('.img-zoom-cap').textContent = cap || '';
+                    ov.classList.add('open');
+                    document.body.style.overflow = 'hidden';
+                }
+                function closeZoom() {
+                    const ov = document.getElementById('img-zoom');
+                    if (ov) { ov.classList.remove('open'); document.body.style.overflow = ''; }
+                }
+                document.addEventListener('click', (e) => {
+                    const t = e.target;
+                    const img = (t && t.closest) ? t.closest('img[data-zoom]') : null;
+                    if (img) { e.preventDefault(); openZoom(img.currentSrc || img.src, img.alt); }
+                });
+            })();
+            "##
+        </script>
+        <style>
+            r#"
+            img[data-zoom] { cursor: zoom-in; transition: filter 0.15s; }
+            img[data-zoom]:hover { filter: brightness(1.06); }
+            .img-zoom { position: fixed; inset: 0; z-index: 200; display: none; align-items: center; justify-content: center; background: rgba(0,0,0,0.85); backdrop-filter: blur(4px); padding: 2rem; }
+            .img-zoom.open { display: flex; }
+            .img-zoom img { max-width: 95vw; max-height: 88vh; border-radius: 10px; border: 1px solid #3f3f46; box-shadow: 0 20px 60px rgba(0,0,0,0.6); cursor: zoom-out; }
+            .img-zoom-cap { position: absolute; bottom: 1.25rem; left: 0; right: 0; text-align: center; color: #a1a1aa; font-size: 0.8125rem; padding: 0 2rem; }
+            .img-zoom-close { position: absolute; top: 1rem; right: 1.25rem; width: 40px; height: 40px; border-radius: 9999px; background: rgba(255,255,255,0.08); border: 1px solid #3f3f46; color: #fafafa; font-size: 1.5rem; line-height: 1; cursor: pointer; }
+            .img-zoom-close:hover { background: rgba(255,255,255,0.15); }
             "#
         </style>
     }

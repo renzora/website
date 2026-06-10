@@ -1,107 +1,119 @@
 use leptos::prelude::*;
 
-/// Docs landing — pick your audience.
+/// Docs landing (`/docs`) — redirects to the default version's portal home.
 #[component]
 pub fn DocsPage() -> impl IntoView {
     view! {
-        <section class="py-12 px-6">
-            <div class="max-w-[800px] mx-auto">
-                <div class="text-center mb-10">
-                    <h1 class="text-3xl font-bold">"Documentation"</h1>
-                    <p class="text-zinc-400 mt-2 text-sm">"Choose your path."</p>
-                </div>
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <a href="/docs/game-dev/installation" class="block p-8 bg-surface-card border border-zinc-800 rounded-xl hover:border-accent transition-all group text-center">
-                        <i class="ph ph-game-controller text-4xl text-accent mb-3"></i>
-                        <h2 class="text-lg font-semibold group-hover:text-accent transition-colors">"Game Developer"</h2>
-                        <p class="text-sm text-zinc-400 mt-2">"Learn how to use the engine: editor, scripting, exporting, and marketplace."</p>
-                    </a>
-                    <a href="/docs/developer/building-from-source" class="block p-8 bg-surface-card border border-zinc-800 rounded-xl hover:border-accent transition-all group text-center">
-                        <i class="ph ph-code text-4xl text-accent mb-3"></i>
-                        <h2 class="text-lg font-semibold group-hover:text-accent transition-colors">"Engine Developer"</h2>
-                        <p class="text-sm text-zinc-400 mt-2">"Build, extend, and contribute: architecture, components, plugins, and rendering."</p>
-                    </a>
-                </div>
-            </div>
+        <section class="py-20 px-6 text-center">
+            <p class="text-zinc-500 text-sm">"Loading documentation\u{2026}"</p>
         </section>
-    }
-}
-
-/// Docs section landing (game-dev or developer).
-#[component]
-pub fn DocsSectionPage() -> impl IntoView {
-    view! {
-        <div class="flex min-h-[calc(100vh-56px)] max-w-[1200px] mx-auto">
-            <DocsSidebar />
-            <div class="flex-1 min-w-0 px-8 py-10 lg:px-12">
-                <div id="section-landing">"Loading..."</div>
-            </div>
-        </div>
         <script>
             r##"
             (async function() {
-                const parts = window.location.pathname.split('/').filter(Boolean);
-                const sectionKey = parts[1]; // game-dev or developer
-                const res = await fetch('/api/docs');
-                if (!res.ok) return;
-                const data = await res.json();
-                const section = data[sectionKey];
-                if (!section) { document.getElementById('section-landing').textContent = 'Section not found'; return; }
-                const el = document.getElementById('section-landing');
-                el.innerHTML = `
-                    <h1 class="text-3xl font-bold mb-2">${section.label}</h1>
-                    <p class="text-zinc-400 text-sm mb-8">${section.description}</p>
-                    ${section.categories.map(cat => `
-                        <div class="mb-6">
-                            <h2 class="text-sm font-semibold text-zinc-400 uppercase tracking-wider mb-3">${cat.category}</h2>
-                            <div class="space-y-2">
-                                ${cat.pages.map(p => `
-                                    <a href="/docs/${p.slug}" class="flex items-center gap-3 p-3 bg-surface-card border border-zinc-800 rounded-xl hover:border-zinc-700 transition-all group">
-                                        <span class="text-sm font-medium group-hover:text-accent transition-colors">${p.title}</span>
-                                        <span class="flex-1"></span>
-                                        <i class="ph ph-caret-right text-zinc-600 group-hover:text-zinc-400 transition-colors"></i>
-                                    </a>
-                                `).join('')}
-                            </div>
-                        </div>
-                    `).join('')
-                `;
+                let def = 'r1-alpha5';
+                try {
+                    const res = await fetch('/api/docs/versions');
+                    if (res.ok) { const data = await res.json(); if (data && data.default) def = data.default; }
+                } catch (e) {}
+                window.location.replace('/docs/' + def);
             })();
             "##
         </script>
     }
 }
 
-/// Individual doc page.
+/// Individual doc page (`/docs/<version>/<slug...>`), or a version's portal home
+/// (`/docs/<version>`). Shares the sidebar with the version switcher.
 #[component]
 pub fn DocArticle() -> impl IntoView {
     view! {
         <div class="flex min-h-[calc(100vh-56px)] max-w-[1200px] mx-auto">
             <DocsSidebar />
             <div class="flex-1 min-w-0 px-8 py-10 lg:px-12">
-                <article id="doc-content">"Loading..."</article>
+                <article id="doc-content">"Loading\u{2026}"</article>
             </div>
         </div>
         <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css" />
         <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
         <script>
             r##"
-            (async function() {
-                const path = window.location.pathname.replace('/docs/', '');
-                const res = await fetch('/api/docs/' + path);
+            function docsNotFound() {
+                return '<h1 class="text-2xl font-bold mb-4">Page not found</h1><p class="text-zinc-400 text-sm">This page hasn\'t been written yet.</p><a href="/docs" class="text-accent text-sm mt-4 inline-block">Back to docs</a>';
+            }
+
+            function renderLanding(sidebar, version) {
+                window.__landingSidebar = sidebar; window.__landingVersion = version;
+                const level = localStorage.getItem('renzora-docs-level') || 'basic';
+                const groups = (sidebar.groups || []).filter(g => level === 'advanced' || g.level !== 'advanced');
                 const el = document.getElementById('doc-content');
-                if (!res.ok) {
-                    el.innerHTML = '<h1 class="text-2xl font-bold mb-4">Page not found</h1><p class="text-zinc-400 text-sm">This page hasn\'t been written yet.</p><a href="/docs" class="text-accent text-sm mt-4 inline-block">Back to docs</a>';
+                el.innerHTML = `
+                    <h1 class="text-3xl font-bold mb-2">${sidebar.label}</h1>
+                    <p class="text-zinc-400 text-sm mb-8">${sidebar.description}</p>
+                    ${groups.map(group => `
+                        <div class="mb-10">
+                            <h2 class="text-sm font-bold uppercase tracking-wider text-accent/80 mb-4" style="border:none;padding:0;">${group.group}</h2>
+                            ${group.categories.map(cat => `
+                                <div class="mb-6">
+                                    <h3 class="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-3">${cat.category}</h3>
+                                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                        ${cat.pages.map(p => `
+                                            <a href="/docs/${version}/${p.slug}" class="flex items-center gap-3 p-3 bg-surface-card border border-zinc-800 rounded-xl hover:border-zinc-700 transition-all group">
+                                                <span class="text-sm font-medium group-hover:text-accent transition-colors">${p.title}</span>
+                                                <span class="flex-1"></span>
+                                                <i class="ph ph-caret-right text-zinc-600 group-hover:text-zinc-400 transition-colors"></i>
+                                            </a>
+                                        `).join('')}
+                                    </div>
+                                </div>
+                            `).join('')}
+                        </div>
+                    `).join('')}
+                `;
+            }
+            window.addEventListener('docs-level-changed', () => {
+                if (window.__landingSidebar) renderLanding(window.__landingSidebar, window.__landingVersion);
+            });
+
+            (async function() {
+                const parts = window.location.pathname.split('/').filter(Boolean); // ['docs', version, ...slug]
+                const el = document.getElementById('doc-content');
+                if (parts.length < 2) { el.innerHTML = docsNotFound(); return; }
+
+                // Resolve version; if the first segment isn't a known version (legacy/short link),
+                // redirect to the default version, preserving the rest of the path as the slug.
+                let known = [];
+                let def = 'r1-alpha5';
+                try {
+                    const vres = await fetch('/api/docs/versions');
+                    if (vres.ok) { const v = await vres.json(); known = (v.versions || []).map(x => x.id); if (v.default) def = v.default; }
+                } catch (e) {}
+                if (!known.includes(parts[1])) {
+                    window.location.replace('/docs/' + def + '/' + parts.slice(1).join('/'));
                     return;
                 }
+
+                const version = parts[1];
+                const pagePath = parts.slice(2).join('/');
+
+                // Version home: /docs/<version>
+                if (!pagePath) {
+                    const sres = await fetch('/api/docs/sidebar/' + version);
+                    if (!sres.ok) { el.innerHTML = docsNotFound(); return; }
+                    renderLanding(await sres.json(), version);
+                    return;
+                }
+
+                const res = await fetch('/api/docs/page/' + version + '/' + pagePath);
+                if (!res.ok) { el.innerHTML = docsNotFound(); return; }
                 const doc = await res.json();
                 el.innerHTML = `
-                    <div class="flex items-center gap-2 text-xs text-zinc-500 mb-6">
-                        <a href="/docs" class="text-accent hover:text-accent-hover">Docs</a>
+                    <div class="flex items-center gap-2 text-xs text-zinc-500 mb-6 flex-wrap">
+                        <a href="/docs/${version}" class="text-accent hover:text-accent-hover">Docs</a>
                         <i class="ph ph-caret-right text-[10px]"></i>
-                        <a href="/docs/${doc.section}" class="text-accent hover:text-accent-hover">${doc.section === 'game-dev' ? 'Game Dev' : 'Developer'}</a>
+                        <span>${doc.group}</span>
                         <i class="ph ph-caret-right text-[10px]"></i>
                         <span>${doc.category}</span>
+                        <span class="ml-2 px-1.5 py-0.5 rounded bg-surface-card border border-zinc-800 text-[10px] text-zinc-400">${version}</span>
                     </div>
                     <div class="doc-body">${doc.content}</div>
                 `;
@@ -110,19 +122,11 @@ pub fn DocArticle() -> impl IntoView {
                 document.querySelectorAll('.doc-body pre').forEach(pre => {
                     const code = pre.querySelector('code');
                     if (!code) return;
-
-                    // Detect language from class
                     const langClass = [...code.classList].find(c => c.startsWith('language-'));
                     const lang = langClass ? langClass.replace('language-', '') : '';
-
-                    // Highlight
                     hljs.highlightElement(code);
-
-                    // Wrap in container
                     const wrapper = document.createElement('div');
                     wrapper.className = 'code-block-wrapper';
-
-                    // Header bar with language label + copy button
                     const header = document.createElement('div');
                     header.className = 'code-block-header';
                     header.innerHTML = `
@@ -131,12 +135,23 @@ pub fn DocArticle() -> impl IntoView {
                             <i class="ph ph-copy"></i> Copy
                         </button>
                     `;
-
                     pre.parentNode.insertBefore(wrapper, pre);
                     wrapper.appendChild(header);
                     wrapper.appendChild(pre);
                 });
+
             })();
+
+            // Open any doc image in a lightbox. Event delegation on document so it
+            // works for images injected at any time and survives SPA re-renders.
+            if (!window.__docLightboxBound) {
+                window.__docLightboxBound = true;
+                document.addEventListener('click', (e) => {
+                    const t = e.target;
+                    const img = (t && t.closest) ? t.closest('.doc-body img') : null;
+                    if (img) { e.preventDefault(); openLightbox(img.currentSrc || img.src, img.alt); }
+                });
+            }
 
             function copyCode(btn) {
                 const wrapper = btn.closest('.code-block-wrapper');
@@ -150,6 +165,27 @@ pub fn DocArticle() -> impl IntoView {
                         btn.classList.remove('copied');
                     }, 2000);
                 });
+            }
+
+            function openLightbox(src, alt) {
+                let ov = document.getElementById('doc-lightbox');
+                if (!ov) {
+                    ov = document.createElement('div');
+                    ov.id = 'doc-lightbox';
+                    ov.className = 'doc-lightbox';
+                    ov.innerHTML = '<button class="doc-lightbox-close" aria-label="Close">&times;</button><img alt="" /><div class="doc-lightbox-cap"></div>';
+                    ov.addEventListener('click', (e) => { if (e.target === ov || e.target.classList.contains('doc-lightbox-close')) closeLightbox(); });
+                    document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeLightbox(); });
+                    document.body.appendChild(ov);
+                }
+                ov.querySelector('img').src = src;
+                ov.querySelector('.doc-lightbox-cap').textContent = alt || '';
+                ov.classList.add('open');
+                document.body.style.overflow = 'hidden';
+            }
+            function closeLightbox() {
+                const ov = document.getElementById('doc-lightbox');
+                if (ov) { ov.classList.remove('open'); document.body.style.overflow = ''; }
             }
             "##
         </script>
@@ -257,72 +293,130 @@ pub fn DocArticle() -> impl IntoView {
                 border: 1px solid #27272a;
             }
 
-            /* Line numbers effect via counter */
             .code-block-wrapper pre code {
                 counter-reset: line;
             }
+
+            /* Clickable images + lightbox */
+            .doc-body img { cursor: zoom-in; transition: border-color 0.15s; }
+            .doc-body img:hover { border-color: #6366f1; }
+            .doc-lightbox { position: fixed; inset: 0; z-index: 100; display: none; align-items: center; justify-content: center; background: rgba(0,0,0,0.85); backdrop-filter: blur(4px); padding: 2rem; }
+            .doc-lightbox.open { display: flex; }
+            .doc-lightbox img { max-width: 95vw; max-height: 88vh; border-radius: 10px; border: 1px solid #3f3f46; box-shadow: 0 20px 60px rgba(0,0,0,0.6); cursor: zoom-out; }
+            .doc-lightbox-cap { position: absolute; bottom: 1.25rem; left: 0; right: 0; text-align: center; color: #a1a1aa; font-size: 0.8125rem; padding: 0 2rem; }
+            .doc-lightbox-close { position: absolute; top: 1rem; right: 1.25rem; width: 40px; height: 40px; border-radius: 9999px; background: rgba(255,255,255,0.08); border: 1px solid #3f3f46; color: #fafafa; font-size: 1.5rem; line-height: 1; cursor: pointer; }
+            .doc-lightbox-close:hover { background: rgba(255,255,255,0.15); }
             "#
         </style>
     }
 }
 
-/// Sidebar with search and section-aware navigation.
+/// Sidebar with search, a version switcher, and single-portal group/category nav.
 #[component]
 fn DocsSidebar() -> impl IntoView {
     view! {
         <aside class="w-64 shrink-0 border-r border-zinc-800 bg-surface sticky top-14 h-[calc(100vh-56px)] overflow-y-auto hidden lg:block">
             <div class="p-4">
+                // Basic / Advanced level toggle
+                <div id="level-toggle" class="flex gap-1 mb-4 p-0.5 bg-surface-card border border-zinc-800 rounded-lg">
+                    <button onclick="setDocsLevel('basic')" data-level="basic" class="flex-1 px-2 py-1.5 text-[11px] font-medium rounded-md transition-all">"Basic"</button>
+                    <button onclick="setDocsLevel('advanced')" data-level="advanced" class="flex-1 px-2 py-1.5 text-[11px] font-medium rounded-md transition-all">"Advanced"</button>
+                </div>
+                // Version switcher
+                <div class="mb-4">
+                    <label class="block text-[10px] font-semibold uppercase tracking-[0.08em] text-zinc-500 mb-1.5">"Version"</label>
+                    <select id="version-select" onchange="switchVersion(this.value)" class="w-full px-2.5 py-2 bg-surface-card border border-zinc-800 rounded-lg text-xs text-zinc-50 outline-none focus:border-accent cursor-pointer">
+                        <option>"\u{2026}"</option>
+                    </select>
+                </div>
                 // Search
                 <div class="relative mb-4">
                     <i class="ph ph-magnifying-glass absolute left-2.5 top-1/2 -translate-y-1/2 text-zinc-500 text-sm"></i>
                     <input type="text" id="doc-search" placeholder="Search docs..." oninput="searchDocs(this.value)" class="w-full pl-8 pr-3 py-2 bg-surface-card border border-zinc-800 rounded-lg text-xs text-zinc-50 outline-none focus:border-accent" />
                 </div>
                 <div id="search-results" class="hidden mb-4"></div>
-                // Section tabs
-                <div class="flex gap-1 mb-4">
-                    <button onclick="switchSection('game-dev')" id="tab-game-dev" class="flex-1 px-2 py-1.5 text-[11px] font-medium rounded-lg bg-accent text-white">"Game Dev"</button>
-                    <button onclick="switchSection('developer')" id="tab-developer" class="flex-1 px-2 py-1.5 text-[11px] font-medium rounded-lg bg-surface-card text-zinc-400">"Developer"</button>
-                </div>
                 <div id="sidebar-nav">"Loading..."</div>
             </div>
         </aside>
         <script>
             r##"
             let sidebarData = null;
-            let currentSection = 'game-dev';
+            let docVersions = null;
+            let currentVersion = null;
+
+            function getDocsLevel() { return localStorage.getItem('renzora-docs-level') || 'basic'; }
+            function setDocsLevel(lvl) {
+                localStorage.setItem('renzora-docs-level', lvl);
+                renderLevelToggle();
+                renderSidebar();
+                window.dispatchEvent(new CustomEvent('docs-level-changed', { detail: lvl }));
+            }
+            function groupVisible(group, level) { return level === 'advanced' || group.level !== 'advanced'; }
 
             (async function() {
-                const path = window.location.pathname;
-                if (path.includes('/developer')) currentSection = 'developer';
-
-                const res = await fetch('/api/docs');
+                const parts = window.location.pathname.split('/').filter(Boolean);
+                try {
+                    const vres = await fetch('/api/docs/versions');
+                    docVersions = vres.ok ? await vres.json() : { default: 'r1-alpha5', versions: [] };
+                } catch (e) { docVersions = { default: 'r1-alpha5', versions: [] }; }
+                const known = (docVersions.versions || []).map(v => v.id);
+                currentVersion = (parts[1] && known.includes(parts[1])) ? parts[1] : docVersions.default;
+                renderVersionSelect();
+                const res = await fetch('/api/docs/sidebar/' + currentVersion);
                 if (!res.ok) return;
                 sidebarData = await res.json();
+                // Auto-reveal Advanced when the current page lives in an advanced-only group.
+                const currentPath = parts.slice(2).join('/');
+                if (currentPath && getDocsLevel() === 'basic') {
+                    const g = (sidebarData.groups || []).find(gr => (gr.categories || []).some(c => c.pages.some(p => p.slug === currentPath)));
+                    if (g && g.level === 'advanced') localStorage.setItem('renzora-docs-level', 'advanced');
+                }
+                renderLevelToggle();
                 renderSidebar();
             })();
 
-            function switchSection(section) {
-                currentSection = section;
-                document.getElementById('tab-game-dev').className = section === 'game-dev' ? 'flex-1 px-2 py-1.5 text-[11px] font-medium rounded-lg bg-accent text-white' : 'flex-1 px-2 py-1.5 text-[11px] font-medium rounded-lg bg-surface-card text-zinc-400';
-                document.getElementById('tab-developer').className = section === 'developer' ? 'flex-1 px-2 py-1.5 text-[11px] font-medium rounded-lg bg-accent text-white' : 'flex-1 px-2 py-1.5 text-[11px] font-medium rounded-lg bg-surface-card text-zinc-400';
-                renderSidebar();
+            function renderLevelToggle() {
+                const level = getDocsLevel();
+                document.querySelectorAll('#level-toggle button').forEach(b => {
+                    const on = b.dataset.level === level;
+                    b.className = 'flex-1 px-2 py-1.5 text-[11px] font-medium rounded-md transition-all ' + (on ? 'bg-accent text-white' : 'text-zinc-400 hover:text-zinc-200');
+                });
+            }
+
+            function renderVersionSelect() {
+                const sel = document.getElementById('version-select');
+                if (!sel || !docVersions) return;
+                sel.innerHTML = (docVersions.versions || []).map(v =>
+                    `<option value="${v.id}" ${v.id === currentVersion ? 'selected' : ''}>${v.label}${v.status ? ' · ' + v.status : ''}</option>`
+                ).join('');
+            }
+
+            function switchVersion(version) {
+                const parts = window.location.pathname.split('/').filter(Boolean);
+                const pagePath = parts.slice(2).join('/');
+                window.location.href = pagePath ? `/docs/${version}/${pagePath}` : `/docs/${version}`;
             }
 
             function renderSidebar() {
                 if (!sidebarData) return;
-                const section = sidebarData[currentSection];
-                if (!section) return;
-                const currentPath = window.location.pathname.replace('/docs/', '');
+                const level = getDocsLevel();
+                const parts = window.location.pathname.split('/').filter(Boolean);
+                const currentPath = parts.slice(2).join('/');
                 const el = document.getElementById('sidebar-nav');
-                el.innerHTML = section.categories.map(cat => `
-                    <div class="mb-5">
-                        <h4 class="text-[11px] font-semibold uppercase tracking-[0.08em] text-zinc-500 mb-2 px-2">${cat.category}</h4>
-                        <ul class="flex flex-col gap-px">
-                            ${cat.pages.map(p => {
-                                const isActive = currentPath === p.slug;
-                                return `<li><a href="/docs/${p.slug}" class="block px-2 py-1.5 text-[13px] rounded transition-all ${isActive ? 'bg-accent/10 text-accent' : 'text-zinc-400 hover:text-zinc-50 hover:bg-white/5'}">${p.title}</a></li>`;
-                            }).join('')}
-                        </ul>
+                el.innerHTML = (sidebarData.groups || []).filter(group => groupVisible(group, level)).map(group => `
+                    <div class="mb-6">
+                        <div class="text-[10px] font-bold uppercase tracking-[0.12em] text-accent/80 mb-3 px-2">${group.group}</div>
+                        ${group.categories.map(cat => `
+                            <div class="mb-4">
+                                <h4 class="text-[11px] font-semibold uppercase tracking-[0.08em] text-zinc-500 mb-2 px-2">${cat.category}</h4>
+                                <ul class="flex flex-col gap-px">
+                                    ${cat.pages.map(p => {
+                                        const isActive = currentPath === p.slug;
+                                        return `<li><a href="/docs/${currentVersion}/${p.slug}" class="block px-2 py-1.5 text-[13px] rounded transition-all ${isActive ? 'bg-accent/10 text-accent' : 'text-zinc-400 hover:text-zinc-50 hover:bg-white/5'}">${p.title}</a></li>`;
+                                    }).join('')}
+                                </ul>
+                            </div>
+                        `).join('')}
                     </div>
                 `).join('');
             }
@@ -333,13 +427,13 @@ fn DocsSidebar() -> impl IntoView {
                 const el = document.getElementById('search-results');
                 if (!query.trim()) { el.classList.add('hidden'); return; }
                 searchTimeout = setTimeout(async () => {
-                    const res = await fetch('/api/docs/search?q=' + encodeURIComponent(query));
+                    const res = await fetch('/api/docs/search/' + currentVersion + '?q=' + encodeURIComponent(query));
                     if (!res.ok) return;
                     const results = await res.json();
                     el.classList.remove('hidden');
                     if (!results.length) { el.innerHTML = '<p class="text-xs text-zinc-500 p-2">No results</p>'; return; }
                     el.innerHTML = results.map(r => `
-                        <a href="/docs/${r.slug}" class="block px-2 py-1.5 text-[13px] text-zinc-300 hover:text-accent hover:bg-white/5 rounded transition-all">
+                        <a href="/docs/${currentVersion}/${r.slug}" class="block px-2 py-1.5 text-[13px] text-zinc-300 hover:text-accent hover:bg-white/5 rounded transition-all">
                             <span class="font-medium">${r.title}</span>
                             <span class="text-[10px] text-zinc-500 ml-1">${r.category}</span>
                         </a>

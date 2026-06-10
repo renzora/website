@@ -512,7 +512,7 @@ pub fn UploadPage() -> impl IntoView {
                             </button>
                         </div>
 
-                        <p class="text-xs text-zinc-600 text-center mt-3">"By publishing, you agree to the Renzora "<a href="/docs/marketplace/guidelines" class="text-accent hover:text-accent-hover">"content guidelines"</a>"."</p>
+                        <p class="text-xs text-zinc-600 text-center mt-3">"By publishing, you agree to the Renzora "<a href="/docs/marketplace/publishing" class="text-accent hover:text-accent-hover">"content guidelines"</a>"."</p>
                     </div>
 
                 </div>

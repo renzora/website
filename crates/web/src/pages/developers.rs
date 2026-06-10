@@ -127,7 +127,7 @@ pub fn DevelopersPage() -> impl IntoView {
                             <h2 class="text-xl font-semibold">API Reference</h2>
                         </div>
                         <p class="text-sm text-zinc-400 mb-4">Full API documentation with examples, authentication guides, and SDK references.</p>
-                        <a href="/docs/developer/api-authentication" class="inline-flex items-center gap-2 px-6 py-3 bg-accent hover:bg-accent-hover text-white text-sm font-medium rounded-xl transition-colors">
+                        <a href="/docs/platform-api/authentication" class="inline-flex items-center gap-2 px-6 py-3 bg-accent hover:bg-accent-hover text-white text-sm font-medium rounded-xl transition-colors">
                             <i class="ph ph-book-open"></i> View API Documentation
                         </a>
                     </div>

@@ -3,10 +3,23 @@ use pulldown_cmark::{html, Options, Parser};
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
+// ---- Single-portal, versioned sidebar schema (docs/<version>/_sidebar.json) ----
+
 #[derive(Serialize, Deserialize, Clone)]
-struct SidebarSection {
+struct Sidebar {
+    version: String,
     label: String,
     description: String,
+    groups: Vec<SidebarGroup>,
+}
+
+#[derive(Serialize, Deserialize, Clone)]
+struct SidebarGroup {
+    group: String,
+    /// "basic" (game-making, shown by default) or "advanced" (engine internals,
+    /// revealed by the docs Basic/Advanced toggle). Missing/empty = treated as basic.
+    #[serde(default)]
+    level: String,
     categories: Vec<SidebarCategory>,
 }
 
@@ -24,36 +37,88 @@ struct SidebarPage {
 
 #[derive(Serialize)]
 struct DocPage {
+    version: String,
     slug: String,
     title: String,
+    group: String,
     category: String,
-    section: String,
     content: String,
 }
 
 pub fn router() -> Router {
     Router::new()
-        .route("/", get(get_sidebar))
-        .route("/search", get(search_docs))
-        .route("/*slug", get(get_page))
+        .route("/versions", get(get_versions))
+        .route("/sidebar/:version", get(get_sidebar))
+        .route("/search/:version", get(search_docs))
+        // Back-compat: version-less search hits the default version (used by the global nav search).
+        .route("/search", get(search_docs_default))
+        .route("/page/:version/*slug", get(get_page))
 }
 
 fn docs_dir() -> PathBuf {
     PathBuf::from("docs")
 }
 
-async fn get_sidebar() -> Result<Json<serde_json::Value>, StatusCode> {
-    let sidebar_path = docs_dir().join("_sidebar.json");
-    let content = tokio::fs::read_to_string(&sidebar_path)
-        .await
-        .map_err(|_| StatusCode::NOT_FOUND)?;
-    let sections: std::collections::HashMap<String, SidebarSection> =
-        serde_json::from_str(&content).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-    Ok(Json(serde_json::json!(sections)))
+/// The default version id from docs/_versions.json (falls back to "r1-alpha5").
+async fn default_version() -> String {
+    let path = docs_dir().join("_versions.json");
+    if let Ok(content) = tokio::fs::read_to_string(&path).await {
+        if let Ok(value) = serde_json::from_str::<serde_json::Value>(&content) {
+            if let Some(def) = value.get("default").and_then(|d| d.as_str()) {
+                return def.to_string();
+            }
+        }
+    }
+    "r1-alpha5".to_string()
 }
 
-async fn get_page(Path(slug): Path<String>) -> Result<Json<DocPage>, StatusCode> {
-    let md_path = docs_dir().join(format!("{slug}.md"));
+/// A version id is a single path segment with no separators or traversal.
+fn safe_version(version: &str) -> bool {
+    !version.is_empty()
+        && !version.contains("..")
+        && !version.contains('/')
+        && !version.contains('\\')
+}
+
+/// A slug may contain `/` (nested pages) but never `..`, backslashes, or a leading slash.
+fn safe_slug(slug: &str) -> bool {
+    !slug.is_empty()
+        && !slug.contains("..")
+        && !slug.contains('\\')
+        && !slug.starts_with('/')
+}
+
+async fn load_sidebar(version: &str) -> Result<Sidebar, StatusCode> {
+    if !safe_version(version) {
+        return Err(StatusCode::BAD_REQUEST);
+    }
+    let path = docs_dir().join(version).join("_sidebar.json");
+    let content = tokio::fs::read_to_string(&path)
+        .await
+        .map_err(|_| StatusCode::NOT_FOUND)?;
+    serde_json::from_str(&content).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)
+}
+
+/// Available doc versions (docs/_versions.json) — drives the version switcher.
+async fn get_versions() -> Result<Json<serde_json::Value>, StatusCode> {
+    let path = docs_dir().join("_versions.json");
+    let content = tokio::fs::read_to_string(&path)
+        .await
+        .map_err(|_| StatusCode::NOT_FOUND)?;
+    let value: serde_json::Value =
+        serde_json::from_str(&content).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    Ok(Json(value))
+}
+
+async fn get_sidebar(Path(version): Path<String>) -> Result<Json<Sidebar>, StatusCode> {
+    Ok(Json(load_sidebar(&version).await?))
+}
+
+async fn get_page(Path((version, slug)): Path<(String, String)>) -> Result<Json<DocPage>, StatusCode> {
+    if !safe_version(&version) || !safe_slug(&slug) {
+        return Err(StatusCode::BAD_REQUEST);
+    }
+    let md_path = docs_dir().join(&version).join(format!("{slug}.md"));
     let content = tokio::fs::read_to_string(&md_path)
         .await
         .map_err(|_| StatusCode::NOT_FOUND)?;
@@ -64,7 +129,7 @@ async fn get_page(Path(slug): Path<String>) -> Result<Json<DocPage>, StatusCode>
         .map(|l| l.trim_start_matches("# ").to_string())
         .unwrap_or_else(|| slug.clone());
 
-    let (section, category) = find_section_for_slug(&slug).await.unwrap_or_default();
+    let (group, category) = find_location(&version, &slug).await.unwrap_or_default();
 
     let options = Options::all();
     let parser = Parser::new_ext(&content, options);
@@ -72,10 +137,11 @@ async fn get_page(Path(slug): Path<String>) -> Result<Json<DocPage>, StatusCode>
     html::push_html(&mut html_output, parser);
 
     Ok(Json(DocPage {
+        version,
         slug,
         title,
+        group,
         category,
-        section,
         content: html_output,
     }))
 }
@@ -86,58 +152,62 @@ struct SearchQuery {
 }
 
 async fn search_docs(
+    Path(version): Path<String>,
     axum::extract::Query(params): axum::extract::Query<SearchQuery>,
 ) -> Result<Json<Vec<serde_json::Value>>, StatusCode> {
-    let query = params.q.unwrap_or_default().to_lowercase();
+    Ok(Json(do_search(&version, &params.q.unwrap_or_default()).await?))
+}
+
+async fn search_docs_default(
+    axum::extract::Query(params): axum::extract::Query<SearchQuery>,
+) -> Result<Json<Vec<serde_json::Value>>, StatusCode> {
+    let version = default_version().await;
+    Ok(Json(do_search(&version, &params.q.unwrap_or_default()).await?))
+}
+
+async fn do_search(version: &str, raw_query: &str) -> Result<Vec<serde_json::Value>, StatusCode> {
+    let query = raw_query.to_lowercase();
     if query.is_empty() {
-        return Ok(Json(vec![]));
+        return Ok(vec![]);
     }
-
-    let sidebar_path = docs_dir().join("_sidebar.json");
-    let content = tokio::fs::read_to_string(&sidebar_path)
-        .await
-        .map_err(|_| StatusCode::NOT_FOUND)?;
-    let sections: std::collections::HashMap<String, SidebarSection> =
-        serde_json::from_str(&content).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-
+    let sidebar = load_sidebar(version).await?;
     let mut results = vec![];
-    for (key, section) in &sections {
-        for cat in &section.categories {
+    for group in &sidebar.groups {
+        for cat in &group.categories {
             for page in &cat.pages {
-                // Search title
-                if page.title.to_lowercase().contains(&query) {
+                let title_hit = page.title.to_lowercase().contains(&query);
+                let body_hit = if title_hit {
+                    false
+                } else {
+                    let md_path = docs_dir().join(version).join(format!("{}.md", page.slug));
+                    tokio::fs::read_to_string(&md_path)
+                        .await
+                        .map(|md| md.to_lowercase().contains(&query))
+                        .unwrap_or(false)
+                };
+                if title_hit || body_hit {
                     results.push(serde_json::json!({
-                        "slug": page.slug, "title": page.title,
-                        "section": key, "category": cat.category,
+                        "slug": page.slug,
+                        "title": page.title,
+                        "group": group.group,
+                        "category": cat.category,
+                        "version": version,
                     }));
-                    continue;
-                }
-                // Search file content
-                let md_path = docs_dir().join(format!("{}.md", page.slug));
-                if let Ok(md) = tokio::fs::read_to_string(&md_path).await {
-                    if md.to_lowercase().contains(&query) {
-                        results.push(serde_json::json!({
-                            "slug": page.slug, "title": page.title,
-                            "section": key, "category": cat.category,
-                        }));
-                    }
                 }
             }
         }
     }
-    Ok(Json(results))
+    Ok(results)
 }
 
-async fn find_section_for_slug(slug: &str) -> Option<(String, String)> {
-    let sidebar_path = docs_dir().join("_sidebar.json");
-    let content = tokio::fs::read_to_string(&sidebar_path).await.ok()?;
-    let sections: std::collections::HashMap<String, SidebarSection> =
-        serde_json::from_str(&content).ok()?;
-    for (key, section) in &sections {
-        for cat in &section.categories {
+/// Resolve which (group, category) a slug belongs to, for breadcrumbs.
+async fn find_location(version: &str, slug: &str) -> Option<(String, String)> {
+    let sidebar = load_sidebar(version).await.ok()?;
+    for group in &sidebar.groups {
+        for cat in &group.categories {
             for page in &cat.pages {
                 if page.slug == slug {
-                    return Some((key.clone(), cat.category.clone()));
+                    return Some((group.group.clone(), cat.category.clone()));
                 }
             }
         }

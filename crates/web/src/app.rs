@@ -12,14 +12,11 @@ use crate::pages::{
     community::{CommunityPage, ArticleDetailPage, WriteArticlePage},
     dashboard::DashboardPage,
     developers::DevelopersPage,
-    docs::{DocsPage, DocsSectionPage, DocArticle},
+    docs::{DocsPage, DocArticle},
     donate::DonatePage,
     courses::{CoursesPage, CourseDetailPage, ChapterViewPage, CreateCoursePage, EditCoursePage},
     download::DownloadPage,
     forum::{ForumPage, ForumCategoryPage, ForumThreadPage, NewThreadPage},
-    game_store::GameStorePage,
-    game_detail::GameDetailPage,
-    game_upload::GameUploadPage,
     gifts::GiftsPage,
     home::HomePage,
     library::LibraryPage,
@@ -59,17 +56,12 @@ pub fn App() -> impl IntoView {
                     <Route path=path!("/login") view=LoginPage />
                     <Route path=path!("/register") view=RegisterPage />
                     <Route path=path!("/docs") view=DocsPage />
-                    <Route path=path!("/docs/game-dev") view=DocsSectionPage />
-                    <Route path=path!("/docs/developer") view=DocsSectionPage />
                     <Route path=path!("/docs/*slug") view=DocArticle />
                     <Route path=path!("/marketplace") view=MarketplacePage />
                     <Route path=path!("/marketplace/sell") view=SellOnboardingPage />
                     <Route path=path!("/marketplace/upload") view=UploadPage />
                     <Route path=path!("/marketplace/asset/:slug/edit") view=AssetEditPage />
                     <Route path=path!("/marketplace/asset/:slug") view=AssetDetailPage />
-                    <Route path=path!("/games") view=GameStorePage />
-                    <Route path=path!("/games/upload") view=GameUploadPage />
-                    <Route path=path!("/games/:slug") view=GameDetailPage />
                     <Route path=path!("/library") view=LibraryPage />
                     <Route path=path!("/wallet") view=WalletPage />
                     <Route path=path!("/courses") view=CoursesPage />
