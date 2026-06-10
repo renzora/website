@@ -1,6 +1,9 @@
 services:
   app:
-    build: .
+    # Prebuilt image pushed by CI (.github/workflows/deploy.yml). The droplet
+    # pulls this instead of compiling. APP_IMAGE is set per-deploy to the exact
+    # commit tag; falls back to :latest for manual `docker compose` use.
+    image: ${APP_IMAGE:-ghcr.io/renzora/website:latest}
     env_file: .env
     depends_on:
       db:
