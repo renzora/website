@@ -254,7 +254,7 @@ async fn toggle_follow(
 
     if following {
         let user = renzora_models::user::User::find_by_id(&state.db, auth.user_id).await?.map(|u| u.username).unwrap_or_default();
-        let _ = renzora_models::notification::Notification::create(&state.db, target_id, "follow",
+        let _ = crate::notify::notify(&state, target_id, "follow",
             &format!("{user} started following you"), "", Some(&format!("/profile/{user}"))).await;
     }
 
@@ -466,8 +466,8 @@ async fn toggle_friend(
                 // They sent us a request, accept it
                 renzora_models::friend::Friend::accept(&state.db, auth.user_id, target.id).await?;
                 // Notify them
-                renzora_models::notification::Notification::create(
-                    &state.db, target.id, "friend_accepted",
+                crate::notify::notify(
+                    &state, target.id, "friend_accepted",
                     "Friend request accepted",
                     &format!("{} accepted your friend request", username),
                     Some(&format!("/profile/{}", username)),
@@ -487,13 +487,12 @@ async fn toggle_friend(
             renzora_models::friend::Friend::send_request(&state.db, auth.user_id, target.id).await?;
             // Notify target
             let sender = renzora_models::user::User::find_by_id(&state.db, auth.user_id).await?.ok_or(ApiError::NotFound)?;
-            renzora_models::notification::Notification::create(
-                &state.db, target.id, "friend_request",
+            crate::notify::notify(
+                &state, target.id, "friend_request",
                 "Friend request",
                 &format!("{} sent you a friend request", sender.username),
                 Some(&format!("/profile/{}", sender.username)),
             ).await?;
-            state.ws_broadcast.send_to_user(target.id, "notification", serde_json::json!({"type": "friend_request"}));
             Ok(Json(serde_json::json!({"status": "pending"})))
         }
     }

@@ -302,20 +302,14 @@ async fn purchase_asset(
         .ok_or(ApiError::NotFound)?;
 
     // Notify the seller about the sale
-    let _ = renzora_models::notification::Notification::create(
-        &state.db,
+    let _ = crate::notify::notify(
+        &state,
         asset.creator_id,
         "sale",
         &format!("{} purchased your asset", user.username),
         &format!("{} was sold for {} credits", asset.name, asset.price_credits),
         Some(&format!("/marketplace/asset/{}", asset.slug)),
     ).await;
-
-    // Send real-time notification to seller
-    state.ws_broadcast.send_to_user(asset.creator_id, "notification", serde_json::json!({
-        "title": format!("{} purchased your asset", user.username),
-        "body": format!("{} was sold for {} credits", asset.name, asset.price_credits),
-    }));
 
     let msg = if promo_discount > 0 {
         format!(
@@ -778,7 +772,7 @@ async fn send_gift_card(
             .execute(&state.db).await?;
 
         // Notify recipient
-        renzora_models::notification::Notification::create(&state.db, rid, "gift",
+        crate::notify::notify(&state, rid, "gift",
             &format!("{} sent you a gift!", user.username),
             &format!("{} credits", body.amount),
             Some("/wallet"),

@@ -21,6 +21,7 @@ pub mod messages;
 pub mod preview;
 pub mod middleware;
 pub mod notifications;
+pub mod notify;
 pub mod profiles;
 pub mod subscriptions;
 pub mod teams;

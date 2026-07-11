@@ -114,7 +114,17 @@ async fn get_sidebar(Path(version): Path<String>) -> Result<Json<Sidebar>, Statu
     Ok(Json(load_sidebar(&version).await?))
 }
 
-async fn get_page(Path((version, slug)): Path<(String, String)>) -> Result<Json<DocPage>, StatusCode> {
+#[derive(Deserialize)]
+struct PageQuery {
+    /// `md` returns the raw markdown instead of rendered HTML (used by the
+    /// engine's in-editor docs viewer, which renders markdown natively).
+    format: Option<String>,
+}
+
+async fn get_page(
+    Path((version, slug)): Path<(String, String)>,
+    axum::extract::Query(params): axum::extract::Query<PageQuery>,
+) -> Result<Json<DocPage>, StatusCode> {
     if !safe_version(&version) || !safe_slug(&slug) {
         return Err(StatusCode::BAD_REQUEST);
     }
@@ -131,10 +141,15 @@ async fn get_page(Path((version, slug)): Path<(String, String)>) -> Result<Json<
 
     let (group, category) = find_location(&version, &slug).await.unwrap_or_default();
 
-    let options = Options::all();
-    let parser = Parser::new_ext(&content, options);
-    let mut html_output = String::new();
-    html::push_html(&mut html_output, parser);
+    let body = if params.format.as_deref() == Some("md") {
+        content
+    } else {
+        let options = Options::all();
+        let parser = Parser::new_ext(&content, options);
+        let mut html_output = String::new();
+        html::push_html(&mut html_output, parser);
+        html_output
+    };
 
     Ok(Json(DocPage {
         version,
@@ -142,7 +157,7 @@ async fn get_page(Path((version, slug)): Path<(String, String)>) -> Result<Json<
         title,
         group,
         category,
-        content: html_output,
+        content: body,
     }))
 }
 

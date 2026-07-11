@@ -127,6 +127,37 @@ impl Conversation {
         Ok(conv.0)
     }
 
+    /// Find or create the chat conversation for a team, syncing participants
+    /// to the current team member list (self-healing on every call).
+    pub async fn find_or_create_for_team(pool: &PgPool, team_id: Uuid, team_name: &str) -> Result<Uuid, sqlx::Error> {
+        let existing = sqlx::query_as::<_, (Uuid,)>(
+            "SELECT id FROM conversations WHERE team_id = $1 LIMIT 1"
+        ).bind(team_id).fetch_optional(pool).await?;
+
+        let conv_id = match existing {
+            Some((id,)) => id,
+            None => {
+                let conv: (Uuid,) = sqlx::query_as(
+                    "INSERT INTO conversations (kind, name, team_id) VALUES ('team', $1, $2) RETURNING id"
+                ).bind(team_name).bind(team_id).fetch_one(pool).await?;
+                conv.0
+            }
+        };
+
+        sqlx::query(
+            "INSERT INTO conversation_participants (conversation_id, user_id, role) \
+             SELECT $1, tm.user_id, 'member' FROM team_members tm WHERE tm.team_id = $2 \
+             ON CONFLICT DO NOTHING"
+        ).bind(conv_id).bind(team_id).execute(pool).await?;
+
+        sqlx::query(
+            "DELETE FROM conversation_participants cp WHERE cp.conversation_id = $1 \
+             AND NOT EXISTS (SELECT 1 FROM team_members tm WHERE tm.team_id = $2 AND tm.user_id = cp.user_id)"
+        ).bind(conv_id).bind(team_id).execute(pool).await?;
+
+        Ok(conv_id)
+    }
+
     /// Get or create the admin staff chat (singleton).
     pub async fn find_or_create_admin_chat(pool: &PgPool) -> Result<Uuid, sqlx::Error> {
         let existing = sqlx::query_as::<_, (Uuid,)>(

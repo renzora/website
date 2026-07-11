@@ -48,6 +48,7 @@ pub fn router() -> Router<AppState> {
         // Friends (user's own, any auth)
         .route("/friends", get(list_friends))
         .route("/friends/requests", get(list_friend_requests))
+        .route("/friends/presence", get(get_friends_presence))
         .route("/friends/add", post(send_friend_request))
         .route("/friends/accept", post(accept_friend_request))
         .route("/friends/remove", post(remove_friend))
@@ -552,6 +553,25 @@ async fn list_friend_requests(
         "username": f.friend_username,
         "avatar_url": f.friend_avatar_url,
         "sent_at": f.created_at.to_string(),
+    })).collect();
+    Ok(Json(result))
+}
+
+/// Online status for each of the caller's friends. A friend only shows as
+/// online if their `online_status_visible` privacy setting allows it.
+async fn get_friends_presence(
+    State(state): State<AppState>,
+    Extension(auth): Extension<AuthUser>,
+) -> Result<Json<Vec<serde_json::Value>>, ApiError> {
+    let rows: Vec<(Uuid, bool)> = sqlx::query_as(
+        "SELECT f.friend_id, u.online_status_visible FROM friends f \
+         JOIN users u ON u.id = f.friend_id \
+         WHERE f.user_id = $1 AND f.status = 'accepted'"
+    ).bind(auth.user_id).fetch_all(&state.db).await?;
+
+    let result: Vec<serde_json::Value> = rows.into_iter().map(|(user_id, visible)| serde_json::json!({
+        "user_id": user_id,
+        "online": visible && state.ws_broadcast.is_online(user_id),
     })).collect();
     Ok(Json(result))
 }

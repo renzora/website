@@ -1,6 +1,5 @@
 use axum::{extract::{Extension, Path, Query, State}, routing::{get, post}, Json, Router};
 use renzora_models::forum::*;
-use renzora_models::notification::Notification;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 use crate::{error::ApiError, middleware, middleware::AuthUser, AppState};
@@ -8,7 +7,7 @@ use crate::{error::ApiError, middleware, middleware::AuthUser, AppState};
 pub fn router() -> Router<AppState> {
     let protected = Router::new()
         .route("/threads", post(create_thread))
-        .route("/threads/:slug}/reply", post(create_reply))
+        .route("/threads/:slug/reply", post(create_reply))
         .layer(axum::middleware::from_fn(middleware::require_auth));
 
     Router::new()
@@ -107,17 +106,11 @@ async fn create_reply(
     // Notify thread author if someone else replied
     if thread.author_id != auth.user_id {
         let user = renzora_models::user::User::find_by_id(&state.db, auth.user_id).await?.map(|u| u.username).unwrap_or_default();
-        let _ = Notification::create(&state.db, thread.author_id, "reply",
+        let _ = crate::notify::notify(&state, thread.author_id, "reply",
             &format!("{user} replied to your thread"),
             &format!("New reply in: {}", thread.title),
             Some(&format!("/forum/thread/{}", thread.slug)),
         ).await;
-
-        // Live notification to thread author
-        state.ws_broadcast.send_to_user(thread.author_id, "notification", serde_json::json!({
-            "title": format!("{user} replied to your thread"),
-            "link": format!("/forum/thread/{}", thread.slug),
-        }));
     }
 
     // Broadcast new post to everyone viewing the thread

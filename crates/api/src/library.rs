@@ -5,7 +5,6 @@ use axum::{
 };
 use renzora_models::asset::Asset;
 use renzora_models::licensing::*;
-use renzora_models::notification::Notification;
 use renzora_models::team::{Team, TeamMember};
 use serde::Deserialize;
 use uuid::Uuid;
@@ -186,8 +185,8 @@ async fn request_asset(
 
     for m in &members {
         if m.role == "owner" || m.role == "manager" {
-            let _ = Notification::create(
-                &state.db, m.user_id, "library_request",
+            let _ = crate::notify::notify(
+                &state, m.user_id, "library_request",
                 "Asset request",
                 &format!("{} requested \"{}\" be added to the team library.", req_name, asset.name),
                 Some(&format!("/teams")),
@@ -228,8 +227,8 @@ async fn approve_request(
     let req = LibraryRequest::approve(&state.db, request_id, auth.user_id).await?;
 
     // Notify requester
-    Notification::create(
-        &state.db, req.requested_by, "library_request_approved",
+    crate::notify::notify(
+        &state, req.requested_by, "library_request_approved",
         "Asset request approved",
         "Your asset request was approved and added to the team library.",
         Some("/teams"),
@@ -276,8 +275,8 @@ async fn deny_request(
 
     let req = LibraryRequest::deny(&state.db, request_id, auth.user_id).await?;
 
-    Notification::create(
-        &state.db, req.requested_by, "library_request_denied",
+    crate::notify::notify(
+        &state, req.requested_by, "library_request_denied",
         "Asset request denied",
         "Your asset request was denied by a team manager.",
         None,

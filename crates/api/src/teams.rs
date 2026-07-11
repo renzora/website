@@ -3,7 +3,6 @@ use axum::{
     routing::{delete, get, post, put},
     Json, Router,
 };
-use renzora_models::notification::Notification;
 use renzora_models::team::{Team, TeamInvite, TeamMember};
 use renzora_models::user::User;
 use serde::Deserialize;
@@ -21,6 +20,7 @@ pub fn router() -> Router<AppState> {
         .route("/:id/members/:user_id/role", put(update_member_role))
         .route("/:id/members/:user_id", delete(remove_member))
         .route("/:id/invite", post(invite_member))
+        .route("/:id/conversation", post(get_or_create_conversation))
         .route("/invites", get(list_my_invites))
         .route("/invites/:invite_id/accept", post(accept_invite))
         .route("/invites/:invite_id/decline", post(decline_invite))
@@ -192,8 +192,8 @@ async fn invite_member(
     if let Some(uid) = invited_user_id {
         let inviter = User::find_by_id(&state.db, auth.user_id).await?
             .map(|u| u.username).unwrap_or_default();
-        Notification::create(
-            &state.db, uid, "team_invite",
+        crate::notify::notify(
+            &state, uid, "team_invite",
             &format!("Team invite: {}", team.name),
             &format!("{} invited you to join {} as {}.", inviter, team.name, role),
             Some("/settings"),
@@ -201,6 +201,24 @@ async fn invite_member(
     }
 
     Ok(Json(serde_json::json!({ "invite": invite })))
+}
+
+/// Get or create the team chat conversation (member-only). Participants are
+/// synced to the current member list on every call.
+async fn get_or_create_conversation(
+    State(state): State<AppState>,
+    Extension(auth): Extension<AuthUser>,
+    Path(id): Path<Uuid>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    let team = Team::find_by_id(&state.db, id).await?.ok_or(ApiError::NotFound)?;
+    TeamMember::find(&state.db, id, auth.user_id).await?
+        .ok_or(ApiError::Unauthorized)?;
+
+    let conversation_id = renzora_models::message::Conversation::find_or_create_for_team(
+        &state.db, id, &team.name,
+    ).await?;
+
+    Ok(Json(serde_json::json!({ "conversation_id": conversation_id })))
 }
 
 #[derive(Deserialize)]
@@ -284,12 +302,19 @@ async fn accept_invite(
 
     TeamInvite::accept(&state.db, invite_id).await?;
 
+    // Add the new member to the team chat if it already exists
+    sqlx::query(
+        "INSERT INTO conversation_participants (conversation_id, user_id, role) \
+         SELECT c.id, $2, 'member' FROM conversations c WHERE c.team_id = $1 \
+         ON CONFLICT DO NOTHING"
+    ).bind(invite.team_id).bind(auth.user_id).execute(&state.db).await?;
+
     // Notify the inviter
     let team = Team::find_by_id(&state.db, invite.team_id).await?;
     let user = User::find_by_id(&state.db, auth.user_id).await?;
     if let (Some(team), Some(user)) = (team, user) {
-        Notification::create(
-            &state.db, invite.invited_by, "team_member_joined",
+        crate::notify::notify(
+            &state, invite.invited_by, "team_member_joined",
             &format!("{} joined {}", user.username, team.name),
             &format!("{} accepted the invite and joined your team.", user.username),
             None,

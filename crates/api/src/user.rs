@@ -27,6 +27,9 @@ struct UserMeResponse {
     credit_balance: i64,
     role: String,
     avatar_url: Option<String>,
+    message_privacy: String,
+    online_status_visible: bool,
+    profile_visibility: String,
 }
 
 async fn user_me(
@@ -44,6 +47,9 @@ async fn user_me(
         credit_balance: user.credit_balance,
         role: user.role,
         avatar_url: user.avatar_url,
+        message_privacy: user.message_privacy,
+        online_status_visible: user.online_status_visible,
+        profile_visibility: user.profile_visibility,
     }))
 }
 
