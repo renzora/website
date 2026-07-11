@@ -23,7 +23,9 @@ tokio = { version = "1", features = ["full"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 uuid = { version = "1", features = ["v4", "serde"] }
-time = { version = "0.3", features = ["serde"] }
+# serde-human-readable: serialize OffsetDateTime as RFC3339-style strings in
+# JSON instead of the compact integer-array format (API consumers expect strings).
+time = { version = "0.3", features = ["serde", "serde-human-readable"] }
 tower = "0.5"
 tower-http = { version = "0.6", features = ["cors", "trace", "fs"] }
 tracing = "0.1"
