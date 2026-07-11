@@ -105,6 +105,11 @@ jobs:
               sleep 2
             done
 
+            # Apply any nginx.conf changes (the bind mount updates on git reset,
+            # but nginx only reads config at startup)
+            docker compose -f docker-compose.prod.yml exec -T nginx nginx -t
+            docker compose -f docker-compose.prod.yml exec -T nginx nginx -s reload
+
             # Cleanup old images (BuildKit/GHA cache is unaffected — builds run in CI now)
             docker image prune -f
             echo "Deploy successful"
