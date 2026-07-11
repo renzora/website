@@ -105,10 +105,23 @@ jobs:
               sleep 2
             done
 
-            # Apply any nginx.conf changes (the bind mount updates on git reset,
-            # but nginx only reads config at startup)
-            docker compose -f docker-compose.prod.yml exec -T nginx nginx -t
-            docker compose -f docker-compose.prod.yml exec -T nginx nginx -s reload
+            # Apply any nginx.conf changes. A restart (not `nginx -s reload`) is
+            # required: git reset replaces the file with a new inode, and a
+            # single-file bind mount stays pinned to the old one until the
+            # container restarts and re-resolves the path.
+            docker compose -f docker-compose.prod.yml restart nginx
+            for i in $(seq 1 15); do
+              if curl -sf http://localhost/health > /dev/null 2>&1; then
+                echo "nginx back up"
+                break
+              fi
+              if [ $i -eq 15 ]; then
+                echo "nginx failed to come back after restart"
+                docker compose -f docker-compose.prod.yml logs nginx --tail=30
+                exit 1
+              fi
+              sleep 2
+            done
 
             # Cleanup old images (BuildKit/GHA cache is unaffected — builds run in CI now)
             docker image prune -f
