@@ -142,6 +142,9 @@ pub fn SettingsPage() -> impl IntoView {
                         <ToggleRow id="pref-marketplace" label="Marketplace notifications" desc="When someone purchases or reviews your assets." />
                         <ToggleRow id="pref-comments" label="Comment notifications" desc="When someone replies to your articles or comments." />
                         <ToggleRow id="pref-security" label="Security alerts" desc="Sign-in from new devices and password changes." />
+                        <button onclick="savePreferences()" class="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-accent text-white hover:bg-accent-hover transition-colors">
+                            <i class="ph ph-check text-base"></i>"Save Preferences"
+                        </button>
                     </div>
                 </div>
 
@@ -272,18 +275,78 @@ pub fn SettingsPage() -> impl IntoView {
             }
 
             async function changePassword() {
+                const token = getToken();
+                const currentPw = document.getElementById('current-password').value;
                 const newPw = document.getElementById('new-password').value;
                 const confirmPw = document.getElementById('confirm-new-password').value;
+                if (!currentPw) { showMsg('error', 'Enter your current password'); return; }
                 if (newPw !== confirmPw) { showMsg('error', 'Passwords do not match'); return; }
                 if (newPw.length < 8) { showMsg('error', 'Password must be at least 8 characters'); return; }
-                showMsg('success', 'Password updated! (API endpoint coming soon)');
-                document.getElementById('current-password').value = '';
-                document.getElementById('new-password').value = '';
-                document.getElementById('confirm-new-password').value = '';
+                try {
+                    const res = await fetch('/api/auth/change-password', {
+                        method: 'POST',
+                        headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ current_password: currentPw, new_password: newPw })
+                    });
+                    const d = await res.json();
+                    if (!res.ok) throw new Error(d.error || 'Failed');
+                    showMsg('success', d.message || 'Password updated!');
+                    document.getElementById('current-password').value = '';
+                    document.getElementById('new-password').value = '';
+                    document.getElementById('confirm-new-password').value = '';
+                } catch(e) { showMsg('error', e.message); }
             }
 
             async function deleteAccount() {
-                showMsg('error', 'Account deletion coming soon. Contact support.');
+                const token = getToken();
+                const password = prompt('Enter your password to permanently delete your account:');
+                if (!password) return;
+                try {
+                    const res = await fetch('/api/auth/delete-account', {
+                        method: 'POST',
+                        headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ password })
+                    });
+                    const d = await res.json();
+                    if (!res.ok) throw new Error(d.error || 'Failed');
+                    // Clear the session and return home
+                    document.cookie = 'token=;path=/;max-age=0;SameSite=Strict';
+                    document.cookie = 'user=;path=/;max-age=0;SameSite=Strict';
+                    window.location.href = '/';
+                } catch(e) { showMsg('error', e.message); }
+            }
+
+            // Communication preferences
+            (async function loadCommunication() {
+                const token = getToken();
+                if (!token) return;
+                try {
+                    const res = await fetch('/api/user/communication', { headers: { 'Authorization': 'Bearer ' + token } });
+                    if (!res.ok) return;
+                    const p = await res.json();
+                    document.getElementById('pref-marketing').checked = p.product_updates;
+                    document.getElementById('pref-marketplace').checked = p.marketplace;
+                    document.getElementById('pref-comments').checked = p.comments;
+                    document.getElementById('pref-security').checked = p.security;
+                } catch(e) {}
+            })();
+
+            async function savePreferences() {
+                const token = getToken();
+                try {
+                    const res = await fetch('/api/user/communication', {
+                        method: 'PUT',
+                        headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            product_updates: document.getElementById('pref-marketing').checked,
+                            marketplace: document.getElementById('pref-marketplace').checked,
+                            comments: document.getElementById('pref-comments').checked,
+                            security: document.getElementById('pref-security').checked
+                        })
+                    });
+                    if (!res.ok) { const d = await res.json(); throw new Error(d.error || 'Failed'); }
+                    showMsg('success', 'Communication preferences saved!');
+                } catch(e) { showMsg('error', e.message); }
             }
 
             // Payouts

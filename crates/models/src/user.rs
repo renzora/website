@@ -13,6 +13,7 @@ pub struct User {
     pub email: String,
     pub password_hash: String,
     pub avatar_url: Option<String>,
+    pub banner_url: Option<String>,
     pub role: String,
     pub credit_balance: i64,
     pub referral_code: Option<String>,
@@ -232,7 +233,7 @@ fn generate_referral_code(id: Uuid) -> String {
     id.to_string()[..8].to_uppercase()
 }
 
-fn hash_password(password: &str) -> Result<String, argon2::password_hash::Error> {
+pub fn hash_password(password: &str) -> Result<String, argon2::password_hash::Error> {
     let salt = SaltString::generate(&mut OsRng);
     let hash = Argon2::default().hash_password(password.as_bytes(), &salt)?;
     Ok(hash.to_string())

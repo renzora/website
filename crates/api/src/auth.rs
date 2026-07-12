@@ -14,6 +14,8 @@ use crate::{error::ApiError, jwt, middleware, middleware::AuthUser, AppState};
 pub fn router() -> Router<AppState> {
     let protected = Router::new()
         .route("/me", get(me).put(update_me))
+        .route("/change-password", post(change_password))
+        .route("/delete-account", post(delete_account))
         .route("/discord/link", get(discord_link))
         .route("/discord/unlink", delete(discord_unlink))
         .route("/twitch/link", get(twitch_link))
@@ -220,6 +222,76 @@ async fn update_me(
         .ok_or(ApiError::NotFound)?;
 
     Ok(Json(user_to_profile(&user)))
+}
+
+#[derive(Deserialize)]
+struct ChangePasswordRequest {
+    current_password: String,
+    new_password: String,
+}
+
+/// POST /auth/change-password — verify the current password, then set a new one.
+async fn change_password(
+    State(state): State<AppState>,
+    Extension(auth): Extension<AuthUser>,
+    Json(body): Json<ChangePasswordRequest>,
+) -> Result<Json<MessageResponse>, ApiError> {
+    let user = User::find_by_id(&state.db, auth.user_id)
+        .await?
+        .ok_or(ApiError::NotFound)?;
+
+    if !user.verify_password(&body.current_password) {
+        return Err(ApiError::Validation("Current password is incorrect".into()));
+    }
+    if body.new_password.len() < 8 {
+        return Err(ApiError::Validation(
+            "Password must be at least 8 characters".into(),
+        ));
+    }
+
+    let new_hash = renzora_models::user::hash_password(&body.new_password)
+        .map_err(|e| ApiError::Internal(format!("password hash error: {e}")))?;
+
+    sqlx::query("UPDATE users SET password_hash = $1, updated_at = NOW() WHERE id = $2")
+        .bind(&new_hash)
+        .bind(auth.user_id)
+        .execute(&state.db)
+        .await?;
+
+    Ok(Json(MessageResponse {
+        message: "Password updated".into(),
+    }))
+}
+
+#[derive(Deserialize)]
+struct DeleteAccountRequest {
+    password: String,
+}
+
+/// POST /auth/delete-account — verify the password, then hard-delete the account.
+/// Dependent rows are cleaned up by the ON DELETE CASCADE / SET NULL foreign keys
+/// established in migration 040, so the row delete cascades on its own.
+async fn delete_account(
+    State(state): State<AppState>,
+    Extension(auth): Extension<AuthUser>,
+    Json(body): Json<DeleteAccountRequest>,
+) -> Result<Json<MessageResponse>, ApiError> {
+    let user = User::find_by_id(&state.db, auth.user_id)
+        .await?
+        .ok_or(ApiError::NotFound)?;
+
+    if !user.verify_password(&body.password) {
+        return Err(ApiError::Validation("Password is incorrect".into()));
+    }
+
+    sqlx::query("DELETE FROM users WHERE id = $1")
+        .bind(auth.user_id)
+        .execute(&state.db)
+        .await?;
+
+    Ok(Json(MessageResponse {
+        message: "Account deleted".into(),
+    }))
 }
 
 // ── Shared helpers ──

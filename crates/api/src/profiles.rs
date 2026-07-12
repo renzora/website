@@ -16,6 +16,7 @@ pub fn router() -> Router<AppState> {
         .route("/friend/:username", post(toggle_friend))
         .route("/block/:username", post(block_user))
         .route("/avatar", put(upload_avatar))
+        .route("/banner", put(upload_banner).delete(delete_banner))
         .route("/storefront", put(update_storefront))
         .route("/connections", get(list_connections))
         .route("/connections", post(add_connection))
@@ -238,7 +239,7 @@ async fn get_profile(
         .and_then(|token| jwt::validate_token(token, &jwt_secret.0).ok())
         .filter(|c| c.token_type == "access")
         .map(|c| c.sub);
-    let row = sqlx::query("SELECT id, username, role, bio, website, location, gender, profile_color, banner_color, avatar_url, follower_count, following_count, post_count, credit_balance, total_xp, level, seller_level, seller_xp, created_at, storefront_enabled FROM users WHERE username=$1")
+    let row = sqlx::query("SELECT id, username, role, bio, website, location, gender, profile_color, banner_color, avatar_url, banner_url, follower_count, following_count, post_count, credit_balance, total_xp, level, seller_level, seller_xp, created_at, storefront_enabled FROM users WHERE username=$1")
         .bind(&username)
         .fetch_optional(&state.db)
         .await?
@@ -291,6 +292,7 @@ async fn get_profile(
         "profile_color": row.get::<String, _>("profile_color"),
         "banner_color": row.get::<String, _>("banner_color"),
         "avatar_url": row.get::<Option<String>, _>("avatar_url"),
+        "banner_url": row.get::<Option<String>, _>("banner_url"),
         "follower_count": row.get::<i32, _>("follower_count"),
         "following_count": row.get::<i32, _>("following_count"),
         "post_count": row.get::<i32, _>("post_count"),
@@ -399,6 +401,57 @@ async fn upload_avatar(
         .await?;
 
     Ok(Json(serde_json::json!({ "avatar_url": url })))
+}
+
+/// Upload a profile cover/banner image to S3.
+async fn upload_banner(
+    State(state): State<AppState>,
+    Extension(auth): Extension<AuthUser>,
+    mut multipart: Multipart,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    let mut banner_url: Option<String> = None;
+
+    while let Some(field) = multipart.next_field().await.map_err(|e| {
+        ApiError::Validation(format!("Failed to read upload: {e}"))
+    })? {
+        let field_name = field.name().unwrap_or("").to_string();
+        if field_name == "banner" {
+            let filename = field.file_name().unwrap_or("banner.png").to_string();
+            let data = field.bytes().await.map_err(|e| {
+                ApiError::Validation(format!("Failed to read file: {e}"))
+            })?;
+
+            // Max 4MB for banners
+            if data.len() > 4 * 1024 * 1024 {
+                return Err(ApiError::Validation("Banner must be under 4MB".into()));
+            }
+
+            banner_url = Some(marketplace::upload_to_storage(&state, "banners", &filename, data.to_vec()).await?);
+        }
+    }
+
+    let url = banner_url.ok_or(ApiError::Validation("No banner file provided".into()))?;
+
+    sqlx::query("UPDATE users SET banner_url = $1, updated_at = NOW() WHERE id = $2")
+        .bind(&url)
+        .bind(auth.user_id)
+        .execute(&state.db)
+        .await?;
+
+    Ok(Json(serde_json::json!({ "banner_url": url })))
+}
+
+/// Clear the profile cover/banner image.
+async fn delete_banner(
+    State(state): State<AppState>,
+    Extension(auth): Extension<AuthUser>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    sqlx::query("UPDATE users SET banner_url = NULL, updated_at = NOW() WHERE id = $1")
+        .bind(auth.user_id)
+        .execute(&state.db)
+        .await?;
+
+    Ok(Json(serde_json::json!({ "message": "Banner removed" })))
 }
 
 async fn toggle_follow(

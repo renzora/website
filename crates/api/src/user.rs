@@ -14,6 +14,7 @@ pub fn router() -> Router<AppState> {
         .route("/me", get(user_me))
         .route("/owned", post(check_owned))
         .route("/privacy", put(update_privacy))
+        .route("/communication", get(get_communication).put(update_communication))
         .route("/signature", put(update_signature))
         .route("/blocked", get(list_blocked))
         .route("/blocked/:user_id", delete(unblock_user))
@@ -28,6 +29,7 @@ struct UserMeResponse {
     credit_balance: i64,
     role: String,
     avatar_url: Option<String>,
+    banner_url: Option<String>,
     message_privacy: String,
     online_status_visible: bool,
     profile_visibility: String,
@@ -49,10 +51,79 @@ async fn user_me(
         credit_balance: user.credit_balance,
         role: user.role,
         avatar_url: user.avatar_url,
+        banner_url: user.banner_url,
         message_privacy: user.message_privacy,
         online_status_visible: user.online_status_visible,
         profile_visibility: user.profile_visibility,
         signature: user.signature,
+    }))
+}
+
+#[derive(Serialize)]
+struct CommunicationResponse {
+    product_updates: bool,
+    marketplace: bool,
+    comments: bool,
+    security: bool,
+}
+
+async fn get_communication(
+    State(state): State<AppState>,
+    Extension(auth): Extension<AuthUser>,
+) -> Result<Json<CommunicationResponse>, ApiError> {
+    let row: (bool, bool, bool, bool) = sqlx::query_as(
+        "SELECT email_product_updates, email_marketplace, email_comments, email_security FROM users WHERE id = $1"
+    )
+    .bind(auth.user_id)
+    .fetch_optional(&state.db)
+    .await?
+    .ok_or(ApiError::NotFound)?;
+
+    Ok(Json(CommunicationResponse {
+        product_updates: row.0,
+        marketplace: row.1,
+        comments: row.2,
+        security: row.3,
+    }))
+}
+
+#[derive(Deserialize)]
+struct CommunicationBody {
+    product_updates: Option<bool>,
+    marketplace: Option<bool>,
+    comments: Option<bool>,
+    security: Option<bool>,
+}
+
+async fn update_communication(
+    State(state): State<AppState>,
+    Extension(auth): Extension<AuthUser>,
+    Json(body): Json<CommunicationBody>,
+) -> Result<Json<CommunicationResponse>, ApiError> {
+    let row: (bool, bool, bool, bool) = sqlx::query_as(
+        "UPDATE users SET \
+            email_product_updates = COALESCE($2, email_product_updates), \
+            email_marketplace = COALESCE($3, email_marketplace), \
+            email_comments = COALESCE($4, email_comments), \
+            email_security = COALESCE($5, email_security), \
+            updated_at = NOW() \
+         WHERE id = $1 \
+         RETURNING email_product_updates, email_marketplace, email_comments, email_security"
+    )
+    .bind(auth.user_id)
+    .bind(body.product_updates)
+    .bind(body.marketplace)
+    .bind(body.comments)
+    .bind(body.security)
+    .fetch_optional(&state.db)
+    .await?
+    .ok_or(ApiError::NotFound)?;
+
+    Ok(Json(CommunicationResponse {
+        product_updates: row.0,
+        marketplace: row.1,
+        comments: row.2,
+        security: row.3,
     }))
 }
 
