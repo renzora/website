@@ -21,6 +21,7 @@ pub fn router() -> Router<AppState> {
         .route("/conversations/:id/read", post(mark_read))
         .route("/conversations/:id/participants", get(list_participants))
         .route("/unread-count", get(unread_count))
+        .route("/search", get(search_messages))
         .layer(axum::middleware::from_fn(middleware::require_auth))
 }
 
@@ -247,4 +248,45 @@ async fn unread_count(
 ) -> Result<Json<serde_json::Value>, ApiError> {
     let count = renzora_models::message::Message::total_unread(&state.db, auth.user_id).await?;
     Ok(Json(serde_json::json!({"count": count})))
+}
+
+#[derive(Deserialize)]
+struct SearchQuery {
+    q: Option<String>,
+    limit: Option<i64>,
+}
+
+async fn search_messages(
+    State(state): State<AppState>,
+    Extension(auth): Extension<AuthUser>,
+    Query(params): Query<SearchQuery>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    let q = params.q.unwrap_or_default();
+    if q.trim().is_empty() {
+        return Ok(Json(serde_json::json!([])));
+    }
+    let limit = params.limit.unwrap_or(20).clamp(1, 50);
+    let pattern = format!("%{}%", q);
+
+    let rows = sqlx::query_as::<_, (Uuid, Option<String>, Uuid, String, String, time::OffsetDateTime)>(
+        "SELECT m.conversation_id, \
+            COALESCE(c.name, (SELECT u2.username FROM conversation_participants cp2 JOIN users u2 ON u2.id = cp2.user_id WHERE cp2.conversation_id = c.id AND cp2.user_id != $1 LIMIT 1)) as conversation_name, \
+            m.id as message_id, m.body, u.username as sender_username, m.created_at \
+         FROM messages m \
+         JOIN conversations c ON c.id = m.conversation_id \
+         JOIN conversation_participants cp ON cp.conversation_id = c.id AND cp.user_id = $1 \
+         JOIN users u ON u.id = m.sender_id \
+         WHERE m.deleted_at IS NULL AND m.body ILIKE $2 \
+         ORDER BY m.created_at DESC LIMIT $3"
+    ).bind(auth.user_id).bind(&pattern).bind(limit).fetch_all(&state.db).await?;
+
+    let items: Vec<serde_json::Value> = rows.iter().map(|r| serde_json::json!({
+        "conversation_id": r.0,
+        "conversation_name": r.1,
+        "message_id": r.2,
+        "body": r.3,
+        "sender_username": r.4,
+        "created_at": r.5.format(&Rfc3339).unwrap_or_default(),
+    })).collect();
+    Ok(Json(serde_json::json!(items)))
 }

@@ -42,6 +42,7 @@ pub struct ThreadWithAuthor {
     pub post_count: i32,
     pub views: i32,
     pub author_name: String,
+    pub author_avatar_url: Option<String>,
     pub last_post_at: OffsetDateTime,
     pub created_at: OffsetDateTime,
 }
@@ -69,6 +70,7 @@ pub struct PostWithAuthor {
     pub author_role: String,
     pub author_post_count: i32,
     pub author_avatar_url: Option<String>,
+    pub author_signature: String,
     pub created_at: OffsetDateTime,
 }
 
@@ -113,7 +115,7 @@ impl ForumThread {
         let per_page: i64 = 25;
         let offset = (page - 1) * per_page;
         let threads = sqlx::query_as::<_, ThreadWithAuthor>(
-            "SELECT t.id,t.title,t.slug,t.pinned,t.locked,t.post_count,t.views,u.username as author_name,t.last_post_at,t.created_at FROM forum_threads t JOIN users u ON u.id=t.author_id WHERE t.category_id=$1 ORDER BY t.pinned DESC, t.last_post_at DESC LIMIT $2 OFFSET $3"
+            "SELECT t.id,t.title,t.slug,t.pinned,t.locked,t.post_count,t.views,u.username as author_name,u.avatar_url as author_avatar_url,t.last_post_at,t.created_at FROM forum_threads t JOIN users u ON u.id=t.author_id WHERE t.category_id=$1 ORDER BY t.pinned DESC, t.last_post_at DESC LIMIT $2 OFFSET $3"
         ).bind(category_id).bind(per_page).bind(offset).fetch_all(pool).await?;
         let total: (i64,) = sqlx::query_as("SELECT COUNT(*)::bigint FROM forum_threads WHERE category_id=$1").bind(category_id).fetch_one(pool).await?;
         Ok((threads, total.0))
@@ -133,7 +135,7 @@ impl ForumPost {
         let per_page: i64 = 20;
         let offset = (page - 1) * per_page;
         let posts = sqlx::query_as::<_, PostWithAuthor>(
-            "SELECT p.id,p.content,p.is_first_post,p.edited,p.author_id,u.username as author_name,u.role as author_role,u.post_count as author_post_count,u.avatar_url as author_avatar_url,p.created_at FROM forum_posts p JOIN users u ON u.id=p.author_id WHERE p.thread_id=$1 ORDER BY p.created_at ASC LIMIT $2 OFFSET $3"
+            "SELECT p.id,p.content,p.is_first_post,p.edited,p.author_id,u.username as author_name,u.role as author_role,u.post_count as author_post_count,u.avatar_url as author_avatar_url,u.signature as author_signature,p.created_at FROM forum_posts p JOIN users u ON u.id=p.author_id WHERE p.thread_id=$1 ORDER BY p.created_at ASC LIMIT $2 OFFSET $3"
         ).bind(thread_id).bind(per_page).bind(offset).fetch_all(pool).await?;
         let total: (i64,) = sqlx::query_as("SELECT COUNT(*)::bigint FROM forum_posts WHERE thread_id=$1").bind(thread_id).fetch_one(pool).await?;
         Ok((posts, total.0))

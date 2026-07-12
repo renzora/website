@@ -25,9 +25,173 @@ pub fn router() -> Router<AppState> {
     Router::new()
         .route("/view/:username", get(get_profile))
         .route("/:username/assets", get(get_profile_assets))
+        .route("/:username/followers", get(get_followers))
+        .route("/:username/following", get(get_following))
+        .route("/:username/friends-list", get(get_friends_list))
+        .route("/:username/forum-posts", get(get_user_forum_posts))
         .route("/shop/:username", get(get_storefront))
         .route("/search", get(search_users))
+        .route("/popular", get(popular_users))
         .merge(protected)
+}
+
+/// Extract the viewer's user id from an optional Bearer token (same logic as get_profile).
+fn optional_viewer_id(headers: &HeaderMap, jwt_secret: &JwtSecret) -> Option<Uuid> {
+    headers
+        .get("authorization")
+        .and_then(|v| v.to_str().ok())
+        .and_then(|h| h.strip_prefix("Bearer "))
+        .and_then(|token| jwt::validate_token(token, &jwt_secret.0).ok())
+        .filter(|c| c.token_type == "access")
+        .map(|c| c.sub)
+}
+
+/// Enforce the target's profile_visibility for social lists: "friends_only"
+/// profiles are only visible to the target themselves or accepted friends.
+async fn check_list_visibility(
+    state: &AppState,
+    target_id: Uuid,
+    visibility: &str,
+    viewer_id: Option<Uuid>,
+) -> Result<(), ApiError> {
+    if visibility != "friends_only" {
+        return Ok(());
+    }
+    match viewer_id {
+        Some(vid) if vid == target_id => Ok(()),
+        Some(vid) => {
+            let status = renzora_models::friend::Friend::status(&state.db, vid, target_id).await?;
+            if status.as_deref() == Some("accepted") {
+                Ok(())
+            } else {
+                Err(ApiError::Unauthorized)
+            }
+        }
+        None => Err(ApiError::Unauthorized),
+    }
+}
+
+/// Look up a user's id and profile_visibility by username.
+async fn find_target(state: &AppState, username: &str) -> Result<(Uuid, String), ApiError> {
+    let row: Option<(Uuid, String)> = sqlx::query_as("SELECT id, profile_visibility FROM users WHERE username=$1")
+        .bind(username).fetch_optional(&state.db).await?;
+    row.ok_or(ApiError::NotFound)
+}
+
+fn serialize_user_rows(rows: &[(String, Option<String>, String)]) -> Vec<serde_json::Value> {
+    rows.iter().map(|r| serde_json::json!({
+        "username": r.0,
+        "avatar_url": r.1,
+        "role": r.2,
+    })).collect()
+}
+
+async fn get_followers(
+    State(state): State<AppState>,
+    Path(username): Path<String>,
+    headers: HeaderMap,
+    Extension(jwt_secret): Extension<JwtSecret>,
+) -> Result<Json<Vec<serde_json::Value>>, ApiError> {
+    let (target_id, visibility) = find_target(&state, &username).await?;
+    check_list_visibility(&state, target_id, &visibility, optional_viewer_id(&headers, &jwt_secret)).await?;
+
+    let rows: Vec<(String, Option<String>, String)> = sqlx::query_as(
+        "SELECT u.username, u.avatar_url, u.role FROM follows f JOIN users u ON u.id = f.follower_id WHERE f.following_id = $1 ORDER BY f.created_at DESC LIMIT 50"
+    ).bind(target_id).fetch_all(&state.db).await?;
+    Ok(Json(serialize_user_rows(&rows)))
+}
+
+async fn get_following(
+    State(state): State<AppState>,
+    Path(username): Path<String>,
+    headers: HeaderMap,
+    Extension(jwt_secret): Extension<JwtSecret>,
+) -> Result<Json<Vec<serde_json::Value>>, ApiError> {
+    let (target_id, visibility) = find_target(&state, &username).await?;
+    check_list_visibility(&state, target_id, &visibility, optional_viewer_id(&headers, &jwt_secret)).await?;
+
+    let rows: Vec<(String, Option<String>, String)> = sqlx::query_as(
+        "SELECT u.username, u.avatar_url, u.role FROM follows f JOIN users u ON u.id = f.following_id WHERE f.follower_id = $1 ORDER BY f.created_at DESC LIMIT 50"
+    ).bind(target_id).fetch_all(&state.db).await?;
+    Ok(Json(serialize_user_rows(&rows)))
+}
+
+async fn get_friends_list(
+    State(state): State<AppState>,
+    Path(username): Path<String>,
+    headers: HeaderMap,
+    Extension(jwt_secret): Extension<JwtSecret>,
+) -> Result<Json<Vec<serde_json::Value>>, ApiError> {
+    let (target_id, visibility) = find_target(&state, &username).await?;
+    check_list_visibility(&state, target_id, &visibility, optional_viewer_id(&headers, &jwt_secret)).await?;
+
+    let rows: Vec<(String, Option<String>, String)> = sqlx::query_as(
+        "SELECT u.username, u.avatar_url, u.role FROM friends f JOIN users u ON u.id = f.friend_id WHERE f.user_id = $1 AND f.status = 'accepted' ORDER BY u.username LIMIT 50"
+    ).bind(target_id).fetch_all(&state.db).await?;
+    Ok(Json(serialize_user_rows(&rows)))
+}
+
+#[derive(Deserialize)]
+struct ForumPostsQuery {
+    page: Option<i64>,
+}
+
+async fn get_user_forum_posts(
+    State(state): State<AppState>,
+    Path(username): Path<String>,
+    axum::extract::Query(params): axum::extract::Query<ForumPostsQuery>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    let user_id: Uuid = sqlx::query_scalar("SELECT id FROM users WHERE username=$1")
+        .bind(&username)
+        .fetch_optional(&state.db)
+        .await?
+        .ok_or(ApiError::NotFound)?;
+
+    let page = params.page.unwrap_or(1).max(1);
+    let per_page: i64 = 10;
+    let offset = (page - 1) * per_page;
+
+    let total: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM forum_posts WHERE author_id=$1")
+        .bind(user_id)
+        .fetch_one(&state.db)
+        .await?;
+
+    let rows: Vec<(String, String, String, time::OffsetDateTime)> = sqlx::query_as(
+        "SELECT t.title as thread_title, t.slug as thread_slug, LEFT(p.content, 200) as content, p.created_at \
+         FROM forum_posts p JOIN forum_threads t ON t.id = p.thread_id \
+         WHERE p.author_id = $1 ORDER BY p.created_at DESC LIMIT $2 OFFSET $3"
+    ).bind(user_id).bind(per_page).bind(offset).fetch_all(&state.db).await?;
+
+    let posts: Vec<serde_json::Value> = rows.iter().map(|r| serde_json::json!({
+        "thread_title": r.0,
+        "thread_slug": r.1,
+        "content": r.2,
+        "created_at": r.3.format(&time::format_description::well_known::Rfc3339).unwrap_or_default(),
+    })).collect();
+
+    Ok(Json(serde_json::json!({
+        "posts": posts,
+        "total": total,
+    })))
+}
+
+async fn popular_users(
+    State(state): State<AppState>,
+) -> Result<Json<Vec<serde_json::Value>>, ApiError> {
+    let rows: Vec<(String, Option<String>, String, i64)> = sqlx::query_as(
+        "SELECT u.username, u.avatar_url, u.role, COUNT(*)::bigint as follower_count \
+         FROM follows f JOIN users u ON u.id = f.following_id \
+         GROUP BY u.id, u.username, u.avatar_url, u.role \
+         ORDER BY follower_count DESC LIMIT 10"
+    ).fetch_all(&state.db).await?;
+
+    let items: Vec<serde_json::Value> = rows.iter().map(|r| serde_json::json!({
+        "username": r.0,
+        "avatar_url": r.1,
+        "role": r.2,
+        "follower_count": r.3,
+    })).collect();
+    Ok(Json(items))
 }
 
 #[derive(serde::Deserialize)]
@@ -253,9 +417,12 @@ async fn toggle_follow(
     let following = renzora_models::profile::toggle_follow(&state.db, auth.user_id, target_id).await?;
 
     if following {
-        let user = renzora_models::user::User::find_by_id(&state.db, auth.user_id).await?.map(|u| u.username).unwrap_or_default();
-        let _ = crate::notify::notify(&state, target_id, "follow",
-            &format!("{user} started following you"), "", Some(&format!("/profile/{user}"))).await;
+        if let Some(follower) = renzora_models::user::User::find_by_id(&state.db, auth.user_id).await? {
+            let user = &follower.username;
+            let _ = crate::notify::notify(&state, target_id, "follow",
+                &format!("{user} started following you"), "", Some(&format!("/profile/{user}")),
+                follower.avatar_url.as_deref()).await;
+        }
     }
 
     Ok(Json(serde_json::json!({"following": following})))
@@ -466,11 +633,13 @@ async fn toggle_friend(
                 // They sent us a request, accept it
                 renzora_models::friend::Friend::accept(&state.db, auth.user_id, target.id).await?;
                 // Notify them
+                let accepter = renzora_models::user::User::find_by_id(&state.db, auth.user_id).await?;
                 crate::notify::notify(
                     &state, target.id, "friend_accepted",
                     "Friend request accepted",
                     &format!("{} accepted your friend request", username),
                     Some(&format!("/profile/{}", username)),
+                    accepter.as_ref().and_then(|u| u.avatar_url.as_deref()),
                 ).await?;
                 Ok(Json(serde_json::json!({"status": "accepted"})))
             } else {
@@ -492,6 +661,7 @@ async fn toggle_friend(
                 "Friend request",
                 &format!("{} sent you a friend request", sender.username),
                 Some(&format!("/profile/{}", sender.username)),
+                sender.avatar_url.as_deref(),
             ).await?;
             Ok(Json(serde_json::json!({"status": "pending"})))
         }

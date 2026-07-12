@@ -11,15 +11,16 @@ pub struct Notification {
     pub title: String,
     pub body: String,
     pub link: Option<String>,
+    pub actor_avatar_url: Option<String>,
     pub read: bool,
     pub created_at: OffsetDateTime,
 }
 
 impl Notification {
-    pub async fn create(pool: &PgPool, user_id: Uuid, ntype: &str, title: &str, body: &str, link: Option<&str>) -> Result<Self, sqlx::Error> {
+    pub async fn create(pool: &PgPool, user_id: Uuid, ntype: &str, title: &str, body: &str, link: Option<&str>, actor_avatar_url: Option<&str>) -> Result<Self, sqlx::Error> {
         let id = Uuid::new_v4();
-        sqlx::query_as("INSERT INTO notifications (id,user_id,type,title,body,link) VALUES ($1,$2,$3,$4,$5,$6) RETURNING *")
-            .bind(id).bind(user_id).bind(ntype).bind(title).bind(body).bind(link).fetch_one(pool).await
+        sqlx::query_as("INSERT INTO notifications (id,user_id,type,title,body,link,actor_avatar_url) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *")
+            .bind(id).bind(user_id).bind(ntype).bind(title).bind(body).bind(link).bind(actor_avatar_url).fetch_one(pool).await
     }
 
     pub async fn list_for_user(pool: &PgPool, user_id: Uuid, limit: i64) -> Result<Vec<Self>, sqlx::Error> {

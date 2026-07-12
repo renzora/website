@@ -43,10 +43,16 @@ async fn create_team(
         return Err(ApiError::Validation("Team name must be 1-128 characters".into()));
     }
 
+    // Admins bypass subscription checks
+    let is_admin = User::find_by_id(&state.db, auth.user_id).await?
+        .map(|u| u.role == "admin").unwrap_or(false);
+
     // Check subscription allows teams
-    let max_members = renzora_models::subscription::max_team_members(&state.db, auth.user_id).await?;
-    if max_members == 0 {
-        return Err(ApiError::Validation("Your plan does not include team management. Upgrade to Indie or Studio to create teams.".into()));
+    if !is_admin {
+        let max_members = renzora_models::subscription::max_team_members(&state.db, auth.user_id).await?;
+        if max_members == 0 {
+            return Err(ApiError::Validation("Your plan does not include team management. Upgrade to Indie or Studio to create teams.".into()));
+        }
     }
 
     // Check user doesn't own too many teams
@@ -135,10 +141,17 @@ async fn invite_member(
         return Err(ApiError::Unauthorized);
     }
 
-    // Check team size limit (plan base + extra seats)
-    let max_members = renzora_models::subscription::max_team_members(&state.db, team.owner_id).await?;
+    // Check team size limit (plan base + extra seats). Admins bypass the
+    // subscription limit but are still capped at a sane maximum of 50.
+    let is_admin = User::find_by_id(&state.db, auth.user_id).await?
+        .map(|u| u.role == "admin").unwrap_or(false);
+    let max_members = if is_admin {
+        50
+    } else {
+        renzora_models::subscription::max_team_members(&state.db, team.owner_id).await? as i64
+    };
     let member_count = TeamMember::count(&state.db, id).await?;
-    if member_count >= max_members as i64 {
+    if member_count >= max_members {
         return Err(ApiError::Validation(format!(
             "Team member limit reached ({}/{}). Add extra seats or upgrade your plan.",
             member_count, max_members
@@ -190,13 +203,14 @@ async fn invite_member(
 
     // Send notification to invited user
     if let Some(uid) = invited_user_id {
-        let inviter = User::find_by_id(&state.db, auth.user_id).await?
-            .map(|u| u.username).unwrap_or_default();
+        let inviter = User::find_by_id(&state.db, auth.user_id).await?;
+        let inviter_name = inviter.as_ref().map(|u| u.username.as_str()).unwrap_or_default();
         crate::notify::notify(
             &state, uid, "team_invite",
             &format!("Team invite: {}", team.name),
-            &format!("{} invited you to join {} as {}.", inviter, team.name, role),
+            &format!("{} invited you to join {} as {}.", inviter_name, team.name, role),
             Some("/settings"),
+            inviter.as_ref().and_then(|u| u.avatar_url.as_deref()),
         ).await?;
     }
 
@@ -318,6 +332,7 @@ async fn accept_invite(
             &format!("{} joined {}", user.username, team.name),
             &format!("{} accepted the invite and joined your team.", user.username),
             None,
+            user.avatar_url.as_deref(),
         ).await?;
     }
 

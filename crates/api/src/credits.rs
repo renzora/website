@@ -309,6 +309,7 @@ async fn purchase_asset(
         &format!("{} purchased your asset", user.username),
         &format!("{} was sold for {} credits", asset.name, asset.price_credits),
         Some(&format!("/marketplace/asset/{}", asset.slug)),
+        user.avatar_url.as_deref(),
     ).await;
 
     let msg = if promo_discount > 0 {
@@ -776,6 +777,7 @@ async fn send_gift_card(
             &format!("{} sent you a gift!", user.username),
             &format!("{} credits", body.amount),
             Some("/wallet"),
+            user.avatar_url.as_deref(),
         ).await?;
         state.ws_broadcast.send_to_user(rid, "credit_update", serde_json::json!({"amount": body.amount}));
     }

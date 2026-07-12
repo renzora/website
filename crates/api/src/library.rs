@@ -190,6 +190,7 @@ async fn request_asset(
                 "Asset request",
                 &format!("{} requested \"{}\" be added to the team library.", req_name, asset.name),
                 Some(&format!("/teams")),
+                None,
             ).await;
         }
     }
@@ -232,6 +233,7 @@ async fn approve_request(
         "Asset request approved",
         "Your asset request was approved and added to the team library.",
         Some("/teams"),
+        None,
     ).await?;
 
     // Actually add the asset (reuse add logic)
@@ -279,6 +281,7 @@ async fn deny_request(
         &state, req.requested_by, "library_request_denied",
         "Asset request denied",
         "Your asset request was denied by a team manager.",
+        None,
         None,
     ).await?;
 

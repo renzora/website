@@ -14,8 +14,9 @@ pub async fn notify(
     title: &str,
     body: &str,
     link: Option<&str>,
+    actor_avatar_url: Option<&str>,
 ) -> Result<Notification, sqlx::Error> {
-    let notification = Notification::create(&state.db, user_id, ntype, title, body, link).await?;
+    let notification = Notification::create(&state.db, user_id, ntype, title, body, link, actor_avatar_url).await?;
     if let Ok(data) = serde_json::to_value(&notification) {
         state.ws_broadcast.send_to_user(user_id, "notification", data);
     }

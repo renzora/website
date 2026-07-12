@@ -1,5 +1,5 @@
 use axum::{
-    extract::{Extension, Path, Query, State},
+    extract::{Extension, Multipart, Path, Query, State},
     routing::{get, post, delete as delete_route},
     Json, Router,
 };
@@ -7,7 +7,7 @@ use serde::Deserialize;
 use uuid::Uuid;
 use time::format_description::well_known::Rfc3339;
 
-use crate::{error::ApiError, middleware, middleware::AuthUser, AppState};
+use crate::{error::ApiError, marketplace, middleware, middleware::AuthUser, AppState};
 
 pub fn router() -> Router<AppState> {
     let protected = Router::new()
@@ -17,9 +17,11 @@ pub fn router() -> Router<AppState> {
         .route("/posts/:id/like", post(toggle_like))
         .route("/posts/:id/comments", get(list_comments))
         .route("/posts/:id/comments", post(create_comment))
+        .route("/posts/:id/reactions", post(toggle_reaction))
         .route("/comments/:id", delete_route(delete_comment))
         .route("/comments/:id/like", post(toggle_comment_like))
         .route("/users/:username/posts", get(user_posts))
+        .route("/upload", post(upload_media))
         .layer(axum::middleware::from_fn(middleware::require_auth));
 
     Router::new()
@@ -39,7 +41,9 @@ async fn get_feed(
 ) -> Result<Json<serde_json::Value>, ApiError> {
     let limit = params.limit.unwrap_or(20).min(50);
     let posts = renzora_models::post::Post::feed(&state.db, auth.user_id, limit, params.before).await?;
-    let items: Vec<serde_json::Value> = posts.iter().map(|p| serialize_post(p)).collect();
+    let post_ids: Vec<Uuid> = posts.iter().map(|p| p.id).collect();
+    let reactions = crate::forum::fetch_reactions(&state, "post_reactions", &post_ids, Some(auth.user_id)).await?;
+    let items: Vec<serde_json::Value> = posts.iter().map(|p| serialize_post(p, &reactions)).collect();
     Ok(Json(serde_json::json!(items)))
 }
 
@@ -75,6 +79,36 @@ async fn create_post(
         "user_id": auth.user_id,
         "username": sender.username,
     }));
+
+    // Notify @mentioned users
+    let mut mention_names: Vec<String> = Vec::new();
+    for seg in body.body.split('@').skip(1) {
+        let name: String = seg.chars()
+            .take_while(|c| c.is_ascii_alphanumeric() || *c == '_' || *c == '-')
+            .collect();
+        if !name.is_empty() {
+            let lower = name.to_lowercase();
+            if !mention_names.contains(&lower) {
+                mention_names.push(lower);
+            }
+        }
+    }
+    if !mention_names.is_empty() {
+        let mentioned = sqlx::query_as::<_, (Uuid,)>(
+            "SELECT id FROM users WHERE LOWER(username) = ANY($1)"
+        ).bind(&mention_names).fetch_all(&state.db).await?;
+        let snippet: String = body.body.chars().take(120).collect();
+        for (uid,) in mentioned {
+            if uid != auth.user_id {
+                let _ = crate::notify::notify(&state, uid, "mention",
+                    &format!("{} mentioned you", sender.username),
+                    &snippet,
+                    Some("/feed"),
+                    sender.avatar_url.as_deref(),
+                ).await;
+            }
+        }
+    }
 
     Ok(Json(serde_json::json!({
         "id": post.id,
@@ -212,11 +246,70 @@ async fn user_posts(
     let user = renzora_models::user::User::find_by_username(&state.db, &username).await?.ok_or(ApiError::NotFound)?;
     let limit = params.limit.unwrap_or(20).min(50);
     let posts = renzora_models::post::Post::list_by_user(&state.db, user.id, Some(auth.user_id), limit).await?;
-    let items: Vec<serde_json::Value> = posts.iter().map(|p| serialize_post(p)).collect();
+    let post_ids: Vec<Uuid> = posts.iter().map(|p| p.id).collect();
+    let reactions = crate::forum::fetch_reactions(&state, "post_reactions", &post_ids, Some(auth.user_id)).await?;
+    let items: Vec<serde_json::Value> = posts.iter().map(|p| serialize_post(p, &reactions)).collect();
     Ok(Json(serde_json::json!(items)))
 }
 
-fn serialize_post(p: &renzora_models::post::PostWithAuthor) -> serde_json::Value {
+async fn toggle_reaction(
+    State(state): State<AppState>,
+    Extension(auth): Extension<AuthUser>,
+    Path(id): Path<Uuid>,
+    Json(body): Json<crate::forum::ReactionBody>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    if body.icon.is_empty() || body.icon.len() > 40 {
+        return Err(ApiError::Validation("Icon must be 1-40 characters".into()));
+    }
+    renzora_models::post::Post::find_by_id(&state.db, id).await?.ok_or(ApiError::NotFound)?;
+
+    let deleted = sqlx::query("DELETE FROM post_reactions WHERE post_id = $1 AND user_id = $2 AND icon = $3")
+        .bind(id).bind(auth.user_id).bind(&body.icon).execute(&state.db).await?;
+    if deleted.rows_affected() > 0 {
+        return Ok(Json(serde_json::json!({"reacted": false})));
+    }
+    sqlx::query("INSERT INTO post_reactions (post_id, user_id, icon) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING")
+        .bind(id).bind(auth.user_id).bind(&body.icon).execute(&state.db).await?;
+    Ok(Json(serde_json::json!({"reacted": true})))
+}
+
+/// Upload an image for a feed post. Mirrors the avatar upload in profiles.rs
+/// but stores under the feed/ prefix.
+async fn upload_media(
+    State(state): State<AppState>,
+    Extension(_auth): Extension<AuthUser>,
+    mut multipart: Multipart,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    let mut image_url: Option<String> = None;
+
+    while let Some(field) = multipart.next_field().await.map_err(|e| {
+        ApiError::Validation(format!("Failed to read upload: {e}"))
+    })? {
+        let field_name = field.name().unwrap_or("").to_string();
+        if field_name == "image" {
+            let filename = field.file_name().unwrap_or("image.png").to_string();
+            let ext = filename.rsplit('.').next().map(|e| e.to_lowercase()).unwrap_or_default();
+            if !["png", "jpg", "jpeg", "webp", "gif"].contains(&ext.as_str()) {
+                return Err(ApiError::Validation("Image must be png, jpg, webp, or gif".into()));
+            }
+            let data = field.bytes().await.map_err(|e| {
+                ApiError::Validation(format!("Failed to read file: {e}"))
+            })?;
+
+            // Max 5MB for feed images
+            if data.len() > 5 * 1024 * 1024 {
+                return Err(ApiError::Validation("Image must be under 5MB".into()));
+            }
+
+            image_url = Some(marketplace::upload_to_storage(&state, "feed", &filename, data.to_vec()).await?);
+        }
+    }
+
+    let url = image_url.ok_or(ApiError::Validation("No image file provided".into()))?;
+    Ok(Json(serde_json::json!({ "url": url })))
+}
+
+fn serialize_post(p: &renzora_models::post::PostWithAuthor, reactions: &[(Uuid, String, i64, bool)]) -> serde_json::Value {
     serde_json::json!({
         "id": p.id,
         "user_id": p.user_id,
@@ -229,6 +322,7 @@ fn serialize_post(p: &renzora_models::post::PostWithAuthor) -> serde_json::Value
         "like_count": p.like_count,
         "comment_count": p.comment_count,
         "is_liked": p.is_liked,
+        "reactions": crate::forum::reactions_for_post(reactions, p.id),
         "created_at": p.created_at.format(&Rfc3339).unwrap_or_default(),
     })
 }

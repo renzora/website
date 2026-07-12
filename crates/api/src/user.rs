@@ -14,6 +14,7 @@ pub fn router() -> Router<AppState> {
         .route("/me", get(user_me))
         .route("/owned", post(check_owned))
         .route("/privacy", put(update_privacy))
+        .route("/signature", put(update_signature))
         .route("/blocked", get(list_blocked))
         .route("/blocked/:user_id", delete(unblock_user))
         .layer(axum::middleware::from_fn(middleware::require_auth))
@@ -30,6 +31,7 @@ struct UserMeResponse {
     message_privacy: String,
     online_status_visible: bool,
     profile_visibility: String,
+    signature: String,
 }
 
 async fn user_me(
@@ -50,7 +52,29 @@ async fn user_me(
         message_privacy: user.message_privacy,
         online_status_visible: user.online_status_visible,
         profile_visibility: user.profile_visibility,
+        signature: user.signature,
     }))
+}
+
+#[derive(Deserialize)]
+struct SignatureBody {
+    signature: String,
+}
+
+async fn update_signature(
+    State(state): State<AppState>,
+    Extension(auth): Extension<AuthUser>,
+    Json(body): Json<SignatureBody>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    if body.signature.chars().count() > 300 {
+        return Err(ApiError::Validation("Signature must be 300 characters or less".into()));
+    }
+    sqlx::query("UPDATE users SET signature = $1, updated_at = NOW() WHERE id = $2")
+        .bind(&body.signature)
+        .bind(auth.user_id)
+        .execute(&state.db)
+        .await?;
+    Ok(Json(serde_json::json!({"ok": true})))
 }
 
 #[derive(Deserialize)]
