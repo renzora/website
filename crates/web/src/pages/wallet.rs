@@ -20,6 +20,24 @@ pub fn WalletPage() -> impl IntoView {
                     <span id="wallet-error-text"></span>
                 </div>
 
+                // Standalone success view — shown on a Stripe ?success return in
+                // place of the whole credits page, and it works signed out (the
+                // webhook credits the account regardless of the browser session).
+                <div id="wallet-success-view" class="hidden text-center py-24">
+                    <div class="inline-flex items-center justify-center w-20 h-20 rounded-full bg-green-500/10 border border-green-500/30 mb-6">
+                        <i class="ph ph-check-circle text-5xl text-green-400"></i>
+                    </div>
+                    <h1 class="text-3xl font-bold tracking-tight mb-2">"Payment successful!"</h1>
+                    <p class="text-zinc-400 max-w-md mx-auto mb-8">"Your credits have been added to your account. If you started this from the editor, your balance updates there automatically — no need to refresh."</p>
+                    <div class="flex items-center justify-center gap-3">
+                        <a href="/wallet" class="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-medium bg-accent text-white hover:bg-accent-hover transition-colors">"View my credits"</a>
+                        <a href="/marketplace" class="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-medium bg-surface-card border border-zinc-800 text-zinc-300 hover:text-white transition-colors">"Browse marketplace"</a>
+                    </div>
+                </div>
+
+                // The credits page proper — hidden on a success return.
+                <div id="wallet-main">
+
                 // Header
                 <div class="mb-10">
                     <h1 class="text-3xl font-bold tracking-tight">"Credits"</h1>
@@ -133,6 +151,8 @@ pub fn WalletPage() -> impl IntoView {
                     <a href="/login" class="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-medium bg-accent text-white hover:bg-accent-hover transition-colors">"Sign In"</a>
                 </div>
 
+                </div>  // #wallet-main
+
             </div>
         </section>
 
@@ -155,23 +175,30 @@ pub fn WalletPage() -> impl IntoView {
             let txPage = 1;
 
             (async function init() {
+                const params = new URLSearchParams(window.location.search);
+
+                // On a successful Stripe return, show ONLY the celebration — not
+                // the credits page — and do it whether or not the browser session
+                // is signed in (the webhook credits the account server-side).
+                if (params.get('success') === 'true') {
+                    document.getElementById('wallet-main')?.classList.add('hidden');
+                    document.getElementById('wallet-success-view')?.classList.remove('hidden');
+                    fireConfetti();
+                    history.replaceState({}, '', '/wallet');
+                    return;
+                }
+
                 token = document.cookie.match('(^|;)\\s*token\\s*=\\s*([^;]+)')?.pop();
+
+                if (params.get('cancelled') === 'true') {
+                    document.getElementById('wallet-cancelled').classList.remove('hidden');
+                    history.replaceState({}, '', '/wallet');
+                }
+
                 if (!token) {
                     document.getElementById('wallet-signin').classList.remove('hidden');
                     document.getElementById('tier-grid')?.closest('.mb-12')?.classList.add('hidden');
                     return;
-                }
-
-                // Check URL params for Stripe redirect
-                const params = new URLSearchParams(window.location.search);
-                if (params.get('success') === 'true') {
-                    document.getElementById('wallet-success').classList.remove('hidden');
-                    fireConfetti();
-                    history.replaceState({}, '', '/wallet');
-                }
-                if (params.get('cancelled') === 'true') {
-                    document.getElementById('wallet-cancelled').classList.remove('hidden');
-                    history.replaceState({}, '', '/wallet');
                 }
 
                 await Promise.all([loadBalance(), loadHistory(), loadReferralStats()]);
