@@ -52,6 +52,13 @@ pub fn router() -> Router<AppState> {
         .route("/forum-categories", get(list_forum_categories))
         .route("/forum-categories", post(create_forum_category))
         .route("/forum-categories/:id", delete(delete_forum_category))
+        // Feed channels + post moderation queue (moderators have `view_admin`).
+        .route("/channel-suggestions", get(list_channel_suggestions))
+        .route("/channels/:id/approve", post(approve_channel))
+        .route("/channels/:id", delete(delete_channel))
+        .route("/reported-posts", get(list_reported_posts))
+        .route("/posts/:id/restore", post(restore_post))
+        .route("/posts/:id", delete(admin_delete_post))
         .route("/badges", get(list_badges))
         .route("/badges/:user_id/:badge_slug", post(award_badge))
         // Roles
@@ -553,6 +560,101 @@ async fn delete_forum_category(
     verify_admin(&state, auth.user_id).await?;
     ForumCategory::delete(&state.db, id).await?;
     Ok(Json(serde_json::json!({"message": "Deleted"})))
+}
+
+// ── Feed channels (moderation) ──
+
+/// Pending channel suggestions (approved = false), oldest first.
+async fn list_channel_suggestions(
+    State(state): State<AppState>,
+    Extension(auth): Extension<AuthUser>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    verify_admin(&state, auth.user_id).await?;
+    let rows = sqlx::query_as::<_, (Uuid, String, String, String, String, Option<String>)>(
+        "SELECT c.id, c.name, c.slug, c.description, c.icon, u.username \
+         FROM channels c LEFT JOIN users u ON u.id = c.suggested_by \
+         WHERE c.approved = false ORDER BY c.created_at ASC"
+    ).fetch_all(&state.db).await?;
+    let items: Vec<serde_json::Value> = rows.iter().map(|(id, name, slug, desc, icon, by)| serde_json::json!({
+        "id": id, "name": name, "slug": slug, "description": desc, "icon": icon, "suggested_by": by,
+    })).collect();
+    Ok(Json(serde_json::json!(items)))
+}
+
+async fn approve_channel(
+    State(state): State<AppState>,
+    Extension(auth): Extension<AuthUser>,
+    Path(id): Path<Uuid>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    verify_admin(&state, auth.user_id).await?;
+    let r = sqlx::query("UPDATE channels SET approved = true WHERE id = $1")
+        .bind(id).execute(&state.db).await?;
+    if r.rows_affected() == 0 { return Err(ApiError::NotFound); }
+    Ok(Json(serde_json::json!({"ok": true})))
+}
+
+/// Delete a channel (reject a suggestion, or remove a live one). Posts keep
+/// existing — their `channel_id` is set NULL by the FK.
+async fn delete_channel(
+    State(state): State<AppState>,
+    Extension(auth): Extension<AuthUser>,
+    Path(id): Path<Uuid>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    verify_admin(&state, auth.user_id).await?;
+    sqlx::query("DELETE FROM channels WHERE id = $1").bind(id).execute(&state.db).await?;
+    Ok(Json(serde_json::json!({"ok": true})))
+}
+
+// ── Post moderation queue ──
+
+/// Hidden posts awaiting review — review-requested first, then most-recently hidden.
+async fn list_reported_posts(
+    State(state): State<AppState>,
+    Extension(auth): Extension<AuthUser>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    verify_admin(&state, auth.user_id).await?;
+    let rows = sqlx::query_as::<_, (Uuid, Uuid, String, String, i32, bool, time::OffsetDateTime)>(
+        "SELECT p.id, p.user_id, u.username, p.body, p.report_count, p.review_requested, p.created_at \
+         FROM posts p JOIN users u ON u.id = p.user_id \
+         WHERE p.hidden = true ORDER BY p.review_requested DESC, p.hidden_at DESC NULLS LAST LIMIT 100"
+    ).fetch_all(&state.db).await?;
+    use time::format_description::well_known::Rfc3339;
+    let items: Vec<serde_json::Value> = rows.iter().map(|(id, uid, username, body, rc, rr, created)| serde_json::json!({
+        "id": id, "user_id": uid, "username": username, "body": body,
+        "report_count": rc, "review_requested": rr,
+        "created_at": created.format(&Rfc3339).unwrap_or_default(),
+    })).collect();
+    Ok(Json(serde_json::json!(items)))
+}
+
+/// Restore a hidden post: un-hide it and clear its reports.
+async fn restore_post(
+    State(state): State<AppState>,
+    Extension(auth): Extension<AuthUser>,
+    Path(id): Path<Uuid>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    verify_admin(&state, auth.user_id).await?;
+    sqlx::query("UPDATE posts SET hidden = false, review_requested = false, report_count = 0, hidden_at = NULL WHERE id = $1")
+        .bind(id).execute(&state.db).await?;
+    sqlx::query("DELETE FROM post_reports WHERE post_id = $1").bind(id).execute(&state.db).await?;
+    Ok(Json(serde_json::json!({"ok": true})))
+}
+
+/// Moderator hard-delete of a post (permanently removes its media too).
+async fn admin_delete_post(
+    State(state): State<AppState>,
+    Extension(auth): Extension<AuthUser>,
+    Path(id): Path<Uuid>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    verify_admin(&state, auth.user_id).await?;
+    if let Some(post) = renzora_models::post::Post::find_by_id(&state.db, id).await? {
+        let media = post.media_urls.clone();
+        sqlx::query("DELETE FROM posts WHERE id = $1").bind(id).execute(&state.db).await?;
+        for url in &media {
+            let _ = crate::marketplace::delete_from_storage(&state, url).await;
+        }
+    }
+    Ok(Json(serde_json::json!({"ok": true})))
 }
 
 // ── Badges ──

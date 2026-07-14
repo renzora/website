@@ -15,12 +15,16 @@ pub fn router() -> Router<AppState> {
         .route("/posts", post(create_post))
         .route("/posts/:id", delete_route(delete_post))
         .route("/posts/:id/like", post(toggle_like))
+        .route("/posts/:id/report", post(report_post))
+        .route("/posts/:id/request-review", post(request_review))
         .route("/posts/:id/comments", get(list_comments))
         .route("/posts/:id/comments", post(create_comment))
         .route("/posts/:id/reactions", post(toggle_reaction))
         .route("/comments/:id", delete_route(delete_comment))
         .route("/comments/:id/like", post(toggle_comment_like))
         .route("/users/:username/posts", get(user_posts))
+        .route("/channels", get(list_channels))
+        .route("/channels/suggest", post(suggest_channel))
         .route("/upload", post(upload_media))
         .layer(axum::middleware::from_fn(middleware::require_auth));
 
@@ -28,10 +32,16 @@ pub fn router() -> Router<AppState> {
         .merge(protected)
 }
 
+/// A post auto-hides once this many distinct users report it (tunable). No
+/// downvotes feed this — reports only, so disagreement never hides a post.
+const AUTO_HIDE_REPORTS: i64 = 4;
+
 #[derive(Deserialize)]
 struct FeedQuery {
     before: Option<Uuid>,
     limit: Option<i64>,
+    /// Optional channel slug to filter the feed to one channel.
+    channel: Option<String>,
 }
 
 async fn get_feed(
@@ -40,7 +50,8 @@ async fn get_feed(
     Query(params): Query<FeedQuery>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     let limit = params.limit.unwrap_or(20).min(50);
-    let posts = renzora_models::post::Post::feed(&state.db, auth.user_id, limit, params.before).await?;
+    let channel_id = resolve_channel_id(&state, params.channel.as_deref(), false).await?;
+    let posts = renzora_models::post::Post::feed(&state.db, auth.user_id, limit, params.before, channel_id).await?;
     let post_ids: Vec<Uuid> = posts.iter().map(|p| p.id).collect();
     let reactions = crate::forum::fetch_reactions(&state, "post_reactions", &post_ids, Some(auth.user_id)).await?;
     let items: Vec<serde_json::Value> = posts.iter().map(|p| serialize_post(p, &reactions)).collect();
@@ -52,6 +63,8 @@ struct CreatePostBody {
     body: String,
     media_urls: Option<Vec<String>>,
     visibility: Option<String>,
+    /// Optional channel slug to post into.
+    channel: Option<String>,
 }
 
 async fn create_post(
@@ -70,7 +83,8 @@ async fn create_post(
         return Err(ApiError::Validation("Invalid visibility".into()));
     }
     let media = body.media_urls.unwrap_or_default();
-    let post = renzora_models::post::Post::create(&state.db, auth.user_id, &body.body, &media, visibility).await?;
+    let channel_id = resolve_channel_id(&state, body.channel.as_deref(), true).await?;
+    let post = renzora_models::post::Post::create(&state.db, auth.user_id, &body.body, &media, visibility, channel_id).await?;
 
     // Broadcast to followers via WS
     let sender = renzora_models::user::User::find_by_id(&state.db, auth.user_id).await?.ok_or(ApiError::NotFound)?;
@@ -121,8 +135,18 @@ async fn delete_post(
     Extension(auth): Extension<AuthUser>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
+    // Fetch first so we can permanently remove the attached media from storage
+    // after the row is gone (deleting the row alone would orphan the files).
+    let post = renzora_models::post::Post::find_by_id(&state.db, id).await?.ok_or(ApiError::NotFound)?;
+    if post.user_id != auth.user_id {
+        return Err(ApiError::NotFound);
+    }
+    let media = post.media_urls.clone();
     let deleted = renzora_models::post::Post::delete(&state.db, id, auth.user_id).await?;
     if !deleted { return Err(ApiError::NotFound); }
+    for url in &media {
+        let _ = marketplace::delete_from_storage(&state, url).await;
+    }
     Ok(Json(serde_json::json!({"ok": true})))
 }
 
@@ -309,6 +333,130 @@ async fn upload_media(
     Ok(Json(serde_json::json!({ "url": url })))
 }
 
+// ── Channels ──────────────────────────────────────────────────────────────────
+
+/// Resolve a channel slug to its id. `require_approved` = only match live
+/// channels (used when posting); the feed filter matches any existing channel.
+async fn resolve_channel_id(state: &AppState, slug: Option<&str>, require_approved: bool) -> Result<Option<Uuid>, ApiError> {
+    let Some(slug) = slug.map(str::trim).filter(|s| !s.is_empty()) else {
+        return Ok(None);
+    };
+    let q = if require_approved {
+        "SELECT id FROM channels WHERE slug = $1 AND approved = true"
+    } else {
+        "SELECT id FROM channels WHERE slug = $1"
+    };
+    Ok(sqlx::query_scalar::<_, Uuid>(q).bind(slug).fetch_optional(&state.db).await?)
+}
+
+async fn list_channels(
+    State(state): State<AppState>,
+    Extension(_auth): Extension<AuthUser>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    let rows = sqlx::query_as::<_, (Uuid, String, String, String, String, i32)>(
+        "SELECT id, name, slug, description, icon, post_count FROM channels WHERE approved = true ORDER BY sort_order, name"
+    ).fetch_all(&state.db).await?;
+    let items: Vec<serde_json::Value> = rows.iter().map(|(id, name, slug, desc, icon, pc)| serde_json::json!({
+        "id": id, "name": name, "slug": slug, "description": desc, "icon": icon, "post_count": pc,
+    })).collect();
+    Ok(Json(serde_json::json!(items)))
+}
+
+#[derive(Deserialize)]
+struct SuggestChannelBody {
+    name: String,
+    description: Option<String>,
+    icon: Option<String>,
+}
+
+async fn suggest_channel(
+    State(state): State<AppState>,
+    Extension(auth): Extension<AuthUser>,
+    Json(body): Json<SuggestChannelBody>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    let name = body.name.trim();
+    if name.is_empty() || name.chars().count() > 48 {
+        return Err(ApiError::Validation("Channel name must be 1-48 characters".into()));
+    }
+    let slug = slugify(name);
+    if slug.is_empty() {
+        return Err(ApiError::Validation("Channel name must contain letters or numbers".into()));
+    }
+    let exists: bool = sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM channels WHERE slug = $1)")
+        .bind(&slug).fetch_one(&state.db).await?;
+    if exists {
+        return Err(ApiError::Validation("That channel already exists or is already suggested".into()));
+    }
+    let desc: String = body.description.unwrap_or_default().chars().take(200).collect();
+    let icon = body.icon.filter(|i| !i.trim().is_empty()).unwrap_or_else(|| "ph-hash".to_string());
+    // Suggested channels start unapproved (approved=false); an admin approves them.
+    sqlx::query(
+        "INSERT INTO channels (name, slug, description, icon, sort_order, approved, suggested_by) VALUES ($1, $2, $3, $4, 100, false, $5)"
+    ).bind(name).bind(&slug).bind(&desc).bind(&icon).bind(auth.user_id).execute(&state.db).await?;
+    Ok(Json(serde_json::json!({"ok": true, "slug": slug, "pending": true})))
+}
+
+/// name → URL-safe single-token slug (matches the `channels.slug` CHECK:
+/// lowercase letters/digits/hyphens/underscores, no spaces).
+fn slugify(s: &str) -> String {
+    let mut out = String::new();
+    let mut prev_dash = false;
+    for c in s.chars() {
+        if c.is_ascii_alphanumeric() {
+            out.push(c.to_ascii_lowercase());
+            prev_dash = false;
+        } else if !out.is_empty() && !prev_dash {
+            out.push('-');
+            prev_dash = true;
+        }
+    }
+    out.trim_matches('-').chars().take(48).collect()
+}
+
+// ── Reporting / review ────────────────────────────────────────────────────────
+
+#[derive(Deserialize)]
+struct ReportBody {
+    reason: Option<String>,
+}
+
+async fn report_post(
+    State(state): State<AppState>,
+    Extension(auth): Extension<AuthUser>,
+    Path(id): Path<Uuid>,
+    Json(body): Json<ReportBody>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    let post = renzora_models::post::Post::find_by_id(&state.db, id).await?.ok_or(ApiError::NotFound)?;
+    if post.user_id == auth.user_id {
+        return Err(ApiError::Validation("You can't report your own post".into()));
+    }
+    let reason: String = body.reason.unwrap_or_default().chars().take(200).collect();
+    sqlx::query("INSERT INTO post_reports (post_id, reporter_id, reason) VALUES ($1, $2, $3) ON CONFLICT (post_id, reporter_id) DO NOTHING")
+        .bind(id).bind(auth.user_id).bind(&reason).execute(&state.db).await?;
+    let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM post_reports WHERE post_id = $1")
+        .bind(id).fetch_one(&state.db).await?;
+    let now_hidden = count >= AUTO_HIDE_REPORTS;
+    // Auto-hide at the threshold; never un-hide here (only a moderator restores).
+    sqlx::query(
+        "UPDATE posts SET report_count = $2, hidden = (hidden OR $3), \
+         hidden_at = CASE WHEN $3 AND hidden_at IS NULL THEN NOW() ELSE hidden_at END WHERE id = $1"
+    ).bind(id).bind(count as i32).bind(now_hidden).execute(&state.db).await?;
+    Ok(Json(serde_json::json!({"reported": true, "hidden": now_hidden})))
+}
+
+async fn request_review(
+    State(state): State<AppState>,
+    Extension(auth): Extension<AuthUser>,
+    Path(id): Path<Uuid>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    let r = sqlx::query("UPDATE posts SET review_requested = true WHERE id = $1 AND user_id = $2 AND hidden = true")
+        .bind(id).bind(auth.user_id).execute(&state.db).await?;
+    if r.rows_affected() == 0 {
+        return Err(ApiError::NotFound);
+    }
+    Ok(Json(serde_json::json!({"ok": true})))
+}
+
 fn serialize_post(p: &renzora_models::post::PostWithAuthor, reactions: &[(Uuid, String, i64, bool)]) -> serde_json::Value {
     serde_json::json!({
         "id": p.id,
@@ -322,6 +470,11 @@ fn serialize_post(p: &renzora_models::post::PostWithAuthor, reactions: &[(Uuid, 
         "like_count": p.like_count,
         "comment_count": p.comment_count,
         "is_liked": p.is_liked,
+        "channel_slug": p.channel_slug,
+        "channel_name": p.channel_name,
+        "channel_icon": p.channel_icon,
+        "hidden": p.hidden,
+        "review_requested": p.review_requested,
         "reactions": crate::forum::reactions_for_post(reactions, p.id),
         "created_at": p.created_at.format(&Rfc3339).unwrap_or_default(),
     })
