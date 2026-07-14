@@ -402,14 +402,25 @@ async fn start_connect_onboarding(
         .await
         .map_err(|e| ApiError::Internal(format!("Stripe error: {e}")))?;
 
-    let link: serde_json::Value = res
-        .json()
+    // Surface Stripe's real error rather than swallowing it into a generic
+    // "Missing onboarding URL": account_links commonly rejects when the Connect
+    // account is incomplete or created in a different (test/live) mode.
+    let status = res.status();
+    let body = res
+        .text()
         .await
+        .map_err(|e| ApiError::Internal(format!("Stripe read error: {e}")))?;
+
+    if !status.is_success() {
+        return Err(ApiError::Internal(format!("Stripe account-link error ({status}): {body}")));
+    }
+
+    let link: serde_json::Value = serde_json::from_str(&body)
         .map_err(|e| ApiError::Internal(format!("Stripe parse error: {e}")))?;
 
     let url = link["url"]
         .as_str()
-        .ok_or_else(|| ApiError::Internal("Missing onboarding URL".into()))?;
+        .ok_or_else(|| ApiError::Internal(format!("Missing onboarding URL. Stripe response: {body}")))?;
 
     Ok(Json(serde_json::json!({ "url": url })))
 }
