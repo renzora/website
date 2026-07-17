@@ -36,6 +36,44 @@ pub fn router() -> Router<AppState> {
 /// downvotes feed this — reports only, so disagreement never hides a post.
 const AUTO_HIDE_REPORTS: i64 = 4;
 
+/// One row of the grouped reaction aggregation: (post_id, icon, count, reacted-by-viewer).
+type ReactionRow = (Uuid, String, i64, bool);
+
+/// Fetch aggregated reactions for a set of posts from `post_reactions` in a
+/// single grouped query.
+pub(crate) async fn fetch_reactions(
+    state: &AppState,
+    table: &str,
+    post_ids: &[Uuid],
+    viewer_id: Option<Uuid>,
+) -> Result<Vec<ReactionRow>, ApiError> {
+    if post_ids.is_empty() {
+        return Ok(vec![]);
+    }
+    let query = format!(
+        "SELECT post_id, icon, COUNT(*)::bigint as count, BOOL_OR(user_id = $2) as reacted \
+         FROM {table} WHERE post_id = ANY($1) GROUP BY post_id, icon ORDER BY MIN(created_at)"
+    );
+    let rows = sqlx::query_as::<_, ReactionRow>(&query)
+        .bind(post_ids)
+        .bind(viewer_id.unwrap_or(Uuid::nil()))
+        .fetch_all(&state.db)
+        .await?;
+    Ok(rows)
+}
+
+/// Build the serialized "reactions" array for one post from the grouped rows.
+pub(crate) fn reactions_for_post(rows: &[ReactionRow], post_id: Uuid) -> Vec<serde_json::Value> {
+    rows.iter().filter(|r| r.0 == post_id).map(|r| serde_json::json!({
+        "icon": r.1,
+        "count": r.2,
+        "reacted": r.3,
+    })).collect()
+}
+
+#[derive(Deserialize)]
+pub(crate) struct ReactionBody { pub icon: String }
+
 #[derive(Deserialize)]
 struct FeedQuery {
     before: Option<Uuid>,
@@ -53,7 +91,7 @@ async fn get_feed(
     let channel_id = resolve_channel_id(&state, params.channel.as_deref(), false).await?;
     let posts = renzora_models::post::Post::feed(&state.db, auth.user_id, limit, params.before, channel_id).await?;
     let post_ids: Vec<Uuid> = posts.iter().map(|p| p.id).collect();
-    let reactions = crate::forum::fetch_reactions(&state, "post_reactions", &post_ids, Some(auth.user_id)).await?;
+    let reactions = fetch_reactions(&state, "post_reactions", &post_ids, Some(auth.user_id)).await?;
     let items: Vec<serde_json::Value> = posts.iter().map(|p| serialize_post(p, &reactions)).collect();
     Ok(Json(serde_json::json!(items)))
 }
@@ -86,6 +124,9 @@ async fn create_post(
     let channel_id = resolve_channel_id(&state, body.channel.as_deref(), true).await?;
     let post = renzora_models::post::Post::create(&state.db, auth.user_id, &body.body, &media, visibility, channel_id).await?;
 
+    // Award XP for posting
+    let _ = renzora_models::xp::award_xp(&state.db, auth.user_id, renzora_models::xp::XP_POST, "feed_post", Some(post.id)).await;
+
     // Broadcast to followers via WS
     let sender = renzora_models::user::User::find_by_id(&state.db, auth.user_id).await?.ok_or(ApiError::NotFound)?;
     state.ws_broadcast.broadcast("new_post", serde_json::json!({
@@ -117,7 +158,7 @@ async fn create_post(
                 let _ = crate::notify::notify(&state, uid, "mention",
                     &format!("{} mentioned you", sender.username),
                     &snippet,
-                    Some("/feed"),
+                    Some("/community"),
                     sender.avatar_url.as_deref(),
                 ).await;
             }
@@ -271,7 +312,7 @@ async fn user_posts(
     let limit = params.limit.unwrap_or(20).min(50);
     let posts = renzora_models::post::Post::list_by_user(&state.db, user.id, Some(auth.user_id), limit).await?;
     let post_ids: Vec<Uuid> = posts.iter().map(|p| p.id).collect();
-    let reactions = crate::forum::fetch_reactions(&state, "post_reactions", &post_ids, Some(auth.user_id)).await?;
+    let reactions = fetch_reactions(&state, "post_reactions", &post_ids, Some(auth.user_id)).await?;
     let items: Vec<serde_json::Value> = posts.iter().map(|p| serialize_post(p, &reactions)).collect();
     Ok(Json(serde_json::json!(items)))
 }
@@ -280,7 +321,7 @@ async fn toggle_reaction(
     State(state): State<AppState>,
     Extension(auth): Extension<AuthUser>,
     Path(id): Path<Uuid>,
-    Json(body): Json<crate::forum::ReactionBody>,
+    Json(body): Json<ReactionBody>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     if body.icon.is_empty() || body.icon.len() > 40 {
         return Err(ApiError::Validation("Icon must be 1-40 characters".into()));
@@ -475,7 +516,7 @@ fn serialize_post(p: &renzora_models::post::PostWithAuthor, reactions: &[(Uuid, 
         "channel_icon": p.channel_icon,
         "hidden": p.hidden,
         "review_requested": p.review_requested,
-        "reactions": crate::forum::reactions_for_post(reactions, p.id),
+        "reactions": reactions_for_post(reactions, p.id),
         "created_at": p.created_at.format(&Rfc3339).unwrap_or_default(),
     })
 }

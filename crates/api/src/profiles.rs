@@ -29,7 +29,6 @@ pub fn router() -> Router<AppState> {
         .route("/:username/followers", get(get_followers))
         .route("/:username/following", get(get_following))
         .route("/:username/friends-list", get(get_friends_list))
-        .route("/:username/forum-posts", get(get_user_forum_posts))
         .route("/shop/:username", get(get_storefront))
         .route("/search", get(search_users))
         .route("/popular", get(popular_users))
@@ -130,50 +129,6 @@ async fn get_friends_list(
         "SELECT u.username, u.avatar_url, u.role FROM friends f JOIN users u ON u.id = f.friend_id WHERE f.user_id = $1 AND f.status = 'accepted' ORDER BY u.username LIMIT 50"
     ).bind(target_id).fetch_all(&state.db).await?;
     Ok(Json(serialize_user_rows(&rows)))
-}
-
-#[derive(Deserialize)]
-struct ForumPostsQuery {
-    page: Option<i64>,
-}
-
-async fn get_user_forum_posts(
-    State(state): State<AppState>,
-    Path(username): Path<String>,
-    axum::extract::Query(params): axum::extract::Query<ForumPostsQuery>,
-) -> Result<Json<serde_json::Value>, ApiError> {
-    let user_id: Uuid = sqlx::query_scalar("SELECT id FROM users WHERE username=$1")
-        .bind(&username)
-        .fetch_optional(&state.db)
-        .await?
-        .ok_or(ApiError::NotFound)?;
-
-    let page = params.page.unwrap_or(1).max(1);
-    let per_page: i64 = 10;
-    let offset = (page - 1) * per_page;
-
-    let total: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM forum_posts WHERE author_id=$1")
-        .bind(user_id)
-        .fetch_one(&state.db)
-        .await?;
-
-    let rows: Vec<(String, String, String, time::OffsetDateTime)> = sqlx::query_as(
-        "SELECT t.title as thread_title, t.slug as thread_slug, LEFT(p.content, 200) as content, p.created_at \
-         FROM forum_posts p JOIN forum_threads t ON t.id = p.thread_id \
-         WHERE p.author_id = $1 ORDER BY p.created_at DESC LIMIT $2 OFFSET $3"
-    ).bind(user_id).bind(per_page).bind(offset).fetch_all(&state.db).await?;
-
-    let posts: Vec<serde_json::Value> = rows.iter().map(|r| serde_json::json!({
-        "thread_title": r.0,
-        "thread_slug": r.1,
-        "content": r.2,
-        "created_at": r.3.format(&time::format_description::well_known::Rfc3339).unwrap_or_default(),
-    })).collect();
-
-    Ok(Json(serde_json::json!({
-        "posts": posts,
-        "total": total,
-    })))
 }
 
 async fn popular_users(

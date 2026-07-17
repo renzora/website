@@ -33,7 +33,7 @@ pub fn TermsPage() -> impl IntoView {
                 <div>
                     <h2 class="text-lg font-semibold text-zinc-200 mb-2">"5. User Content"</h2>
                     <p>"You retain ownership of content you create and upload. You must not upload content that infringes on others' intellectual property, contains malware, or violates any laws. Renzora may remove content that violates these terms without notice."</p>
-                    <p>"Posts, comments, forum threads, and messages are your responsibility. You must not post spam, harassment, hate speech, or illegal content."</p>
+                    <p>"Posts, comments, channel posts, and messages are your responsibility. You must not post spam, harassment, hate speech, or illegal content."</p>
                 </div>
 
                 <div>
