@@ -7,16 +7,17 @@ use leptos_router::{
 
 use crate::components::nav::Nav;
 use crate::pages::{
+    articles::{ArticlesPage, ArticleDetailPage, WriteArticlePage},
     asset_detail::AssetDetailPage,
     asset_edit::AssetEditPage,
-    community::{CommunityPage, ArticleDetailPage, WriteArticlePage},
+    community::CommunityPage,
     dashboard::DashboardPage,
     developers::DevelopersPage,
     docs::{DocsPage, DocArticle},
     donate::DonatePage,
     courses::{CoursesPage, CourseDetailPage, ChapterViewPage, CreateCoursePage, EditCoursePage},
     download::DownloadPage,
-    forum::{ForumPage, ForumCategoryPage, ForumThreadPage, NewThreadPage},
+    friends::FriendsPage,
     gifts::GiftsPage,
     home::HomePage,
     library::LibraryPage,
@@ -31,8 +32,8 @@ use crate::pages::{
     upload::UploadPage,
     wallet::WalletPage,
     embed::EmbedPreviewPage,
-    feed::FeedPage,
     messages::MessagesPage,
+    notifications::NotificationsPage,
     terms::TermsPage,
     privacy::PrivacyPage,
     avatar_editor::AvatarEditorPage,
@@ -70,12 +71,12 @@ pub fn App() -> impl IntoView {
                     <Route path=path!("/courses/:slug/edit") view=EditCoursePage />
                     <Route path=path!("/courses/:slug/chapter/:chapter") view=ChapterViewPage />
                     <Route path=path!("/community") view=CommunityPage />
-                    <Route path=path!("/community/write") view=WriteArticlePage />
-                    <Route path=path!("/community/:slug") view=ArticleDetailPage />
-                    <Route path=path!("/forum") view=ForumPage />
-                    <Route path=path!("/forum/new") view=NewThreadPage />
-                    <Route path=path!("/forum/thread/:slug") view=ForumThreadPage />
-                    <Route path=path!("/forum/:slug") view=ForumCategoryPage />
+                    <Route path=path!("/community/channel/:slug") view=CommunityPage />
+                    <Route path=path!("/articles") view=ArticlesPage />
+                    <Route path=path!("/articles/write") view=WriteArticlePage />
+                    <Route path=path!("/articles/:slug") view=ArticleDetailPage />
+                    <Route path=path!("/friends") view=FriendsPage />
+                    <Route path=path!("/notifications") view=NotificationsPage />
                     <Route path=path!("/profile/:username") view=ProfilePage />
                     <Route path=path!("/shop/:username") view=ShopPage />
                     <Route path=path!("/dashboard") view=DashboardPage />
@@ -83,7 +84,7 @@ pub fn App() -> impl IntoView {
                     <Route path=path!("/subscription") view=SubscriptionPage />
                     <Route path=path!("/teams") view=TeamsPage />
                     <Route path=path!("/messages") view=MessagesPage />
-                    <Route path=path!("/feed") view=FeedPage />
+                    <Route path=path!("/feed") view=CommunityPage />
                     <Route path=path!("/donate") view=DonatePage />
                     <Route path=path!("/gifts") view=GiftsPage />
                     <Route path=path!("/terms") view=TermsPage />

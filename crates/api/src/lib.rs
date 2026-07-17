@@ -11,7 +11,6 @@ pub mod credits;
 pub mod docs;
 pub mod error;
 pub mod feed;
-pub mod forum;
 pub mod games;
 pub mod gameservices;
 pub mod jwt;
@@ -59,7 +58,6 @@ pub fn api_router(state: AppState) -> Router {
         .nest("/creator", creator::router())
         // docs are served from static files, not DB (see server/docs_files.rs)
         .nest("/articles", articles::router())
-        .nest("/forum", forum::router())
         .nest("/notifications", notifications::router())
         .nest("/feed", feed::router())
         .nest("/profiles", profiles::router())

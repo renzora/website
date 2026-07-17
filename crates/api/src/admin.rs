@@ -8,7 +8,6 @@ use axum::{
 };
 use renzora_models::category::Category;
 use renzora_models::dispute::{self, Dispute};
-use renzora_models::forum::ForumCategory;
 use renzora_models::user::User;
 use renzora_models::asset::Asset;
 use renzora_models::article::Article;
@@ -49,9 +48,6 @@ pub fn router() -> Router<AppState> {
         .route("/docs", post(create_doc))
         .route("/docs/:id", put(update_doc))
         .route("/docs/:id", delete(delete_doc))
-        .route("/forum-categories", get(list_forum_categories))
-        .route("/forum-categories", post(create_forum_category))
-        .route("/forum-categories/:id", delete(delete_forum_category))
         // Feed channels + post moderation queue (moderators have `view_admin`).
         .route("/channel-suggestions", get(list_channel_suggestions))
         .route("/channels/:id/approve", post(approve_channel))
@@ -527,40 +523,6 @@ async fn delete_doc(
 ) -> Result<Json<serde_json::Value>, ApiError> {
     verify_admin(&state, auth.user_id).await?;
     sqlx::query("DELETE FROM docs WHERE id = $1").bind(id).execute(&state.db).await?;
-    Ok(Json(serde_json::json!({"message": "Deleted"})))
-}
-
-// ── Forum categories ──
-
-async fn list_forum_categories(
-    State(state): State<AppState>,
-    Extension(auth): Extension<AuthUser>,
-) -> Result<Json<Vec<ForumCategory>>, ApiError> {
-    verify_admin(&state, auth.user_id).await?;
-    let cats = ForumCategory::list(&state.db).await?;
-    Ok(Json(cats))
-}
-
-#[derive(Deserialize)]
-struct CreateForumCategoryBody { name: String, slug: String, description: String, icon: String }
-
-async fn create_forum_category(
-    State(state): State<AppState>,
-    Extension(auth): Extension<AuthUser>,
-    Json(body): Json<CreateForumCategoryBody>,
-) -> Result<Json<ForumCategory>, ApiError> {
-    verify_admin(&state, auth.user_id).await?;
-    let cat = ForumCategory::create(&state.db, &body.name, &body.slug, &body.description, &body.icon).await?;
-    Ok(Json(cat))
-}
-
-async fn delete_forum_category(
-    State(state): State<AppState>,
-    Extension(auth): Extension<AuthUser>,
-    Path(id): Path<Uuid>,
-) -> Result<Json<serde_json::Value>, ApiError> {
-    verify_admin(&state, auth.user_id).await?;
-    ForumCategory::delete(&state.db, id).await?;
     Ok(Json(serde_json::json!({"message": "Deleted"})))
 }
 

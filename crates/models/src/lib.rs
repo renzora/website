@@ -15,7 +15,6 @@ pub mod subcategory;
 pub mod tag;
 pub mod dispute;
 pub mod doc;
-pub mod forum;
 pub mod game;
 pub mod licensing;
 pub mod notification;

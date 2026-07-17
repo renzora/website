@@ -16,6 +16,9 @@ pub fn Nav() -> impl IntoView {
                     <a href="/marketplace" class="nav-link text-base text-zinc-400 hover:text-white hover:bg-white/[0.06] px-3.5 py-1.5 rounded-lg transition-all flex items-center gap-1.5" data-path="/marketplace">
                         <i class="ph ph-storefront text-lg"></i>"Marketplace"
                     </a>
+                    <a href="/community" class="nav-link text-base text-zinc-400 hover:text-white hover:bg-white/[0.06] px-3.5 py-1.5 rounded-lg transition-all flex items-center gap-1.5" data-path="/community">
+                        <i class="ph ph-users-three text-lg"></i>"Community"
+                    </a>
                     <a href="/docs" class="nav-link text-base text-zinc-400 hover:text-white hover:bg-white/[0.06] px-3.5 py-1.5 rounded-lg transition-all flex items-center gap-1.5" data-path="/docs">
                         <i class="ph ph-book-open text-lg"></i>"Docs"
                     </a>
@@ -88,6 +91,7 @@ pub fn Nav() -> impl IntoView {
                             <div id="notif-list" class="max-h-80 overflow-y-auto">
                                 <p class="text-xs text-zinc-500 p-4 text-center">"No notifications"</p>
                             </div>
+                            <a href="/notifications" class="block px-3 py-2.5 text-center text-xs text-accent hover:text-accent-hover border-t border-white/[0.06]">"See all notifications"</a>
                         </div>
                     </div>
                     // Credits
@@ -109,6 +113,9 @@ pub fn Nav() -> impl IntoView {
                             </a>
                             <a href="/library" class="flex items-center gap-2.5 px-4 py-2.5 text-sm text-zinc-400 hover:text-white hover:bg-white/[0.06] transition-all">
                                 <i class="ph ph-books text-base"></i>"My Library"
+                            </a>
+                            <a href="/friends" class="flex items-center gap-2.5 px-4 py-2.5 text-sm text-zinc-400 hover:text-white hover:bg-white/[0.06] transition-all">
+                                <i class="ph ph-user-plus text-base"></i>"Friends"
                             </a>
                             <a id="nav-sell-link" href="/marketplace/sell" class="flex items-center gap-2.5 px-4 py-2.5 text-sm text-zinc-400 hover:text-white hover:bg-white/[0.06] transition-all">
                                 <i class="ph ph-storefront text-base" id="nav-sell-icon"></i><span id="nav-sell-text">"Sell on Marketplace"</span>
@@ -217,7 +224,7 @@ pub fn Nav() -> impl IntoView {
                 const token = getCookie('token');
                 if (!token) return;
                 try {
-                    const res = await fetch('/api/notifications/', { headers: { 'Authorization': 'Bearer ' + token } });
+                    const res = await fetch('/api/notifications', { headers: { 'Authorization': 'Bearer ' + token } });
                     if (!res.ok) return;
                     const data = await res.json();
                     const el = document.getElementById('notif-list');
@@ -279,17 +286,17 @@ pub fn Nav() -> impl IntoView {
                                 msgBadge.textContent = current + 1;
                                 msgBadge.classList.remove('hidden');
                             }
+                            window.dispatchEvent(new CustomEvent('renzora:new_message', { detail: msg.data }));
+                        }
+                        if (msg.event === 'message_edited' || msg.event === 'message_deleted' || msg.event === 'read_receipt') {
+                            window.dispatchEvent(new CustomEvent('renzora:' + msg.event, { detail: msg.data }));
                         }
                         if (msg.event === 'new_post') {
-                            // If viewing this thread, show a "new reply" banner
-                            if (window.location.pathname.includes('/forum/thread/' + msg.data.thread_slug)) {
-                                const banner = document.createElement('div');
-                                banner.className = 'fixed bottom-4 right-4 bg-accent text-white px-4 py-2 rounded-lg text-sm cursor-pointer shadow-lg z-50';
-                                banner.textContent = 'New reply — click to refresh';
-                                banner.onclick = function() { window.location.reload(); };
-                                document.body.appendChild(banner);
-                                setTimeout(() => banner.remove(), 10000);
-                            }
+                            // Let the community feed (if open) show its "new posts" pill.
+                            window.dispatchEvent(new CustomEvent('renzora:new_post', { detail: msg.data }));
+                        }
+                        if (msg.event === 'new_comment' || msg.event === 'post_liked') {
+                            window.dispatchEvent(new CustomEvent('renzora:' + msg.event, { detail: msg.data }));
                         }
                     } catch(e) {}
                 };

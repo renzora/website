@@ -22,7 +22,7 @@ pub fn PrivacyPage() -> impl IntoView {
                     <p class="font-medium text-zinc-300 mt-3">"Usage data:"</p>
                     <p>"IP addresses (for security and rate limiting), browser user agent, pages visited, API usage, launcher downloads."</p>
                     <p class="font-medium text-zinc-300 mt-3">"Content data:"</p>
-                    <p>"Assets you upload, posts, comments, messages, forum threads, reviews."</p>
+                    <p>"Assets you upload, posts, comments, messages, channel posts, reviews."</p>
                 </div>
 
                 <div>
