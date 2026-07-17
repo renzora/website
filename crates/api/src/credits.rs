@@ -33,13 +33,36 @@ pub fn router() -> Router<AppState> {
         .route("/gift-cards/sent", get(list_sent_gifts))
         .route("/gift-cards/received", get(list_received_gifts))
         .route("/donate", post(make_donation))
+        .route("/donate/sponsor-profile", get(get_sponsor_profile).put(update_sponsor_profile))
+        .route("/donate/sponsor-logo", axum::routing::put(upload_sponsor_logo))
         .layer(axum::middleware::from_fn(middleware::require_auth));
 
     Router::new()
         .route("/webhook", post(stripe_webhook))
         .route("/donate/leaderboard", get(donation_leaderboard))
         .route("/donate/total", get(donation_total))
+        .route("/donate/sponsors", get(list_sponsors))
         .merge(protected)
+}
+
+// ── Sponsor tiers ──
+// Cumulative non-anonymous donation thresholds, in credits.
+// Bronze/Silver/Gold match the existing donor-badge thresholds.
+const SPONSOR_BRONZE: i64 = 100;      // name listed
+const SPONSOR_SILVER: i64 = 500;      // name + link
+const SPONSOR_GOLD: i64 = 1_000;      // name + link, highlighted
+const SPONSOR_PLATINUM: i64 = 5_000;  // logo + link
+const SPONSOR_CORPORATE: i64 = 25_000; // large logo + link, top billing
+
+fn sponsor_tier(total: i64) -> Option<&'static str> {
+    match total {
+        t if t >= SPONSOR_CORPORATE => Some("corporate"),
+        t if t >= SPONSOR_PLATINUM => Some("platinum"),
+        t if t >= SPONSOR_GOLD => Some("gold"),
+        t if t >= SPONSOR_SILVER => Some("silver"),
+        t if t >= SPONSOR_BRONZE => Some("bronze"),
+        _ => None,
+    }
 }
 
 /// Get the current user's credit balance.
@@ -949,4 +972,186 @@ async fn donation_total(
 ) -> Result<Json<serde_json::Value>, ApiError> {
     let total = renzora_models::donation::Donation::total(&state.db).await?;
     Ok(Json(serde_json::json!({"total": total})))
+}
+
+// ── Sponsor wall ──
+
+/// Public sponsor wall: everyone whose cumulative non-anonymous donations
+/// reach at least the bronze tier, grouped by tier client-side.
+async fn list_sponsors(
+    State(state): State<AppState>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    use sqlx::Row;
+
+    let rows = sqlx::query(
+        "SELECT u.id, u.username, COALESCE(sp.display_name, '') AS display_name, \
+         COALESCE(sp.website_url, '') AS website_url, sp.logo_url, \
+         SUM(d.amount)::bigint AS total \
+         FROM donations d \
+         JOIN users u ON u.id = d.user_id \
+         LEFT JOIN sponsor_profiles sp ON sp.user_id = u.id \
+         WHERE d.anonymous = false AND COALESCE(sp.hidden, false) = false \
+         GROUP BY u.id, u.username, sp.display_name, sp.website_url, sp.logo_url \
+         HAVING SUM(d.amount) >= $1 \
+         ORDER BY total DESC",
+    )
+    .bind(SPONSOR_BRONZE)
+    .fetch_all(&state.db)
+    .await?;
+
+    let sponsors: Vec<serde_json::Value> = rows
+        .iter()
+        .filter_map(|r| {
+            let total: i64 = r.get("total");
+            let tier = sponsor_tier(total)?;
+            let username: String = r.get("username");
+            let display_name: String = r.get("display_name");
+            let website_url: String = r.get("website_url");
+            let logo_url: Option<String> = r.get("logo_url");
+            // Logos and links only render at the tiers that earn them.
+            let show_logo = matches!(tier, "platinum" | "corporate");
+            let show_link = tier != "bronze";
+            Some(serde_json::json!({
+                "username": username,
+                "name": if display_name.trim().is_empty() { username.clone() } else { display_name },
+                "url": if show_link && !website_url.trim().is_empty() { serde_json::json!(website_url) } else { serde_json::Value::Null },
+                "logo_url": if show_logo { serde_json::json!(logo_url) } else { serde_json::Value::Null },
+                "total": total,
+                "tier": tier,
+            }))
+        })
+        .collect();
+
+    Ok(Json(serde_json::json!({
+        "tiers": {
+            "bronze": SPONSOR_BRONZE,
+            "silver": SPONSOR_SILVER,
+            "gold": SPONSOR_GOLD,
+            "platinum": SPONSOR_PLATINUM,
+            "corporate": SPONSOR_CORPORATE,
+        },
+        "sponsors": sponsors,
+    })))
+}
+
+/// The signed-in user's sponsor status: total donated, tier, and profile.
+async fn get_sponsor_profile(
+    State(state): State<AppState>,
+    Extension(auth): Extension<AuthUser>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    use sqlx::Row;
+
+    let total: (i64,) = sqlx::query_as(
+        "SELECT COALESCE(SUM(amount), 0)::bigint FROM donations WHERE user_id = $1 AND anonymous = false",
+    )
+    .bind(auth.user_id)
+    .fetch_one(&state.db)
+    .await?;
+
+    let profile = sqlx::query(
+        "SELECT display_name, website_url, logo_url, hidden FROM sponsor_profiles WHERE user_id = $1",
+    )
+    .bind(auth.user_id)
+    .fetch_optional(&state.db)
+    .await?;
+
+    Ok(Json(serde_json::json!({
+        "total_donated": total.0,
+        "tier": sponsor_tier(total.0),
+        "logo_eligible": total.0 >= SPONSOR_PLATINUM,
+        "profile": profile.map(|r| serde_json::json!({
+            "display_name": r.get::<String, _>("display_name"),
+            "website_url": r.get::<String, _>("website_url"),
+            "logo_url": r.get::<Option<String>, _>("logo_url"),
+            "hidden": r.get::<bool, _>("hidden"),
+        })),
+    })))
+}
+
+#[derive(serde::Deserialize)]
+struct SponsorProfileBody {
+    display_name: Option<String>,
+    website_url: Option<String>,
+    hidden: Option<bool>,
+}
+
+async fn update_sponsor_profile(
+    State(state): State<AppState>,
+    Extension(auth): Extension<AuthUser>,
+    Json(body): Json<SponsorProfileBody>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    let display_name = body.display_name.unwrap_or_default();
+    let website_url = body.website_url.unwrap_or_default();
+
+    if display_name.len() > 64 {
+        return Err(ApiError::Validation("Display name must be 64 characters or less".into()));
+    }
+    if !website_url.is_empty() && !website_url.starts_with("http://") && !website_url.starts_with("https://") {
+        return Err(ApiError::Validation("Website must start with http:// or https://".into()));
+    }
+    if website_url.len() > 512 {
+        return Err(ApiError::Validation("Website URL too long".into()));
+    }
+
+    sqlx::query(
+        "INSERT INTO sponsor_profiles (user_id, display_name, website_url, hidden) VALUES ($1, $2, $3, $4) \
+         ON CONFLICT (user_id) DO UPDATE SET display_name = $2, website_url = $3, hidden = $4, updated_at = NOW()",
+    )
+    .bind(auth.user_id)
+    .bind(display_name.trim())
+    .bind(website_url.trim())
+    .bind(body.hidden.unwrap_or(false))
+    .execute(&state.db)
+    .await?;
+
+    Ok(Json(serde_json::json!({"ok": true})))
+}
+
+/// Upload a sponsor logo (platinum tier and above).
+async fn upload_sponsor_logo(
+    State(state): State<AppState>,
+    Extension(auth): Extension<AuthUser>,
+    mut multipart: axum::extract::Multipart,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    let total: (i64,) = sqlx::query_as(
+        "SELECT COALESCE(SUM(amount), 0)::bigint FROM donations WHERE user_id = $1 AND anonymous = false",
+    )
+    .bind(auth.user_id)
+    .fetch_one(&state.db)
+    .await?;
+
+    if total.0 < SPONSOR_PLATINUM {
+        return Err(ApiError::Validation(format!(
+            "Sponsor logos are available from the Platinum tier ({SPONSOR_PLATINUM}+ credits donated)"
+        )));
+    }
+
+    let mut logo_url: Option<String> = None;
+    while let Some(field) = multipart.next_field().await.map_err(|e| {
+        ApiError::Validation(format!("Failed to read upload: {e}"))
+    })? {
+        if field.name().unwrap_or("") == "logo" {
+            let filename = field.file_name().unwrap_or("logo.png").to_string();
+            let data = field.bytes().await.map_err(|e| {
+                ApiError::Validation(format!("Failed to read file: {e}"))
+            })?;
+            if data.len() > 1024 * 1024 {
+                return Err(ApiError::Validation("Logo must be under 1MB".into()));
+            }
+            logo_url = Some(crate::marketplace::upload_to_storage(&state, "sponsors", &filename, data.to_vec()).await?);
+        }
+    }
+
+    let url = logo_url.ok_or(ApiError::Validation("No logo file provided".into()))?;
+
+    sqlx::query(
+        "INSERT INTO sponsor_profiles (user_id, logo_url) VALUES ($1, $2) \
+         ON CONFLICT (user_id) DO UPDATE SET logo_url = $2, updated_at = NOW()",
+    )
+    .bind(auth.user_id)
+    .bind(&url)
+    .execute(&state.db)
+    .await?;
+
+    Ok(Json(serde_json::json!({"ok": true, "logo_url": url})))
 }

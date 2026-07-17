@@ -43,6 +43,74 @@ pub fn DonatePage() -> impl IntoView {
                 <a href="/login" class="inline-block mt-3 px-6 py-2 bg-accent hover:bg-accent-hover text-white text-sm font-medium rounded-xl transition-colors">"Sign In"</a>
             </div>
 
+            // Sponsor wall
+            <div class="bg-surface-card border border-zinc-800 rounded-2xl p-6 mb-8">
+                <h2 class="text-base font-semibold text-zinc-200 mb-1">"Our Sponsors"</h2>
+                <p class="text-xs text-zinc-500 mb-5">"Thank you to everyone supporting Renzora. Sponsor tiers are based on your total donations."</p>
+                <div id="sponsor-wall">
+                    <div class="flex justify-center py-4"><span class="loading loading-spinner loading-sm text-accent"></span></div>
+                </div>
+
+                // Tier explainer
+                <div class="mt-6 pt-5 border-t border-zinc-800/50">
+                    <h3 class="text-xs font-semibold text-zinc-400 uppercase tracking-widest mb-3">"Sponsor tiers"</h3>
+                    <div class="grid grid-cols-1 sm:grid-cols-5 gap-2 text-center">
+                        <div class="p-3 bg-zinc-800/30 rounded-xl">
+                            <div class="text-xs font-semibold" style="color:#cd7f32">"Bronze"</div>
+                            <div class="text-[10px] text-zinc-500 mt-0.5">"100+ credits"</div>
+                            <div class="text-[10px] text-zinc-600 mt-1">"Name listed"</div>
+                        </div>
+                        <div class="p-3 bg-zinc-800/30 rounded-xl">
+                            <div class="text-xs font-semibold" style="color:#c0c0c0">"Silver"</div>
+                            <div class="text-[10px] text-zinc-500 mt-0.5">"500+ credits"</div>
+                            <div class="text-[10px] text-zinc-600 mt-1">"Name + link"</div>
+                        </div>
+                        <div class="p-3 bg-zinc-800/30 rounded-xl">
+                            <div class="text-xs font-semibold" style="color:#ffd700">"Gold"</div>
+                            <div class="text-[10px] text-zinc-500 mt-0.5">"1,000+ credits"</div>
+                            <div class="text-[10px] text-zinc-600 mt-1">"Highlighted + link"</div>
+                        </div>
+                        <div class="p-3 bg-zinc-800/30 rounded-xl border border-zinc-700">
+                            <div class="text-xs font-semibold" style="color:#e5e4e2">"Platinum"</div>
+                            <div class="text-[10px] text-zinc-500 mt-0.5">"5,000+ credits"</div>
+                            <div class="text-[10px] text-zinc-600 mt-1">"Logo + link"</div>
+                        </div>
+                        <div class="p-3 bg-accent/10 rounded-xl border border-accent/30">
+                            <div class="text-xs font-semibold text-accent">"Corporate"</div>
+                            <div class="text-[10px] text-zinc-500 mt-0.5">"25,000+ credits"</div>
+                            <div class="text-[10px] text-zinc-600 mt-1">"Large logo, top billing"</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            // Sponsor profile editor (shown to signed-in donors)
+            <div id="sponsor-editor" class="hidden bg-surface-card border border-zinc-800 rounded-2xl p-6 mb-8">
+                <h2 class="text-base font-semibold text-zinc-200 mb-1">"Your Sponsor Listing"</h2>
+                <p class="text-xs text-zinc-500 mb-4" id="sponsor-status"></p>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
+                    <input id="sponsor-name" type="text" maxlength="64" placeholder="Display name (defaults to username)"
+                        class="px-4 py-2.5 bg-zinc-900 border border-zinc-700 rounded-xl text-sm text-zinc-200 placeholder:text-zinc-600 focus:outline-none focus:border-accent/50" />
+                    <input id="sponsor-url" type="url" placeholder="Website link (https://...)"
+                        class="px-4 py-2.5 bg-zinc-900 border border-zinc-700 rounded-xl text-sm text-zinc-200 placeholder:text-zinc-600 focus:outline-none focus:border-accent/50" />
+                </div>
+                <div id="sponsor-logo-row" class="hidden flex items-center gap-3 mb-3">
+                    <img id="sponsor-logo-preview" class="hidden w-12 h-12 rounded-lg object-contain bg-zinc-900 border border-zinc-800" />
+                    <label class="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-medium bg-zinc-800/50 border border-zinc-700 text-zinc-300 hover:border-accent/50 cursor-pointer transition-colors">
+                        <i class="ph ph-image"></i>"Upload logo (max 1MB)"
+                        <input id="sponsor-logo-file" type="file" accept="image/*" class="hidden" />
+                    </label>
+                </div>
+                <div class="flex items-center justify-between">
+                    <label class="flex items-center gap-2 text-xs text-zinc-400 cursor-pointer">
+                        <input type="checkbox" id="sponsor-hidden" class="checkbox checkbox-sm checkbox-accent" />
+                        "Hide me from the sponsor wall"
+                    </label>
+                    <button id="sponsor-save" class="px-5 py-2 bg-accent hover:bg-accent-hover text-white text-xs font-medium rounded-xl transition-colors">"Save listing"</button>
+                </div>
+                <div id="sponsor-msg" class="hidden text-xs mt-2"></div>
+            </div>
+
             // Leaderboard
             <div class="bg-surface-card border border-zinc-800 rounded-2xl p-6">
                 <h2 class="text-base font-semibold text-zinc-200 mb-4">"Donation Leaderboard"</h2>
@@ -105,12 +173,156 @@ pub fn DonatePage() -> impl IntoView {
                 }).join('');
             }).catch(() => {});
 
+            // Load sponsor wall
+            fetch('/api/credits/donate/sponsors').then(r => r.json()).then(data => {
+                var el = document.getElementById('sponsor-wall');
+                var sponsors = (data && data.sponsors) || [];
+                if (!sponsors.length) {
+                    el.innerHTML = '<p class="text-sm text-zinc-500 text-center py-4">No sponsors yet — donate to claim the first spot!</p>';
+                    return;
+                }
+                var byTier = {};
+                sponsors.forEach(function(s) { (byTier[s.tier] = byTier[s.tier] || []).push(s); });
+
+                var esc = function(t) { var d = document.createElement('div'); d.textContent = t || ''; return d.innerHTML; };
+                var linkOpen = function(s) { return s.url ? '<a href="' + esc(s.url) + '" target="_blank" rel="noopener nofollow sponsored" class="hover:opacity-80 transition-opacity">' : '<a href="/profile/' + esc(s.username) + '" class="hover:opacity-80 transition-opacity">'; };
+
+                var html = '';
+
+                // Corporate: large logos, top billing
+                if (byTier.corporate) {
+                    html += '<div class="mb-5"><h3 class="text-[10px] font-semibold text-accent uppercase tracking-widest mb-3">Corporate</h3><div class="flex flex-wrap items-center gap-4">';
+                    byTier.corporate.forEach(function(s) {
+                        html += linkOpen(s);
+                        if (s.logo_url) html += '<img src="' + esc(s.logo_url) + '" alt="' + esc(s.name) + '" title="' + esc(s.name) + '" class="h-16 max-w-[220px] object-contain rounded-lg bg-white/[0.03] border border-accent/20 p-2">';
+                        else html += '<span class="px-5 py-3 rounded-xl bg-accent/10 border border-accent/30 text-base font-semibold text-zinc-100">' + esc(s.name) + '</span>';
+                        html += '</a>';
+                    });
+                    html += '</div></div>';
+                }
+
+                // Platinum: logos
+                if (byTier.platinum) {
+                    html += '<div class="mb-5"><h3 class="text-[10px] font-semibold uppercase tracking-widest mb-3" style="color:#e5e4e2">Platinum</h3><div class="flex flex-wrap items-center gap-3">';
+                    byTier.platinum.forEach(function(s) {
+                        html += linkOpen(s);
+                        if (s.logo_url) html += '<img src="' + esc(s.logo_url) + '" alt="' + esc(s.name) + '" title="' + esc(s.name) + '" class="h-10 max-w-[160px] object-contain rounded-lg bg-white/[0.03] border border-zinc-700 p-1.5">';
+                        else html += '<span class="px-4 py-2 rounded-lg bg-zinc-800/50 border border-zinc-700 text-sm font-medium text-zinc-200">' + esc(s.name) + '</span>';
+                        html += '</a>';
+                    });
+                    html += '</div></div>';
+                }
+
+                // Gold: highlighted names + links
+                if (byTier.gold) {
+                    html += '<div class="mb-4"><h3 class="text-[10px] font-semibold uppercase tracking-widest mb-2" style="color:#ffd700">Gold</h3><div class="flex flex-wrap gap-2">';
+                    byTier.gold.forEach(function(s) {
+                        html += linkOpen(s) + '<span class="px-3 py-1.5 rounded-lg bg-yellow-500/10 border border-yellow-500/20 text-sm text-zinc-200">' + esc(s.name) + '</span></a>';
+                    });
+                    html += '</div></div>';
+                }
+
+                // Silver: names + links
+                if (byTier.silver) {
+                    html += '<div class="mb-4"><h3 class="text-[10px] font-semibold uppercase tracking-widest mb-2" style="color:#c0c0c0">Silver</h3><div class="flex flex-wrap gap-2">';
+                    byTier.silver.forEach(function(s) {
+                        html += linkOpen(s) + '<span class="px-3 py-1 rounded-lg bg-zinc-800/40 text-[13px] text-zinc-300">' + esc(s.name) + '</span></a>';
+                    });
+                    html += '</div></div>';
+                }
+
+                // Bronze: names only
+                if (byTier.bronze) {
+                    html += '<div><h3 class="text-[10px] font-semibold uppercase tracking-widest mb-2" style="color:#cd7f32">Bronze</h3><p class="text-[13px] text-zinc-400 leading-relaxed">';
+                    html += byTier.bronze.map(function(s) { return esc(s.name); }).join('<span class="text-zinc-700"> · </span>');
+                    html += '</p></div>';
+                }
+
+                el.innerHTML = html;
+            }).catch(() => {
+                document.getElementById('sponsor-wall').innerHTML = '<p class="text-sm text-zinc-500 text-center py-4">Failed to load sponsors.</p>';
+            });
+
             // Auth check
             if (token) {
                 document.getElementById('donate-form').classList.remove('hidden');
+                loadSponsorEditor();
             } else {
                 document.getElementById('donate-login').classList.remove('hidden');
             }
+
+            async function loadSponsorEditor() {
+                try {
+                    var res = await fetch('/api/credits/donate/sponsor-profile', { headers: { 'Authorization': 'Bearer ' + token } });
+                    if (!res.ok) return;
+                    var data = await res.json();
+                    if (!data.tier) return; // not a sponsor yet — keep the editor hidden
+
+                    document.getElementById('sponsor-editor').classList.remove('hidden');
+                    var tierName = data.tier.charAt(0).toUpperCase() + data.tier.slice(1);
+                    document.getElementById('sponsor-status').textContent =
+                        'You are a ' + tierName + ' sponsor (' + data.total_donated.toLocaleString() + ' credits donated). Customize how you appear on the wall.';
+
+                    if (data.profile) {
+                        document.getElementById('sponsor-name').value = data.profile.display_name || '';
+                        document.getElementById('sponsor-url').value = data.profile.website_url || '';
+                        document.getElementById('sponsor-hidden').checked = !!data.profile.hidden;
+                        if (data.profile.logo_url) {
+                            var img = document.getElementById('sponsor-logo-preview');
+                            img.src = data.profile.logo_url;
+                            img.classList.remove('hidden');
+                        }
+                    }
+                    if (data.logo_eligible) {
+                        var row = document.getElementById('sponsor-logo-row');
+                        row.classList.remove('hidden');
+                        row.classList.add('flex');
+                    }
+                } catch(e) {}
+            }
+
+            function sponsorMsg(ok, text) {
+                var el = document.getElementById('sponsor-msg');
+                el.textContent = text;
+                el.className = 'text-xs mt-2 ' + (ok ? 'text-green-400' : 'text-red-400');
+            }
+
+            document.getElementById('sponsor-save')?.addEventListener('click', async function() {
+                var res = await fetch('/api/credits/donate/sponsor-profile', {
+                    method: 'PUT',
+                    headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        display_name: document.getElementById('sponsor-name').value,
+                        website_url: document.getElementById('sponsor-url').value,
+                        hidden: document.getElementById('sponsor-hidden').checked
+                    })
+                });
+                var data = await res.json();
+                if (res.ok) sponsorMsg(true, 'Saved! The wall updates immediately.');
+                else sponsorMsg(false, data.error || 'Failed to save');
+            });
+
+            document.getElementById('sponsor-logo-file')?.addEventListener('change', async function() {
+                var file = this.files[0];
+                if (!file) return;
+                if (file.size > 1024 * 1024) { sponsorMsg(false, 'Logo must be under 1MB'); return; }
+                var fd = new FormData();
+                fd.append('logo', file);
+                var res = await fetch('/api/credits/donate/sponsor-logo', {
+                    method: 'PUT',
+                    headers: { 'Authorization': 'Bearer ' + token },
+                    body: fd
+                });
+                var data = await res.json();
+                if (res.ok) {
+                    var img = document.getElementById('sponsor-logo-preview');
+                    img.src = data.logo_url;
+                    img.classList.remove('hidden');
+                    sponsorMsg(true, 'Logo uploaded!');
+                } else {
+                    sponsorMsg(false, data.error || 'Upload failed');
+                }
+            });
 
             // Preset buttons
             document.querySelectorAll('.donate-preset').forEach(function(btn) {

@@ -123,6 +123,20 @@ You can donate credits to support Renzora from the [Donate page](/donate):
 - Cumulative donations unlock **donor badges** at 100, 500, 1,000, and 5,000 credits (bronze → silver → gold → platinum).
 - There's a public **donation leaderboard** (anonymous donors are hidden).
 
+### Sponsor wall
+
+Cumulative (non-anonymous) donations also earn a spot on the public **sponsor wall** on the Donate page:
+
+| Tier | Total donated | You get |
+|---|---|---|
+| Bronze | 100 credits ($10) | Name listed |
+| Silver | 500 credits ($50) | Name + link |
+| Gold | 1,000 credits ($100) | Highlighted name + link |
+| Platinum | 5,000 credits ($500) | **Logo** + link |
+| Corporate | 25,000 credits ($2,500) | **Large logo** + link, top billing |
+
+Sponsors can set a display name, website link, and (from Platinum) upload a logo from the Donate page. You can also hide yourself from the wall entirely.
+
 ## Referrals
 
 Every account has a referral link (`/register?ref=<code>`), shown on the [Credits page](/wallet). Anyone who signs up through your link is permanently linked to you, and you earn **5% of every purchase they make** as a `referral` credit. The reward is capped by the platform's margin on each sale.

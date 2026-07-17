@@ -19,6 +19,9 @@ pub fn Nav() -> impl IntoView {
                     <a href="/docs" class="nav-link text-base text-zinc-400 hover:text-white hover:bg-white/[0.06] px-3.5 py-1.5 rounded-lg transition-all flex items-center gap-1.5" data-path="/docs">
                         <i class="ph ph-book-open text-lg"></i>"Docs"
                     </a>
+                    <a href="/donate" class="nav-link text-base text-zinc-400 hover:text-white hover:bg-white/[0.06] px-3.5 py-1.5 rounded-lg transition-all flex items-center gap-1.5" data-path="/donate">
+                        <i class="ph ph-heart text-lg text-pink-400"></i>"Donate"
+                    </a>
                 </div>
 
                 // XP bar (logged in only)
@@ -91,6 +94,7 @@ pub fn Nav() -> impl IntoView {
                     <a href="/wallet" class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/[0.04] border border-white/[0.05] hover:bg-white/[0.08] transition-all">
                         <i class="ph ph-coins text-sm text-amber-400"></i>
                         <span id="nav-credits" class="text-sm text-white font-semibold">"0"</span>
+                        <span class="text-[11px] text-zinc-500">"credits"</span>
                     </a>
                     // User
                     <div class="relative" id="user-dropdown-wrap">
