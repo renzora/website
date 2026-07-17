@@ -281,6 +281,14 @@ async fn get_profile(
     .fetch_one(&state.db)
     .await?;
 
+    // Total donated (public donations only — anonymous ones stay private)
+    let total_donated: i64 = sqlx::query_scalar(
+        "SELECT COALESCE(SUM(amount), 0)::bigint FROM donations WHERE user_id=$1 AND anonymous=false"
+    )
+    .bind(id)
+    .fetch_one(&state.db)
+    .await?;
+
     Ok(Json(serde_json::json!({
         "id": id,
         "username": row.get::<String, _>("username"),
@@ -304,6 +312,7 @@ async fn get_profile(
         "is_following": is_following,
         "badges": badges,
         "asset_count": asset_count,
+        "total_donated": total_donated,
         "connections": connections,
         "storefront_enabled": row.get::<bool, _>("storefront_enabled"),
         "created_at": row.get::<time::OffsetDateTime, _>("created_at").to_string(),

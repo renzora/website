@@ -182,7 +182,7 @@ pub fn ProfilePage() -> impl IntoView {
                         <div class="flex-1 flex flex-col gap-5 min-w-0">
 
                             <!-- Stats row -->
-                            <div class="grid grid-cols-4 gap-3">
+                            <div class="grid ${(p.total_donated||0) > 0 ? 'grid-cols-5' : 'grid-cols-4'} gap-3">
                                 <div class="rounded-xl border border-white/[0.06] bg-[#0e0e16]/80 backdrop-blur-xl p-4 text-center">
                                     <div class="text-2xl font-bold text-white">${(p.follower_count||0).toLocaleString()}</div>
                                     <div class="text-[10px] text-zinc-500 mt-0.5">Followers</div>
@@ -199,6 +199,11 @@ pub fn ProfilePage() -> impl IntoView {
                                     <div class="text-2xl font-bold text-accent">${xp.toLocaleString()}</div>
                                     <div class="text-[10px] text-zinc-500 mt-0.5">Total XP</div>
                                 </div>
+                                ${(p.total_donated||0) > 0 ? `
+                                <div class="rounded-xl border border-pink-500/20 bg-[#0e0e16]/80 backdrop-blur-xl p-4 text-center">
+                                    <div class="text-2xl font-bold text-pink-400">${p.total_donated.toLocaleString()}</div>
+                                    <div class="text-[10px] text-zinc-500 mt-0.5"><i class="ph ph-heart-fill text-pink-400"></i> Donated</div>
+                                </div>` : ''}
                             </div>
 
                             <!-- Badges -->

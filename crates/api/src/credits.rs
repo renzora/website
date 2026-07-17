@@ -965,16 +965,37 @@ async fn make_donation(
     // Check donation badge thresholds
     let total: (i64,) = sqlx::query_as("SELECT COALESCE(SUM(amount), 0)::bigint FROM donations WHERE user_id = $1")
         .bind(auth.user_id).fetch_one(&state.db).await?;
-    // Award badges at thresholds (100, 500, 1000, 5000)
+    // Award badges at thresholds (100, 500, 1000, 5000), notifying on new ones
     let badges = [(100, "donor_bronze"), (500, "donor_silver"), (1000, "donor_gold"), (5000, "donor_platinum")];
+    let mut new_badges: Vec<serde_json::Value> = Vec::new();
     for (threshold, badge_slug) in &badges {
         if total.0 >= *threshold {
-            let _ = sqlx::query("INSERT INTO user_badges (user_id, badge_id) SELECT $1, id FROM badges WHERE slug = $2 ON CONFLICT DO NOTHING")
+            let result = sqlx::query("INSERT INTO user_badges (user_id, badge_id) SELECT $1, id FROM badges WHERE slug = $2 ON CONFLICT DO NOTHING")
                 .bind(auth.user_id).bind(badge_slug).execute(&state.db).await;
+            if matches!(result, Ok(r) if r.rows_affected() > 0) {
+                let name: Option<(String,)> = sqlx::query_as("SELECT name FROM badges WHERE slug = $1")
+                    .bind(badge_slug).fetch_optional(&state.db).await?;
+                let badge_name = name.map(|n| n.0).unwrap_or_else(|| badge_slug.to_string());
+                let _ = crate::notify::notify(
+                    &state,
+                    auth.user_id,
+                    "badge",
+                    "New badge earned!",
+                    &format!("You earned the {} badge — thank you for your support!", badge_name),
+                    Some(&format!("/profile/{}", user.username)),
+                    None,
+                ).await;
+                new_badges.push(serde_json::json!({"slug": badge_slug, "name": badge_name}));
+            }
         }
     }
 
-    Ok(Json(serde_json::json!({"ok": true, "amount": donation.amount, "total_donated": total.0})))
+    Ok(Json(serde_json::json!({
+        "ok": true,
+        "amount": donation.amount,
+        "total_donated": total.0,
+        "new_badges": new_badges,
+    })))
 }
 
 async fn donation_leaderboard(

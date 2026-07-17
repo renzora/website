@@ -280,17 +280,42 @@ pub fn DonatePage() -> impl IntoView {
                 });
                 var data = await res.json();
                 if (data.ok) {
-                    successEl.textContent = 'Thank you! You donated ' + amount + ' credits. Total: ' + (data.total_donated || 0).toLocaleString();
+                    var msg = 'Thank you! You donated ' + amount + ' credits. Total: ' + (data.total_donated || 0).toLocaleString();
+                    if (data.new_badges && data.new_badges.length) {
+                        msg += ' — 🏅 You earned the ' + data.new_badges.map(function(b) { return b.name; }).join(' and ') + ' badge' + (data.new_badges.length > 1 ? 's' : '') + '!';
+                    }
+                    successEl.textContent = msg;
                     successEl.classList.remove('hidden');
                     document.getElementById('donate-amount').value = '';
                     document.getElementById('donate-message').value = '';
-                    setTimeout(function() { window.location.reload(); }, 1500);
+                    fireConfetti();
+                    setTimeout(function() { window.location.reload(); }, 2500);
                 } else {
                     errorEl.textContent = data.error || 'Failed to donate';
                     errorEl.classList.remove('hidden');
                 }
             });
         })();
+
+        function fireConfetti() {
+            var colors = ['#6366f1', '#818cf8', '#a78bfa', '#22c55e', '#f59e0b', '#ec4899', '#06b6d4'];
+            var container = document.createElement('div');
+            container.style.cssText = 'position:fixed;inset:0;pointer-events:none;z-index:9999;overflow:hidden';
+            document.body.appendChild(container);
+            for (var i = 0; i < 80; i++) {
+                var p = document.createElement('div');
+                var size = Math.random() * 8 + 4;
+                var x = Math.random() * 100;
+                var color = colors[Math.floor(Math.random() * colors.length)];
+                var delay = Math.random() * 0.3;
+                var drift = (Math.random() - 0.5) * 200;
+                var shape = Math.random() > 0.5 ? '50%' : '0';
+                p.style.cssText = 'position:absolute;top:-10px;left:' + x + '%;width:' + size + 'px;height:' + size + 'px;background:' + color + ';border-radius:' + shape + ';opacity:0.9;animation:confettiFall ' + (1.5 + Math.random()) + 's ease-out ' + delay + 's forwards';
+                p.style.setProperty('--drift', drift + 'px');
+                container.appendChild(p);
+            }
+            setTimeout(function() { container.remove(); }, 3000);
+        }
 
         function renderWall(sponsors) {
             var el = document.getElementById('sponsor-wall');
@@ -439,5 +464,13 @@ pub fn DonatePage() -> impl IntoView {
         });
         "##
         </script>
+        <style>
+            r#"
+            @keyframes confettiFall {
+                0% { transform: translateY(0) translateX(0) rotate(0deg); opacity: 1; }
+                100% { transform: translateY(100vh) translateX(var(--drift, 0px)) rotate(720deg); opacity: 0; }
+            }
+            "#
+        </style>
     }
 }
