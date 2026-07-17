@@ -87,6 +87,8 @@ pub fn router() -> Router<AppState> {
         .route("/users/:id/edit", put(edit_user_full))
         // Analytics
         .route("/analytics", get(admin_analytics))
+        // Community goal (donate page)
+        .route("/community-goal", put(update_community_goal))
         // Accept withdrawal
         .route("/withdrawals/:id/accept", put(accept_withdrawal))
         // Investigate withdrawal
@@ -1032,6 +1034,51 @@ async fn edit_user_full(
     .bind(&body.profile_color).bind(&body.banner_color).bind(body.credit_balance)
     .execute(&state.db).await?;
     Ok(Json(serde_json::json!({"message": "User updated"})))
+}
+
+// ── Community goal ──
+
+#[derive(Deserialize)]
+struct CommunityGoalBody {
+    enabled: Option<bool>,
+    target: Option<i64>,
+    title: Option<String>,
+    description: Option<String>,
+}
+
+/// Update the donate-page community goal (stored in site_settings).
+async fn update_community_goal(
+    State(state): State<AppState>,
+    Extension(auth): Extension<AuthUser>,
+    Json(body): Json<CommunityGoalBody>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    verify_admin(&state, auth.user_id).await?;
+
+    if let Some(target) = body.target {
+        if target < 1 {
+            return Err(ApiError::Validation("Target must be at least 1 credit".into()));
+        }
+    }
+
+    // Each provided field upserts its site_settings key.
+    const UPSERT: &str = "INSERT INTO site_settings (key, value) VALUES ($1, $2) \
+         ON CONFLICT (key) DO UPDATE SET value = $2, updated_at = NOW()";
+
+    if let Some(enabled) = body.enabled {
+        sqlx::query(UPSERT).bind("community_goal_enabled").bind(enabled.to_string()).execute(&state.db).await?;
+    }
+    if let Some(target) = body.target {
+        sqlx::query(UPSERT).bind("community_goal_target").bind(target.to_string()).execute(&state.db).await?;
+    }
+    if let Some(title) = body.title {
+        sqlx::query(UPSERT).bind("community_goal_title").bind(title).execute(&state.db).await?;
+    }
+    if let Some(description) = body.description {
+        sqlx::query(UPSERT).bind("community_goal_description").bind(description).execute(&state.db).await?;
+    }
+
+    audit_log(&state.db, auth.user_id, "update_community_goal", "site_settings", None, serde_json::json!({})).await;
+    Ok(Json(serde_json::json!({"ok": true})))
 }
 
 // ── Analytics ──

@@ -106,7 +106,7 @@ pub fn SubscriptionPage() -> impl IntoView {
                 html += perk('users-three', 'Up to 5 team members');
                 html += perk('lightning', '5,000 API requests/day');
                 html += '</div>';
-                html += '<p class="text-xs text-zinc-600 mt-4">Engine perks are the same at every amount — pay what feels right. Higher amounts earn recognition on the <a href="/donate" class="text-accent hover:text-accent-hover">supporters wall</a> (names from 250/mo, links from 1,000/mo, logos from 2,500/mo). Credits are deducted from your balance; if it runs low at renewal time your subscription simply ends.</p>';
+                html += '<p class="text-xs text-zinc-600 mt-4">Perks are the same at every amount — pay what feels right. Looking to be recognized on the <a href="/donate" class="text-accent hover:text-accent-hover">supporters wall</a>? That is driven by donations. Credits are deducted from your balance; if it runs low at renewal time your subscription simply ends.</p>';
                 html += '</div>';
 
                 el.innerHTML = html;

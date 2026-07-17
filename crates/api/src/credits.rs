@@ -45,10 +45,10 @@ pub fn router() -> Router<AppState> {
         .merge(protected)
 }
 
-// ── Sponsor tiers (Bevy-style monthly memberships) ──
-// Thresholds are the Supporter subscription's monthly amount in credits
-// (1 credit = $0.10). Wall listing starts at Gold; links at Titanium;
-// logos at Diamond; corporate tiers get large logos with top billing.
+// ── Sponsor tiers (Bevy-style) ──
+// Thresholds are a user's donation total for the current calendar month, in
+// credits (1 credit = $0.10). Every current-month donor is listed; links show
+// from Titanium, logos from Diamond, corporate tiers get large logos.
 const TIER_BRONZE: i64 = 50;         // $5/mo
 const TIER_SILVER: i64 = 100;        // $10/mo
 const TIER_GOLD: i64 = 250;          // $25/mo — name on the wall
@@ -1019,90 +1019,139 @@ async fn donation_total(
     Ok(Json(serde_json::json!({"total": total})))
 }
 
-// ── Sponsor wall ──
+// ── Sponsor wall (current-month donations) ──
 
-/// Public sponsor wall: everyone with an active Supporter subscription at
-/// Gold or above, grouped by tier client-side. Also returns the hero stats
-/// (credits/month, member count, corporate sponsor count).
+/// Read the community goal config from site_settings.
+async fn community_goal(state: &AppState) -> serde_json::Value {
+    let rows = sqlx::query_as::<_, (String, String)>(
+        "SELECT key, value FROM site_settings WHERE key LIKE 'community_goal_%'",
+    )
+    .fetch_all(&state.db)
+    .await
+    .unwrap_or_default();
+
+    let mut get = |k: &str, default: &str| -> String {
+        rows.iter().find(|(key, _)| key == k).map(|(_, v)| v.clone()).unwrap_or_else(|| default.to_string())
+    };
+
+    serde_json::json!({
+        "enabled": get("community_goal_enabled", "true") == "true",
+        "target": get("community_goal_target", "5000").parse::<i64>().unwrap_or(5000),
+        "title": get("community_goal_title", "Monthly Community Goal"),
+        "description": get("community_goal_description", ""),
+    })
+}
+
+/// Public sponsor wall driven by the current calendar month's donations.
+/// Current-month donors are grouped by tier (their month-to-date total);
+/// prior donors with nothing this month fall to "past donors". Also returns
+/// the community goal progress and hero stats.
 async fn list_sponsors(
     State(state): State<AppState>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     use sqlx::Row;
 
+    // Per-user public donation totals: this month and all-time.
     let rows = sqlx::query(
-        "SELECT u.username, s.monthly_amount, COALESCE(sp.display_name, '') AS display_name, \
-         COALESCE(sp.website_url, '') AS website_url, sp.logo_url \
-         FROM subscriptions s \
-         JOIN users u ON u.id = s.user_id \
-         LEFT JOIN sponsor_profiles sp ON sp.user_id = s.user_id \
-         WHERE s.status = 'active' AND s.current_period_end > NOW() \
-           AND COALESCE(sp.hidden, false) = false \
-           AND s.monthly_amount >= $1 \
-         ORDER BY s.monthly_amount DESC, u.username ASC",
+        "SELECT u.username, COALESCE(sp.display_name, '') AS display_name, \
+         COALESCE(sp.website_url, '') AS website_url, sp.logo_url, \
+         COALESCE(SUM(d.amount) FILTER (WHERE d.created_at >= date_trunc('month', NOW())), 0)::bigint AS month_total, \
+         COALESCE(SUM(d.amount), 0)::bigint AS all_time \
+         FROM donations d \
+         JOIN users u ON u.id = d.user_id \
+         LEFT JOIN sponsor_profiles sp ON sp.user_id = d.user_id \
+         WHERE d.anonymous = false AND COALESCE(sp.hidden, false) = false \
+         GROUP BY u.id, u.username, sp.display_name, sp.website_url, sp.logo_url \
+         HAVING COALESCE(SUM(d.amount), 0) > 0 \
+         ORDER BY month_total DESC, all_time DESC, u.username ASC",
     )
-    .bind(TIER_GOLD)
     .fetch_all(&state.db)
     .await?;
 
-    let sponsors: Vec<serde_json::Value> = rows
-        .iter()
-        .filter_map(|r| {
-            let monthly: i64 = r.get("monthly_amount");
-            let tier = sponsor_tier(monthly)?;
-            let username: String = r.get("username");
-            let display_name: String = r.get("display_name");
+    let mut sponsors: Vec<serde_json::Value> = Vec::new();
+    let mut past_donors: Vec<serde_json::Value> = Vec::new();
+
+    for r in &rows {
+        let month_total: i64 = r.get("month_total");
+        let all_time: i64 = r.get("all_time");
+        let username: String = r.get("username");
+        let display_name: String = r.get("display_name");
+        let name = if display_name.trim().is_empty() { username.clone() } else { display_name };
+
+        if month_total > 0 {
             let website_url: String = r.get("website_url");
             let logo_url: Option<String> = r.get("logo_url");
-            // Links from Titanium; logos from Diamond.
-            let show_link = monthly >= TIER_TITANIUM;
-            let show_logo = monthly >= TIER_DIAMOND;
-            Some(serde_json::json!({
+            // Sub-tier (1-49) donors still list under a "supporter" bucket.
+            let tier = sponsor_tier(month_total).unwrap_or("supporter");
+            let show_link = month_total >= TIER_TITANIUM;
+            let show_logo = month_total >= TIER_DIAMOND;
+            sponsors.push(serde_json::json!({
                 "username": username,
-                "name": if display_name.trim().is_empty() { username.clone() } else { display_name },
+                "name": name,
                 "url": if show_link && !website_url.trim().is_empty() { serde_json::json!(website_url) } else { serde_json::Value::Null },
                 "logo_url": if show_logo { serde_json::json!(logo_url) } else { serde_json::Value::Null },
                 "tier": tier,
-            }))
-        })
-        .collect();
+            }));
+        } else {
+            past_donors.push(serde_json::json!({
+                "username": username,
+                "name": name,
+                "all_time": all_time,
+            }));
+        }
+    }
 
-    // Hero stats across ALL active subscriptions (any amount)
+    // Goal + hero stats: month-to-date across ALL donations (incl. anonymous).
     let stats = sqlx::query(
-        "SELECT COALESCE(SUM(monthly_amount), 0)::bigint AS credits_per_month, \
-         COUNT(*)::bigint AS members, \
-         COUNT(*) FILTER (WHERE monthly_amount >= $1)::bigint AS corporate \
-         FROM subscriptions WHERE status = 'active' AND current_period_end > NOW()",
+        "SELECT COALESCE(SUM(amount) FILTER (WHERE created_at >= date_trunc('month', NOW())), 0)::bigint AS this_month, \
+         COUNT(DISTINCT user_id) FILTER (WHERE created_at >= date_trunc('month', NOW()))::bigint AS donors_this_month, \
+         COALESCE(SUM(amount), 0)::bigint AS all_time \
+         FROM donations",
     )
-    .bind(TIER_CORP_BRONZE)
     .fetch_one(&state.db)
     .await?;
+
+    let this_month: i64 = stats.get("this_month");
+    let mut goal = community_goal(&state).await;
+    if let Some(obj) = goal.as_object_mut() {
+        let target = obj.get("target").and_then(|v| v.as_i64()).unwrap_or(0);
+        obj.insert("current".into(), serde_json::json!(this_month));
+        let percent = if target > 0 { ((this_month as f64 / target as f64) * 100.0).min(100.0) } else { 0.0 };
+        obj.insert("percent".into(), serde_json::json!(percent.round() as i64));
+    }
 
     Ok(Json(serde_json::json!({
         "tiers": tier_json(),
         "sponsors": sponsors,
+        "past_donors": past_donors,
+        "goal": goal,
         "stats": {
-            "credits_per_month": stats.get::<i64, _>("credits_per_month"),
-            "members": stats.get::<i64, _>("members"),
-            "sponsors": stats.get::<i64, _>("corporate"),
+            "this_month": this_month,
+            "donors": stats.get::<i64, _>("donors_this_month"),
+            "all_time": stats.get::<i64, _>("all_time"),
         },
     })))
 }
 
-/// The signed-in user's sponsor status: subscription amount, tier, and profile.
+/// The signed-in user's sponsor status: this month's donation total, tier,
+/// and their editable wall listing.
 async fn get_sponsor_profile(
     State(state): State<AppState>,
     Extension(auth): Extension<AuthUser>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     use sqlx::Row;
 
-    let monthly: i64 = sqlx::query(
-        "SELECT monthly_amount FROM subscriptions WHERE user_id = $1 AND status = 'active' AND current_period_end > NOW()",
+    let totals = sqlx::query(
+        "SELECT COALESCE(SUM(amount) FILTER (WHERE created_at >= date_trunc('month', NOW())), 0)::bigint AS month_total, \
+         COALESCE(SUM(amount), 0)::bigint AS all_time \
+         FROM donations WHERE user_id = $1 AND anonymous = false",
     )
     .bind(auth.user_id)
-    .fetch_optional(&state.db)
-    .await?
-    .map(|r| r.get("monthly_amount"))
-    .unwrap_or(0);
+    .fetch_one(&state.db)
+    .await?;
+
+    let month_total: i64 = totals.get("month_total");
+    let all_time: i64 = totals.get("all_time");
 
     let profile = sqlx::query(
         "SELECT display_name, website_url, logo_url, hidden FROM sponsor_profiles WHERE user_id = $1",
@@ -1112,11 +1161,13 @@ async fn get_sponsor_profile(
     .await?;
 
     Ok(Json(serde_json::json!({
-        "monthly_amount": monthly,
-        "tier": sponsor_tier(monthly),
-        "listed": monthly >= TIER_GOLD,
-        "link_eligible": monthly >= TIER_TITANIUM,
-        "logo_eligible": monthly >= TIER_DIAMOND,
+        "month_total": month_total,
+        "all_time": all_time,
+        "tier": sponsor_tier(month_total),
+        // Anyone who has ever donated can edit their listing (ready for next month).
+        "listed": all_time > 0,
+        "link_eligible": month_total >= TIER_TITANIUM,
+        "logo_eligible": month_total >= TIER_DIAMOND,
         "profile": profile.map(|r| serde_json::json!({
             "display_name": r.get::<String, _>("display_name"),
             "website_url": r.get::<String, _>("website_url"),
@@ -1171,20 +1222,17 @@ async fn upload_sponsor_logo(
     Extension(auth): Extension<AuthUser>,
     mut multipart: axum::extract::Multipart,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    use sqlx::Row;
-
-    let monthly: i64 = sqlx::query(
-        "SELECT monthly_amount FROM subscriptions WHERE user_id = $1 AND status = 'active' AND current_period_end > NOW()",
+    let month_total: (i64,) = sqlx::query_as(
+        "SELECT COALESCE(SUM(amount) FILTER (WHERE created_at >= date_trunc('month', NOW())), 0)::bigint \
+         FROM donations WHERE user_id = $1 AND anonymous = false",
     )
     .bind(auth.user_id)
-    .fetch_optional(&state.db)
-    .await?
-    .map(|r| r.get("monthly_amount"))
-    .unwrap_or(0);
+    .fetch_one(&state.db)
+    .await?;
 
-    if monthly < TIER_DIAMOND {
+    if month_total.0 < TIER_DIAMOND {
         return Err(ApiError::Validation(format!(
-            "Sponsor logos are available from the Diamond tier ({TIER_DIAMOND}+ credits/month)"
+            "Sponsor logos are available from the Diamond tier ({TIER_DIAMOND}+ credits donated this month)"
         )));
     }
 
