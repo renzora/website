@@ -16,6 +16,7 @@ pub struct User {
     pub banner_url: Option<String>,
     pub role: String,
     pub credit_balance: i64,
+    pub earnings_balance: i64,
     pub referral_code: Option<String>,
     pub referred_by: Option<Uuid>,
     pub stripe_connect_id: Option<String>,

@@ -181,29 +181,37 @@ async fn purchase_part(
         return Err(ApiError::Validation("You already own this part".into()));
     }
 
-    // Check balance
-    let user = User::find_by_id(&state.db, auth.user_id).await?.ok_or(ApiError::NotFound)?;
-    if user.credit_balance < part.price_credits {
+    // Deduct, record, and grant atomically — a failure part-way must never
+    // charge credits without granting the part.
+    let mut tx = state.db.begin().await?;
+
+    let result = sqlx::query(
+        "UPDATE users SET credit_balance = credit_balance - $1, updated_at = NOW() WHERE id = $2 AND credit_balance >= $1",
+    )
+    .bind(part.price_credits)
+    .bind(auth.user_id)
+    .execute(&mut *tx)
+    .await?;
+
+    if result.rows_affected() == 0 {
         return Err(ApiError::Validation("Not enough credits".into()));
     }
 
-    // Deduct credits
-    sqlx::query("UPDATE users SET credit_balance = credit_balance - $1 WHERE id = $2")
-        .bind(part.price_credits)
-        .bind(auth.user_id)
-        .execute(&state.db)
-        .await?;
-
-    // Record transaction
-    sqlx::query("INSERT INTO transactions (user_id, type, amount, description) VALUES ($1, 'purchase', $2, $3)")
+    sqlx::query("INSERT INTO transactions (id, user_id, type, amount, reason) VALUES ($1, $2, 'purchase', $3, $4)")
+        .bind(uuid::Uuid::new_v4())
         .bind(auth.user_id)
         .bind(-part.price_credits)
         .bind(format!("Avatar part: {}", part.name))
-        .execute(&state.db)
+        .execute(&mut *tx)
         .await?;
 
-    // Grant ownership
-    UserAvatarPart::grant(&state.db, auth.user_id, part_id).await?;
+    sqlx::query("INSERT INTO user_avatar_parts (user_id, part_id) VALUES ($1, $2) ON CONFLICT DO NOTHING")
+        .bind(auth.user_id)
+        .bind(part_id)
+        .execute(&mut *tx)
+        .await?;
+
+    tx.commit().await?;
 
     let updated_user = User::find_by_id(&state.db, auth.user_id).await?.ok_or(ApiError::NotFound)?;
 

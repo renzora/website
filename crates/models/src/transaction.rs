@@ -187,9 +187,9 @@ pub async fn process_purchase_full(
         return Err("Insufficient credits".into());
     }
 
-    // Credit creator
+    // Credit creator's earnings balance (withdrawable; convert to spend)
     sqlx::query(
-        "UPDATE users SET credit_balance = credit_balance + $1, updated_at = NOW() WHERE id = $2",
+        "UPDATE users SET earnings_balance = earnings_balance + $1, updated_at = NOW() WHERE id = $2",
     )
     .bind(creator_share)
     .bind(creator_id)
@@ -236,9 +236,9 @@ pub async fn process_purchase_full(
     // Referral payout (if applicable and > 0)
     if let Some(ref_id) = referrer_id {
         if referral_share > 0 {
-            // Credit referrer's balance
+            // Credit referrer's earnings balance
             sqlx::query(
-                "UPDATE users SET credit_balance = credit_balance + $1, updated_at = NOW() WHERE id = $2",
+                "UPDATE users SET earnings_balance = earnings_balance + $1, updated_at = NOW() WHERE id = $2",
             )
             .bind(referral_share)
             .bind(ref_id)

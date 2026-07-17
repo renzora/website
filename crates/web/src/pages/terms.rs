@@ -21,7 +21,7 @@ pub fn TermsPage() -> impl IntoView {
                 <div>
                     <h2 class="text-lg font-semibold text-zinc-200 mb-2">"3. Marketplace"</h2>
                     <p>"Renzora operates a marketplace where users can buy and sell digital assets including 3D models, textures, scripts, plugins, and games. Sellers retain ownership of their original content. By listing an asset, you grant Renzora a licence to distribute it through the Platform. Buyers receive a licence to use purchased assets according to the licence type selected by the seller."</p>
-                    <p>"Renzora charges a commission on marketplace sales. Commission rates vary by subscription tier. Credits purchased on the Platform are non-refundable except where required by law."</p>
+                    <p>"Renzora charges a commission on marketplace sales. Credits purchased on the Platform are non-refundable except where required by law, and cannot be withdrawn or exchanged for money; only creator earnings are eligible for withdrawal."</p>
                 </div>
 
                 <div>

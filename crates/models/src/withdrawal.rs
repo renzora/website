@@ -32,9 +32,10 @@ impl Withdrawal {
 
         let mut tx = pool.begin().await.map_err(|e| e.to_string())?;
 
-        // Deduct credits from user (with balance check)
+        // Deduct from the earnings balance (with balance check). Purchased
+        // credits are never withdrawable — only earnings are.
         let result = sqlx::query(
-            "UPDATE users SET credit_balance = credit_balance - $1, updated_at = NOW() WHERE id = $2 AND credit_balance >= $1",
+            "UPDATE users SET earnings_balance = earnings_balance - $1, updated_at = NOW() WHERE id = $2 AND earnings_balance >= $1",
         )
         .bind(amount_credits)
         .bind(user_id)
@@ -43,7 +44,7 @@ impl Withdrawal {
         .map_err(|e| e.to_string())?;
 
         if result.rows_affected() == 0 {
-            return Err("Insufficient credits".into());
+            return Err("Insufficient earnings. Withdrawals come from your earnings balance, not purchased credits.".into());
         }
 
         // Record withdrawal transaction
@@ -141,9 +142,9 @@ impl Withdrawal {
 
         let mut tx = pool.begin().await.map_err(|e| e.to_string())?;
 
-        // Refund credits
+        // Refund to the earnings balance (where the withdrawal was drawn from)
         sqlx::query(
-            "UPDATE users SET credit_balance = credit_balance + $1, updated_at = NOW() WHERE id = $2",
+            "UPDATE users SET earnings_balance = earnings_balance + $1, updated_at = NOW() WHERE id = $2",
         )
         .bind(withdrawal.amount_credits)
         .bind(withdrawal.user_id)

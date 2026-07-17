@@ -98,6 +98,17 @@ async fn main() {
         ws_broadcast: std::sync::Arc::new(renzora_api::WsBroadcast::new()),
     };
 
+    // Background task: renew or expire Supporter subscriptions whose period
+    // has ended. Runs shortly after boot, then hourly.
+    let renewal_state = state.clone();
+    tokio::spawn(async move {
+        let mut interval = tokio::time::interval(std::time::Duration::from_secs(3600));
+        loop {
+            interval.tick().await;
+            renzora_api::subscriptions::process_due_renewals(&renewal_state).await;
+        }
+    });
+
     // CORS
     let origins: Vec<HeaderValue> = allowed_origins
         .split(',')

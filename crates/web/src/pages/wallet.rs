@@ -56,12 +56,20 @@ pub fn WalletPage() -> impl IntoView {
                         <p class="text-[11px] text-zinc-600 mt-2">"1 credit = $0.10 USD"</p>
                     </div>
                     <div class="p-6 bg-surface-card border border-zinc-800 rounded-xl">
-                        <p class="text-[11px] font-medium text-zinc-500 uppercase tracking-widest mb-1">"Total Spent"</p>
-                        <span id="wallet-spent" class="text-2xl font-bold text-zinc-50">"..."</span>
+                        <p class="text-[11px] font-medium text-zinc-500 uppercase tracking-widest mb-1">"Earnings"</p>
+                        <div class="flex items-baseline gap-2">
+                            <span id="wallet-earnings" class="text-2xl font-bold text-emerald-400">"..."</span>
+                            <span class="text-xs text-zinc-500">"credits"</span>
+                        </div>
+                        <p class="text-[10px] text-zinc-600 mt-1.5">"From sales and referrals. Withdraw to your bank, or convert to spendable credits."</p>
+                        <button onclick="convertEarnings()" class="mt-3 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-white/[0.04] border border-zinc-800 text-zinc-300 hover:border-accent hover:text-white transition-all">
+                            <i class="ph ph-arrows-left-right"></i>"Convert to credits"
+                        </button>
                     </div>
                     <div class="p-6 bg-surface-card border border-zinc-800 rounded-xl">
-                        <p class="text-[11px] font-medium text-zinc-500 uppercase tracking-widest mb-1">"Total Earned"</p>
-                        <span id="wallet-earned" class="text-2xl font-bold text-zinc-50">"..."</span>
+                        <p class="text-[11px] font-medium text-zinc-500 uppercase tracking-widest mb-1">"Total Spent"</p>
+                        <span id="wallet-spent" class="text-2xl font-bold text-zinc-50">"..."</span>
+                        <p class="text-[10px] text-zinc-600 mt-1.5">"Purchased credits can be spent or gifted, but never withdrawn."</p>
                     </div>
                 </div>
 
@@ -230,11 +238,35 @@ pub fn WalletPage() -> impl IntoView {
                     if (!res.ok) throw new Error();
                     const data = await res.json();
                     document.getElementById('wallet-balance').textContent = data.credit_balance.toLocaleString();
+                    document.getElementById('wallet-earnings').textContent = (data.earnings_balance ?? 0).toLocaleString();
                     // Update nav credits too
                     const navCredits = document.getElementById('nav-credits');
                     if (navCredits) navCredits.textContent = data.credit_balance.toLocaleString();
                 } catch(e) {
                     document.getElementById('wallet-balance').textContent = '0';
+                    document.getElementById('wallet-earnings').textContent = '0';
+                }
+            }
+
+            async function convertEarnings() {
+                if (!token) return;
+                const cur = parseInt(document.getElementById('wallet-earnings').textContent.replace(/,/g, '')) || 0;
+                if (cur <= 0) { showError('You have no earnings to convert.'); return; }
+                const input = prompt('Convert how many earnings credits into spendable credits? (You have ' + cur.toLocaleString() + ')\n\nNote: converted credits can no longer be withdrawn.', cur);
+                if (input === null) return;
+                const amount = parseInt(input);
+                if (!amount || amount <= 0) { showError('Enter a valid amount.'); return; }
+                try {
+                    const res = await fetch('/api/credits/convert-earnings', {
+                        method: 'POST',
+                        headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ amount })
+                    });
+                    const data = await res.json();
+                    if (!res.ok) throw new Error(data.error || 'Conversion failed');
+                    await Promise.all([loadBalance(), loadHistory()]);
+                } catch(e) {
+                    showError(e.message);
                 }
             }
 
@@ -246,19 +278,16 @@ pub fn WalletPage() -> impl IntoView {
                     allTx = data.transactions || [];
 
                     // Compute stats
-                    let spent = 0, earned = 0;
+                    let spent = 0;
                     allTx.forEach(t => {
                         if (t.type === 'purchase') spent += Math.abs(t.amount);
-                        if (t.type === 'earning') earned += t.amount;
                     });
                     document.getElementById('wallet-spent').textContent = spent.toLocaleString();
-                    document.getElementById('wallet-earned').textContent = earned.toLocaleString();
 
                     renderTx();
                 } catch(e) {
                     document.getElementById('tx-list').innerHTML = '<p class="text-center text-zinc-600 py-12 text-sm">Failed to load history.</p>';
                     document.getElementById('wallet-spent').textContent = '0';
-                    document.getElementById('wallet-earned').textContent = '0';
                 }
             }
 
@@ -290,11 +319,28 @@ pub fn WalletPage() -> impl IntoView {
                     return;
                 }
 
+                const TX_META = {
+                    topup:             { icon: 'ph-plus-circle',        color: 'text-green-400',   label: 'Credit Top-up' },
+                    purchase:          { icon: 'ph-shopping-cart',      color: 'text-amber-400',   label: 'Purchase' },
+                    earning:           { icon: 'ph-arrow-down-left',    color: 'text-blue-400',    label: 'Creator Earning' },
+                    referral:          { icon: 'ph-users',              color: 'text-purple-400',  label: 'Referral Reward' },
+                    subscription:      { icon: 'ph-heart',              color: 'text-pink-400',    label: 'Supporter Subscription' },
+                    convert:           { icon: 'ph-arrows-left-right',  color: 'text-emerald-400', label: 'Earnings Conversion' },
+                    voucher_credit:    { icon: 'ph-ticket',             color: 'text-green-400',   label: 'Voucher Redeemed' },
+                    gift_sent:         { icon: 'ph-gift',               color: 'text-amber-400',   label: 'Gift Sent' },
+                    gift_received:     { icon: 'ph-gift',               color: 'text-green-400',   label: 'Gift Received' },
+                    donation:          { icon: 'ph-hand-heart',         color: 'text-pink-400',    label: 'Donation' },
+                    withdrawal:        { icon: 'ph-bank',               color: 'text-red-400',     label: 'Withdrawal' },
+                    withdrawal_refund: { icon: 'ph-arrow-counter-clockwise', color: 'text-green-400', label: 'Withdrawal Refund' },
+                    admin_credit:      { icon: 'ph-shield-check',       color: 'text-green-400',   label: 'Credit Adjustment' },
+                    refund:            { icon: 'ph-arrow-counter-clockwise', color: 'text-green-400', label: 'Refund' },
+                    refund_debit:      { icon: 'ph-arrow-counter-clockwise', color: 'text-red-400', label: 'Sale Refunded' },
+                };
+
                 el.innerHTML = filtered.map((t, i) => {
                     const isPositive = t.amount > 0;
-                    const icon = t.type === 'topup' ? 'ph-plus-circle' : t.type === 'earning' ? 'ph-arrow-down-left' : t.type === 'referral' ? 'ph-users' : 'ph-shopping-cart';
-                    const iconColor = t.type === 'topup' ? 'text-green-400' : t.type === 'earning' ? 'text-blue-400' : t.type === 'referral' ? 'text-purple-400' : 'text-amber-400';
-                    const label = t.type === 'topup' ? 'Credit Top-up' : t.type === 'earning' ? 'Creator Earning' : t.type === 'referral' ? 'Referral Reward' : 'Asset Purchase';
+                    const meta = TX_META[t.type] || { icon: 'ph-receipt', color: 'text-zinc-400', label: t.type };
+                    const icon = meta.icon, iconColor = meta.color, label = meta.label;
                     const amountColor = isPositive ? 'text-green-400' : 'text-red-400';
                     const sign = isPositive ? '+' : '';
                     const date = fmtDate(t.created_at);

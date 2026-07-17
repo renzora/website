@@ -110,8 +110,8 @@ pub fn SettingsPage() -> impl IntoView {
                         // Withdrawal form (hidden until connected)
                         <div id="withdraw-section" class="hidden">
                             <div class="border-t border-zinc-800 pt-4 mt-4">
-                                <h3 class="text-sm font-semibold mb-3">"Withdraw Credits"</h3>
-                                <p class="text-xs text-zinc-500 mb-3">"Minimum 500 credits ($50). Credits are converted at $0.10 each."</p>
+                                <h3 class="text-sm font-semibold mb-3">"Withdraw Earnings"</h3>
+                                <p class="text-xs text-zinc-500 mb-3">"Withdrawals come from your earnings balance (sales and referrals) — purchased credits can't be withdrawn. Minimum 500 credits ($50), converted at $0.10 each. "<span id="withdraw-available" class="text-zinc-400"></span></p>
                                 <div class="flex gap-2">
                                     <input type="number" id="withdraw-amount" min="500" step="100" placeholder="Amount in credits (min 500)"
                                         class="flex-1 px-3 py-2.5 bg-surface border border-zinc-800 rounded-lg text-zinc-50 text-sm outline-none focus:border-accent" />
@@ -365,10 +365,11 @@ pub fn SettingsPage() -> impl IntoView {
                                 <span class="w-2 h-2 rounded-full bg-green-400"></span>
                                 <span class="text-sm text-green-400 font-medium">Bank account connected</span>
                             </div>
-                            <p class="text-xs text-zinc-500 mt-1">Payouts are enabled. You can withdraw credits to your bank.</p>
+                            <p class="text-xs text-zinc-500 mt-1">Payouts are enabled. You can withdraw your earnings to your bank.</p>
                         `;
                         document.getElementById('withdraw-section').classList.remove('hidden');
                         loadWithdrawals();
+                        loadEarningsAvailable();
                     } else if (data.connected) {
                         el.innerHTML = `
                             <div class="flex items-center gap-2">
@@ -413,6 +414,18 @@ pub fn SettingsPage() -> impl IntoView {
                 document.getElementById('withdraw-usd').textContent = amount >= 500 ? `= $${usd} USD` : 'Minimum 500 credits ($50)';
             });
 
+            async function loadEarningsAvailable() {
+                const token = getToken();
+                if (!token) return;
+                try {
+                    const res = await fetch('/api/credits/balance', { headers: { 'Authorization': 'Bearer ' + token } });
+                    if (!res.ok) return;
+                    const data = await res.json();
+                    document.getElementById('withdraw-available').textContent =
+                        'Available: ' + (data.earnings_balance ?? 0).toLocaleString() + ' credits.';
+                } catch(e) {}
+            }
+
             async function requestWithdrawal() {
                 const token = getToken();
                 if (!token) return;
@@ -435,6 +448,7 @@ pub fn SettingsPage() -> impl IntoView {
                         document.getElementById('withdraw-amount').value = '';
                         document.getElementById('withdraw-usd').textContent = '';
                         loadWithdrawals();
+                        loadEarningsAvailable();
                     } else {
                         showMsg('error', data.error || 'Withdrawal failed');
                     }

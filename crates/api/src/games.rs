@@ -335,8 +335,8 @@ async fn purchase_game(
         return Err(ApiError::Validation("Insufficient credits".into()));
     }
 
-    // Credit creator
-    sqlx::query("UPDATE users SET credit_balance = credit_balance + $1, updated_at = NOW() WHERE id = $2")
+    // Credit creator's earnings balance
+    sqlx::query("UPDATE users SET earnings_balance = earnings_balance + $1, updated_at = NOW() WHERE id = $2")
         .bind(creator_share)
         .bind(game.creator_id)
         .execute(&mut *tx)

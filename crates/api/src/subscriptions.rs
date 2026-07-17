@@ -10,14 +10,16 @@ use uuid::Uuid;
 
 use crate::{error::ApiError, middleware, middleware::AuthUser, AppState};
 
+/// Minimum monthly amount for the Supporter subscription.
+pub const SUPPORTER_MIN_CREDITS: i64 = 10;
+
 pub fn router() -> Router<AppState> {
     let protected = Router::new()
         .route("/subscribe", post(subscribe))
         .route("/cancel", post(cancel_subscription))
         .route("/current", get(current_subscription))
         .route("/usage", get(get_usage))
-        .route("/extra-seats", put(update_extra_seats))
-        .route("/extra-storage", put(update_extra_storage))
+        .route("/auto-renew", put(update_auto_renew))
         .route("/auto-topup", get(get_auto_topup))
         .route("/auto-topup", put(update_auto_topup))
         .layer(axum::middleware::from_fn(middleware::require_auth));
@@ -27,7 +29,7 @@ pub fn router() -> Router<AppState> {
         .merge(protected)
 }
 
-/// List all available plans (public).
+/// List available plans (public) — now just Free and Supporter.
 async fn list_plans(
     State(state): State<AppState>,
 ) -> Result<Json<Vec<SubscriptionPlan>>, ApiError> {
@@ -39,7 +41,7 @@ async fn list_plans(
 struct CurrentSubResponse {
     plan: SubscriptionPlan,
     subscription: Option<Subscription>,
-    monthly_cost: i32,
+    monthly_cost: i64,
     credit_balance: i64,
 }
 
@@ -52,10 +54,7 @@ async fn current_subscription(
     let plan = SubscriptionPlan::find(&state.db, plan_id).await?
         .ok_or(ApiError::Internal("Plan not found".into()))?;
 
-    let monthly_cost = match &sub {
-        Some(s) if s.is_active() => s.monthly_cost(&state.db).await.unwrap_or(0),
-        _ => 0,
-    };
+    let monthly_cost = sub.as_ref().filter(|s| s.is_active()).map(|s| s.monthly_amount).unwrap_or(0);
 
     let user = User::find_by_id(&state.db, auth.user_id).await?
         .ok_or(ApiError::Internal("User not found".into()))?;
@@ -68,88 +67,69 @@ async fn current_subscription(
     }))
 }
 
-#[derive(Deserialize)]
-struct SubscribeRequest {
-    plan_id: String,
-    #[serde(default)]
-    extra_seats: i32,
-    #[serde(default)]
-    extra_storage_gb: i32,
+fn default_true() -> bool {
+    true
 }
 
-/// Subscribe to a plan by paying credits.
+#[derive(Deserialize)]
+struct SubscribeRequest {
+    /// Monthly amount in credits, chosen by the supporter (min 10).
+    amount: i64,
+    #[serde(default = "default_true")]
+    auto_renew: bool,
+}
+
+/// Become a Supporter: pay-what-you-want, minimum 10 credits/month.
+/// Charges the first month immediately and starts a 30-day period.
 async fn subscribe(
     State(state): State<AppState>,
     Extension(auth): Extension<AuthUser>,
     Json(body): Json<SubscribeRequest>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    let plan = SubscriptionPlan::find(&state.db, &body.plan_id).await?
-        .ok_or(ApiError::Validation(format!("Unknown plan: {}", body.plan_id)))?;
-
-    if plan.price_credits == 0 {
-        return Err(ApiError::Validation("Use /cancel to downgrade to Free".into()));
-    }
-
-    // Validate extra seats
-    if body.extra_seats < 0 {
-        return Err(ApiError::Validation("Extra seats cannot be negative".into()));
-    }
-    if body.extra_seats > 0 && plan.max_team_members == 0 {
-        return Err(ApiError::Validation("This plan does not support teams".into()));
-    }
-
-    // Validate extra storage
-    if body.extra_storage_gb < 0 {
-        return Err(ApiError::Validation("Extra storage cannot be negative".into()));
-    }
-
-    // Calculate total cost
-    let base = plan.price_credits;
-    let seats_cost = body.extra_seats * plan.extra_seat_credits;
-    let storage_cost = body.extra_storage_gb * plan.extra_storage_credits_per_gb;
-    let total = base + seats_cost + storage_cost;
-
-    // Check balance
-    let user = User::find_by_id(&state.db, auth.user_id).await?
-        .ok_or(ApiError::Internal("User not found".into()))?;
-
-    if user.credit_balance < total as i64 {
+    if body.amount < SUPPORTER_MIN_CREDITS {
         return Err(ApiError::Validation(format!(
-            "Insufficient credits. Need {} credits, you have {}. Top up your wallet first.",
-            total, user.credit_balance
+            "Minimum supporter amount is {SUPPORTER_MIN_CREDITS} credits/month"
         )));
     }
 
-    // Deduct credits
-    sqlx::query("UPDATE users SET credit_balance = credit_balance - $1, updated_at = NOW() WHERE id = $2")
-        .bind(total as i64)
-        .bind(auth.user_id)
-        .execute(&state.db)
-        .await?;
+    // Deduct, record, and upsert the subscription in one DB transaction so a
+    // failure can never charge credits without granting the subscription.
+    let mut tx = state.db.begin().await?;
 
-    // Record transaction
+    let result = sqlx::query(
+        "UPDATE users SET credit_balance = credit_balance - $1, updated_at = NOW() WHERE id = $2 AND credit_balance >= $1",
+    )
+    .bind(body.amount)
+    .bind(auth.user_id)
+    .execute(&mut *tx)
+    .await?;
+
+    if result.rows_affected() == 0 {
+        return Err(ApiError::Validation(
+            "Insufficient credits. Top up your wallet first.".into(),
+        ));
+    }
+
     sqlx::query(
-        "INSERT INTO transactions (id, user_id, type, amount, description) VALUES ($1, $2, 'subscription', $3, $4)"
+        "INSERT INTO transactions (id, user_id, type, amount, reason) VALUES ($1, $2, 'subscription', $3, $4)",
     )
     .bind(Uuid::new_v4())
     .bind(auth.user_id)
-    .bind(-(total as i64))
-    .bind(format!("{} plan subscription ({} credits/mo)", plan.name, total))
-    .execute(&state.db)
+    .bind(-body.amount)
+    .bind(format!("Supporter subscription ({} credits/mo)", body.amount))
+    .execute(&mut *tx)
     .await?;
 
-    // Create/update subscription
-    let sub = Subscription::subscribe(
-        &state.db, auth.user_id, &body.plan_id,
-        body.extra_seats, body.extra_storage_gb,
-    ).await?;
+    let sub = Subscription::supporter_subscribe(&mut *tx, auth.user_id, body.amount, body.auto_renew).await?;
 
-    // Assign Discord role
-    crate::discord::on_subscription_change(&state.db, auth.user_id, &body.plan_id).await;
+    tx.commit().await?;
+
+    // Assign Discord supporter role (best-effort)
+    crate::discord::on_subscription_change(&state.db, auth.user_id, "supporter").await;
 
     Ok(Json(serde_json::json!({
-        "message": format!("Subscribed to {} plan", plan.name),
-        "credits_charged": total,
+        "message": format!("Thank you for supporting Renzora with {} credits/month!", body.amount),
+        "credits_charged": body.amount,
         "subscription": sub,
     })))
 }
@@ -161,8 +141,8 @@ async fn cancel_subscription(
     let sub = Subscription::find_by_user(&state.db, auth.user_id).await?
         .ok_or(ApiError::Validation("No active subscription".into()))?;
 
-    if sub.plan_id == "free" || !sub.is_active() {
-        return Err(ApiError::Validation("No paid subscription to cancel".into()));
+    if !sub.is_active() {
+        return Err(ApiError::Validation("No active subscription to cancel".into()));
     }
 
     Subscription::cancel(&state.db, auth.user_id).await?;
@@ -171,71 +151,39 @@ async fn cancel_subscription(
     crate::discord::on_subscription_end(&state.db, auth.user_id).await;
 
     Ok(Json(serde_json::json!({
-        "message": "Subscription will cancel at end of billing period",
+        "message": "Subscription will end at the close of the billing period",
         "period_end": sub.current_period_end.to_string(),
     })))
 }
 
 #[derive(Deserialize)]
-struct ExtraSeatsRequest {
-    extra_seats: i32,
+struct AutoRenewRequest {
+    enabled: bool,
 }
 
-async fn update_extra_seats(
+/// Toggle auto-renewal (auto-deduct credits at the end of each term).
+async fn update_auto_renew(
     State(state): State<AppState>,
     Extension(auth): Extension<AuthUser>,
-    Json(body): Json<ExtraSeatsRequest>,
+    Json(body): Json<AutoRenewRequest>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    if body.extra_seats < 0 {
-        return Err(ApiError::Validation("Cannot be negative".into()));
-    }
-
     let sub = Subscription::find_by_user(&state.db, auth.user_id).await?
         .ok_or(ApiError::Validation("No active subscription".into()))?;
 
-    let plan = SubscriptionPlan::find(&state.db, &sub.plan_id).await?
-        .ok_or(ApiError::Internal("Plan not found".into()))?;
-
-    if plan.max_team_members == 0 {
-        return Err(ApiError::Validation("Your plan does not support teams".into()));
+    if !sub.is_active() {
+        return Err(ApiError::Validation("No active subscription".into()));
     }
 
-    sqlx::query("UPDATE subscriptions SET extra_seats = $1, updated_at = NOW() WHERE user_id = $2")
-        .bind(body.extra_seats).bind(auth.user_id).execute(&state.db).await?;
+    // Re-enabling auto-renew also clears a pending cancellation.
+    sqlx::query(
+        "UPDATE subscriptions SET auto_renew = $1, cancel_at_period_end = (CASE WHEN $1 THEN false ELSE cancel_at_period_end END), updated_at = NOW() WHERE user_id = $2",
+    )
+    .bind(body.enabled)
+    .bind(auth.user_id)
+    .execute(&state.db)
+    .await?;
 
-    Ok(Json(serde_json::json!({
-        "extra_seats": body.extra_seats,
-        "extra_seat_cost": body.extra_seats * plan.extra_seat_credits,
-    })))
-}
-
-#[derive(Deserialize)]
-struct ExtraStorageRequest {
-    extra_storage_gb: i32,
-}
-
-async fn update_extra_storage(
-    State(state): State<AppState>,
-    Extension(auth): Extension<AuthUser>,
-    Json(body): Json<ExtraStorageRequest>,
-) -> Result<Json<serde_json::Value>, ApiError> {
-    if body.extra_storage_gb < 0 {
-        return Err(ApiError::Validation("Cannot be negative".into()));
-    }
-
-    let sub = Subscription::find_by_user(&state.db, auth.user_id).await?
-        .ok_or(ApiError::Validation("No active subscription".into()))?;
-
-    let plan = SubscriptionPlan::find(&state.db, &sub.plan_id).await?
-        .ok_or(ApiError::Internal("Plan not found".into()))?;
-
-    sqlx::query("UPDATE subscriptions SET extra_storage_gb = $1, updated_at = NOW() WHERE user_id = $2")
-        .bind(body.extra_storage_gb).bind(auth.user_id).execute(&state.db).await?;
-
-    Ok(Json(serde_json::json!({
-        "extra_storage_gb": body.extra_storage_gb,
-        "extra_storage_cost": body.extra_storage_gb * plan.extra_storage_credits_per_gb,
-    })))
+    Ok(Json(serde_json::json!({ "auto_renew": body.enabled })))
 }
 
 #[derive(Serialize)]
@@ -294,4 +242,102 @@ async fn update_auto_topup(
 
     let topup = AutoTopup::upsert(&state.db, auth.user_id, body.enabled, threshold, amount).await?;
     Ok(Json(topup))
+}
+
+// ── Renewal processing ──
+
+/// Process all subscriptions whose period has ended. Called periodically from
+/// a background task in the server.
+///
+/// - auto_renew on and enough credits → charge and extend 30 days
+/// - auto_renew off, cancelled, or insufficient credits → expire
+pub async fn process_due_renewals(state: &AppState) {
+    let due = match Subscription::list_period_ended(&state.db).await {
+        Ok(d) => d,
+        Err(e) => {
+            tracing::error!("Renewal sweep: failed to list due subscriptions: {e}");
+            return;
+        }
+    };
+
+    for sub in due {
+        let renewable = sub.auto_renew
+            && !sub.cancel_at_period_end
+            && sub.monthly_amount >= SUPPORTER_MIN_CREDITS;
+
+        if renewable {
+            match try_renew(state, &sub).await {
+                Ok(true) => {
+                    tracing::info!(
+                        "Renewed supporter subscription for user {} ({} credits)",
+                        sub.user_id, sub.monthly_amount
+                    );
+                    continue;
+                }
+                Ok(false) => {
+                    // Not enough credits — fall through to expiry
+                    let _ = crate::notify::notify(
+                        state,
+                        sub.user_id,
+                        "subscription",
+                        "Supporter subscription ended",
+                        &format!(
+                            "Your balance was too low to renew ({} credits/month). Top up and re-subscribe any time.",
+                            sub.monthly_amount
+                        ),
+                        Some("/subscription"),
+                        None,
+                    ).await;
+                }
+                Err(e) => {
+                    tracing::error!("Renewal failed for user {}: {e}", sub.user_id);
+                    continue; // transient error — retry next sweep
+                }
+            }
+        }
+
+        if let Err(e) = Subscription::expire(&state.db, sub.user_id).await {
+            tracing::error!("Failed to expire subscription for user {}: {e}", sub.user_id);
+            continue;
+        }
+        crate::discord::on_subscription_end(&state.db, sub.user_id).await;
+    }
+}
+
+/// Attempt one renewal charge. Returns Ok(false) when the balance is too low.
+async fn try_renew(state: &AppState, sub: &Subscription) -> Result<bool, sqlx::Error> {
+    let mut tx = state.db.begin().await?;
+
+    let result = sqlx::query(
+        "UPDATE users SET credit_balance = credit_balance - $1, updated_at = NOW() WHERE id = $2 AND credit_balance >= $1",
+    )
+    .bind(sub.monthly_amount)
+    .bind(sub.user_id)
+    .execute(&mut *tx)
+    .await?;
+
+    if result.rows_affected() == 0 {
+        return Ok(false);
+    }
+
+    sqlx::query(
+        "INSERT INTO transactions (id, user_id, type, amount, reason) VALUES ($1, $2, 'subscription', $3, $4)",
+    )
+    .bind(Uuid::new_v4())
+    .bind(sub.user_id)
+    .bind(-sub.monthly_amount)
+    .bind(format!("Supporter renewal ({} credits/mo)", sub.monthly_amount))
+    .execute(&mut *tx)
+    .await?;
+
+    Subscription::extend_period(&mut *tx, sub.user_id).await?;
+
+    tx.commit().await?;
+
+    state.ws_broadcast.send_to_user(sub.user_id, "credit_update", serde_json::json!({
+        "amount": -sub.monthly_amount,
+        "type": "subscription_renewal",
+    }));
+
+    Ok(true)
 }

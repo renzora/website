@@ -243,7 +243,7 @@ async fn admin_stats(
     let users: (i64,) = sqlx::query_as("SELECT COUNT(*)::bigint FROM users").fetch_one(&state.db).await?;
     let assets: (i64,) = sqlx::query_as("SELECT COUNT(*)::bigint FROM assets").fetch_one(&state.db).await?;
     let txns: (i64,) = sqlx::query_as("SELECT COUNT(*)::bigint FROM transactions").fetch_one(&state.db).await?;
-    let credits: (i64,) = sqlx::query_as("SELECT COALESCE(SUM(credit_balance), 0)::bigint FROM users").fetch_one(&state.db).await?;
+    let credits: (i64,) = sqlx::query_as("SELECT COALESCE(SUM(credit_balance + earnings_balance), 0)::bigint FROM users").fetch_one(&state.db).await?;
     let disputes: (i64,) = sqlx::query_as("SELECT COUNT(*)::bigint FROM disputes WHERE status = 'open'").fetch_one(&state.db).await?;
 
     Ok(Json(AdminStats {
@@ -2180,8 +2180,8 @@ async fn monthly_analytics(
     let admin_credits: (i64,) = sqlx::query_as("SELECT COALESCE(SUM(amount),0)::bigint FROM transactions WHERE type='admin_credit' AND created_at >= $1::timestamptz AND created_at < $2::timestamptz")
         .bind(&month_start).bind(&next_month).fetch_one(&state.db).await?;
 
-    // Credits in circulation (liability) at end of month
-    let liabilities: (i64,) = sqlx::query_as("SELECT COALESCE(SUM(credit_balance),0)::bigint FROM users")
+    // Credits in circulation (liability) — spendable credits plus unwithdrawn earnings
+    let liabilities: (i64,) = sqlx::query_as("SELECT COALESCE(SUM(credit_balance + earnings_balance),0)::bigint FROM users")
         .fetch_one(&state.db).await?;
 
     // New registrations
@@ -2652,7 +2652,7 @@ async fn process_refund(State(state): State<AppState>, Extension(auth): Extensio
             sqlx::query("INSERT INTO transactions (id, user_id, type, amount, asset_id, reason, admin_id) VALUES ($1, $2, 'refund_debit', $3, $4, $5, $6)")
                 .bind(Uuid::new_v4()).bind(creator_id).bind(-earn_amount).bind(asset_id).bind(&body.reason).bind(auth.user_id)
                 .execute(&state.db).await?;
-            sqlx::query("UPDATE users SET credit_balance = credit_balance - $1 WHERE id = $2")
+            sqlx::query("UPDATE users SET earnings_balance = earnings_balance - $1 WHERE id = $2")
                 .bind(earn_amount).bind(creator_id).execute(&state.db).await?;
         }
     }
@@ -2669,18 +2669,19 @@ async fn process_refund(State(state): State<AppState>, Extension(auth): Extensio
 async fn pending_payouts(State(state): State<AppState>, Extension(auth): Extension<AuthUser>) -> Result<Json<serde_json::Value>, ApiError> {
     verify_admin(&state, auth.user_id).await?;
     let rows = sqlx::query(
-        "SELECT u.id, u.username, u.email, u.credit_balance, u.stripe_connect_id, u.stripe_connect_onboarded, \
+        "SELECT u.id, u.username, u.email, u.credit_balance, u.earnings_balance, u.stripe_connect_id, u.stripe_connect_onboarded, \
          COALESCE(SUM(CASE WHEN t.type = 'earning' THEN t.amount ELSE 0 END), 0)::bigint as total_earnings, \
          COALESCE(SUM(CASE WHEN t.type = 'withdrawal' THEN ABS(t.amount) ELSE 0 END), 0)::bigint as total_withdrawn \
          FROM users u LEFT JOIN transactions t ON t.user_id = u.id \
-         WHERE u.role IN ('creator', 'admin') AND u.credit_balance >= 500 \
-         GROUP BY u.id ORDER BY u.credit_balance DESC LIMIT 50"
+         WHERE u.role IN ('creator', 'admin') AND u.earnings_balance >= 500 \
+         GROUP BY u.id ORDER BY u.earnings_balance DESC LIMIT 50"
     ).fetch_all(&state.db).await?;
     let items: Vec<serde_json::Value> = rows.iter().map(|r| serde_json::json!({
         "id": r.get::<Uuid, _>("id"),
         "username": r.get::<String, _>("username"),
         "email": r.get::<String, _>("email"),
         "credit_balance": r.get::<i64, _>("credit_balance"),
+        "earnings_balance": r.get::<i64, _>("earnings_balance"),
         "stripe_connected": r.get::<bool, _>("stripe_connect_onboarded"),
         "total_earnings": r.get::<i64, _>("total_earnings"),
         "total_withdrawn": r.get::<i64, _>("total_withdrawn"),

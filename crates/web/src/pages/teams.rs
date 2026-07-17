@@ -32,13 +32,14 @@ pub fn TeamsPage() -> impl IntoView {
 
                 // Check subscription
                 var subRes = await fetch('/api/subscriptions/current', { headers: { 'Authorization': 'Bearer ' + token } });
-                var sub = await subRes.json();
-                if (!sub || sub.plan_id === 'free' || !sub.plan_id) {
+                var cur = await subRes.json();
+                var hasSub = cur && cur.plan && cur.plan.id === 'supporter';
+                if (!hasSub) {
                     document.getElementById('teams-content').innerHTML =
                         '<div class="text-center py-20">' +
-                            '<h2 class="text-xl font-semibold text-zinc-200 mb-2">Teams requires a subscription</h2>' +
-                            '<p class="text-sm text-zinc-500 mb-4">Upgrade to Pro or higher to create and join teams.</p>' +
-                            '<a href="/subscription" class="px-6 py-2.5 bg-accent hover:bg-accent-hover text-white text-sm font-medium rounded-xl transition-colors inline-block">View Plans</a>' +
+                            '<h2 class="text-xl font-semibold text-zinc-200 mb-2">Teams is a Supporter perk</h2>' +
+                            '<p class="text-sm text-zinc-500 mb-4">Become a Supporter (from 10 credits/month) to create and join teams.</p>' +
+                            '<a href="/subscription" class="px-6 py-2.5 bg-accent hover:bg-accent-hover text-white text-sm font-medium rounded-xl transition-colors inline-block">Become a Supporter</a>' +
                         '</div>';
                     return;
                 }
@@ -77,7 +78,7 @@ pub fn TeamsPage() -> impl IntoView {
                     html += '<div class="text-center py-12 bg-white/[0.02] border border-zinc-800/50 rounded-2xl">' +
                         '<i class="ph ph-users-three text-4xl text-zinc-700 mb-3"></i>' +
                         '<p class="text-zinc-500 mb-1">No teams yet</p>' +
-                        '<p class="text-xs text-zinc-600">Create a team or get invited to one. Requires a Studio subscription.</p>' +
+                        '<p class="text-xs text-zinc-600">Create a team or get invited to one.</p>' +
                     '</div>';
                 } else {
                     html += '<div class="space-y-4">';

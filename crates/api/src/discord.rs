@@ -3,9 +3,7 @@
 //! Requires environment variables:
 //! - DISCORD_BOT_TOKEN: Bot token with "Manage Roles" permission
 //! - DISCORD_GUILD_ID: The Renzora Discord server ID
-//! - DISCORD_ROLE_PRO: Role ID for Pro subscribers
-//! - DISCORD_ROLE_INDIE: Role ID for Indie subscribers
-//! - DISCORD_ROLE_STUDIO: Role ID for Studio subscribers
+//! - DISCORD_ROLE_SUPPORTER: Role ID for Supporter subscribers
 
 use sqlx::PgPool;
 use uuid::Uuid;
@@ -14,9 +12,7 @@ use uuid::Uuid;
 struct DiscordConfig {
     bot_token: String,
     guild_id: String,
-    role_pro: String,
-    role_indie: String,
-    role_studio: String,
+    role_supporter: String,
 }
 
 impl DiscordConfig {
@@ -24,23 +20,19 @@ impl DiscordConfig {
         Some(Self {
             bot_token: std::env::var("DISCORD_BOT_TOKEN").ok()?,
             guild_id: std::env::var("DISCORD_GUILD_ID").ok()?,
-            role_pro: std::env::var("DISCORD_ROLE_PRO").ok()?,
-            role_indie: std::env::var("DISCORD_ROLE_INDIE").ok()?,
-            role_studio: std::env::var("DISCORD_ROLE_STUDIO").ok()?,
+            role_supporter: std::env::var("DISCORD_ROLE_SUPPORTER").ok()?,
         })
     }
 
     fn role_id_for_plan(&self, plan_id: &str) -> Option<&str> {
         match plan_id {
-            "pro" => Some(&self.role_pro),
-            "indie" => Some(&self.role_indie),
-            "studio" => Some(&self.role_studio),
+            "supporter" => Some(&self.role_supporter),
             _ => None,
         }
     }
 
     fn all_role_ids(&self) -> Vec<&str> {
-        vec![&self.role_pro, &self.role_indie, &self.role_studio]
+        vec![&self.role_supporter]
     }
 }
 

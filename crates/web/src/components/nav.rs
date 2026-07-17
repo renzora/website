@@ -113,7 +113,7 @@ pub fn Nav() -> impl IntoView {
                                 <i class="ph ph-users-three text-base"></i>"Teams"
                             </a>
                             <a href="/subscription" class="flex items-center gap-2.5 px-4 py-2.5 text-sm text-zinc-400 hover:text-white hover:bg-white/[0.06] transition-all">
-                                <i class="ph ph-crown text-base"></i>"Subscription"
+                                <i class="ph ph-heart text-base"></i>"Support Renzora"
                             </a>
                             <a href="/developers" class="flex items-center gap-2.5 px-4 py-2.5 text-sm text-zinc-400 hover:text-white hover:bg-white/[0.06] transition-all">
                                 <i class="ph ph-code text-base"></i>"Developers"
@@ -253,12 +253,20 @@ pub fn Nav() -> impl IntoView {
                             }
                         }
                         if (msg.event === 'credit_update') {
-                            // Update credit display
-                            const credits = document.getElementById('nav-credits');
-                            if (credits) {
-                                const cur = parseInt(credits.textContent) || 0;
-                                credits.textContent = cur + (msg.data.amount || 0);
-                            }
+                            // Refetch the balance rather than adding to the displayed
+                            // text — the display is locale-formatted ("1,600") and
+                            // parseInt would mangle it.
+                            (async function() {
+                                try {
+                                    const t = getCookie('token');
+                                    if (!t) return;
+                                    const res = await fetch('/api/credits/balance', { headers: { 'Authorization': 'Bearer ' + t } });
+                                    if (!res.ok) return;
+                                    const data = await res.json();
+                                    const credits = document.getElementById('nav-credits');
+                                    if (credits) credits.textContent = (data.credit_balance ?? 0).toLocaleString();
+                                } catch(e) {}
+                            })();
                         }
                         if (msg.event === 'new_message') {
                             var msgBadge = document.getElementById('msg-badge');

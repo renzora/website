@@ -18,6 +18,7 @@ use crate::{error::ApiError, middleware, middleware::AuthUser, AppState};
 pub fn router() -> Router<AppState> {
     let protected = Router::new()
         .route("/balance", get(get_balance))
+        .route("/convert-earnings", post(convert_earnings))
         .route("/topup", post(create_topup))
         .route("/history", get(get_history))
         .route("/purchase", post(purchase_asset))
@@ -52,7 +53,58 @@ async fn get_balance(
 
     Ok(Json(BalanceResponse {
         credit_balance: user.credit_balance,
+        earnings_balance: user.earnings_balance,
     }))
+}
+
+#[derive(serde::Deserialize)]
+struct ConvertEarningsBody {
+    amount: i64,
+}
+
+/// Convert earnings into spendable credits (one-way; credits can't go back).
+async fn convert_earnings(
+    State(state): State<AppState>,
+    Extension(auth): Extension<AuthUser>,
+    Json(body): Json<ConvertEarningsBody>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    if body.amount <= 0 {
+        return Err(ApiError::Validation("Amount must be positive".into()));
+    }
+
+    let mut tx = state.db.begin().await?;
+
+    let result = sqlx::query(
+        "UPDATE users SET earnings_balance = earnings_balance - $1, credit_balance = credit_balance + $1, updated_at = NOW() \
+         WHERE id = $2 AND earnings_balance >= $1",
+    )
+    .bind(body.amount)
+    .bind(auth.user_id)
+    .execute(&mut *tx)
+    .await?;
+
+    if result.rows_affected() == 0 {
+        return Err(ApiError::Validation("Insufficient earnings balance".into()));
+    }
+
+    sqlx::query("INSERT INTO transactions (id, user_id, type, amount, reason) VALUES ($1, $2, 'convert', $3, 'Converted earnings to credits')")
+        .bind(Uuid::new_v4())
+        .bind(auth.user_id)
+        .bind(body.amount)
+        .execute(&mut *tx)
+        .await?;
+
+    tx.commit().await?;
+
+    let user = User::find_by_id(&state.db, auth.user_id)
+        .await?
+        .ok_or(ApiError::NotFound)?;
+
+    Ok(Json(serde_json::json!({
+        "ok": true,
+        "credit_balance": user.credit_balance,
+        "earnings_balance": user.earnings_balance,
+    })))
 }
 
 /// Create a Stripe Checkout session for topping up credits.
@@ -556,7 +608,7 @@ async fn request_withdrawal(
 
             let new_balance = User::find_by_id(&state.db, auth.user_id)
                 .await?
-                .map(|u| u.credit_balance)
+                .map(|u| u.earnings_balance)
                 .unwrap_or(0);
 
             Ok(Json(serde_json::json!({

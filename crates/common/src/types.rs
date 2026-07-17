@@ -315,6 +315,7 @@ pub struct GameCategoryResponse {
 #[derive(Debug, Serialize)]
 pub struct BalanceResponse {
     pub credit_balance: i64,
+    pub earnings_balance: i64,
 }
 
 #[derive(Debug, Deserialize)]

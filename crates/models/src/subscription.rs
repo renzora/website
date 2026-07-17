@@ -58,6 +58,7 @@ pub struct Subscription {
     pub current_period_end: OffsetDateTime,
     pub cancel_at_period_end: bool,
     pub auto_renew: bool,
+    pub monthly_amount: i64,
     pub created_at: OffsetDateTime,
     pub updated_at: OffsetDateTime,
 }
@@ -68,33 +69,48 @@ impl Subscription {
             .bind(user_id).fetch_optional(db).await
     }
 
-    /// Subscribe a user to a plan. Deducts credits and sets period to 30 days.
-    pub async fn subscribe(
-        db: &PgPool,
+    /// Create or update a Supporter subscription. The credit deduction is done
+    /// by the caller (inside the same DB transaction as the ledger row).
+    pub async fn supporter_subscribe<'e, E>(
+        executor: E,
         user_id: Uuid,
-        plan_id: &str,
-        extra_seats: i32,
-        extra_storage_gb: i32,
-    ) -> Result<Self, sqlx::Error> {
+        monthly_amount: i64,
+        auto_renew: bool,
+    ) -> Result<Self, sqlx::Error>
+    where
+        E: sqlx::Executor<'e, Database = sqlx::Postgres>,
+    {
         let period_end = OffsetDateTime::now_utc() + time::Duration::days(30);
 
         sqlx::query_as(
-            "INSERT INTO subscriptions (user_id, plan_id, extra_seats, extra_storage_gb, current_period_end, auto_renew)
-             VALUES ($1, $2, $3, $4, $5, true)
+            "INSERT INTO subscriptions (user_id, plan_id, monthly_amount, current_period_end, auto_renew)
+             VALUES ($1, 'supporter', $2, $3, $4)
              ON CONFLICT (user_id) DO UPDATE SET
-                plan_id = EXCLUDED.plan_id,
-                extra_seats = EXCLUDED.extra_seats,
-                extra_storage_gb = EXCLUDED.extra_storage_gb,
+                plan_id = 'supporter',
+                monthly_amount = EXCLUDED.monthly_amount,
                 current_period_start = NOW(),
                 current_period_end = EXCLUDED.current_period_end,
                 status = 'active',
-                auto_renew = true,
+                auto_renew = EXCLUDED.auto_renew,
                 cancel_at_period_end = false,
                 updated_at = NOW()
              RETURNING *"
         )
-        .bind(user_id).bind(plan_id).bind(extra_seats).bind(extra_storage_gb).bind(period_end)
-        .fetch_one(db).await
+        .bind(user_id).bind(monthly_amount).bind(period_end).bind(auto_renew)
+        .fetch_one(executor).await
+    }
+
+    /// Extend the current period by 30 days (successful renewal).
+    pub async fn extend_period<'e, E>(executor: E, user_id: Uuid) -> Result<(), sqlx::Error>
+    where
+        E: sqlx::Executor<'e, Database = sqlx::Postgres>,
+    {
+        sqlx::query(
+            "UPDATE subscriptions SET current_period_start = NOW(),
+             current_period_end = NOW() + INTERVAL '30 days', updated_at = NOW()
+             WHERE user_id = $1"
+        ).bind(user_id).execute(executor).await?;
+        Ok(())
     }
 
     pub async fn cancel(db: &PgPool, user_id: Uuid) -> Result<(), sqlx::Error> {
@@ -109,37 +125,15 @@ impl Subscription {
         Ok(())
     }
 
-    /// List all subscriptions due for renewal (period ended, auto_renew = true, not canceled).
-    pub async fn list_due_for_renewal(db: &PgPool) -> Result<Vec<Self>, sqlx::Error> {
+    /// List all active subscriptions whose period has ended (renewal or expiry due).
+    pub async fn list_period_ended(db: &PgPool) -> Result<Vec<Self>, sqlx::Error> {
         sqlx::query_as(
-            "SELECT * FROM subscriptions WHERE status = 'active' AND auto_renew = true AND current_period_end <= NOW()"
+            "SELECT * FROM subscriptions WHERE status = 'active' AND current_period_end <= NOW()"
         ).fetch_all(db).await
     }
 
     pub fn is_active(&self) -> bool {
         self.status == "active" && self.current_period_end > OffsetDateTime::now_utc()
-    }
-
-    /// Calculate total monthly credits for this subscription.
-    pub async fn monthly_cost(&self, db: &PgPool) -> Result<i32, sqlx::Error> {
-        let plan = SubscriptionPlan::find(db, &self.plan_id).await?
-            .unwrap_or_else(|| SubscriptionPlan {
-                id: "free".into(), name: "Free".into(), description: String::new(),
-                price_credits: 0, daily_api_limit: 500, storage_mb: 0,
-                max_team_members: 0, max_file_size_mb: 500,
-                extra_seat_credits: 0, extra_storage_credits_per_gb: 0,
-                commission_percent: 30, library_assets_per_month: 0, search_boost: 0,
-                asset_spotlights_per_month: 0,
-                xbox_builds_per_month: 0, xbox_build_cost_credits: 0,
-                xbox_submission_cost_credits: 0,
-                profile_badge: String::new(), profile_customization: "basic".into(),
-                features: serde_json::Value::Array(vec![]), sort_order: 0,
-            });
-
-        let base = plan.price_credits;
-        let seats = self.extra_seats * plan.extra_seat_credits;
-        let storage = self.extra_storage_gb * plan.extra_storage_credits_per_gb;
-        Ok(base + seats + storage)
     }
 }
 
