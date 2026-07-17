@@ -114,6 +114,24 @@ Support Renzora with a monthly, pay-what-you-want subscription from the [Support
 - **Auto-renew** (optional, on by default) deducts the same amount automatically at the end of each term. If your balance is too low at renewal, the subscription simply ends — you're notified and can re-subscribe any time.
 - Perks: Supporter profile badge, Discord role, custom profile colors, 10GB cloud storage, up to 5 team members, and a 5,000/day API limit.
 
+### Membership tiers & supporters wall
+
+Your monthly amount also sets your **membership tier**, shown on the [Donate page](/donate) supporters wall (Bevy-style):
+
+| Tier | Credits/month | Wall recognition |
+|---|---|---|
+| Bronze | 50 ($5) | — |
+| Silver | 100 ($10) | — |
+| Gold | 250 ($25) | Name |
+| Platinum | 500 ($50) | Name |
+| Titanium | 1,000 ($100) | Name + link |
+| Diamond | 2,500 ($250) | **Logo** + link |
+| Corporate Bronze | 5,000 ($500) | **Large logo** + link |
+| Corporate Silver | 10,000 ($1,000) | Larger logo + link |
+| Corporate Gold | 25,000 ($2,500) | Largest logo, top billing |
+
+Engine perks are identical at every tier — higher tiers are recognition, not gated features. Members from Gold up can set a display name, website link, and (from Diamond) upload a logo, or hide themselves from the wall entirely. The wall reflects **active** subscriptions; if your membership lapses, your listing is removed until you re-subscribe.
+
 ## Donations
 
 You can donate credits to support Renzora from the [Donate page](/donate):
@@ -123,19 +141,6 @@ You can donate credits to support Renzora from the [Donate page](/donate):
 - Cumulative donations unlock **donor badges** at 100, 500, 1,000, and 5,000 credits (bronze → silver → gold → platinum).
 - There's a public **donation leaderboard** (anonymous donors are hidden).
 
-### Sponsor wall
-
-Cumulative (non-anonymous) donations also earn a spot on the public **sponsor wall** on the Donate page:
-
-| Tier | Total donated | You get |
-|---|---|---|
-| Bronze | 100 credits ($10) | Name listed |
-| Silver | 500 credits ($50) | Name + link |
-| Gold | 1,000 credits ($100) | Highlighted name + link |
-| Platinum | 5,000 credits ($500) | **Logo** + link |
-| Corporate | 25,000 credits ($2,500) | **Large logo** + link, top billing |
-
-Sponsors can set a display name, website link, and (from Platinum) upload a logo from the Donate page. You can also hide yourself from the wall entirely.
 
 ## Referrals
 
