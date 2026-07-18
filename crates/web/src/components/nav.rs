@@ -3,148 +3,211 @@ use leptos::prelude::*;
 #[component]
 pub fn Nav() -> impl IntoView {
     view! {
-        <nav id="main-nav" class="sticky top-0 z-50 transition-all duration-300" style="text-shadow: 0 1px 4px rgba(0,0,0,0.5)">
-            <div class="max-w-[1400px] mx-auto w-full px-6 h-14 flex items-center gap-6">
-                // Logo
-                <a href="/" class="text-lg font-bold tracking-tight text-white hover:text-accent transition-colors">"Renzora"</a>
+        // ── Fixed left sidebar ──
+        <aside id="app-sidebar">
+            // Logo
+            <a href="/" class="flex items-center gap-2.5 px-4 h-[60px] shrink-0 border-b border-white/[0.06]">
+                <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-accent to-secondary flex items-center justify-center shadow-lg shadow-accent/20">
+                    <i class="ph-fill ph-star text-white text-lg"></i>
+                </div>
+                <div class="leading-none">
+                    <div class="text-[15px] font-bold text-white tracking-tight">"renzora"</div>
+                    <div class="text-[9px] font-semibold uppercase tracking-[0.18em] text-zinc-500 mt-1">"Game Engine"</div>
+                </div>
+            </a>
 
-                // Nav links
-                <div class="flex gap-1 flex-1" id="nav-links">
-                    <a href="/download" class="nav-link text-base text-zinc-400 hover:text-white hover:bg-white/[0.06] px-3.5 py-1.5 rounded-lg transition-all flex items-center gap-1.5" data-path="/download">
+            // Nav links
+            <nav class="flex-1 overflow-y-auto px-3 py-4">
+                <p class="text-[10px] font-semibold uppercase tracking-[0.18em] text-zinc-600 px-2 mb-2">"Menu"</p>
+                <div class="space-y-0.5">
+                    <a href="/" class="side-link nav-link" data-path="/">
+                        <i class="ph ph-house text-lg"></i>"Home"
+                    </a>
+                    <a href="/download" class="side-link nav-link" data-path="/download">
                         <i class="ph ph-download-simple text-lg"></i>"Engine"
                     </a>
-                    <a href="/marketplace" class="nav-link text-base text-zinc-400 hover:text-white hover:bg-white/[0.06] px-3.5 py-1.5 rounded-lg transition-all flex items-center gap-1.5" data-path="/marketplace">
+                    <a href="/marketplace" class="side-link nav-link" data-path="/marketplace">
                         <i class="ph ph-storefront text-lg"></i>"Marketplace"
                     </a>
-                    <a href="/community" class="nav-link text-base text-zinc-400 hover:text-white hover:bg-white/[0.06] px-3.5 py-1.5 rounded-lg transition-all flex items-center gap-1.5" data-path="/community">
+                    <a href="/community" class="side-link nav-link" data-path="/community">
                         <i class="ph ph-users-three text-lg"></i>"Community"
                     </a>
-                    <a href="/docs" class="nav-link text-base text-zinc-400 hover:text-white hover:bg-white/[0.06] px-3.5 py-1.5 rounded-lg transition-all flex items-center gap-1.5" data-path="/docs">
+                    <a href="/docs" class="side-link nav-link" data-path="/docs">
                         <i class="ph ph-book-open text-lg"></i>"Docs"
                     </a>
-                    <a href="/donate" class="nav-link text-base text-zinc-400 hover:text-white hover:bg-white/[0.06] px-3.5 py-1.5 rounded-lg transition-all flex items-center gap-1.5" data-path="/donate">
-                        <i class="ph ph-heart text-lg text-pink-400"></i>"Donate"
+                    <a href="/donate" class="side-link nav-link" data-path="/donate">
+                        <i class="ph ph-heart text-lg"></i>"Support"
                     </a>
                 </div>
+            </nav>
 
-                // XP bar (logged in only)
-                <div id="nav-xp-wrap" class="hidden items-center gap-2">
-                    <div class="flex items-center gap-2">
-                        <div class="relative flex items-center">
-                            // Level badge
-                            <div class="w-8 h-8 rounded-lg flex items-center justify-center z-10">
-                                <span id="nav-level" class="text-[11px] font-black text-accent">"1"</span>
-                            </div>
-                            // XP bar
-                            <div class="w-28 h-4 -ml-1 bg-black/40 border border-white/[0.08] rounded-r-lg overflow-hidden shadow-inner">
-                                <div id="nav-xp-bar" class="h-full bg-gradient-to-r from-accent to-purple-500 rounded-r-lg transition-all relative" style="width:0%">
-                                    <div class="absolute inset-0 bg-[linear-gradient(90deg,transparent_25%,rgba(255,255,255,0.15)_50%,transparent_75%)] bg-[length:200%_100%] animate-[xpShimmer_2s_linear_infinite]"></div>
-                                </div>
-                            </div>
+            // Bottom cards
+            <div class="p-3 border-t border-white/[0.06] space-y-2">
+                // Engine download card
+                <div class="rounded-xl p-3 bg-gradient-to-br from-accent/[0.15] to-secondary/[0.08] border border-white/[0.07]">
+                    <p class="text-[9px] font-semibold uppercase tracking-[0.16em] text-zinc-400">"Renzora Engine"</p>
+                    <div class="flex items-center gap-1.5 mt-1.5">
+                        <i class="ph ph-download-simple text-secondary text-sm"></i>
+                        <span class="text-sm font-semibold text-white">"r1-alpha6"</span>
+                        <span class="text-[9px] font-semibold px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-400">"Free"</span>
+                    </div>
+                    <a href="/download" class="mt-2.5 block text-center text-xs font-semibold text-white bg-accent hover:bg-accent-hover transition-colors rounded-lg py-1.5">"Download"</a>
+                </div>
+
+                // Credits card (logged in)
+                <a href="/wallet" id="nav-side-credits" class="hidden rounded-xl p-3 bg-white/[0.03] border border-white/[0.07] hover:bg-white/[0.05] transition-colors">
+                    <p class="text-[9px] font-semibold uppercase tracking-[0.16em] text-zinc-500">"Your Credits"</p>
+                    <div class="flex items-center gap-1.5 mt-1.5">
+                        <i class="ph-fill ph-coin text-amber-400 text-base"></i>
+                        <span id="nav-credits-side" class="text-lg font-bold text-white">"0"</span>
+                    </div>
+                    <span class="mt-2.5 block text-center text-xs font-semibold text-white bg-amber-500/90 hover:bg-amber-500 transition-colors rounded-lg py-1.5">"Get more Credits"</span>
+                </a>
+
+                // Guest card (logged out)
+                <a href="/login" id="nav-side-guest" class="block rounded-xl p-3 bg-white/[0.03] border border-white/[0.07] hover:bg-white/[0.05] transition-colors text-center">
+                    <p class="text-xs text-zinc-400 leading-relaxed">"Sign in to build, sell and connect."</p>
+                    <span class="mt-2.5 block text-xs font-semibold text-white bg-accent hover:bg-accent-hover transition-colors rounded-lg py-1.5">"Sign In"</span>
+                </a>
+            </div>
+        </aside>
+
+        // ── Mobile scrim ──
+        <div id="sidebar-scrim" onclick="toggleSidebar()"></div>
+
+        // ── Fixed top header ──
+        <header id="app-header">
+            // Mobile hamburger
+            <button id="sidebar-burger" onclick="toggleSidebar()" class="text-zinc-400 hover:text-white p-1.5 -ml-1 rounded-lg hover:bg-white/[0.06] transition-all">
+                <i class="ph ph-list text-xl"></i>
+            </button>
+
+            // Page brand / tagline
+            <div class="min-w-0">
+                <p class="text-[15px] font-semibold text-white leading-tight">"Renzora"</p>
+                <p class="text-[11px] text-zinc-500 leading-tight truncate hidden sm:block">"The open-source Bevy engine — editor, marketplace & community"</p>
+            </div>
+
+            <div class="flex-1"></div>
+
+            // XP bar (logged in only)
+            <div id="nav-xp-wrap" class="hidden items-center gap-2 mr-1">
+                <div class="relative flex items-center">
+                    <div class="w-7 h-7 rounded-lg flex items-center justify-center z-10">
+                        <span id="nav-level" class="text-[11px] font-black text-accent">"1"</span>
+                    </div>
+                    <div class="w-24 h-3.5 -ml-1 bg-black/40 border border-white/[0.08] rounded-r-lg overflow-hidden shadow-inner">
+                        <div id="nav-xp-bar" class="h-full bg-gradient-to-r from-accent to-secondary rounded-r-lg transition-all relative" style="width:0%">
+                            <div class="absolute inset-0 bg-[linear-gradient(90deg,transparent_25%,rgba(255,255,255,0.15)_50%,transparent_75%)] bg-[length:200%_100%] animate-[xpShimmer_2s_linear_infinite]"></div>
                         </div>
-                        <span id="nav-xp-text" class="text-[10px] text-zinc-500 font-medium">"0 XP"</span>
                     </div>
                 </div>
+                <span id="nav-xp-text" class="text-[10px] text-zinc-500 font-medium hidden md:block">"0 XP"</span>
+            </div>
 
-                // Search
-                <div class="relative" id="global-search-wrap">
-                    <button onclick="toggleGlobalSearch()" class="text-zinc-400 hover:text-white p-2 rounded-lg hover:bg-white/[0.06] transition-all" title="Search (Ctrl+K)">
-                        <i class="ph ph-magnifying-glass text-lg"></i>
-                    </button>
-                    <div id="global-search-panel" class="hidden absolute right-0 top-full mt-2 w-[420px] bg-[rgba(10,10,16,0.95)] backdrop-blur-2xl border border-white/[0.08] rounded-xl shadow-2xl shadow-black/60 overflow-hidden z-50">
-                        <div class="flex items-center gap-2 px-4 py-3 border-b border-white/[0.06]">
-                            <i class="ph ph-magnifying-glass text-zinc-500"></i>
-                            <input type="text" id="global-search-input" placeholder="Search assets, users, docs..." oninput="globalSearch(this.value)" class="flex-1 bg-transparent text-sm text-zinc-50 outline-none placeholder:text-zinc-600" />
-                            <kbd class="text-[10px] text-zinc-600 border border-white/[0.08] rounded px-1.5 py-0.5">"Esc"</kbd>
-                        </div>
-                        <div id="global-search-results" class="max-h-[400px] overflow-y-auto">
-                            <div class="px-4 py-8 text-center text-xs text-zinc-600">"Type to search across marketplace, users, and docs."</div>
-                        </div>
+            // Search
+            <div class="relative" id="global-search-wrap">
+                <button onclick="toggleGlobalSearch()" class="text-zinc-400 hover:text-white p-2 rounded-lg hover:bg-white/[0.06] transition-all" title="Search (Ctrl+K)">
+                    <i class="ph ph-magnifying-glass text-lg"></i>
+                </button>
+                <div id="global-search-panel" class="hidden absolute right-0 top-full mt-2 w-[420px] max-w-[90vw] bg-[rgba(12,7,21,0.95)] backdrop-blur-2xl border border-white/[0.08] rounded-xl shadow-2xl shadow-black/60 overflow-hidden z-50">
+                    <div class="flex items-center gap-2 px-4 py-3 border-b border-white/[0.06]">
+                        <i class="ph ph-magnifying-glass text-zinc-500"></i>
+                        <input type="text" id="global-search-input" placeholder="Search assets, users, docs..." oninput="globalSearch(this.value)" class="flex-1 bg-transparent text-sm text-zinc-50 outline-none placeholder:text-zinc-600" />
+                        <kbd class="text-[10px] text-zinc-600 border border-white/[0.08] rounded px-1.5 py-0.5">"Esc"</kbd>
                     </div>
-                </div>
-
-                // Logged-out
-                <div id="nav-guest" class="flex gap-2">
-                    <a id="nav-signin-link" href="/login" class="text-sm text-zinc-300 hover:text-white bg-accent/80 hover:bg-accent px-4 py-1.5 rounded-lg transition-all flex items-center gap-1.5">
-                        <i class="ph ph-sign-in text-base"></i>"Sign In"
-                    </a>
-                </div>
-
-                // Logged-in
-                <div id="nav-user" class="hidden items-center gap-2">
-                    // Messages
-                    <a href="/messages" class="relative p-2 rounded-lg hover:bg-white/[0.06] transition-colors" title="Messages">
-                        <i class="ph ph-chat-circle-dots text-lg text-zinc-400 hover:text-zinc-200"></i>
-                        <span id="msg-badge" class="hidden absolute -top-0.5 -right-0.5 w-4 h-4 bg-accent rounded-full text-[9px] font-bold text-white flex items-center justify-center"></span>
-                    </a>
-                    // Notifications
-                    <div class="relative" id="notif-wrap">
-                        <button onclick="toggleNotifs()" class="text-zinc-400 hover:text-white p-2 rounded-lg hover:bg-white/[0.06] transition-all relative">
-                            <i class="ph ph-bell text-lg"></i>
-                            <span id="notif-badge" class="hidden absolute -top-0.5 -right-0.5 w-4 h-4 bg-red-500 rounded-full text-[9px] text-white flex items-center justify-center font-bold"></span>
-                        </button>
-                        <div id="notif-dropdown" class="hidden absolute right-0 top-full mt-2 w-80 bg-[rgba(10,10,16,0.95)] backdrop-blur-2xl border border-white/[0.08] rounded-xl shadow-2xl overflow-hidden z-50">
-                            <div class="flex justify-between items-center px-3 py-2.5 border-b border-white/[0.06]">
-                                <span class="text-xs font-semibold text-zinc-300">"Notifications"</span>
-                                <button onclick="markAllRead()" class="text-xs text-accent hover:text-accent-hover">"Mark all read"</button>
-                            </div>
-                            <div id="notif-list" class="max-h-80 overflow-y-auto">
-                                <p class="text-xs text-zinc-500 p-4 text-center">"No notifications"</p>
-                            </div>
-                            <a href="/notifications" class="block px-3 py-2.5 text-center text-xs text-accent hover:text-accent-hover border-t border-white/[0.06]">"See all notifications"</a>
-                        </div>
-                    </div>
-                    // Credits
-                    <a href="/wallet" class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/[0.04] border border-white/[0.05] hover:bg-white/[0.08] transition-all">
-                        <i class="ph ph-coins text-sm text-amber-400"></i>
-                        <span id="nav-credits" class="text-sm text-white font-semibold">"0"</span>
-                        <span class="text-[11px] text-zinc-500">"credits"</span>
-                    </a>
-                    // User
-                    <div class="relative" id="user-dropdown-wrap">
-                        <button onclick="toggleDropdown()" id="user-dropdown-btn" class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/[0.04] border border-white/[0.05] hover:bg-white/[0.08] transition-all cursor-pointer">
-                            <i class="ph ph-user-circle text-base text-zinc-300"></i>
-                            <span id="nav-username" class="text-sm text-zinc-200"></span>
-                            <i class="ph ph-caret-down text-xs text-zinc-500"></i>
-                        </button>
-                        <div id="user-dropdown" class="hidden absolute right-0 top-full mt-2 w-52 bg-[rgba(10,10,16,0.95)] backdrop-blur-2xl border border-white/[0.08] rounded-xl shadow-2xl overflow-hidden z-50 py-1">
-                            <a id="nav-profile-link" href="/profile" class="flex items-center gap-2.5 px-4 py-2.5 text-sm text-zinc-400 hover:text-white hover:bg-white/[0.06] transition-all">
-                                <i class="ph ph-user text-base"></i>"Profile"
-                            </a>
-                            <a href="/library" class="flex items-center gap-2.5 px-4 py-2.5 text-sm text-zinc-400 hover:text-white hover:bg-white/[0.06] transition-all">
-                                <i class="ph ph-books text-base"></i>"My Library"
-                            </a>
-                            <a href="/friends" class="flex items-center gap-2.5 px-4 py-2.5 text-sm text-zinc-400 hover:text-white hover:bg-white/[0.06] transition-all">
-                                <i class="ph ph-user-plus text-base"></i>"Friends"
-                            </a>
-                            <a id="nav-sell-link" href="/marketplace/sell" class="flex items-center gap-2.5 px-4 py-2.5 text-sm text-zinc-400 hover:text-white hover:bg-white/[0.06] transition-all">
-                                <i class="ph ph-storefront text-base" id="nav-sell-icon"></i><span id="nav-sell-text">"Sell on Marketplace"</span>
-                            </a>
-                            <a href="/teams" class="flex items-center gap-2.5 px-4 py-2.5 text-sm text-zinc-400 hover:text-white hover:bg-white/[0.06] transition-all">
-                                <i class="ph ph-users-three text-base"></i>"Teams"
-                            </a>
-                            <a href="/subscription" class="flex items-center gap-2.5 px-4 py-2.5 text-sm text-zinc-400 hover:text-white hover:bg-white/[0.06] transition-all">
-                                <i class="ph ph-heart text-base"></i>"Support Renzora"
-                            </a>
-                            <a href="/developers" class="flex items-center gap-2.5 px-4 py-2.5 text-sm text-zinc-400 hover:text-white hover:bg-white/[0.06] transition-all">
-                                <i class="ph ph-code text-base"></i>"Developers"
-                            </a>
-                            <a href="/settings" class="flex items-center gap-2.5 px-4 py-2.5 text-sm text-zinc-400 hover:text-white hover:bg-white/[0.06] transition-all">
-                                <i class="ph ph-gear text-base"></i>"Settings"
-                            </a>
-                            <div class="border-t border-white/[0.06] my-1"></div>
-                            <button onclick="handleLogout()" class="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-red-400 hover:text-red-300 hover:bg-white/[0.06] transition-all cursor-pointer">
-                                <i class="ph ph-sign-out text-base"></i>"Sign Out"
-                            </button>
-                        </div>
+                    <div id="global-search-results" class="max-h-[400px] overflow-y-auto">
+                        <div class="px-4 py-8 text-center text-xs text-zinc-600">"Type to search across marketplace, users, and docs."</div>
                     </div>
                 </div>
             </div>
-        </nav>
+
+            // Logged-out
+            <div id="nav-guest" class="flex gap-2">
+                <a id="nav-signin-link" href="/login" class="text-sm text-white bg-accent/90 hover:bg-accent px-4 py-1.5 rounded-lg transition-all flex items-center gap-1.5">
+                    <i class="ph ph-sign-in text-base"></i>"Sign In"
+                </a>
+            </div>
+
+            // Logged-in
+            <div id="nav-user" class="hidden items-center gap-2">
+                // Credits
+                <a href="/wallet" class="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-amber-500/10 border border-amber-500/20 hover:bg-amber-500/20 transition-all">
+                    <i class="ph-fill ph-coin text-sm text-amber-400"></i>
+                    <span id="nav-credits" class="text-sm text-white font-semibold">"0"</span>
+                </a>
+                // Messages
+                <a href="/messages" class="relative p-2 rounded-lg hover:bg-white/[0.06] transition-colors" title="Messages">
+                    <i class="ph ph-chat-circle-dots text-lg text-zinc-400 hover:text-zinc-200"></i>
+                    <span id="msg-badge" class="hidden absolute top-0 right-0 min-w-[16px] h-4 px-1 bg-accent rounded-full text-[9px] font-bold text-white flex items-center justify-center"></span>
+                </a>
+                // Notifications
+                <div class="relative" id="notif-wrap">
+                    <button onclick="toggleNotifs()" class="text-zinc-400 hover:text-white p-2 rounded-lg hover:bg-white/[0.06] transition-all relative">
+                        <i class="ph ph-bell text-lg"></i>
+                        <span id="notif-badge" class="hidden absolute top-0 right-0 min-w-[16px] h-4 px-1 bg-red-500 rounded-full text-[9px] text-white flex items-center justify-center font-bold"></span>
+                    </button>
+                    <div id="notif-dropdown" class="hidden absolute right-0 top-full mt-2 w-80 max-w-[90vw] bg-[rgba(12,7,21,0.95)] backdrop-blur-2xl border border-white/[0.08] rounded-xl shadow-2xl overflow-hidden z-50">
+                        <div class="flex justify-between items-center px-3 py-2.5 border-b border-white/[0.06]">
+                            <span class="text-xs font-semibold text-zinc-300">"Notifications"</span>
+                            <button onclick="markAllRead()" class="text-xs text-accent hover:text-accent-hover">"Mark all read"</button>
+                        </div>
+                        <div id="notif-list" class="max-h-80 overflow-y-auto">
+                            <p class="text-xs text-zinc-500 p-4 text-center">"No notifications"</p>
+                        </div>
+                        <a href="/notifications" class="block px-3 py-2.5 text-center text-xs text-accent hover:text-accent-hover border-t border-white/[0.06]">"See all notifications"</a>
+                    </div>
+                </div>
+                // User
+                <div class="relative" id="user-dropdown-wrap">
+                    <button onclick="toggleDropdown()" id="user-dropdown-btn" class="flex items-center gap-1.5 pl-1 pr-2 py-1 rounded-full bg-white/[0.04] border border-white/[0.06] hover:bg-white/[0.08] transition-all cursor-pointer">
+                        <span class="w-7 h-7 rounded-full bg-gradient-to-br from-accent to-secondary flex items-center justify-center text-white text-xs font-bold" id="nav-avatar-initial"></span>
+                        <span id="nav-username" class="text-sm text-zinc-200 hidden sm:block"></span>
+                        <i class="ph ph-caret-down text-xs text-zinc-500"></i>
+                    </button>
+                    <div id="user-dropdown" class="hidden absolute right-0 top-full mt-2 w-52 bg-[rgba(12,7,21,0.95)] backdrop-blur-2xl border border-white/[0.08] rounded-xl shadow-2xl overflow-hidden z-50 py-1">
+                        <a id="nav-profile-link" href="/profile" class="flex items-center gap-2.5 px-4 py-2.5 text-sm text-zinc-400 hover:text-white hover:bg-white/[0.06] transition-all">
+                            <i class="ph ph-user text-base"></i>"Profile"
+                        </a>
+                        <a href="/library" class="flex items-center gap-2.5 px-4 py-2.5 text-sm text-zinc-400 hover:text-white hover:bg-white/[0.06] transition-all">
+                            <i class="ph ph-books text-base"></i>"My Library"
+                        </a>
+                        <a href="/friends" class="flex items-center gap-2.5 px-4 py-2.5 text-sm text-zinc-400 hover:text-white hover:bg-white/[0.06] transition-all">
+                            <i class="ph ph-user-plus text-base"></i>"Friends"
+                        </a>
+                        <a id="nav-sell-link" href="/marketplace/sell" class="flex items-center gap-2.5 px-4 py-2.5 text-sm text-zinc-400 hover:text-white hover:bg-white/[0.06] transition-all">
+                            <i class="ph ph-storefront text-base" id="nav-sell-icon"></i><span id="nav-sell-text">"Sell on Marketplace"</span>
+                        </a>
+                        <a href="/teams" class="flex items-center gap-2.5 px-4 py-2.5 text-sm text-zinc-400 hover:text-white hover:bg-white/[0.06] transition-all">
+                            <i class="ph ph-users-three text-base"></i>"Teams"
+                        </a>
+                        <a href="/subscription" class="flex items-center gap-2.5 px-4 py-2.5 text-sm text-zinc-400 hover:text-white hover:bg-white/[0.06] transition-all">
+                            <i class="ph ph-heart text-base"></i>"Support Renzora"
+                        </a>
+                        <a href="/developers" class="flex items-center gap-2.5 px-4 py-2.5 text-sm text-zinc-400 hover:text-white hover:bg-white/[0.06] transition-all">
+                            <i class="ph ph-code text-base"></i>"Developers"
+                        </a>
+                        <a href="/settings" class="flex items-center gap-2.5 px-4 py-2.5 text-sm text-zinc-400 hover:text-white hover:bg-white/[0.06] transition-all">
+                            <i class="ph ph-gear text-base"></i>"Settings"
+                        </a>
+                        <div class="border-t border-white/[0.06] my-1"></div>
+                        <button onclick="handleLogout()" class="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-red-400 hover:text-red-300 hover:bg-white/[0.06] transition-all cursor-pointer">
+                            <i class="ph ph-sign-out text-base"></i>"Sign Out"
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </header>
 
 
         <script>
             r#"
+            function toggleSidebar() {
+                const sb = document.getElementById('app-sidebar');
+                const scrim = document.getElementById('sidebar-scrim');
+                const open = sb.classList.toggle('open');
+                if (scrim) scrim.classList.toggle('open', open);
+            }
             function getCookie(name) {
                 const v = document.cookie.match('(^|;)\\s*' + name + '\\s*=\\s*([^;]+)');
                 return v ? v.pop() : null;
@@ -154,6 +217,8 @@ pub fn Nav() -> impl IntoView {
                 const guest = document.getElementById('nav-guest');
                 const user = document.getElementById('nav-user');
                 const username = document.getElementById('nav-username');
+                const sideCredits = document.getElementById('nav-side-credits');
+                const sideGuest = document.getElementById('nav-side-guest');
                 if (userCookie && guest && user) {
                     try {
                         const u = JSON.parse(decodeURIComponent(userCookie));
@@ -161,22 +226,14 @@ pub fn Nav() -> impl IntoView {
                         user.classList.remove('hidden');
                         user.classList.add('flex');
                         if (username) username.textContent = u.username;
+                        const initial = document.getElementById('nav-avatar-initial');
+                        if (initial && u.username) initial.textContent = u.username.charAt(0).toUpperCase();
                         const profileLink = document.getElementById('nav-profile-link');
                         if (profileLink) profileLink.href = '/profile/' + u.username;
+                        if (sideCredits) { sideCredits.classList.remove('hidden'); sideCredits.classList.add('block'); }
+                        if (sideGuest) { sideGuest.classList.add('hidden'); }
                     } catch(e) {}
-
-                    // Fetch live credit balance from API
-                    try {
-                        const t = getCookie('token');
-                        if (t) {
-                            const res = await fetch('/api/credits/balance', { headers: { 'Authorization': 'Bearer ' + t } });
-                            if (res.ok) {
-                                const data = await res.json();
-                                const credits = document.getElementById('nav-credits');
-                                if (credits) credits.textContent = (data.credit_balance ?? 0).toLocaleString();
-                            }
-                        }
-                    } catch(e) {}
+                    // Credits, badges, XP and creator status are loaded together by loadUserSummary().
                 }
             }
             function toggleDropdown() {
@@ -206,20 +263,6 @@ pub fn Nav() -> impl IntoView {
                 const dd = document.getElementById('notif-dropdown');
                 if (wrap && dd && !wrap.contains(e.target)) dd.classList.add('hidden');
             });
-            async function loadNotifs() {
-                const token = getCookie('token');
-                if (!token) return;
-                try {
-                    const res = await fetch('/api/notifications/count', { headers: { 'Authorization': 'Bearer ' + token } });
-                    if (!res.ok) return;
-                    const data = await res.json();
-                    const badge = document.getElementById('notif-badge');
-                    if (badge && data.count > 0) {
-                        badge.textContent = data.count > 9 ? '9+' : data.count;
-                        badge.classList.remove('hidden');
-                    }
-                } catch(e) {}
-            }
             async function loadNotifList() {
                 const token = getCookie('token');
                 if (!token) return;
@@ -274,8 +317,11 @@ pub fn Nav() -> impl IntoView {
                                     const res = await fetch('/api/credits/balance', { headers: { 'Authorization': 'Bearer ' + t } });
                                     if (!res.ok) return;
                                     const data = await res.json();
+                                    const bal = (data.credit_balance ?? 0).toLocaleString();
                                     const credits = document.getElementById('nav-credits');
-                                    if (credits) credits.textContent = (data.credit_balance ?? 0).toLocaleString();
+                                    if (credits) credits.textContent = bal;
+                                    const cs = document.getElementById('nav-credits-side');
+                                    if (cs) cs.textContent = bal;
                                 } catch(e) {}
                             })();
                         }
@@ -446,21 +492,54 @@ pub fn Nav() -> impl IntoView {
                 }, 250);
             }
 
-            // Check creator onboard status to swap sell/dashboard link
-            async function checkCreatorStatus() {
-                const t = getCookie('token');
-                if (!t) return;
+            // ── Single nav bootstrap: credits, notifications, messages, XP, creator status ──
+            async function loadUserSummary() {
+                const token = getCookie('token');
+                if (!token) return;
                 try {
-                    const res = await fetch('/api/creator/onboard-status', { headers: { 'Authorization': 'Bearer ' + t } });
+                    const res = await fetch('/api/user/summary', { headers: { 'Authorization': 'Bearer ' + token } });
                     if (!res.ok) return;
-                    const data = await res.json();
-                    if (data.policy_accepted) {
+                    const d = await res.json();
+
+                    // Credits (header pill + sidebar card)
+                    const bal = (d.credit_balance ?? 0).toLocaleString();
+                    const credits = document.getElementById('nav-credits');
+                    if (credits) credits.textContent = bal;
+                    const cs = document.getElementById('nav-credits-side');
+                    if (cs) cs.textContent = bal;
+
+                    // Notification badge
+                    const nb = document.getElementById('notif-badge');
+                    if (nb && d.notification_count > 0) {
+                        nb.textContent = d.notification_count > 9 ? '9+' : d.notification_count;
+                        nb.classList.remove('hidden');
+                    }
+
+                    // Message badge
+                    const mb = document.getElementById('msg-badge');
+                    if (mb && d.unread_messages > 0) {
+                        mb.textContent = d.unread_messages > 9 ? '9+' : d.unread_messages;
+                        mb.classList.remove('hidden');
+                    }
+
+                    // XP bar
+                    const xpWrap = document.getElementById('nav-xp-wrap');
+                    if (xpWrap) { xpWrap.classList.remove('hidden'); xpWrap.classList.add('flex'); }
+                    const lvl = document.getElementById('nav-level');
+                    if (lvl) lvl.textContent = d.level;
+                    const bar = document.getElementById('nav-xp-bar');
+                    if (bar) bar.style.width = (d.level_progress_percent ?? 0).toFixed(0) + '%';
+                    const xpText = document.getElementById('nav-xp-text');
+                    if (xpText) xpText.textContent = (d.total_xp ?? 0).toLocaleString() + ' XP';
+
+                    // Swap "Sell on Marketplace" -> "Creator Dashboard" once onboarded
+                    if (d.creator_policy_accepted) {
                         const link = document.getElementById('nav-sell-link');
                         const icon = document.getElementById('nav-sell-icon');
                         const text = document.getElementById('nav-sell-text');
-                        if (link) { link.href = '/dashboard'; }
-                        if (icon) { icon.className = 'ph ph-chart-pie text-base'; }
-                        if (text) { text.textContent = 'Creator Dashboard'; }
+                        if (link) link.href = '/dashboard';
+                        if (icon) icon.className = 'ph ph-chart-pie text-base';
+                        if (text) text.textContent = 'Creator Dashboard';
                     }
                 } catch(e) {}
             }
@@ -470,17 +549,16 @@ pub fn Nav() -> impl IntoView {
                 const path = window.location.pathname;
                 document.querySelectorAll('.nav-link').forEach(link => {
                     const linkPath = link.getAttribute('data-path');
-                    if (path === linkPath || path.startsWith(linkPath + '/')) {
-                        link.classList.remove('text-zinc-400');
-                        link.classList.add('text-white', 'bg-white/[0.06]');
+                    if (linkPath === '/' ? path === '/' : (path === linkPath || path.startsWith(linkPath + '/'))) {
+                        link.classList.add('active');
                     }
                 });
                 // Highlight parent for child pages
-                const parents = { '/courses': '/marketplace', '/developers': '/docs' };
+                const parents = { '/courses': '/marketplace', '/developers': '/docs', '/articles': '/community' };
                 for (const [sub, parent] of Object.entries(parents)) {
                     if (path === sub || path.startsWith(sub + '/')) {
                         const parentLink = document.querySelector(`.nav-link[data-path="${parent}"]`);
-                        if (parentLink) { parentLink.classList.remove('text-zinc-400'); parentLink.classList.add('text-white', 'bg-white/[0.06]'); }
+                        if (parentLink) parentLink.classList.add('active');
                     }
                 }
             })();
@@ -492,53 +570,8 @@ pub fn Nav() -> impl IntoView {
             }
 
             updateNav();
-            loadNotifs();
-
-            // Load XP bar
-            (async function() {
-                const t = getCookie('token');
-                if (!t) return;
-                try {
-                    const res = await fetch('/api/levels/me', { headers: { 'Authorization': 'Bearer ' + t } });
-                    if (!res.ok) return;
-                    const d = await res.json();
-                    document.getElementById('nav-xp-wrap')?.classList.remove('hidden');
-                    document.getElementById('nav-xp-wrap')?.classList.add('flex');
-                    document.getElementById('nav-level').textContent = d.level;
-                    document.getElementById('nav-xp-bar').style.width = d.progress_percent.toFixed(0) + '%';
-                    document.getElementById('nav-xp-text').textContent = d.total_xp.toLocaleString() + ' XP';
-                } catch(e) {}
-            })();
-
-            // Message unread count
-            fetch('/api/messages/unread-count', { headers: { 'Authorization': 'Bearer ' + getCookie('token') } })
-                .then(function(r) { return r.json(); })
-                .then(function(data) {
-                    var badge = document.getElementById('msg-badge');
-                    if (badge && data.count > 0) {
-                        badge.textContent = data.count > 9 ? '9+' : data.count;
-                        badge.classList.remove('hidden');
-                    }
-                }).catch(function() {});
-            connectWs();  // Live updates from here on
-            checkCreatorStatus();
-
-            // ── Nav scroll effect — transparent at top, glass on scroll ──
-            let navScrolled = false;
-            const nav = document.getElementById('main-nav');
-            window.addEventListener('scroll', function() {
-                if (window.scrollY > 20 && !navScrolled) {
-                    navScrolled = true;
-                    nav.style.background = 'rgba(6,6,8,0.75)';
-                    nav.style.backdropFilter = 'blur(24px)';
-                    nav.style.webkitBackdropFilter = 'blur(24px)';
-                } else if (window.scrollY <= 20 && navScrolled) {
-                    navScrolled = false;
-                    nav.style.background = 'transparent';
-                    nav.style.backdropFilter = 'none';
-                    nav.style.webkitBackdropFilter = 'none';
-                }
-            });
+            loadUserSummary();  // ONE request: credits, notifications, messages, XP, creator status
+            connectWs();        // Live updates from here on
             "#
         </script>
 

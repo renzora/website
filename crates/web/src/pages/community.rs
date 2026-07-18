@@ -1,4 +1,6 @@
 use leptos::prelude::*;
+use leptos_meta::{Title, Meta};
+use renzora_common::ssr::CommunitySsr;
 
 /// The community hub — a channel-based social feed. Mirrors the engine editor's
 /// Community/Feed panel: a channel rail, a composer that targets the active
@@ -9,7 +11,45 @@ use leptos::prelude::*;
 /// talks to `/api/feed/*` with the `token` cookie and renders via innerHTML.
 #[component]
 pub fn CommunityPage() -> impl IntoView {
+    // SEO: the server provides the hub/channel + its public posts via context, so
+    // the page has a real per-channel title and crawlable content in the raw HTML.
+    // The client JS below still renders the full interactive feed on load.
+    let ssr = use_context::<CommunitySsr>().filter(|c| c.found);
+    let title = ssr.as_ref().filter(|c| c.is_channel)
+        .map(|c| format!("{} — Renzora Community", c.name))
+        .unwrap_or_else(|| "Renzora Community — Devlogs, Showcases & Discussion".to_string());
+    let desc = ssr.as_ref().filter(|c| c.is_channel && !c.description.is_empty())
+        .map(|c| c.description.clone())
+        .unwrap_or_else(|| "Join the Renzora community: devlogs, screenshots, asset drops and discussion around the open-source Bevy editor and game engine.".to_string());
+    let title_text = ssr.as_ref().map(|c| c.name.clone()).unwrap_or_else(|| "Community".to_string());
+    let sub_text = ssr.as_ref()
+        .map(|c| if c.description.is_empty() { "Everything happening across Renzora".to_string() } else { c.description.clone() })
+        .unwrap_or_else(|| "Everything happening across Renzora".to_string());
+    let ssr_posts = ssr.as_ref().map(|c| {
+        c.posts.iter().map(|p| {
+            let user = p.username.clone();
+            let created = p.created_at.clone();
+            let id = p.id.clone();
+            view! {
+                <article class="p-5 bg-surface-card border border-zinc-800 rounded-2xl">
+                    <div class="flex items-center gap-1.5 text-xs text-zinc-500 mb-1.5 flex-wrap">
+                        <a href=format!("/profile/{user}") class="font-semibold text-zinc-300 hover:text-accent">{user.clone()}</a>
+                        {p.channel_name.clone().map(|n| view! { <span class="text-zinc-600">"· "{n}</span> })}
+                        <a href=format!("/community/post/{id}") class="text-zinc-600 hover:text-accent">"· "{created}</a>
+                    </div>
+                    <p class="text-sm text-zinc-200 whitespace-pre-wrap break-words">{p.body.clone()}</p>
+                    <div class="flex items-center gap-4 mt-2 text-xs text-zinc-600">
+                        <span class="inline-flex items-center gap-1"><i class="ph ph-arrow-fat-up"></i>{p.like_count}</span>
+                        <a href=format!("/community/post/{}", p.id) class="inline-flex items-center gap-1 hover:text-accent"><i class="ph ph-chat-circle"></i>{p.comment_count}</a>
+                    </div>
+                </article>
+            }
+        }).collect_view()
+    });
     view! {
+        <Title text=title />
+        <Meta name="description" content=desc />
+
         <section class="py-8 px-4 md:px-6 min-h-[80vh] bg-gradient-to-b from-[#0c0a10] via-[#060608] to-[#060608]">
             <div class="max-w-[1100px] mx-auto grid grid-cols-1 lg:grid-cols-[240px_minmax(0,1fr)] gap-6">
 
@@ -40,8 +80,8 @@ pub fn CommunityPage() -> impl IntoView {
                 <div class="min-w-0 order-1 lg:order-2">
                     <div class="flex items-center justify-between mb-4">
                         <div class="min-w-0">
-                            <h1 class="text-2xl font-bold flex items-center gap-2"><i id="channel-icon" class="ph ph-globe-hemisphere-west text-accent"></i><span id="channel-title">"Community"</span></h1>
-                            <p id="channel-sub" class="text-zinc-500 text-sm mt-0.5">"Everything happening across Renzora"</p>
+                            <h1 class="text-2xl font-bold flex items-center gap-2"><i id="channel-icon" class="ph ph-globe-hemisphere-west text-accent"></i><span id="channel-title">{title_text}</span></h1>
+                            <p id="channel-sub" class="text-zinc-500 text-sm mt-0.5">{sub_text}</p>
                         </div>
                         <button id="live-toggle" title="Toggle live updates" class="shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-white/[0.04] border border-white/[0.06] text-zinc-300 hover:text-white transition-colors">
                             <span id="live-dot" class="w-2 h-2 rounded-full bg-emerald-400"></span><span id="live-label">"Live"</span>
@@ -95,7 +135,7 @@ pub fn CommunityPage() -> impl IntoView {
                         </select>
                     </div>
 
-                    <div id="feed-list" class="space-y-4"></div>
+                    <div id="feed-list" class="space-y-4">{ssr_posts}</div>
                     <div id="feed-loading" class="text-center py-12"><div class="inline-block animate-spin w-5 h-5 border-2 border-zinc-700 border-t-accent rounded-full"></div></div>
                     <div id="feed-empty" class="hidden text-center py-16 text-sm text-zinc-500">"Nothing here yet. Be the first to post!"</div>
                     <button id="load-more" class="hidden w-full mt-4 px-4 py-2.5 rounded-lg text-sm font-medium bg-surface-card border border-zinc-800 text-zinc-300 hover:border-zinc-700 transition-colors">"Load more"</button>
@@ -179,7 +219,7 @@ pub fn CommunityPage() -> impl IntoView {
 
               // ── Feed ──────────────────────────────────────────────────────
               async function loadFeed(refresh){
-                if (!token){ $('feed-loading').classList.add('hidden'); return; }
+                // Public: the feed loads for everyone; the API returns only public posts.
                 if (state.loading) return;
                 state.loading = true;
                 if (refresh){ allPosts = []; state.lastId = null; $('feed-list').innerHTML = ''; state.pendingNew = false; $('new-posts-pill').classList.add('hidden'); }
@@ -248,7 +288,7 @@ pub fn CommunityPage() -> impl IntoView {
                         <a href="/profile/${esc(p.username)}" class="text-sm font-semibold hover:text-accent transition-colors">${esc(p.username)}</a>
                         ${p.role && p.role!=='user' ? `<i class="ph ph-seal-check text-accent text-xs" title="${esc(p.role)}"></i>` : ''}
                         ${channelChip}
-                        <span class="text-[11px] text-zinc-600">· ${timeAgo(p.created_at)}</span>
+                        <a href="/community/post/${p.id}" class="text-[11px] text-zinc-600 hover:text-accent" title="Open discussion">· ${timeAgo(p.created_at)}</a>
                         ${vis}
                       </div>
                       <p class="text-sm text-zinc-200 whitespace-pre-wrap mt-1.5 break-words" id="body-${p.id}">${bodyShown}</p>
@@ -257,7 +297,7 @@ pub fn CommunityPage() -> impl IntoView {
                       <div class="mt-3">${reactionsHtml(p)}</div>
                       <div class="flex items-center gap-4 mt-3 text-zinc-500">
                         <button onclick="__like('${p.id}')" class="like-btn inline-flex items-center gap-1.5 text-xs hover:text-accent transition-colors">
-                          <i class="ph ${p.is_liked?'ph-arrow-fat-up-fill text-accent':'ph-arrow-fat-up'}"></i><span id="like-${p.id}" class="${p.is_liked?'text-accent':''}">${p.like_count}</span>
+                          <i class="${p.is_liked?'ph-fill ph-arrow-fat-up text-accent':'ph ph-arrow-fat-up'}"></i><span id="like-${p.id}" class="${p.is_liked?'text-accent':''}">${p.like_count}</span>
                         </button>
                         <button onclick="__toggleComments('${p.id}')" class="inline-flex items-center gap-1.5 text-xs hover:text-accent transition-colors">
                           <i class="ph ph-chat-circle"></i><span id="ccount-${p.id}">${p.comment_count}</span>
@@ -294,7 +334,7 @@ pub fn CommunityPage() -> impl IntoView {
                   const res = await fetch('/api/feed/posts/'+id+'/like', { method:'POST', headers: authHeaders });
                   const d = await res.json();
                   p.is_liked = d.liked; p.like_count += d.liked ? 1 : -1;
-                  const cnt = $('like-'+id); if (cnt){ cnt.textContent = p.like_count; cnt.className = d.liked?'text-accent':''; cnt.previousElementSibling.className = 'ph ' + (d.liked?'ph-arrow-fat-up-fill text-accent':'ph-arrow-fat-up'); }
+                  const cnt = $('like-'+id); if (cnt){ cnt.textContent = p.like_count; cnt.className = d.liked?'text-accent':''; cnt.previousElementSibling.className = d.liked?'ph-fill ph-arrow-fat-up text-accent':'ph ph-arrow-fat-up'; }
                 } catch(e){}
               };
 
@@ -368,7 +408,7 @@ pub fn CommunityPage() -> impl IntoView {
                         <p class="text-sm text-zinc-200 whitespace-pre-wrap break-words">${esc(c.body)}</p>
                       </div>
                       <div class="flex items-center gap-3 mt-1 text-[11px] text-zinc-500">
-                        <button onclick="__clike('${c.id}',this)" class="hover:text-accent"><i class="ph ${c.is_liked?'ph-heart-fill text-accent':'ph-heart'}"></i> <span>${c.like_count}</span></button>
+                        <button onclick="__clike('${c.id}',this)" class="hover:text-accent"><i class="${c.is_liked?'ph-fill ph-heart text-accent':'ph ph-heart'}"></i> <span>${c.like_count}</span></button>
                         ${!nested ? `<button onclick="__replyTo('${id}','${c.id}','${esc(c.username)}')" class="hover:text-accent">Reply</button>` : ''}
                         ${me && c.user_id === me.id ? `<button onclick="__cdelete('${id}','${c.id}')" class="hover:text-red-400">Delete</button>` : ''}
                       </div>
@@ -400,7 +440,7 @@ pub fn CommunityPage() -> impl IntoView {
               window.__clike = async function(cid, btn){
                 try { const res = await fetch('/api/feed/comments/'+cid+'/like', { method:'POST', headers: authHeaders }); const d = await res.json();
                   const i = btn.querySelector('i'); const s = btn.querySelector('span'); let n = parseInt(s.textContent)||0;
-                  i.className = 'ph ' + (d.liked?'ph-heart-fill text-accent':'ph-heart'); s.textContent = n + (d.liked?1:-1);
+                  i.className = d.liked?'ph-fill ph-heart text-accent':'ph ph-heart'; s.textContent = n + (d.liked?1:-1);
                 } catch(e){}
               };
 
@@ -492,7 +532,7 @@ pub fn CommunityPage() -> impl IntoView {
               else { $('composer-signin').classList.remove('hidden'); }
               bindSuggest(); bindFilters();
               loadChannels().then(() => { updateComposerTarget(); if (state.channel) window.__selChannel(state.channel); });
-              if (token) loadFeed(true); else { $('feed-loading').classList.add('hidden'); }
+              loadFeed(true);  // public feed for everyone
               loadMarketplaceStrip();
 
               async function loadMarketplaceStrip(){

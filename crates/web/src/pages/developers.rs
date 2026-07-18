@@ -1,8 +1,12 @@
 use leptos::prelude::*;
+use leptos_meta::{Title, Meta};
 
 #[component]
 pub fn DevelopersPage() -> impl IntoView {
     view! {
+        <Title text="Renzora for Developers — API, Plugins & Source" />
+        <Meta name="description" content="Build on Renzora: REST API reference, plugin development and the architecture of the open-source Bevy editor. Extend the engine with hot-loadable cdylibs." />
+
         <section class="py-12 px-6 min-h-screen">
             <div class="max-w-4xl mx-auto">
                 <div class="mb-10">

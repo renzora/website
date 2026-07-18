@@ -1,0 +1,16 @@
+{
+  "name": "renzora-web-styles",
+  "private": true,
+  "description": "Tailwind CSS build for the Renzora web frontend. Scans crates/web/src for classes and emits assets/style/main.css.",
+  "scripts": {
+    "build": "npm run build:icons && npm run build:css",
+    "build:css": "tailwindcss -i assets/style/input.css -o assets/style/main.css --minify",
+    "watch:css": "tailwindcss -i assets/style/input.css -o assets/style/main.css --watch",
+    "build:icons": "node scripts/build-icons.mjs"
+  },
+  "devDependencies": {
+    "@phosphor-icons/web": "^2.1.1",
+    "subset-font": "^2.3.0",
+    "tailwindcss": "^3.4.17"
+  }
+}

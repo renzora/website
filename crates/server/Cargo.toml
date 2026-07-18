@@ -12,6 +12,8 @@ axum = { workspace = true }
 leptos = { workspace = true }
 leptos_axum = { workspace = true }
 sqlx = { workspace = true }
+time = { workspace = true }
+uuid = { workspace = true }
 redis = { workspace = true }
 tokio = { workspace = true }
 tower = { workspace = true }

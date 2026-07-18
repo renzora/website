@@ -1,4 +1,6 @@
 use leptos::prelude::*;
+use leptos_meta::{Link, Meta, Title};
+use renzora_common::ssr::DocSsr;
 
 /// Docs landing (`/docs`) — redirects to the default version's portal home.
 #[component]
@@ -10,7 +12,7 @@ pub fn DocsPage() -> impl IntoView {
         <script>
             r##"
             (async function() {
-                let def = 'r1-alpha5';
+                let def = 'r1-alpha6';
                 try {
                     const res = await fetch('/api/docs/versions');
                     if (res.ok) { const data = await res.json(); if (data && data.default) def = data.default; }
@@ -26,11 +28,30 @@ pub fn DocsPage() -> impl IntoView {
 /// (`/docs/<version>`). Shares the sidebar with the version switcher.
 #[component]
 pub fn DocArticle() -> impl IntoView {
+    let ssr = use_context::<DocSsr>().filter(|d| d.found && d.is_page);
+    let head = ssr.clone().map(|d| {
+        let title = format!("{} — Renzora Docs", d.title);
+        let canonical = format!("https://renzora.com/docs/{}/{}", d.version, d.slug);
+        view! {
+            <Title text=title />
+            <Meta name="description" content=format!("{} — documentation for Renzora, the open-source Bevy editor.", d.title) />
+            <Link rel="canonical" href=canonical />
+        }
+    });
+    // Server-rendered doc HTML (crawlable); the client script re-renders with the
+    // sidebar + syntax highlighting on load.
+    let ssr_body = ssr.map(|d| view! { <div class="doc-body" inner_html=d.content_html></div> });
+    let default_head = view! {
+        <Title text="Renzora Documentation — Bevy Editor Guides & API" />
+        <Meta name="description" content="Documentation for Renzora, the open-source Bevy editor: getting started, the scene editor, Lua & Rhai scripting, materials, plugins, physics and cross-platform export." />
+    };
     view! {
+        {head.is_none().then_some(default_head)}
+        {head}
         <div class="flex min-h-[calc(100vh-56px)] max-w-[1200px] mx-auto">
             <DocsSidebar />
             <div class="flex-1 min-w-0 px-8 py-10 lg:px-12">
-                <article id="doc-content">"Loading\u{2026}"</article>
+                <article id="doc-content">{ssr_body}</article>
             </div>
         </div>
         <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css" />
@@ -82,7 +103,7 @@ pub fn DocArticle() -> impl IntoView {
                 // Resolve version; if the first segment isn't a known version (legacy/short link),
                 // redirect to the default version, preserving the rest of the path as the slug.
                 let known = [];
-                let def = 'r1-alpha5';
+                let def = 'r1-alpha6';
                 try {
                     const vres = await fetch('/api/docs/versions');
                     if (vres.ok) { const v = await vres.json(); known = (v.versions || []).map(x => x.id); if (v.default) def = v.default; }
@@ -357,8 +378,8 @@ fn DocsSidebar() -> impl IntoView {
                 const parts = window.location.pathname.split('/').filter(Boolean);
                 try {
                     const vres = await fetch('/api/docs/versions');
-                    docVersions = vres.ok ? await vres.json() : { default: 'r1-alpha5', versions: [] };
-                } catch (e) { docVersions = { default: 'r1-alpha5', versions: [] }; }
+                    docVersions = vres.ok ? await vres.json() : { default: 'r1-alpha6', versions: [] };
+                } catch (e) { docVersions = { default: 'r1-alpha6', versions: [] }; }
                 const known = (docVersions.versions || []).map(v => v.id);
                 currentVersion = (parts[1] && known.includes(parts[1])) ? parts[1] : docVersions.default;
                 renderVersionSelect();

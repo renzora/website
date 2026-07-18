@@ -1,6 +1,7 @@
 #![recursion_limit = "256"]
 
 mod docs_files;
+mod ssr_pages;
 
 use axum::{
     body::Body,
@@ -13,6 +14,7 @@ use axum::{
 use renzora_api::{api_router, middleware::JwtSecret, AppState};
 use renzora_web::shell::{Shell, EmbedShell};
 use sqlx::postgres::PgPoolOptions;
+use tower_http::compression::CompressionLayer;
 use tower_http::cors::CorsLayer;
 use tower_http::services::ServeDir;
 use tower_http::trace::TraceLayer;
@@ -136,9 +138,24 @@ async fn main() {
 
     let db_pool_ext = renzora_api::middleware::DbPool(state.db.clone());
 
+    // SEO endpoints (robots.txt + dynamic sitemap.xml) — capture what they need
+    // before `state` is moved into the API router below.
+    let seo_site_url = state.site_url.clone();
+    let seo_db = state.db.clone();
+
     let app = Router::new()
         // Health check
         .route("/health", get(health_check))
+        // SEO: robots + sitemap
+        .route("/robots.txt", get({
+            let s = seo_site_url.clone();
+            move || { let s = s.clone(); async move { robots_txt(&s) } }
+        }))
+        .route("/sitemap.xml", get({
+            let s = seo_site_url.clone();
+            let db = seo_db.clone();
+            move || { let s = s.clone(); let db = db.clone(); async move { sitemap_xml(&db, &s).await } }
+        }))
         // Serve uploaded files
         .nest_service("/uploads", ServeDir::new(&upload_dir))
         // Serve static assets (CSS, JS, images)
@@ -151,11 +168,45 @@ async fn main() {
         .route("/login", get(ssr.clone()))
         .route("/register", get(ssr.clone()))
         .route("/docs", get(ssr.clone()))
-        .route("/docs/*slug", get(ssr.clone()))
+        .route("/docs/*slug", get({
+            let db = seo_db.clone();
+            move |axum::extract::Path(slug): axum::extract::Path<String>, req: Request<Body>| {
+                let db = db.clone();
+                async move { ssr_pages::doc_article(db, slug, req).await }
+            }
+        }))
         .route("/marketplace", get(ssr.clone()))
         .route("/marketplace/sell", get(ssr.clone()))
         .route("/marketplace/upload", get(ssr.clone()))
-        .route("/marketplace/asset/:slug", get(ssr.clone()))
+        .route("/marketplace/asset/:slug", get({
+            // SEO: server-render the asset's content + meta from the DB
+            let db = seo_db.clone();
+            move |axum::extract::Path(slug): axum::extract::Path<String>, req: Request<Body>| {
+                let db = db.clone();
+                async move { ssr_pages::asset_detail(db, slug, req).await }
+            }
+        }))
+        .route("/articles/:slug", get({
+            let db = seo_db.clone();
+            move |axum::extract::Path(slug): axum::extract::Path<String>, req: Request<Body>| {
+                let db = db.clone();
+                async move { ssr_pages::article_detail(db, slug, req).await }
+            }
+        }))
+        .route("/courses/:slug", get({
+            let db = seo_db.clone();
+            move |axum::extract::Path(slug): axum::extract::Path<String>, req: Request<Body>| {
+                let db = db.clone();
+                async move { ssr_pages::course_detail(db, slug, req).await }
+            }
+        }))
+        .route("/profile/:username", get({
+            let db = seo_db.clone();
+            move |axum::extract::Path(username): axum::extract::Path<String>, req: Request<Body>| {
+                let db = db.clone();
+                async move { ssr_pages::profile_page(db, username, req).await }
+            }
+        }))
         .route("/games", get(ssr.clone()))
         .route("/games/upload", get(ssr.clone()))
         .route("/games/:slug", get(ssr.clone()))
@@ -163,17 +214,36 @@ async fn main() {
         .route("/wallet", get(ssr.clone()))
         .route("/courses", get(ssr.clone()))
         .route("/courses/create", get(ssr.clone()))
-        .route("/courses/:slug", get(ssr.clone()))
         .route("/courses/:slug/edit", get(ssr.clone()))
         .route("/courses/:slug/chapter/:chapter", get(ssr.clone()))
-        .route("/community", get(ssr.clone()))
-        .route("/community/channel/:slug", get(ssr.clone()))
+        .route("/community", get({
+            // SEO: server-render the hub with recent public posts
+            let db = seo_db.clone();
+            move |req: Request<Body>| {
+                let db = db.clone();
+                async move { ssr_pages::community_page(db, None, req).await }
+            }
+        }))
+        .route("/community/channel/:slug", get({
+            // SEO: server-render the channel with its public posts + title
+            let db = seo_db.clone();
+            move |axum::extract::Path(slug): axum::extract::Path<String>, req: Request<Body>| {
+                let db = db.clone();
+                async move { ssr_pages::community_page(db, Some(slug), req).await }
+            }
+        }))
+        .route("/community/post/:id", get({
+            // SEO: server-render the discussion + comments from the DB
+            let db = seo_db.clone();
+            move |axum::extract::Path(id): axum::extract::Path<String>, req: Request<Body>| {
+                let db = db.clone();
+                async move { ssr_pages::post_detail(db, id, req).await }
+            }
+        }))
         .route("/articles", get(ssr.clone()))
         .route("/articles/write", get(ssr.clone()))
-        .route("/articles/:slug", get(ssr.clone()))
         .route("/friends", get(ssr.clone()))
         .route("/notifications", get(ssr.clone()))
-        .route("/profile/:username", get(ssr.clone()))
         .route("/shop/:username", get(ssr.clone()))
         .route("/marketplace/asset/:slug/edit", get(ssr.clone()))
         .route("/dashboard", get(ssr.clone()))
@@ -186,7 +256,6 @@ async fn main() {
         .route("/gifts", get(ssr.clone()))
         .route("/terms", get(ssr.clone()))
         .route("/privacy", get(ssr.clone()))
-        .route("/avatar/edit", get(ssr.clone()))
         .route("/settings", get(ssr.clone()))
         .route("/embed/preview/:slug", get(embed_ssr.clone()))
         // Layers
@@ -194,7 +263,11 @@ async fn main() {
         .layer(Extension(db_pool_ext))
         .layer(DefaultBodyLimit::max(50 * 1024 * 1024))
         .layer(cors)
-        .layer(TraceLayer::new_for_http());
+        .layer(TraceLayer::new_for_http())
+        // Outermost: gzip/brotli-compress responses (HTML, CSS, JS, JSON, sitemap).
+        // The default predicate skips already-compressed types (images) and tiny
+        // bodies. Harmless behind nginx (which won't re-compress an encoded body).
+        .layer(CompressionLayer::new());
 
     let addr = format!("{host}:{port}");
     tracing::info!("Server listening on {addr}");
@@ -210,12 +283,167 @@ async fn health_check() -> Json<serde_json::Value> {
     }))
 }
 
-async fn serve_embed(
-    axum::extract::Path(_slug): axum::extract::Path<String>,
-) -> Response {
-    let html = include_str!("../../web/embed/preview.html");
+fn xml_escape(s: &str) -> String {
+    s.replace('&', "&amp;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
+        .replace('"', "&quot;")
+        .replace('\'', "&apos;")
+}
+
+/// `GET /robots.txt` — allow crawling of public pages, keep app/private routes
+/// out of the index, and advertise the sitemap.
+fn robots_txt(site_url: &str) -> Response {
+    let base = site_url.trim_end_matches('/');
+    let body = format!(
+        "User-agent: *\nAllow: /\n\n# Private / app-only routes\nDisallow: /login\nDisallow: /register\nDisallow: /settings\nDisallow: /wallet\nDisallow: /messages\nDisallow: /notifications\nDisallow: /friends\nDisallow: /dashboard\nDisallow: /gifts\nDisallow: /avatar/\n\nSitemap: {base}/sitemap.xml\n"
+    );
     Response::builder()
-        .header("Content-Type", "text/html; charset=utf-8")
-        .body(Body::from(html))
+        .header("Content-Type", "text/plain; charset=utf-8")
+        .body(Body::from(body))
         .unwrap()
 }
+
+fn push_url(xml: &mut String, loc: &str, lastmod: Option<&str>, changefreq: &str, priority: &str) {
+    xml.push_str("<url><loc>");
+    xml.push_str(&xml_escape(loc));
+    xml.push_str("</loc>");
+    if let Some(lm) = lastmod {
+        xml.push_str("<lastmod>");
+        xml.push_str(lm);
+        xml.push_str("</lastmod>");
+    }
+    xml.push_str("<changefreq>");
+    xml.push_str(changefreq);
+    xml.push_str("</changefreq><priority>");
+    xml.push_str(priority);
+    xml.push_str("</priority></url>");
+}
+
+/// Recursively collect every `"slug"` string in a docs `_sidebar.json` tree.
+fn collect_slugs(v: &serde_json::Value, out: &mut Vec<String>) {
+    match v {
+        serde_json::Value::Object(map) => {
+            if let Some(serde_json::Value::String(s)) = map.get("slug") {
+                out.push(s.clone());
+            }
+            for val in map.values() {
+                collect_slugs(val, out);
+            }
+        }
+        serde_json::Value::Array(arr) => {
+            for val in arr {
+                collect_slugs(val, out);
+            }
+        }
+        _ => {}
+    }
+}
+
+/// `GET /sitemap.xml` — static public routes plus published marketplace assets,
+/// articles and the current docs pages. Absolute URLs use the runtime SITE_URL.
+async fn sitemap_xml(db: &sqlx::PgPool, site_url: &str) -> Response {
+    let base = site_url.trim_end_matches('/').to_string();
+    let mut xml = String::with_capacity(16 * 1024);
+    xml.push_str("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n");
+    xml.push_str("<urlset xmlns=\"http://www.sitemaps.org/schemas/sitemap/0.9\">");
+
+    // Static public routes: (path, changefreq, priority)
+    let statics: &[(&str, &str, &str)] = &[
+        ("/", "daily", "1.0"),
+        ("/download", "weekly", "0.9"),
+        ("/marketplace", "daily", "0.9"),
+        ("/docs", "weekly", "0.8"),
+        ("/community", "daily", "0.7"),
+        ("/articles", "weekly", "0.6"),
+        ("/courses", "weekly", "0.6"),
+        ("/developers", "monthly", "0.5"),
+        ("/donate", "monthly", "0.4"),
+        ("/subscription", "monthly", "0.3"),
+        ("/terms", "yearly", "0.2"),
+        ("/privacy", "yearly", "0.2"),
+    ];
+    for (path, cf, pr) in statics {
+        push_url(&mut xml, &format!("{base}{path}"), None, cf, pr);
+    }
+
+    // Published marketplace assets
+    let assets: Vec<(String, String)> = sqlx::query_as(
+        "SELECT slug, to_char(updated_at AT TIME ZONE 'UTC', 'YYYY-MM-DD') \
+         FROM assets WHERE published = true ORDER BY updated_at DESC LIMIT 5000",
+    )
+    .fetch_all(db)
+    .await
+    .unwrap_or_default();
+    for (slug, lm) in &assets {
+        push_url(&mut xml, &format!("{base}/marketplace/asset/{slug}"), Some(lm), "weekly", "0.6");
+    }
+
+    // Published articles
+    let articles: Vec<(String, String)> = sqlx::query_as(
+        "SELECT slug, to_char(updated_at AT TIME ZONE 'UTC', 'YYYY-MM-DD') \
+         FROM articles WHERE published = true ORDER BY updated_at DESC LIMIT 5000",
+    )
+    .fetch_all(db)
+    .await
+    .unwrap_or_default();
+    for (slug, lm) in &articles {
+        push_url(&mut xml, &format!("{base}/articles/{slug}"), Some(lm), "weekly", "0.5");
+    }
+
+    // Published courses
+    let courses: Vec<(String,)> = sqlx::query_as("SELECT slug FROM courses WHERE published = true")
+        .fetch_all(db)
+        .await
+        .unwrap_or_default();
+    for (slug,) in &courses {
+        push_url(&mut xml, &format!("{base}/courses/{slug}"), None, "weekly", "0.5");
+    }
+
+    // Community channels (public topic pages)
+    let channels: Vec<(String,)> = sqlx::query_as("SELECT slug FROM channels ORDER BY slug")
+        .fetch_all(db)
+        .await
+        .unwrap_or_default();
+    for (slug,) in &channels {
+        push_url(&mut xml, &format!("{base}/community/channel/{slug}"), None, "daily", "0.6");
+    }
+
+    // Public community discussions (permalink pages) — public, non-hidden only
+    let posts: Vec<(uuid::Uuid, String)> = sqlx::query_as(
+        "SELECT id, to_char(created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD') \
+         FROM posts WHERE visibility = 'public' AND hidden = false \
+         ORDER BY created_at DESC LIMIT 10000",
+    )
+    .fetch_all(db)
+    .await
+    .unwrap_or_default();
+    for (id, lm) in &posts {
+        push_url(&mut xml, &format!("{base}/community/post/{id}"), Some(lm), "weekly", "0.5");
+    }
+
+    // Docs (default version) — read the version config, then its sidebar slugs
+    let default_version = std::fs::read_to_string("docs/_versions.json")
+        .ok()
+        .and_then(|s| serde_json::from_str::<serde_json::Value>(&s).ok())
+        .and_then(|v| v.get("default").and_then(|d| d.as_str()).map(|s| s.to_string()))
+        .unwrap_or_else(|| "r1-alpha6".to_string());
+    push_url(&mut xml, &format!("{base}/docs/{default_version}"), None, "weekly", "0.7");
+    if let Ok(raw) = std::fs::read_to_string(format!("docs/{default_version}/_sidebar.json")) {
+        if let Ok(sidebar) = serde_json::from_str::<serde_json::Value>(&raw) {
+            let mut slugs = Vec::new();
+            collect_slugs(&sidebar, &mut slugs);
+            for slug in slugs {
+                push_url(&mut xml, &format!("{base}/docs/{default_version}/{slug}"), None, "monthly", "0.6");
+            }
+        }
+    }
+
+    xml.push_str("</urlset>");
+
+    Response::builder()
+        .header("Content-Type", "application/xml; charset=utf-8")
+        .body(Body::from(xml))
+        .unwrap()
+}
+

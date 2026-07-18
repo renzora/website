@@ -45,7 +45,7 @@ pub fn SubscriptionPage() -> impl IntoView {
                     var endDate = new Date(sub.current_period_end).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
                     html += '<div class="mb-8 p-6 bg-accent/5 border border-accent/20 rounded-2xl">';
                     html += '<div class="flex items-center justify-between flex-wrap gap-4"><div>';
-                    html += '<div class="flex items-center gap-2"><i class="ph ph-heart-straight-fill text-accent"></i><span class="text-lg font-semibold">You are a Supporter</span>';
+                    html += '<div class="flex items-center gap-2"><i class="ph-fill ph-heart-straight text-accent"></i><span class="text-lg font-semibold">You are a Supporter</span>';
                     html += '<span class="px-2 py-0.5 rounded bg-accent/10 border border-accent/20 text-[10px] text-accent font-medium">ACTIVE</span></div>';
                     html += '<div class="flex items-center gap-4 mt-2 text-sm text-zinc-500 flex-wrap">';
                     html += '<span><i class="ph ph-coins"></i> ' + sub.monthly_amount.toLocaleString() + ' credits/month</span>';

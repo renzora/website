@@ -10,26 +10,33 @@ use time::format_description::well_known::Rfc3339;
 use crate::{error::ApiError, marketplace, middleware, middleware::AuthUser, AppState};
 
 pub fn router() -> Router<AppState> {
-    let protected = Router::new()
+    // Public reads — viewable logged-out and indexable. optional_auth personalizes
+    // (is_liked) when signed in but never rejects. These handlers ONLY ever return
+    // visibility='public', non-hidden content.
+    let public = Router::new()
         .route("/feed", get(get_feed))
+        .route("/posts/:id", get(get_post))
+        .route("/posts/:id/comments", get(list_comments))
+        .route("/users/:username/posts", get(user_posts))
+        .route("/channels", get(list_channels))
+        .layer(axum::middleware::from_fn(middleware::optional_auth));
+
+    // Writes — require a signed-in user.
+    let protected = Router::new()
         .route("/posts", post(create_post))
         .route("/posts/:id", delete_route(delete_post))
         .route("/posts/:id/like", post(toggle_like))
         .route("/posts/:id/report", post(report_post))
         .route("/posts/:id/request-review", post(request_review))
-        .route("/posts/:id/comments", get(list_comments))
         .route("/posts/:id/comments", post(create_comment))
         .route("/posts/:id/reactions", post(toggle_reaction))
         .route("/comments/:id", delete_route(delete_comment))
         .route("/comments/:id/like", post(toggle_comment_like))
-        .route("/users/:username/posts", get(user_posts))
-        .route("/channels", get(list_channels))
         .route("/channels/suggest", post(suggest_channel))
         .route("/upload", post(upload_media))
         .layer(axum::middleware::from_fn(middleware::require_auth));
 
-    Router::new()
-        .merge(protected)
+    Router::new().merge(public).merge(protected)
 }
 
 /// A post auto-hides once this many distinct users report it (tunable). No
@@ -84,16 +91,40 @@ struct FeedQuery {
 
 async fn get_feed(
     State(state): State<AppState>,
-    Extension(auth): Extension<AuthUser>,
+    Extension(auth): Extension<Option<AuthUser>>,
     Query(params): Query<FeedQuery>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
+    let viewer = auth.as_ref().map(|a| a.user_id);
     let limit = params.limit.unwrap_or(20).min(50);
     let channel_id = resolve_channel_id(&state, params.channel.as_deref(), false).await?;
-    let posts = renzora_models::post::Post::feed(&state.db, auth.user_id, limit, params.before, channel_id).await?;
+    let posts = if let Some(cid) = channel_id {
+        // A channel is a public topic space: everyone sees all public posts in it.
+        renzora_models::post::Post::channel_public(&state.db, cid, limit, params.before, viewer).await?
+    } else if let Some(uid) = viewer {
+        // Signed-in home: personal following timeline (unchanged).
+        renzora_models::post::Post::feed(&state.db, uid, limit, params.before, None).await?
+    } else {
+        // Logged-out home: recent public posts across channels.
+        renzora_models::post::Post::public_recent(&state.db, limit, params.before, None).await?
+    };
     let post_ids: Vec<Uuid> = posts.iter().map(|p| p.id).collect();
-    let reactions = fetch_reactions(&state, "post_reactions", &post_ids, Some(auth.user_id)).await?;
+    let reactions = fetch_reactions(&state, "post_reactions", &post_ids, viewer).await?;
     let items: Vec<serde_json::Value> = posts.iter().map(|p| serialize_post(p, &reactions)).collect();
     Ok(Json(serde_json::json!(items)))
+}
+
+/// A single PUBLIC post by id — powers the indexable permalink page.
+async fn get_post(
+    State(state): State<AppState>,
+    Extension(auth): Extension<Option<AuthUser>>,
+    Path(id): Path<Uuid>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    let viewer = auth.as_ref().map(|a| a.user_id);
+    let post = renzora_models::post::Post::find_public_by_id(&state.db, id, viewer)
+        .await?
+        .ok_or(ApiError::NotFound)?;
+    let reactions = fetch_reactions(&state, "post_reactions", &[post.id], viewer).await?;
+    Ok(Json(serialize_post(&post, &reactions)))
 }
 
 #[derive(Deserialize)]
@@ -222,13 +253,14 @@ struct CommentQuery {
 
 async fn list_comments(
     State(state): State<AppState>,
-    Extension(auth): Extension<AuthUser>,
+    Extension(auth): Extension<Option<AuthUser>>,
     Path(post_id): Path<Uuid>,
     Query(params): Query<CommentQuery>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
+    let viewer = auth.as_ref().map(|a| a.user_id);
     let limit = params.limit.unwrap_or(50).min(100);
     let offset = params.offset.unwrap_or(0);
-    let comments = renzora_models::post::PostComment::list_for_post(&state.db, post_id, Some(auth.user_id), limit, offset).await?;
+    let comments = renzora_models::post::PostComment::list_for_post(&state.db, post_id, viewer, limit, offset).await?;
     let items: Vec<serde_json::Value> = comments.iter().map(|c| serde_json::json!({
         "id": c.id,
         "post_id": c.post_id,
@@ -304,15 +336,16 @@ async fn toggle_comment_like(
 
 async fn user_posts(
     State(state): State<AppState>,
-    Extension(auth): Extension<AuthUser>,
+    Extension(auth): Extension<Option<AuthUser>>,
     Path(username): Path<String>,
     Query(params): Query<FeedQuery>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
+    let viewer = auth.as_ref().map(|a| a.user_id);
     let user = renzora_models::user::User::find_by_username(&state.db, &username).await?.ok_or(ApiError::NotFound)?;
     let limit = params.limit.unwrap_or(20).min(50);
-    let posts = renzora_models::post::Post::list_by_user(&state.db, user.id, Some(auth.user_id), limit).await?;
+    let posts = renzora_models::post::Post::list_by_user(&state.db, user.id, viewer, limit).await?;
     let post_ids: Vec<Uuid> = posts.iter().map(|p| p.id).collect();
-    let reactions = fetch_reactions(&state, "post_reactions", &post_ids, Some(auth.user_id)).await?;
+    let reactions = fetch_reactions(&state, "post_reactions", &post_ids, viewer).await?;
     let items: Vec<serde_json::Value> = posts.iter().map(|p| serialize_post(p, &reactions)).collect();
     Ok(Json(serde_json::json!(items)))
 }
@@ -392,7 +425,7 @@ async fn resolve_channel_id(state: &AppState, slug: Option<&str>, require_approv
 
 async fn list_channels(
     State(state): State<AppState>,
-    Extension(_auth): Extension<AuthUser>,
+    Extension(_auth): Extension<Option<AuthUser>>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     let rows = sqlx::query_as::<_, (Uuid, String, String, String, String, i32)>(
         "SELECT id, name, slug, description, icon, post_count FROM channels WHERE approved = true ORDER BY sort_order, name"

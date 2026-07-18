@@ -11,6 +11,7 @@ use crate::pages::{
     asset_detail::AssetDetailPage,
     asset_edit::AssetEditPage,
     community::CommunityPage,
+    community_post::PostDetailPage,
     dashboard::DashboardPage,
     developers::DevelopersPage,
     docs::{DocsPage, DocArticle},
@@ -36,7 +37,6 @@ use crate::pages::{
     notifications::NotificationsPage,
     terms::TermsPage,
     privacy::PrivacyPage,
-    avatar_editor::AvatarEditorPage,
 };
 
 #[component]
@@ -45,12 +45,18 @@ pub fn App() -> impl IntoView {
 
     view! {
         <Stylesheet href="/assets/style/main.css" />
-        <Title text="Renzora Engine — Open Source Game Engine" />
-        <Meta name="description" content="An open-source game engine built with Rust and Bevy. Visual editor, scripting, marketplace, and cross-platform export." />
+        <Title text="Renzora — Open Source Bevy Editor & Game Engine" />
+        <Meta name="description" content="Renzora is a free, open-source Bevy editor and game engine — a full 2D & 3D visual editor for Bevy with Lua & Rhai scripting, a plugin system, physics and real-time rendering, built in Rust. Download for Windows, macOS, Linux and the web." />
+        <Meta property="og:type" content="website" />
+        <Meta property="og:site_name" content="Renzora" />
+        <Meta property="og:title" content="Renzora — Open Source Bevy Editor & Game Engine" />
+        <Meta property="og:description" content="A free, open-source Bevy editor and game engine — full 2D & 3D scene tooling, scripting, plugins, physics and real-time rendering, built in Rust on Bevy 0.19." />
+        <Meta property="og:image" content="https://renzora.com/assets/previews/interface.png" />
+        <Meta property="og:url" content="https://renzora.com/" />
 
         <Router>
             <Nav />
-            <main>
+            <main class="app-main">
                 <Routes fallback=|| view! { <p class="text-center text-zinc-500 py-20">"Page not found."</p> }>
                     <Route path=path!("/") view=HomePage />
                     <Route path=path!("/download") view=DownloadPage />
@@ -72,6 +78,7 @@ pub fn App() -> impl IntoView {
                     <Route path=path!("/courses/:slug/chapter/:chapter") view=ChapterViewPage />
                     <Route path=path!("/community") view=CommunityPage />
                     <Route path=path!("/community/channel/:slug") view=CommunityPage />
+                    <Route path=path!("/community/post/:id") view=PostDetailPage />
                     <Route path=path!("/articles") view=ArticlesPage />
                     <Route path=path!("/articles/write") view=WriteArticlePage />
                     <Route path=path!("/articles/:slug") view=ArticleDetailPage />
@@ -90,7 +97,6 @@ pub fn App() -> impl IntoView {
                     <Route path=path!("/terms") view=TermsPage />
                     <Route path=path!("/privacy") view=PrivacyPage />
                     <Route path=path!("/settings") view=SettingsPage />
-                    <Route path=path!("/avatar/edit") view=AvatarEditorPage />
                     <Route path=path!("/embed/preview/:slug") view=EmbedPreviewPage />
                 </Routes>
             </main>

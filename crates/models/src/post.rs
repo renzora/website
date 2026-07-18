@@ -111,6 +111,85 @@ impl Post {
             .fetch_all(pool).await
     }
 
+    /// PUBLIC channel feed — every `visibility='public'`, non-hidden post in a
+    /// channel, regardless of follow relationship. Safe for logged-out visitors
+    /// and search engines. `viewer_id` only personalizes `is_liked`.
+    pub async fn channel_public(
+        pool: &PgPool,
+        channel_id: Uuid,
+        limit: i64,
+        before_id: Option<Uuid>,
+        viewer_id: Option<Uuid>,
+    ) -> Result<Vec<PostWithAuthor>, sqlx::Error> {
+        let before_clause = if before_id.is_some() {
+            "AND p.created_at < (SELECT created_at FROM posts WHERE id = $3)"
+        } else {
+            "AND ($3::uuid IS NULL OR true)"
+        };
+        let query = format!(
+            "SELECT p.id, p.user_id, u.username, u.avatar_url, u.role, p.body, p.media_urls, p.visibility, p.like_count, p.comment_count, \
+             EXISTS(SELECT 1 FROM post_likes pl WHERE pl.post_id = p.id AND pl.user_id = $4) as is_liked, \
+             ch.slug as channel_slug, ch.name as channel_name, ch.icon as channel_icon, \
+             p.hidden, p.review_requested, p.created_at \
+             FROM posts p JOIN users u ON u.id = p.user_id \
+             LEFT JOIN channels ch ON ch.id = p.channel_id \
+             WHERE p.channel_id = $1 AND p.visibility = 'public' AND p.hidden = false \
+             {} ORDER BY p.created_at DESC LIMIT $2",
+            before_clause
+        );
+        sqlx::query_as::<_, PostWithAuthor>(&query)
+            .bind(channel_id).bind(limit).bind(before_id).bind(viewer_id)
+            .fetch_all(pool).await
+    }
+
+    /// PUBLIC cross-channel feed — recent public, non-hidden posts everywhere.
+    /// Used for the logged-out community hub.
+    pub async fn public_recent(
+        pool: &PgPool,
+        limit: i64,
+        before_id: Option<Uuid>,
+        viewer_id: Option<Uuid>,
+    ) -> Result<Vec<PostWithAuthor>, sqlx::Error> {
+        let before_clause = if before_id.is_some() {
+            "AND p.created_at < (SELECT created_at FROM posts WHERE id = $2)"
+        } else {
+            "AND ($2::uuid IS NULL OR true)"
+        };
+        let query = format!(
+            "SELECT p.id, p.user_id, u.username, u.avatar_url, u.role, p.body, p.media_urls, p.visibility, p.like_count, p.comment_count, \
+             EXISTS(SELECT 1 FROM post_likes pl WHERE pl.post_id = p.id AND pl.user_id = $3) as is_liked, \
+             ch.slug as channel_slug, ch.name as channel_name, ch.icon as channel_icon, \
+             p.hidden, p.review_requested, p.created_at \
+             FROM posts p JOIN users u ON u.id = p.user_id \
+             LEFT JOIN channels ch ON ch.id = p.channel_id \
+             WHERE p.visibility = 'public' AND p.hidden = false \
+             {} ORDER BY p.created_at DESC LIMIT $1",
+            before_clause
+        );
+        sqlx::query_as::<_, PostWithAuthor>(&query)
+            .bind(limit).bind(before_id).bind(viewer_id)
+            .fetch_all(pool).await
+    }
+
+    /// A single PUBLIC, non-hidden post by id (for indexable permalink pages).
+    /// Returns None for private/followers/friends posts — never exposed publicly.
+    pub async fn find_public_by_id(
+        pool: &PgPool,
+        id: Uuid,
+        viewer_id: Option<Uuid>,
+    ) -> Result<Option<PostWithAuthor>, sqlx::Error> {
+        let query = "SELECT p.id, p.user_id, u.username, u.avatar_url, u.role, p.body, p.media_urls, p.visibility, p.like_count, p.comment_count, \
+             EXISTS(SELECT 1 FROM post_likes pl WHERE pl.post_id = p.id AND pl.user_id = $2) as is_liked, \
+             ch.slug as channel_slug, ch.name as channel_name, ch.icon as channel_icon, \
+             p.hidden, p.review_requested, p.created_at \
+             FROM posts p JOIN users u ON u.id = p.user_id \
+             LEFT JOIN channels ch ON ch.id = p.channel_id \
+             WHERE p.id = $1 AND p.visibility = 'public' AND p.hidden = false";
+        sqlx::query_as::<_, PostWithAuthor>(query)
+            .bind(id).bind(viewer_id)
+            .fetch_optional(pool).await
+    }
+
     /// Posts by a specific user (for profile page). Hidden posts show only to the
     /// author.
     pub async fn list_by_user(pool: &PgPool, user_id: Uuid, viewer_id: Option<Uuid>, limit: i64) -> Result<Vec<PostWithAuthor>, sqlx::Error> {

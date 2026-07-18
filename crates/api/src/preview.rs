@@ -7,7 +7,7 @@ use uuid::Uuid;
 /// diagonal stripe pattern with "PREVIEW" rendered as pixel blocks.
 /// Returns JPEG bytes.
 pub fn generate_image_preview(data: &[u8]) -> Result<Vec<u8>, ApiError> {
-    use image::{DynamicImage, Rgba, ImageFormat};
+    use image::{DynamicImage, ImageFormat};
 
     let img = image::load_from_memory(data)
         .map_err(|e| ApiError::Internal(format!("Failed to decode image for preview: {e}")))?;

@@ -1,8 +1,72 @@
 use leptos::prelude::*;
+use leptos_meta::{Link, Meta, Title};
+use renzora_common::ssr::AssetSsr;
+
+/// JSON-escape a string for safe embedding in a JSON-LD literal.
+fn json_escape(s: &str) -> String {
+    let mut o = String::with_capacity(s.len() + 2);
+    o.push('"');
+    for c in s.chars() {
+        match c {
+            '"' => o.push_str("\\\""),
+            '\\' => o.push_str("\\\\"),
+            '\n' => o.push_str("\\n"),
+            '\r' => o.push_str("\\r"),
+            '\t' => o.push_str("\\t"),
+            c if (c as u32) < 0x20 => o.push_str(&format!("\\u{:04x}", c as u32)),
+            c => o.push(c),
+        }
+    }
+    o.push('"');
+    o
+}
 
 #[component]
 pub fn AssetDetailPage() -> impl IntoView {
+    // SEO: on a full page load the server provides the asset via context, so we
+    // render crawlable content + per-page meta into the HTML. The inline JS
+    // below still builds the full interactive UI on load (replacing #asset-detail).
+    let ssr = use_context::<AssetSsr>().filter(|a| a.found);
+    let has_ssr = ssr.is_some();
+    let head = ssr.clone().map(|a| {
+        let title = format!("{} — Renzora Marketplace", a.name);
+        let full = a.description.chars().count();
+        let d: String = a.description.chars().take(155).collect();
+        let desc = if full > 155 { format!("{d}…") } else { d };
+        let canonical = format!("https://renzora.com/marketplace/asset/{}", a.slug);
+        let price = if a.price_credits == 0 { "0".to_string() } else { a.price_credits.to_string() };
+        let img = a.thumbnail_url.clone().unwrap_or_default();
+        let ld = format!(
+            "{{\"@context\":\"https://schema.org\",\"@type\":\"Product\",\"name\":{},\"description\":{},\"category\":{},\"image\":{},\"brand\":{{\"@type\":\"Brand\",\"name\":\"Renzora\"}},\"offers\":{{\"@type\":\"Offer\",\"price\":\"{}\",\"priceCurrency\":\"USD\",\"availability\":\"https://schema.org/InStock\",\"url\":{}}}}}",
+            json_escape(&a.name), json_escape(&a.description), json_escape(&a.category), json_escape(&img), price, json_escape(&canonical)
+        );
+        view! {
+            <Title text=title />
+            <Meta name="description" content=desc />
+            <Link rel="canonical" href=canonical />
+            <script type="application/ld+json" inner_html=ld></script>
+        }
+    });
+    let content = ssr.map(|a| {
+        let price_label = if a.price_credits == 0 { "Free".to_string() } else { format!("{} credits", a.price_credits) };
+        view! {
+            <div class="max-w-[900px] mx-auto pt-2">
+                <nav class="text-xs text-zinc-500 mb-3">
+                    <a href="/marketplace" class="hover:text-accent">"Marketplace"</a>" / "{a.category.clone()}
+                </nav>
+                <h1 class="text-2xl font-bold text-white">{a.name.clone()}</h1>
+                <p class="text-zinc-400 mt-3 leading-relaxed">{a.description.clone()}</p>
+                {a.thumbnail_url.clone().map(|t| view! {
+                    <img src=t alt=a.name.clone() class="mt-4 rounded-xl border border-white/10 max-w-full" loading="lazy" />
+                })}
+                <p class="mt-4 text-sm text-zinc-300">
+                    {price_label}" · by "{a.seller.clone()}" · "{a.downloads}" downloads"
+                </p>
+            </div>
+        }
+    });
     view! {
+        {head}
         <section class="py-8 px-6 relative min-h-screen">
             // Background layer — inside the section so it's part of the document flow
             <div class="fixed inset-0 pointer-events-none overflow-hidden" style="z-index:0" id="asset-bg-layer">
@@ -13,9 +77,12 @@ pub fn AssetDetailPage() -> impl IntoView {
                 <div class="absolute inset-0 bg-[#060608]/15" style="z-index:2"></div>
             </div>
             <div class="max-w-[1100px] mx-auto relative" style="z-index:10" id="asset-detail">
-                <div class="text-center py-20">
-                    <div class="inline-block animate-spin w-6 h-6 border-2 border-zinc-700 border-t-accent rounded-full"></div>
-                </div>
+                {content}
+                {(!has_ssr).then(|| view! {
+                    <div class="text-center py-20">
+                        <div class="inline-block animate-spin w-6 h-6 border-2 border-zinc-700 border-t-accent rounded-full"></div>
+                    </div>
+                })}
             </div>
         </section>
         <script>

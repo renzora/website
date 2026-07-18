@@ -1030,7 +1030,7 @@ async fn community_goal(state: &AppState) -> serde_json::Value {
     .await
     .unwrap_or_default();
 
-    let mut get = |k: &str, default: &str| -> String {
+    let get = |k: &str, default: &str| -> String {
         rows.iter().find(|(key, _)| key == k).map(|(_, v)| v.clone()).unwrap_or_else(|| default.to_string())
     };
 
