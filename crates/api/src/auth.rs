@@ -498,7 +498,6 @@ struct TwitchUsersResponse {
 #[derive(Deserialize)]
 struct TwitchUser {
     id: String,
-    login: String,
     display_name: String,
     profile_image_url: Option<String>,
 }

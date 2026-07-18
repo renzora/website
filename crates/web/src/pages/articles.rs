@@ -1,8 +1,13 @@
 use leptos::prelude::*;
+use leptos_meta::{Link, Meta, Title};
+use renzora_common::ssr::{json_escape, ArticleSsr};
 
 #[component]
 pub fn ArticlesPage() -> impl IntoView {
     view! {
+        <Title text="Renzora Articles — Bevy Editor & Game Dev Writing" />
+        <Meta name="description" content="Articles and tutorials from the Renzora community on the Bevy editor, game development, real-time rendering and Rust." />
+
         <section class="py-12 px-6 min-h-[80vh] bg-gradient-to-b from-[#0c0a10] via-[#060608] to-[#060608]">
             <div class="max-w-[1000px] mx-auto">
                 <div class="flex justify-between items-start mb-8">
@@ -103,11 +108,41 @@ pub fn ArticlesPage() -> impl IntoView {
 /// Article detail page
 #[component]
 pub fn ArticleDetailPage() -> impl IntoView {
+    let ssr = use_context::<ArticleSsr>().filter(|a| a.found);
+    let has_ssr = ssr.is_some();
+    let head = ssr.clone().map(|a| {
+        let title = format!("{} — Renzora", a.title);
+        let base = if a.summary.is_empty() { a.title.clone() } else { a.summary.clone() };
+        let desc: String = base.chars().take(160).collect();
+        let canonical = format!("https://renzora.com/articles/{}", a.slug);
+        let img = a.cover_image_url.clone().unwrap_or_default();
+        let ld = format!(
+            "{{\"@context\":\"https://schema.org\",\"@type\":\"Article\",\"headline\":{},\"description\":{},\"image\":{},\"author\":{{\"@type\":\"Person\",\"name\":{}}},\"publisher\":{{\"@type\":\"Organization\",\"name\":\"Renzora\"}},\"url\":{}}}",
+            json_escape(&a.title), json_escape(&desc), json_escape(&img), json_escape(&a.author), json_escape(&canonical)
+        );
+        view! {
+            <Title text=title />
+            <Meta name="description" content=desc />
+            <Link rel="canonical" href=canonical />
+            <script type="application/ld+json" inner_html=ld></script>
+        }
+    });
+    let content = ssr.map(|a| {
+        view! {
+            <article class="doc-body">
+                {a.cover_image_url.clone().map(|c| view! { <img src=c alt=a.title.clone() class="rounded-xl mb-6 w-full" /> })}
+                <h1 class="text-3xl font-bold text-white mb-2">{a.title.clone()}</h1>
+                <p class="text-zinc-500 text-sm mb-6">"by "{a.author.clone()}</p>
+                <div inner_html=a.content_html></div>
+            </article>
+        }
+    });
     view! {
+        {head}
         <section class="py-12 px-6">
             <div class="max-w-[800px] mx-auto">
-                <div id="article-loading" class="text-center py-20"><div class="inline-block animate-spin w-5 h-5 border-2 border-zinc-700 border-t-accent rounded-full"></div></div>
-                <div id="article-content" class="hidden"></div>
+                <div id="article-loading" class=if has_ssr { "hidden" } else { "text-center py-20" }><div class="inline-block animate-spin w-5 h-5 border-2 border-zinc-700 border-t-accent rounded-full"></div></div>
+                <div id="article-content" class=if has_ssr { "" } else { "hidden" }>{content}</div>
             </div>
         </section>
         <script>

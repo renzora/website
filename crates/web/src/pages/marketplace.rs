@@ -1,8 +1,12 @@
 use leptos::prelude::*;
+use leptos_meta::{Title, Meta};
 
 #[component]
 pub fn MarketplacePage() -> impl IntoView {
     view! {
+        <Title text="Renzora Marketplace — Models, Shaders & Scripts for Bevy" />
+        <Meta name="description" content="Browse the Renzora marketplace: ready-made 3D models, shaders, scripts and assets for the Bevy editor. Free and paid packs you can import straight into your Bevy project." />
+
         <section class="min-h-[calc(100vh-3rem)]">
 
         // ── Particles (full screen fixed) ──

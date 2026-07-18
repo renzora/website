@@ -506,41 +506,6 @@ pub struct EarningEntry {
     pub created_at: String,
 }
 
-// ── Avatar types ──
-
-#[derive(Debug, Serialize)]
-pub struct AvatarPartResponse {
-    pub id: Uuid,
-    pub slot: String,
-    pub name: String,
-    pub slug: String,
-    pub part_data: serde_json::Value,
-    pub price_credits: i64,
-    pub is_default: bool,
-    pub owned: bool,
-}
-
-#[derive(Debug, Serialize)]
-pub struct AvatarPartsListResponse {
-    pub parts: std::collections::HashMap<String, Vec<AvatarPartResponse>>,
-}
-
-#[derive(Debug, Serialize)]
-pub struct UserAvatarResponse {
-    pub skin_color: String,
-    pub eye_color: String,
-    pub hair_color: String,
-    pub equipped_parts: serde_json::Value,
-}
-
-#[derive(Debug, Deserialize)]
-pub struct SaveAvatarRequest {
-    pub skin_color: String,
-    pub eye_color: String,
-    pub hair_color: String,
-    pub equipped_parts: serde_json::Value,
-}
-
 #[derive(Debug, Serialize)]
 pub struct PurchasePartResponse {
     pub message: String,

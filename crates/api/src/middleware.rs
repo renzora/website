@@ -171,6 +171,29 @@ pub async fn require_auth(
     Ok(next.run(req).await)
 }
 
+/// Like `require_auth` but NEVER rejects: inserts `Extension<Option<AuthUser>>`
+/// (Some when a valid JWT access token is present, None otherwise). Used for
+/// public read endpoints that render for everyone but personalize when signed in.
+pub async fn optional_auth(mut req: Request, next: Next) -> Response {
+    let user = (|| {
+        let jwt_secret = req.extensions().get::<JwtSecret>()?.clone();
+        let token = req
+            .headers()
+            .get("authorization")?
+            .to_str()
+            .ok()?
+            .strip_prefix("Bearer ")?;
+        // Only the JWT path here — app/api tokens aren't used by the public UI.
+        let claims = jwt::validate_token(token, &jwt_secret.0).ok()?;
+        if claims.token_type != "access" {
+            return None;
+        }
+        Some(AuthUser { user_id: claims.sub })
+    })();
+    req.extensions_mut().insert::<Option<AuthUser>>(user);
+    next.run(req).await
+}
+
 /// Hash an API token using SHA-256 for storage comparison.
 pub fn hash_api_token(token: &str) -> String {
     use sha2::{Sha256, Digest};

@@ -1,9 +1,14 @@
 use leptos::prelude::*;
+use leptos_meta::{Link, Meta, Title};
+use renzora_common::ssr::{json_escape, CourseSsr};
 
 /// Course listing page.
 #[component]
 pub fn CoursesPage() -> impl IntoView {
     view! {
+        <Title text="Renzora Courses — Learn the Bevy Editor" />
+        <Meta name="description" content="Free and premium courses for building games with Renzora, the open-source Bevy editor — from your first scene to scripting, shaders and shipping." />
+
         <section class="py-8 px-6">
             <div class="max-w-[1200px] mx-auto">
                 <div class="flex justify-between items-center mb-6">
@@ -64,9 +69,35 @@ pub fn CoursesPage() -> impl IntoView {
 /// Course detail page.
 #[component]
 pub fn CourseDetailPage() -> impl IntoView {
+    let ssr = use_context::<CourseSsr>().filter(|c| c.found);
+    let head = ssr.clone().map(|c| {
+        let title = format!("{} — Renzora Courses", c.title);
+        let desc: String = c.description.chars().take(160).collect();
+        let canonical = format!("https://renzora.com/courses/{}", c.slug);
+        let ld = format!(
+            "{{\"@context\":\"https://schema.org\",\"@type\":\"Course\",\"name\":{},\"description\":{},\"url\":{},\"provider\":{{\"@type\":\"Organization\",\"name\":\"Renzora\"}}}}",
+            json_escape(&c.title), json_escape(&c.description), json_escape(&canonical)
+        );
+        view! {
+            <Title text=title />
+            <Meta name="description" content=desc />
+            <Link rel="canonical" href=canonical />
+            <script type="application/ld+json" inner_html=ld></script>
+        }
+    });
+    let ssr_head = ssr.map(|c| view! {
+        <div class="mb-6">
+            <h1 class="text-3xl font-bold text-white">{c.title.clone()}</h1>
+            <p class="text-zinc-400 mt-2 leading-relaxed">{c.description.clone()}</p>
+        </div>
+    });
     view! {
+        {head}
         <section class="py-8 px-6">
-            <div class="max-w-[900px] mx-auto" id="course-detail">"Loading..."</div>
+            <div class="max-w-[900px] mx-auto" id="course-detail">
+                {ssr_head}
+                <div class="text-center py-8 text-zinc-600 text-sm">"Loading course…"</div>
+            </div>
         </section>
         <script>
             r##"

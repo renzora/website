@@ -9,9 +9,7 @@ use axum::{
 use renzora_models::category::Category;
 use renzora_models::dispute::{self, Dispute};
 use renzora_models::user::User;
-use renzora_models::asset::Asset;
 use renzora_models::article::Article;
-use renzora_models::doc::Doc;
 use renzora_models::tag::Tag;
 use renzora_models::subcategory::Subcategory;
 use serde::{Deserialize, Serialize};
@@ -210,10 +208,10 @@ pub fn router() -> Router<AppState> {
 
 /// Middleware: check that the authenticated user has admin role.
 async fn require_admin(
-    mut req: axum::extract::Request,
+    req: axum::extract::Request,
     next: Next,
 ) -> Result<axum::response::Response, StatusCode> {
-    let auth = req.extensions().get::<AuthUser>().cloned().ok_or(StatusCode::UNAUTHORIZED)?;
+    let _auth = req.extensions().get::<AuthUser>().cloned().ok_or(StatusCode::UNAUTHORIZED)?;
 
     // We need the DB pool — grab it from the JwtSecret extension's sibling
     // Actually, we'll check the role in each handler since we need the pool.
@@ -2462,6 +2460,7 @@ async fn admin_global_search(
 // ── Announcements CRUD ──
 
 #[derive(Deserialize)]
+#[allow(dead_code)] // starts_at/ends_at reserved for scheduled announcements
 struct AnnouncementBody {
     title: String,
     body: Option<String>,

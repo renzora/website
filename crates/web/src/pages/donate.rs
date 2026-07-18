@@ -1,8 +1,12 @@
 use leptos::prelude::*;
+use leptos_meta::{Title, Meta};
 
 #[component]
 pub fn DonatePage() -> impl IntoView {
     view! {
+        <Title text="Support Renzora — Fund the Open Source Bevy Editor" />
+        <Meta name="description" content="Support the development of Renzora, the free and open-source Bevy editor and game engine. Become a supporter and help keep the engine open for everyone." />
+
         <section class="max-w-4xl mx-auto py-12 px-4">
             // Hero
             <div class="text-center mb-8">

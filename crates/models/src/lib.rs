@@ -33,5 +33,4 @@ pub mod withdrawal;
 pub mod social_connection;
 pub mod gift_card;
 pub mod donation;
-pub mod avatar;
 pub mod xp;

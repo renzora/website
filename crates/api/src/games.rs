@@ -288,7 +288,7 @@ async fn purchase_game(
     State(state): State<AppState>,
     Extension(auth): Extension<AuthUser>,
     Path(id): Path<Uuid>,
-    Json(body): Json<PurchaseGameRequest>,
+    Json(_body): Json<PurchaseGameRequest>,
 ) -> Result<Json<PurchaseResponse>, ApiError> {
     let game = Game::find_by_id(&state.db, id).await?.ok_or(ApiError::NotFound)?;
 
@@ -458,7 +458,7 @@ async fn upload_media(
 
 async fn delete_media(
     State(state): State<AppState>,
-    Extension(auth): Extension<AuthUser>,
+    Extension(_auth): Extension<AuthUser>,
     Path(media_id): Path<Uuid>,
 ) -> Result<Json<MessageResponse>, ApiError> {
     // Verify ownership via game

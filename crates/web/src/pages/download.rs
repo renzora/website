@@ -1,8 +1,12 @@
 use leptos::prelude::*;
+use leptos_meta::{Title, Meta};
 
 #[component]
 pub fn DownloadPage() -> impl IntoView {
     view! {
+        <Title text="Download Renzora — Free Open Source Bevy Editor" />
+        <Meta name="description" content="Download Renzora, the free and open-source Bevy editor, for Windows, macOS and Linux. A full 2D & 3D visual editor for the Bevy game engine, built in Rust." />
+
         // ── Hero ──
         <section class="relative min-h-[72vh] flex items-start justify-center overflow-hidden -mt-14 pt-36 px-6">
             <canvas id="hero-canvas" class="absolute inset-0 w-full h-full"></canvas>
@@ -13,19 +17,19 @@ pub fn DownloadPage() -> impl IntoView {
             <div class="relative z-10 text-center max-w-3xl mx-auto">
                 <div class="dl-hero-badge inline-flex items-center gap-2 px-3 py-1 rounded-full bg-accent/10 border border-accent/20 text-accent text-xs font-medium mb-4 backdrop-blur-sm">
                     <span class="w-1.5 h-1.5 rounded-full bg-accent animate-pulse"></span>
-                    "r1-alpha5 — Early Access"
+                    "r1-alpha6 — Early Access"
                 </div>
 
                 <h1 class="dl-hero-title text-5xl md:text-6xl lg:text-7xl font-extrabold tracking-tight leading-[1.05]">
                     "Download Renzora"
                 </h1>
-                <p class="dl-hero-sub mt-4 text-sm text-zinc-500 uppercase tracking-widest font-medium">"Powered by Rust & Bevy 0.18"</p>
+                <p class="dl-hero-sub mt-4 text-sm text-zinc-500 uppercase tracking-widest font-medium">"Powered by Rust & Bevy 0.19"</p>
                 <p class="dl-hero-sub mt-5 text-lg md:text-xl text-zinc-300 leading-relaxed max-w-2xl mx-auto">
                     "The first fully-featured game engine built on Bevy. Get the editor for Windows, macOS, and Linux — or install the Cargo CLI and scaffold your first game in minutes."
                 </p>
 
                 <div class="mt-10 flex gap-3 justify-center flex-wrap">
-                    <a href="#install" class="dl-hero-cta group relative inline-flex items-center gap-2 px-6 py-3 rounded-xl text-sm font-semibold bg-accent text-white hover:bg-accent-hover transition-all hover:shadow-[0_0_30px_rgba(99,102,241,0.3)] hover:scale-[1.02]">
+                    <a href="#install" class="dl-hero-cta group relative inline-flex items-center gap-2 px-6 py-3 rounded-xl text-sm font-semibold bg-purple-600 text-white hover:bg-purple-500 transition-all hover:shadow-[0_0_30px_rgba(99,102,241,0.3)] hover:scale-[1.02]">
                         <i class="ph ph-terminal-window text-lg"></i>"Install with Cargo"
                     </a>
                     <a href="#downloads" class="dl-hero-cta inline-flex items-center gap-2 px-6 py-3 rounded-xl text-sm font-semibold bg-white/5 text-zinc-50 border border-zinc-700/50 hover:border-zinc-500 hover:bg-white/10 transition-all backdrop-blur-sm">
@@ -43,7 +47,7 @@ pub fn DownloadPage() -> impl IntoView {
             <div class="max-w-[1100px] mx-auto">
                 <div class="dl-editor-reveal relative rounded-xl overflow-hidden border border-zinc-800/50 shadow-2xl shadow-black/50">
                     <div class="absolute inset-0 bg-gradient-to-t from-surface-panel via-transparent to-transparent z-10 pointer-events-none"></div>
-                    <img src="/assets/previews/interface.png" alt="The Renzora editor" class="w-full h-auto block" loading="lazy" data-zoom="1" />
+                    <img src="/assets/previews/interface.webp" alt="The Renzora editor" class="w-full h-auto block" width="1600" height="858" fetchpriority="high" decoding="async" data-zoom="1" />
                 </div>
                 <p class="text-center text-sm text-zinc-500 mt-4 max-w-2xl mx-auto">
                     "Running the download opens this: dockable panels, a scene hierarchy, a reflection-driven inspector — including your own custom components — and a live viewport."
@@ -121,7 +125,7 @@ pub fn DownloadPage() -> impl IntoView {
                     </h3>
                     <p class="text-xs text-zinc-500">
                         "Latest release: "
-                        <span id="release-version" class="text-zinc-300">"r1-alpha5"</span>
+                        <span id="release-version" class="text-zinc-300">"r1-alpha6"</span>
                     </p>
                 </div>
                 <div id="editor-downloads" class="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -150,7 +154,7 @@ pub fn DownloadPage() -> impl IntoView {
                     <FeatureCard icon="ph-browsers" title="renzora_ember UI" description="Build game and editor interfaces from .html templates with reactive {{ }} bindings." color="amber" />
                     <FeatureCard icon="ph-soccer-ball" title="Physics" description="Rigid bodies, colliders, and joints powered by the Avian physics engine." color="rose" />
                     <FeatureCard icon="ph-devices" title="Cross-platform export" description="Ship to Windows, Linux, macOS, Android, iOS, and Web (WASM) from a single project." color="cyan" />
-                    <FeatureCard icon="ph-git-branch" title="Open source" description="Built on Rust and Bevy 0.18, and fully open source under MIT/Apache." color="orange" />
+                    <FeatureCard icon="ph-git-branch" title="Open source" description="Built on Rust and Bevy 0.19, and fully open source under MIT/Apache." color="orange" />
                 </div>
             </div>
         </section>
@@ -279,7 +283,7 @@ pub fn DownloadPage() -> impl IntoView {
                             <h3 class="text-lg font-semibold">${p.name}</h3>
                             <p class="text-[11px] text-zinc-500">${p.req}</p>
                             ${available ? `
-                                <a href="${url}" class="w-full mt-1 inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium bg-accent text-white hover:bg-accent-hover transition-all hover:shadow-[0_0_20px_rgba(99,102,241,0.2)]">
+                                <a href="${url}" class="w-full mt-1 inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium bg-purple-600 text-white hover:bg-purple-500 transition-all hover:shadow-[0_0_20px_rgba(99,102,241,0.2)]">
                                     <i class="ph ph-download-simple"></i>Download
                                 </a>
                                 <span class="text-[10px] text-zinc-600">${size}</span>

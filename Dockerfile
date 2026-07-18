@@ -36,6 +36,23 @@ RUN touch crates/server/src/main.rs crates/api/src/lib.rs crates/models/src/lib.
 # Build the application
 RUN cargo build --release
 
+# Stage 1b: Front-end assets — compile Tailwind CSS and subset the Phosphor icon
+# font from source, so main.css and the icon subset are always in sync. Runs in
+# parallel with the Rust build (BuildKit).
+FROM node:20-alpine AS css
+WORKDIR /app
+# Install deps first (cached unless package.json changes)
+COPY package.json package-lock.json* ./
+RUN npm install --no-audit --no-fund
+# Inputs the Tailwind scan + icon subsetter need (scan crates + migrations for
+# both class names and ph-* icon tokens, incl. DB-seeded ones)
+COPY tailwind.config.js ./
+COPY assets/style/input.css ./assets/style/input.css
+COPY scripts ./scripts
+COPY migrations ./migrations
+COPY crates ./crates
+RUN npm run build:icons && npm run build:css
+
 # Stage 2: Runtime (must match builder's glibc — rust:latest uses Trixie)
 FROM debian:trixie-slim
 
@@ -48,6 +65,10 @@ WORKDIR /app
 COPY --from=builder /app/target/release/renzora-server /app/renzora-server
 COPY --from=builder /app/migrations /app/migrations
 COPY assets/ /app/assets/
+# Override committed assets with the freshly built ones (always up to date)
+COPY --from=css /app/assets/style/main.css /app/assets/style/main.css
+COPY --from=css /app/assets/style/phosphor.css /app/assets/style/phosphor.css
+COPY --from=css /app/assets/fonts /app/assets/fonts
 COPY docs/ /app/docs/
 
 EXPOSE 3000

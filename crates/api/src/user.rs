@@ -3,7 +3,10 @@ use axum::{
     routing::{delete, get, post, put},
     Json, Router,
 };
+use renzora_models::message::Message;
+use renzora_models::notification::Notification;
 use renzora_models::user::User;
+use renzora_models::xp;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -12,6 +15,7 @@ use crate::{error::ApiError, middleware, middleware::AuthUser, AppState};
 pub fn router() -> Router<AppState> {
     Router::new()
         .route("/me", get(user_me))
+        .route("/summary", get(summary))
         .route("/owned", post(check_owned))
         .route("/privacy", put(update_privacy))
         .route("/communication", get(get_communication).put(update_communication))
@@ -19,6 +23,51 @@ pub fn router() -> Router<AppState> {
         .route("/blocked", get(list_blocked))
         .route("/blocked/:user_id", delete(unblock_user))
         .layer(axum::middleware::from_fn(middleware::require_auth))
+}
+
+/// Consolidated nav bootstrap — credits, unread notifications & messages,
+/// level/XP and creator status in ONE request (replaces 5 separate calls the
+/// nav used to fire on every page load). Independent lookups run concurrently.
+#[derive(Serialize)]
+struct SummaryResponse {
+    credit_balance: i64,
+    notification_count: i64,
+    unread_messages: i64,
+    level: i32,
+    level_progress_percent: f64,
+    total_xp: i64,
+    creator_policy_accepted: bool,
+}
+
+async fn summary(
+    State(state): State<AppState>,
+    Extension(auth): Extension<AuthUser>,
+) -> Result<Json<SummaryResponse>, ApiError> {
+    let (user, notification_count, unread_messages) = tokio::try_join!(
+        User::find_by_id(&state.db, auth.user_id),
+        Notification::unread_count(&state.db, auth.user_id),
+        Message::total_unread(&state.db, auth.user_id),
+    )?;
+    let user = user.ok_or(ApiError::NotFound)?;
+
+    let cur = xp::xp_for_level(user.level);
+    let next = xp::xp_for_level(user.level + 1);
+    let range = next - cur;
+    let level_progress_percent = if range > 0 {
+        ((user.total_xp - cur) as f64 / range as f64 * 100.0).clamp(0.0, 100.0)
+    } else {
+        100.0
+    };
+
+    Ok(Json(SummaryResponse {
+        credit_balance: user.credit_balance,
+        notification_count,
+        unread_messages,
+        level: user.level,
+        level_progress_percent,
+        total_xp: user.total_xp,
+        creator_policy_accepted: user.creator_policy_accepted_at.is_some(),
+    }))
 }
 
 #[derive(Serialize)]

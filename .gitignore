@@ -4,3 +4,5 @@
 /uploads/
 .claude/
 seed_test_data.sql
+
+/node_modules
