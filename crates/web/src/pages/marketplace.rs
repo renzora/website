@@ -17,7 +17,7 @@ pub fn MarketplacePage() -> impl IntoView {
             <div class="absolute inset-0 bg-gradient-to-b from-teal-500/[0.05] via-cyan-500/[0.02] to-transparent"></div>
             <div class="absolute top-0 left-1/3 w-[600px] h-[300px] bg-teal-500/[0.04] rounded-full blur-3xl"></div>
             <div class="absolute bottom-0 right-1/4 w-[400px] h-[200px] bg-cyan-500/[0.03] rounded-full blur-3xl"></div>
-            <div class="relative max-w-[1400px] mx-auto px-6 pt-10 pb-8">
+            <div class="relative px-6 pt-10 pb-8">
                 <div class="flex items-end justify-between">
                     <div>
                         <div class="flex items-center gap-3 mb-2">
@@ -49,7 +49,7 @@ pub fn MarketplacePage() -> impl IntoView {
             </div>
         </div>
 
-        <div class="max-w-[1400px] mx-auto flex">
+        <div class="flex">
             // ── Left Sidebar: Categories ──
             <aside class="w-56 shrink-0 border-r border-white/[0.04] sticky top-14 h-[calc(100vh-3.5rem)] overflow-y-auto hidden lg:block bg-black/20 backdrop-blur-xl">
                 <div class="py-3">

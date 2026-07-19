@@ -65,7 +65,7 @@ pub fn DocArticle() -> impl IntoView {
     view! {
         {head.is_none().then_some(default_head)}
         {head}
-        <div class="flex min-h-[calc(100vh-56px)] max-w-[1200px] mx-auto">
+        <div class="flex min-h-[calc(100vh-56px)]">
             <DocsSidebar />
             <div class="flex-1 min-w-0 px-8 py-10 lg:px-12">
                 <article id="doc-content">{ssr_body}{landing}</article>
