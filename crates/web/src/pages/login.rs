@@ -118,7 +118,7 @@ pub fn LoginPage() -> impl IntoView {
 
 #[component]
 pub fn RegisterPage() -> impl IntoView {
-    // Same page — the JS detects the /register path and shows the register form.
+    // Same page, the JS detects the /register path and shows the register form.
     view! {
         <LoginPage />
     }

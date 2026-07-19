@@ -27,7 +27,7 @@ uuid = { version = "1", features = ["v4", "serde"] }
 # JSON instead of the compact integer-array format (API consumers expect strings).
 time = { version = "0.3", features = ["serde", "serde-human-readable"] }
 tower = "0.5"
-tower-http = { version = "0.6", features = ["cors", "trace", "fs", "compression-gzip", "compression-br"] }
+tower-http = { version = "0.6", features = ["cors", "trace", "fs", "compression-gzip", "compression-br", "set-header"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 thiserror = "2"

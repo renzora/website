@@ -75,7 +75,12 @@ async function subset(srcRel, outRel, chars) {
 }
 const fillWoff2 = fs.readdirSync(path.join(PH, 'fill')).find((f) => f.endsWith('.woff2'));
 const rSize = await subset('regular/Phosphor.woff2', 'assets/fonts/phosphor-regular.woff2', toChars(regIcons));
-const fSize = await subset('fill/' + fillWoff2, 'assets/fonts/phosphor-fill.woff2', toChars(fillIcons));
+// Only emit the fill weight if the app actually uses `ph-fill` icons — otherwise
+// skip the whole font (no woff2, no @font-face, no .ph-fill rules).
+const fSize = fillIcons.length
+  ? await subset('fill/' + fillWoff2, 'assets/fonts/phosphor-fill.woff2', toChars(fillIcons))
+  : 0;
+if (!fillIcons.length) fs.rmSync('assets/fonts/phosphor-fill.woff2', { force: true });
 
 // 5. Emit a minimal stylesheet (font-display:block avoids a tofu flash — the
 //    subset is tiny and same-origin, so the block period is imperceptible).
@@ -84,10 +89,10 @@ const base =
   'speak:never;font-style:normal;font-weight:normal;font-variant:normal;text-transform:none;line-height:1;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale';
 // Emitted minified (single line, no whitespace between rules)
 let out = '';
-out += '@font-face{font-family:"Phosphor";src:url("/assets/fonts/phosphor-regular.woff2") format("woff2");font-weight:normal;font-style:normal;font-display:block}';
-out += '@font-face{font-family:"Phosphor-Fill";src:url("/assets/fonts/phosphor-fill.woff2") format("woff2");font-weight:normal;font-style:normal;font-display:block}';
+out += '@font-face{font-family:"Phosphor";src:url("/assets/fonts/phosphor-regular.woff2") format("woff2");font-weight:normal;font-style:normal;font-display:swap}';
+if (fillIcons.length) out += '@font-face{font-family:"Phosphor-Fill";src:url("/assets/fonts/phosphor-fill.woff2") format("woff2");font-weight:normal;font-style:normal;font-display:swap}';
 out += `.ph{font-family:"Phosphor"!important;${base}}`;
-out += `.ph-fill{font-family:"Phosphor-Fill"!important;${base}}`;
+if (fillIcons.length) out += `.ph-fill{font-family:"Phosphor-Fill"!important;${base}}`;
 // The closing quote delimits each \\XXXX hex escape, so no trailing space needed
 for (const n of regIcons) out += `.ph.${n}:before{content:"\\${map[n]}"}`;
 for (const n of fillIcons) out += `.ph-fill.${n}:before{content:"\\${map[n]}"}`;

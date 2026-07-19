@@ -1,6 +1,6 @@
 use leptos::prelude::*;
 
-/// Friends hub — mirrors the engine's Friends panel: Friends / Requests / Add
+/// Friends hub, mirrors the engine's Friends panel: Friends / Requests / Add
 /// tabs with live presence dots, message + remove actions, and user search.
 #[component]
 pub fn FriendsPage() -> impl IntoView {

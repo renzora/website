@@ -1,6 +1,6 @@
 use leptos::prelude::*;
 
-/// Notifications page — a full-page view of the bell dropdown. Lists the most
+/// Notifications page, a full-page view of the bell dropdown. Lists the most
 /// recent notifications with actor avatars/type icons, mark-read, and deep links.
 #[component]
 pub fn NotificationsPage() -> impl IntoView {

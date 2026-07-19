@@ -1,6 +1,6 @@
 use leptos::prelude::*;
 
-/// Embed preview page — renders the full preview (audio/video/WASM/gallery)
+/// Embed preview page, renders the full preview (audio/video/WASM/gallery)
 /// without nav, footer, or purchase UI. Used by the launcher iframe and for sharing.
 /// Rendered via EmbedShell (no main app wrapper).
 #[component]
@@ -126,7 +126,7 @@ pub fn EmbedPreviewPage() -> impl IntoView {
                 }
             })();
 
-            // ── renderMainPreview — exact copy from asset_detail ──
+            // ── renderMainPreview, exact copy from asset_detail ──
             function renderMainPreview(item) {
                 if (!item || item.type === 'placeholder') {
                     return '<div class="aspect-video flex items-center justify-center"><i class="ph ph-package text-6xl text-zinc-700"></i></div>';

@@ -20,7 +20,7 @@ pub fn WalletPage() -> impl IntoView {
                     <span id="wallet-error-text"></span>
                 </div>
 
-                // Standalone success view — shown on a Stripe ?success return in
+                // Standalone success view, shown on a Stripe ?success return in
                 // place of the whole credits page, and it works signed out (the
                 // webhook credits the account regardless of the browser session).
                 <div id="wallet-success-view" class="hidden text-center py-24">
@@ -28,14 +28,14 @@ pub fn WalletPage() -> impl IntoView {
                         <i class="ph ph-check-circle text-5xl text-green-400"></i>
                     </div>
                     <h1 class="text-3xl font-bold tracking-tight mb-2">"Payment successful!"</h1>
-                    <p class="text-zinc-400 max-w-md mx-auto mb-8">"Your credits have been added to your account. If you started this from the editor, your balance updates there automatically — no need to refresh."</p>
+                    <p class="text-zinc-400 max-w-md mx-auto mb-8">"Your credits have been added to your account. If you started this from the editor, your balance updates there automatically, no need to refresh."</p>
                     <div class="flex items-center justify-center gap-3">
                         <a href="/wallet" class="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-medium bg-accent text-white hover:bg-accent-hover transition-colors">"View my credits"</a>
                         <a href="/marketplace" class="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-medium bg-surface-card border border-zinc-800 text-zinc-300 hover:text-white transition-colors">"Browse marketplace"</a>
                     </div>
                 </div>
 
-                // The credits page proper — hidden on a success return.
+                // The credits page proper, hidden on a success return.
                 <div id="wallet-main">
 
                 // Header
@@ -102,7 +102,7 @@ pub fn WalletPage() -> impl IntoView {
                 // Referral section
                 <div id="referral-section" class="mb-12 hidden">
                     <h2 class="text-lg font-semibold mb-1">"Invite & Earn"</h2>
-                    <p class="text-zinc-500 text-xs mb-5">"Share your referral link. Earn 5% of every purchase your referrals make — forever."</p>
+                    <p class="text-zinc-500 text-xs mb-5">"Share your referral link. Earn 5% of every purchase your referrals make, forever."</p>
 
                     <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                         <div class="md:col-span-2 p-5 bg-surface-card border border-zinc-800 rounded-xl">
@@ -185,8 +185,8 @@ pub fn WalletPage() -> impl IntoView {
             (async function init() {
                 const params = new URLSearchParams(window.location.search);
 
-                // On a successful Stripe return, show ONLY the celebration — not
-                // the credits page — and do it whether or not the browser session
+                // On a successful Stripe return, show ONLY the celebration, not
+                // the credits page, and do it whether or not the browser session
                 // is signed in (the webhook credits the account server-side).
                 if (params.get('success') === 'true') {
                     document.getElementById('wallet-main')?.classList.add('hidden');

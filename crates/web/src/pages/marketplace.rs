@@ -4,7 +4,7 @@ use leptos_meta::{Title, Meta};
 #[component]
 pub fn MarketplacePage() -> impl IntoView {
     view! {
-        <Title text="Renzora Marketplace — Models, Shaders & Scripts for Bevy" />
+        <Title text="Renzora Marketplace, Models, Shaders & Scripts for Bevy" />
         <Meta name="description" content="Browse the Renzora marketplace: ready-made 3D models, shaders, scripts and assets for the Bevy editor. Free and paid packs you can import straight into your Bevy project." />
 
         <section class="min-h-[calc(100vh-3rem)]">
@@ -37,12 +37,12 @@ pub fn MarketplacePage() -> impl IntoView {
                 // Quick stats
                 <div class="flex items-center gap-6 mt-5">
                     <div class="flex items-center gap-2 text-sm">
-                        <span id="mp-stat-total" class="font-semibold text-zinc-200">"—"</span>
+                        <span id="mp-stat-total" class="font-semibold text-zinc-200">"-"</span>
                         <span class="text-zinc-600">"assets"</span>
                     </div>
                     <div class="w-px h-4 bg-zinc-800"></div>
                     <div class="flex items-center gap-2 text-sm">
-                        <span id="mp-stat-free" class="font-semibold text-emerald-400">"—"</span>
+                        <span id="mp-stat-free" class="font-semibold text-emerald-400">"-"</span>
                         <span class="text-zinc-600">"free"</span>
                     </div>
                 </div>
@@ -132,7 +132,7 @@ pub fn MarketplacePage() -> impl IntoView {
                                 <label class="text-[10px] text-zinc-500 uppercase tracking-wider font-medium mb-1.5 block">"Price Range"</label>
                                 <div class="flex items-center gap-2">
                                     <input type="number" id="adv-min-price" placeholder="Min" min="0" class="w-full px-2.5 py-1.5 bg-white/[0.03] border border-zinc-800/50 rounded-lg text-zinc-50 text-xs outline-none focus:border-teal-500/50 transition-all" />
-                                    <span class="text-zinc-600 text-xs">"—"</span>
+                                    <span class="text-zinc-600 text-xs">"-"</span>
                                     <input type="number" id="adv-max-price" placeholder="Max" min="0" class="w-full px-2.5 py-1.5 bg-white/[0.03] border border-zinc-800/50 rounded-lg text-zinc-50 text-xs outline-none focus:border-teal-500/50 transition-all" />
                                 </div>
                             </div>
@@ -476,12 +476,6 @@ pub fn MarketplacePage() -> impl IntoView {
                 lastAssets = data.assets;
                 renderMpAssets(data.assets);
 
-                // Animate cards in
-                if (typeof anime !== 'undefined') {
-                    const cards = document.querySelectorAll('#mp-grid > a, #mp-grid > div');
-                    anime({ targets: cards, opacity: [0,1], translateY: [30,0], scale: [0.92,1], delay: anime.stagger(30, {from: 'first'}), duration: 500, easing: 'easeOutCubic' });
-                }
-
                 // Pagination
                 const totalPages = Math.ceil(data.total / data.per_page);
                 const pagEl = document.getElementById('mp-pagination');
@@ -578,7 +572,6 @@ pub fn MarketplacePage() -> impl IntoView {
 
         <style>
             r#"
-            /* anime.js handles card animations */
             .mp-scroll::-webkit-scrollbar { width: 6px; }
             .mp-scroll::-webkit-scrollbar-track { background: transparent; }
             .mp-scroll::-webkit-scrollbar-thumb { background: #27272a; border-radius: 3px; }

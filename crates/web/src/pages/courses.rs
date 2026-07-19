@@ -6,8 +6,8 @@ use renzora_common::ssr::{json_escape, CourseSsr};
 #[component]
 pub fn CoursesPage() -> impl IntoView {
     view! {
-        <Title text="Renzora Courses — Learn the Bevy Editor" />
-        <Meta name="description" content="Free and premium courses for building games with Renzora, the open-source Bevy editor — from your first scene to scripting, shaders and shipping." />
+        <Title text="Renzora Courses, Learn the Bevy Editor" />
+        <Meta name="description" content="Free and premium courses for building games with Renzora, the open-source Bevy editor, from your first scene to scripting, shaders and shipping." />
 
         <section class="py-8 px-6">
             <div class="max-w-[1200px] mx-auto">
@@ -71,7 +71,7 @@ pub fn CoursesPage() -> impl IntoView {
 pub fn CourseDetailPage() -> impl IntoView {
     let ssr = use_context::<CourseSsr>().filter(|c| c.found);
     let head = ssr.clone().map(|c| {
-        let title = format!("{} — Renzora Courses", c.title);
+        let title = format!("{}, Renzora Courses", c.title);
         let desc: String = c.description.chars().take(160).collect();
         let canonical = format!("https://renzora.com/courses/{}", c.slug);
         let ld = format!(

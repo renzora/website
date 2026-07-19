@@ -6,3 +6,6 @@
 seed_test_data.sql
 
 /node_modules
+
+# Performance snapshots from scripts/perf.mjs (keep a baseline if you want to commit one)
+/perf-results/

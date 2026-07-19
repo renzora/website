@@ -9,7 +9,7 @@ use sqlx::PgPool;
 
 use renzora_common::ssr::{
     ArticleSsr, AssetSsr, CommunitySsr, CourseSsr, DocSsr, PostSsr, ProfileSsr, SsrComment,
-    SsrPostItem,
+    SsrPostItem, SsrReaction,
 };
 use renzora_models::article::Article;
 use renzora_models::asset::Asset;
@@ -19,19 +19,86 @@ use renzora_models::user::User;
 use renzora_web::shell::Shell;
 use uuid::Uuid;
 
-/// Map a DB post to the SSR listing item (body clamped for the crawlable block).
-fn to_item(p: PostWithAuthor) -> SsrPostItem {
-    let body: String = p.body.chars().take(400).collect();
+/// Short relative time, mirroring the client's `timeAgo` so the SSR card header
+/// stays a single line (the full ISO timestamp wraps it to two, growing the
+/// card and shifting the feed on the client re-render).
+fn time_ago(dt: &time::OffsetDateTime) -> String {
+    let s = (time::OffsetDateTime::now_utc() - *dt).whole_seconds();
+    if s < 60 {
+        return "just now".into();
+    }
+    let m = s / 60;
+    if m < 60 {
+        return format!("{m}m");
+    }
+    let h = m / 60;
+    if h < 24 {
+        return format!("{h}h");
+    }
+    let d = h / 24;
+    if d < 7 {
+        return format!("{d}d");
+    }
+    const MON: [&str; 12] = [
+        "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+    ];
+    format!("{} {}", MON[(dt.month() as u8 - 1) as usize], dt.day())
+}
+
+/// Map a DB post to the SSR listing item (body clamped to match the client's
+/// 500-char truncation so the crawlable card and the client card are the same
+/// height). Reactions are attached separately (see `build_items`).
+fn to_item(p: PostWithAuthor, reactions: Vec<SsrReaction>) -> SsrPostItem {
+    let long = p.body.chars().count() > 500;
+    let body: String = p.body.chars().take(500).collect();
     SsrPostItem {
         id: p.id.to_string(),
-        body: if p.body.chars().count() > 400 { format!("{body}…") } else { body },
+        body: if long { format!("{body}…") } else { body },
         username: p.username,
         channel_slug: p.channel_slug,
         channel_name: p.channel_name,
         like_count: p.like_count,
         comment_count: p.comment_count,
-        created_at: iso(&p.created_at),
+        created_at: time_ago(&p.created_at),
+        reactions,
     }
+}
+
+/// Fetch aggregated reactions for a set of posts (mirrors the API's grouped
+/// query) so the SSR card can render the same reaction chips the client does.
+async fn ssr_reactions(
+    db: &PgPool,
+    post_ids: &[Uuid],
+) -> std::collections::HashMap<Uuid, Vec<SsrReaction>> {
+    let mut map: std::collections::HashMap<Uuid, Vec<SsrReaction>> = std::collections::HashMap::new();
+    if post_ids.is_empty() {
+        return map;
+    }
+    let rows: Vec<(Uuid, String, i64)> = sqlx::query_as(
+        "SELECT post_id, icon, COUNT(*)::bigint FROM post_reactions \
+         WHERE post_id = ANY($1) GROUP BY post_id, icon ORDER BY MIN(created_at)",
+    )
+    .bind(post_ids)
+    .fetch_all(db)
+    .await
+    .unwrap_or_default();
+    for (pid, icon, count) in rows {
+        map.entry(pid).or_default().push(SsrReaction { icon, count });
+    }
+    map
+}
+
+/// Turn fetched posts into SSR items with their reactions attached.
+async fn build_items(db: &PgPool, posts: Vec<PostWithAuthor>) -> Vec<SsrPostItem> {
+    let ids: Vec<Uuid> = posts.iter().map(|p| p.id).collect();
+    let mut reactions = ssr_reactions(db, &ids).await;
+    posts
+        .into_iter()
+        .map(|p| {
+            let r = reactions.remove(&p.id).unwrap_or_default();
+            to_item(p, r)
+        })
+        .collect()
 }
 
 /// Format an `OffsetDateTime` as a UTC ISO-8601 string without pulling in the
@@ -193,7 +260,7 @@ pub async fn community_page(db: PgPool, slug: Option<String>, req: Request<Body>
                     slug,
                     name,
                     description,
-                    posts: posts.into_iter().map(to_item).collect(),
+                    posts: build_items(&db, posts).await,
                 };
             }
         }
@@ -208,7 +275,7 @@ pub async fn community_page(db: PgPool, slug: Option<String>, req: Request<Body>
                 slug: String::new(),
                 name: "Community".into(),
                 description: "Discussions about the Renzora engine and general game development.".into(),
-                posts: posts.into_iter().map(to_item).collect(),
+                posts: build_items(&db, posts).await,
             };
         }
     }

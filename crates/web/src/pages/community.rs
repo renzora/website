@@ -2,7 +2,7 @@ use leptos::prelude::*;
 use leptos_meta::{Title, Meta};
 use renzora_common::ssr::CommunitySsr;
 
-/// The community hub — a channel-based social feed. Mirrors the engine editor's
+/// The community hub, a channel-based social feed. Mirrors the engine editor's
 /// Community/Feed panel: a channel rail, a composer that targets the active
 /// channel, and post cards with likes, arbitrary reactions, threaded comments,
 /// media, reporting/hide moderation, and live "new posts" updates over WS.
@@ -16,8 +16,8 @@ pub fn CommunityPage() -> impl IntoView {
     // The client JS below still renders the full interactive feed on load.
     let ssr = use_context::<CommunitySsr>().filter(|c| c.found);
     let title = ssr.as_ref().filter(|c| c.is_channel)
-        .map(|c| format!("{} — Renzora Community", c.name))
-        .unwrap_or_else(|| "Renzora Community — Devlogs, Showcases & Discussion".to_string());
+        .map(|c| format!("{}, Renzora Community", c.name))
+        .unwrap_or_else(|| "Renzora Community, Devlogs, Showcases & Discussion".to_string());
     let desc = ssr.as_ref().filter(|c| c.is_channel && !c.description.is_empty())
         .map(|c| c.description.clone())
         .unwrap_or_else(|| "Join the Renzora community: devlogs, screenshots, asset drops and discussion around the open-source Bevy editor and game engine.".to_string());
@@ -31,16 +31,37 @@ pub fn CommunityPage() -> impl IntoView {
             let created = p.created_at.clone();
             let id = p.id.clone();
             view! {
+                // Mirrors the client postCard() vertical layout (avatar column,
+                // reactions row, action row) so the client re-render on load is
+                // height-neutral and doesn't shift the feed (CLS). The visuals may
+                // differ; only the footprint needs to match.
                 <article class="p-5 bg-surface-card border border-zinc-800 rounded-2xl">
-                    <div class="flex items-center gap-1.5 text-xs text-zinc-500 mb-1.5 flex-wrap">
-                        <a href=format!("/profile/{user}") class="font-semibold text-zinc-300 hover:text-accent">{user.clone()}</a>
-                        {p.channel_name.clone().map(|n| view! { <span class="text-zinc-600">"· "{n}</span> })}
-                        <a href=format!("/community/post/{id}") class="text-zinc-600 hover:text-accent">"· "{created}</a>
-                    </div>
-                    <p class="text-sm text-zinc-200 whitespace-pre-wrap break-words">{p.body.clone()}</p>
-                    <div class="flex items-center gap-4 mt-2 text-xs text-zinc-600">
-                        <span class="inline-flex items-center gap-1"><i class="ph ph-arrow-fat-up"></i>{p.like_count}</span>
-                        <a href=format!("/community/post/{}", p.id) class="inline-flex items-center gap-1 hover:text-accent"><i class="ph ph-chat-circle"></i>{p.comment_count}</a>
+                    <div class="flex items-start gap-3">
+                        <div class="w-10 h-10 rounded-full bg-accent/20 text-accent flex items-center justify-center font-semibold shrink-0">
+                            {user.chars().next().map(|c| c.to_ascii_uppercase()).unwrap_or('?')}
+                        </div>
+                        <div class="flex-1 min-w-0">
+                            <div class="flex items-center gap-1.5 flex-wrap">
+                                <a href=format!("/profile/{user}") class="text-sm font-semibold text-zinc-300 hover:text-accent">{user.clone()}</a>
+                                {p.channel_name.clone().map(|n| view! { <span class="text-[11px] text-zinc-600">"· "{n}</span> })}
+                                <a href=format!("/community/post/{id}") class="text-[11px] text-zinc-600 hover:text-accent">"· "{created}</a>
+                            </div>
+                            <p class="text-sm text-zinc-200 whitespace-pre-wrap mt-1.5 break-words">{p.body.clone()}</p>
+                            // Reactions row, mirrors the client card (chips + the
+                            // always-present add-reaction button) so heights match.
+                            <div class="mt-3">
+                                <div class="flex flex-wrap items-center gap-1.5">
+                                    {p.reactions.iter().map(|r| view! {
+                                        <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs border bg-white/[0.03] border-zinc-800 text-zinc-400"><i class=format!("ph {}", r.icon)></i>{r.count}</span>
+                                    }).collect_view()}
+                                    <span class="w-6 h-6 rounded-full flex items-center justify-center text-zinc-500"><i class="ph ph-smiley-sticker"></i></span>
+                                </div>
+                            </div>
+                            <div class="flex items-center gap-4 mt-3 text-zinc-500">
+                                <span class="inline-flex items-center gap-1.5 text-xs"><i class="ph ph-arrow-fat-up"></i>{p.like_count}</span>
+                                <a href=format!("/community/post/{}", p.id) class="inline-flex items-center gap-1.5 text-xs hover:text-accent"><i class="ph ph-chat-circle"></i>{p.comment_count}</a>
+                            </div>
+                        </div>
                     </div>
                 </article>
             }
@@ -106,14 +127,19 @@ pub fn CommunityPage() -> impl IntoView {
                             <button id="post-btn" class="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-sm font-medium bg-accent text-white hover:bg-accent-hover transition-colors disabled:opacity-50"><i class="ph ph-paper-plane-right"></i>"Post"</button>
                         </div>
                     </div>
-                    <div id="composer-signin" class="hidden mb-4 p-6 bg-surface-card border border-zinc-800 rounded-2xl text-center">
+                    <div id="composer-signin" class="mb-4 p-6 bg-surface-card border border-zinc-800 rounded-2xl text-center">
                         <p class="text-sm text-zinc-400 mb-3">"Sign in to join the conversation and post to channels."</p>
                         <a href="/login?redirect=/community" class="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium bg-accent text-white hover:bg-accent-hover transition-colors">"Sign In"</a>
                     </div>
 
+                    // Marketplace strip, a zero-height slot filled client-side ONLY
+                    // when the marketplace has assets. Empty ⇒ stays 0px (no reserve,
+                    // no collapse) so it never shifts the feed.
+                    <div id="mp-strip"></div>
+
                     // New posts pill
                     <button id="new-posts-pill" class="hidden w-full mb-4 px-4 py-2 rounded-lg text-sm font-medium bg-accent/15 border border-accent/30 text-accent hover:bg-accent/25 transition-colors">
-                        <i class="ph ph-arrow-up"></i>" New posts — see what's fresh"
+                        <i class="ph ph-arrow-up"></i>" New posts, see what's fresh"
                     </button>
 
                     // Filter bar
@@ -136,7 +162,7 @@ pub fn CommunityPage() -> impl IntoView {
                     </div>
 
                     <div id="feed-list" class="space-y-4">{ssr_posts}</div>
-                    <div id="feed-loading" class="text-center py-12"><div class="inline-block animate-spin w-5 h-5 border-2 border-zinc-700 border-t-accent rounded-full"></div></div>
+                    <div id="feed-loading" class="hidden text-center py-12"><div class="inline-block animate-spin w-5 h-5 border-2 border-zinc-700 border-t-accent rounded-full"></div></div>
                     <div id="feed-empty" class="hidden text-center py-16 text-sm text-zinc-500">"Nothing here yet. Be the first to post!"</div>
                     <button id="load-more" class="hidden w-full mt-4 px-4 py-2.5 rounded-lg text-sm font-medium bg-surface-card border border-zinc-800 text-zinc-300 hover:border-zinc-700 transition-colors">"Load more"</button>
                 </div>
@@ -222,8 +248,12 @@ pub fn CommunityPage() -> impl IntoView {
                 // Public: the feed loads for everyone; the API returns only public posts.
                 if (state.loading) return;
                 state.loading = true;
-                if (refresh){ allPosts = []; state.lastId = null; $('feed-list').innerHTML = ''; state.pendingNew = false; $('new-posts-pill').classList.add('hidden'); }
-                $('feed-loading').classList.remove('hidden');
+                // Keep existing (SSR or prior) posts in place until the new ones
+                // are ready to swap in, clearing here collapses the list and
+                // causes a large layout shift (CLS). renderFeed() replaces the
+                // list atomically once the fetch resolves.
+                if (refresh){ allPosts = []; state.lastId = null; state.pendingNew = false; $('new-posts-pill').classList.add('hidden'); }
+                if (!$('feed-list').children.length) $('feed-loading').classList.remove('hidden');
                 let url = '/api/feed/feed?limit=20';
                 if (state.lastId) url += '&before=' + state.lastId;
                 if (state.channel) url += '&channel=' + encodeURIComponent(state.channel);
@@ -297,7 +327,7 @@ pub fn CommunityPage() -> impl IntoView {
                       <div class="mt-3">${reactionsHtml(p)}</div>
                       <div class="flex items-center gap-4 mt-3 text-zinc-500">
                         <button onclick="__like('${p.id}')" class="like-btn inline-flex items-center gap-1.5 text-xs hover:text-accent transition-colors">
-                          <i class="${p.is_liked?'ph-fill ph-arrow-fat-up text-accent':'ph ph-arrow-fat-up'}"></i><span id="like-${p.id}" class="${p.is_liked?'text-accent':''}">${p.like_count}</span>
+                          <i class="${p.is_liked?'ph ph-arrow-fat-up text-accent':'ph ph-arrow-fat-up'}"></i><span id="like-${p.id}" class="${p.is_liked?'text-accent':''}">${p.like_count}</span>
                         </button>
                         <button onclick="__toggleComments('${p.id}')" class="inline-flex items-center gap-1.5 text-xs hover:text-accent transition-colors">
                           <i class="ph ph-chat-circle"></i><span id="ccount-${p.id}">${p.comment_count}</span>
@@ -334,7 +364,7 @@ pub fn CommunityPage() -> impl IntoView {
                   const res = await fetch('/api/feed/posts/'+id+'/like', { method:'POST', headers: authHeaders });
                   const d = await res.json();
                   p.is_liked = d.liked; p.like_count += d.liked ? 1 : -1;
-                  const cnt = $('like-'+id); if (cnt){ cnt.textContent = p.like_count; cnt.className = d.liked?'text-accent':''; cnt.previousElementSibling.className = d.liked?'ph-fill ph-arrow-fat-up text-accent':'ph ph-arrow-fat-up'; }
+                  const cnt = $('like-'+id); if (cnt){ cnt.textContent = p.like_count; cnt.className = d.liked?'text-accent':''; cnt.previousElementSibling.className = d.liked?'ph ph-arrow-fat-up text-accent':'ph ph-arrow-fat-up'; }
                 } catch(e){}
               };
 
@@ -369,7 +399,7 @@ pub fn CommunityPage() -> impl IntoView {
                 try {
                   const res = await fetch('/api/feed/posts/'+id+'/report', { method:'POST', headers:{...authHeaders,'Content-Type':'application/json'}, body: JSON.stringify({}) });
                   const d = await res.json();
-                  alert(d.hidden ? 'Reported. This post has been hidden pending review.' : 'Thanks — this post has been reported.');
+                  alert(d.hidden ? 'Reported. This post has been hidden pending review.' : 'Thanks, this post has been reported.');
                 } catch(e){}
               };
 
@@ -408,7 +438,7 @@ pub fn CommunityPage() -> impl IntoView {
                         <p class="text-sm text-zinc-200 whitespace-pre-wrap break-words">${esc(c.body)}</p>
                       </div>
                       <div class="flex items-center gap-3 mt-1 text-[11px] text-zinc-500">
-                        <button onclick="__clike('${c.id}',this)" class="hover:text-accent"><i class="${c.is_liked?'ph-fill ph-heart text-accent':'ph ph-heart'}"></i> <span>${c.like_count}</span></button>
+                        <button onclick="__clike('${c.id}',this)" class="hover:text-accent"><i class="${c.is_liked?'ph ph-heart text-accent':'ph ph-heart'}"></i> <span>${c.like_count}</span></button>
                         ${!nested ? `<button onclick="__replyTo('${id}','${c.id}','${esc(c.username)}')" class="hover:text-accent">Reply</button>` : ''}
                         ${me && c.user_id === me.id ? `<button onclick="__cdelete('${id}','${c.id}')" class="hover:text-red-400">Delete</button>` : ''}
                       </div>
@@ -440,7 +470,7 @@ pub fn CommunityPage() -> impl IntoView {
               window.__clike = async function(cid, btn){
                 try { const res = await fetch('/api/feed/comments/'+cid+'/like', { method:'POST', headers: authHeaders }); const d = await res.json();
                   const i = btn.querySelector('i'); const s = btn.querySelector('span'); let n = parseInt(s.textContent)||0;
-                  i.className = d.liked?'ph-fill ph-heart text-accent':'ph ph-heart'; s.textContent = n + (d.liked?1:-1);
+                  i.className = d.liked?'ph ph-heart text-accent':'ph ph-heart'; s.textContent = n + (d.liked?1:-1);
                 } catch(e){}
               };
 
@@ -528,26 +558,29 @@ pub fn CommunityPage() -> impl IntoView {
               const m = window.location.pathname.match(/\/community\/channel\/([^\/]+)/);
               if (m) state.channel = decodeURIComponent(m[1]);
 
-              if (token){ $('composer').classList.remove('hidden'); $('filter-bar').classList.remove('hidden'); $('filter-bar').classList.add('flex'); bindComposer(); }
-              else { $('composer-signin').classList.remove('hidden'); }
+              // composer-signin is visible by default (the SSR/anon state); swap to
+              // the composer for signed-in users. Both occupy the same slot.
+              if (token){ $('composer').classList.remove('hidden'); $('composer-signin').classList.add('hidden'); $('filter-bar').classList.remove('hidden'); $('filter-bar').classList.add('flex'); bindComposer(); }
               bindSuggest(); bindFilters();
               loadChannels().then(() => { updateComposerTarget(); if (state.channel) window.__selChannel(state.channel); });
               loadFeed(true);  // public feed for everyone
               loadMarketplaceStrip();
 
               async function loadMarketplaceStrip(){
+                const strip = $('mp-strip');
+                if (!strip) return;
                 try {
                   const res = await fetch('/api/marketplace?page=1&sort=newest');
                   if (!res.ok) return;
                   const d = await res.json();
                   const assets = (d.assets||[]).slice(0,6);
-                  if (!assets.length) return;
-                  const strip = document.createElement('div');
+                  if (!assets.length) return;  // empty ⇒ leave the 0-height slot, no shift
+                  // Give the slot its card styling + content only now that we have
+                  // assets, so it grows from 0 exactly once (and never on an empty
+                  // marketplace, which used to collapse and shove the feed up).
                   strip.className = 'mb-4 p-4 bg-surface-card border border-zinc-800 rounded-2xl';
                   strip.innerHTML = `<div class="flex items-center justify-between mb-3"><h3 class="text-xs font-semibold uppercase tracking-wide text-zinc-500">New in the Marketplace</h3><a href="/marketplace" class="text-xs text-accent hover:text-accent-hover">Browse all</a></div>
                     <div class="grid grid-cols-3 md:grid-cols-6 gap-2">${assets.map(a => `<a href="/marketplace/asset/${esc(a.slug)}" class="group"><div class="aspect-square rounded-lg overflow-hidden bg-surface border border-zinc-800">${a.thumbnail_url?`<img src="${esc(a.thumbnail_url)}" class="w-full h-full object-cover group-hover:scale-105 transition-transform" loading="lazy" />`:'<div class="w-full h-full flex items-center justify-center text-zinc-700"><i class="ph ph-cube text-2xl"></i></div>'}</div><p class="text-[10px] text-zinc-400 mt-1 truncate">${esc(a.title)}</p></a>`).join('')}</div>`;
-                  const composer = $('composer').classList.contains('hidden') ? $('composer-signin') : $('composer');
-                  composer.insertAdjacentElement('afterend', strip);
                 } catch(e){}
               }
             })();

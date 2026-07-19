@@ -6,9 +6,35 @@ use crate::pages::embed::EmbedPreviewPage;
 
 /// Site-wide structured data (JSON-LD). `{SITE}` is replaced with the runtime
 /// site URL. Describes Renzora as a SoftwareApplication (a Bevy editor / game
-/// engine), the WebSite (with marketplace search), and the Organization — this
+/// engine), the WebSite (with marketplace search), and the Organization, this
 /// helps search engines understand the entity and enables rich results.
 const JSON_LD: &str = r#"{"@context":"https://schema.org","@graph":[{"@type":"SoftwareApplication","name":"Renzora","alternateName":"Renzora Engine","applicationCategory":"DeveloperApplication","applicationSubCategory":"Game Engine","operatingSystem":"Windows, macOS, Linux, Android, iOS, Web","description":"Renzora is a free, open-source Bevy editor and game engine with a full visual editor, Lua and Rhai scripting, a plugin system, physics and real-time rendering, built in Rust on Bevy.","url":"{SITE}","downloadUrl":"{SITE}/download","softwareVersion":"r1-alpha6","offers":{"@type":"Offer","price":"0","priceCurrency":"USD"},"isAccessibleForFree":true,"license":"https://opensource.org/licenses/MIT","sameAs":["https://github.com/renzora/engine","https://bevy.org/assets/"]},{"@type":"WebSite","name":"Renzora","url":"{SITE}","potentialAction":{"@type":"SearchAction","target":{"@type":"EntryPoint","urlTemplate":"{SITE}/marketplace?q={search_term_string}"},"query-input":"required name=search_term_string"}},{"@type":"Organization","name":"Renzora","url":"{SITE}","logo":"{SITE}/assets/previews/logo.png","sameAs":["https://github.com/renzora/engine"]}]}"#;
+
+/// Speculation Rules (Chromium): make internal navigation feel instant by
+/// resolving the destination *before* the click.
+///   • `prerender` (moderate = hover/pointerdown intent) fully renders the next
+///     page in a hidden context; the click becomes a compositor swap, ~0ms.
+///     Scoped to read-only routes only.
+///   • `prefetch` is the universal fallback; where both rules match a URL the
+///     browser upgrades to prerender. Detail routes that count a view via their
+///     client JS (`/articles/:slug`, `/marketplace/asset/:slug`) are excluded
+///     from prerender and only prefetched, prefetch fetches the HTML but does
+///     NOT execute page JS, so a hover can't inflate view counts, while a real
+///     click still loads from cache (zero network) and counts once.
+/// Links can opt out with `data-no-prefetch`; `target="_blank"` and cross-origin
+/// links are never speculated. Non-Chromium browsers ignore this block and use
+/// the hover-prefetch fallback script instead.
+const SPEC_RULES: &str = r#"{"prerender":[{"where":{"and":[{"href_matches":"/*"},{"not":{"href_matches":"/articles/*"}},{"not":{"href_matches":"/marketplace/asset/*"}},{"not":{"href_matches":"/login"}},{"not":{"href_matches":"/register"}},{"not":{"selector_matches":"[data-no-prefetch]"}},{"not":{"selector_matches":"[target=\"_blank\"]"}}]},"eagerness":"moderate"}],"prefetch":[{"where":{"and":[{"href_matches":"/*"},{"not":{"selector_matches":"[data-no-prefetch]"}},{"not":{"selector_matches":"[target=\"_blank\"]"}}]},"eagerness":"moderate"}]}"#;
+
+/// Extract the `scheme://host[:port]` origin from a URL, or `None` if it has no
+/// scheme (used to turn `S3_PUBLIC_URL` into a `preconnect` target).
+fn origin_of(url: &str) -> Option<String> {
+    let u = url.trim();
+    let after = u.find("://")? + 3;
+    let end = u[after..].find('/').map(|i| after + i).unwrap_or(u.len());
+    let origin = &u[..end];
+    (end > after).then(|| origin.to_string())
+}
 
 /// The HTML shell that wraps the entire application for SSR.
 #[component]
@@ -19,8 +45,21 @@ pub fn Shell() -> impl IntoView {
         .unwrap_or_else(|_| "https://renzora.com".into())
         .trim_end_matches('/')
         .to_string();
-    let og_image = format!("{site}/assets/previews/interface.png");
+    let og_image = format!("{site}/assets/previews/og.jpg");
     let json_ld = JSON_LD.replace("{SITE}", &site);
+
+    // Marketplace/home thumbnails come from S3_PUBLIC_URL. When that's a distinct
+    // origin, warm the connection (TLS + DNS) before the images are discovered so
+    // image-heavy pages paint their thumbnails a round trip sooner. Emitted only
+    // when cross-origin, so it's never a wasted hint.
+    let asset_hint = origin_of(&std::env::var("S3_PUBLIC_URL").unwrap_or_default())
+        .filter(|o| *o != site)
+        .map(|o| {
+            view! {
+                <link rel="preconnect" href=o.clone() />
+                <link rel="dns-prefetch" href=o />
+            }
+        });
 
     view! {
         <!DOCTYPE html>
@@ -30,63 +69,60 @@ pub fn Shell() -> impl IntoView {
                 <meta name="viewport" content="width=device-width, initial-scale=1" />
                 <link rel="icon" type="image/x-icon" href="/assets/favicon.ico" />
 
+                // Warm the cross-origin asset/CDN connection as early as possible.
+                {asset_hint}
+
                 // ── SEO: discoverability + social + structured data ──
                 <meta name="keywords" content="Bevy editor, Bevy game engine, Bevy editor download, 2D and 3D Bevy editor, Rust game engine, open source game engine, Renzora, Renzora Engine, Bevy tools, game editor" />
                 <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1" />
                 <meta name="author" content="Renzora" />
                 <meta name="theme-color" content="#0b0617" />
                 <meta name="twitter:card" content="summary_large_image" />
-                <meta name="twitter:title" content="Renzora — Open Source Bevy Editor & Game Engine" />
+                <meta name="twitter:title" content="Renzora, Open Source Bevy Editor & Game Engine" />
                 <meta name="twitter:description" content="A free, open-source Bevy editor and game engine, built in Rust on Bevy 0.19." />
                 <meta name="twitter:image" content=og_image />
                 <script type="application/ld+json" inner_html=json_ld></script>
 
-                // Phosphor icons — self-hosted subset (only the icons the app uses)
+                // Phosphor icons, self-hosted subset (only the icons the app uses)
                 <link rel="stylesheet" href="/assets/style/phosphor.css" />
                 <link rel="stylesheet" href="/assets/style/main.css" />
 
-                // Lightweight animation shim — implements only the anime.js subset the
-                // pages use (targets, opacity/transform props, stagger, timeline, and
-                // object/counter tweens) on the Web Animations API. Applies final
-                // states immediately so content is never left hidden. Replaces the
-                // external anime.js CDN (removed for performance).
+                // Instant navigation: prerender/prefetch internal links on hover
+                // intent (Chromium via Speculation Rules; others via the fallback
+                // below). A click then resolves from local memory, no network.
+                <script type="speculationrules" inner_html=SPEC_RULES></script>
                 <script>
                     r#"
                     (function(){
-                      if (window.anime) return;
-                      var EASE={linear:'linear',easeOutQuad:'cubic-bezier(0.5,1,0.89,1)',easeOutCubic:'cubic-bezier(0.33,1,0.68,1)',easeOutExpo:'cubic-bezier(0.16,1,0.3,1)',easeOutBack:'cubic-bezier(0.34,1.56,0.64,1)',easeInOutSine:'cubic-bezier(0.37,0,0.63,1)'};
-                      function ease(e){ if(!e) return 'ease'; if(EASE[e]) return EASE[e]; if(e.indexOf('easeOutElastic')===0||e.indexOf('easeOutBack')===0) return EASE.easeOutBack; if(e.indexOf('easeInOut')===0) return EASE.easeInOutSine; if(e.indexOf('easeOut')===0) return EASE.easeOutCubic; return 'ease'; }
-                      function toEls(t){ if(t==null) return []; if(typeof t==='string') return Array.prototype.slice.call(document.querySelectorAll(t)); if(t instanceof Element) return [t]; if(t&&t.nodeType) return [t]; if(t&&typeof t.length==='number') return Array.prototype.slice.call(t); return [t]; }
-                      var TF=['translateX','translateY','translateZ','scale','scaleX','scaleY','rotate'];
-                      function unit(k,v){ if(k==='rotate') return (typeof v==='number'? v+'deg': v); if(k.indexOf('translate')===0) return (typeof v==='number'? v+'px': v); return v; }
-                      function ft(v){ return Array.isArray(v)? {from:v[0],to:v[1]} : {from:null,to:v}; }
-                      var SKIP=['targets','duration','easing','delay','loop','direction','round','update','begin','complete','autoplay'];
-                      function animateEl(el,opts,delay){
-                        var dur=opts.duration||0, tf={}, css={}, hasTf=false, hasTfFrom=false;
-                        for(var k in opts){ if(SKIP.indexOf(k)>=0) continue; var o=ft(opts[k]); if(TF.indexOf(k)>=0){ hasTf=true; tf[k]=o; if(o.from!=null) hasTfFrom=true; } else css[k]=o; }
-                        function tfStr(w){ var s=''; for(var k in tf){ var val=tf[k][w]; if(val==null) val=tf[k].to; s+=k+'('+unit(k,val)+') '; } return s.trim(); }
-                        var kf0={}, kf1={};
-                        for(var c in css){ if(css[c].from!=null) kf0[c]=css[c].from; kf1[c]=css[c].to; }
-                        if(hasTf){ if(hasTfFrom) kf0.transform=tfStr('from'); kf1.transform=tfStr('to'); }
-                        for(var c2 in css){ try{ el.style[c2]=css[c2].to; }catch(e){} }
-                        if(hasTf){ try{ el.style.transform=tfStr('to'); }catch(e){} }
-                        if(el.animate){ try{ el.animate([kf0,kf1],{duration:dur,delay:delay||0,easing:ease(opts.easing),fill:'both'}); }catch(e){} }
+                      // Chromium handles hover prefetch/prerender via the
+                      // speculationrules block above, don't double up there.
+                      if (window.HTMLScriptElement && HTMLScriptElement.supports && HTMLScriptElement.supports('speculationrules')) return;
+                      var seen = new Set();
+                      function prefetch(href){
+                        if (seen.has(href)) return; seen.add(href);
+                        var l = document.createElement('link');
+                        l.rel = 'prefetch'; l.href = href; document.head.appendChild(l);
                       }
-                      function tweenObj(obj,opts,delay){
-                        var dur=opts.duration||0, upd=opts.update, round=opts.round, tg={};
-                        for(var k in opts){ if(SKIP.indexOf(k)>=0) continue; var o=ft(opts[k]); tg[k]={from:(o.from!=null?o.from:(obj[k]||0)),to:o.to}; }
-                        var start=null;
-                        function frame(ts){ if(start==null) start=ts; var p=dur>0?Math.min(1,(ts-start)/dur):1; for(var k in tg){ var v=tg[k].from+(tg[k].to-tg[k].from)*p; if(round) v=Math.round(v*round)/round; obj[k]=v; } if(upd) upd(obj); if(p<1) requestAnimationFrame(frame); }
-                        setTimeout(function(){ requestAnimationFrame(frame); }, delay||0);
+                      function onIntent(e){
+                        var a = e.target && e.target.closest && e.target.closest('a[href]');
+                        if (!a || a.origin !== location.origin) return;
+                        if (a.target === '_blank' || a.hasAttribute('data-no-prefetch')) return;
+                        if (a.hash && a.pathname === location.pathname) return; // same-page anchor
+                        prefetch(a.href);
                       }
-                      function run(opts){ var els=toEls(opts.targets); var isObj=els.length===1 && !(els[0] instanceof Element) && !(els[0]&&els[0].nodeType); if(isObj){ tweenObj(els[0],opts,(typeof opts.delay==='number'?opts.delay:0)); return; } els.forEach(function(el,i){ var d=(typeof opts.delay==='function')?opts.delay(el,i):(opts.delay||0); animateEl(el,opts,d); }); }
-                      function anime(opts){ run(opts); return {}; }
-                      anime.stagger=function(v,o){ o=o||{}; return function(el,i){ return (o.start||0)+i*v; }; };
-                      anime.timeline=function(t){ t=t||{}; var cursor=0; var tl={ add:function(params,offset){ var p={}; for(var a in t) p[a]=t[a]; for(var b in params) p[b]=params[b]; var start=cursor; if(typeof offset==='string'){ var n=parseFloat(offset.slice(2))||0; if(offset[0]==='-') start=cursor-n; else if(offset[0]==='+') start=cursor+n; } else if(typeof offset==='number'){ start=offset; } var els=toEls(p.targets); var last=0; els.forEach(function(el,i){ var dd=(typeof p.delay==='function')?p.delay(el,i):(p.delay||0); last=Math.max(last,dd); animateEl(el,p,start+dd); }); cursor=start+last+(p.duration||0); return tl; } }; return tl; };
-                      window.anime=anime;
+                      ['pointerover','focusin','touchstart'].forEach(function(ev){
+                        document.addEventListener(ev, onIntent, { passive: true });
+                      });
                     })();
                     "#
                 </script>
+
+                // Register the service worker (offline fallback; network-first so
+                // it never serves a stale page while online).
+                <script>
+                    r#"if ('serviceWorker' in navigator) { addEventListener('load', function(){ navigator.serviceWorker.register('/sw.js').catch(function(){}); }); }"#
+                </script>
+
                 <style>
                     "body{background:radial-gradient(1200px 620px at 15% -8%,rgba(168,85,247,0.12),transparent 60%),radial-gradient(1000px 520px at 100% 0%,rgba(34,211,238,0.07),transparent 55%),#09040f;background-attachment:fixed;min-height:100vh}
                     html,body{scrollbar-width:thin;scrollbar-color:#241633 #09040f}
@@ -125,7 +161,7 @@ pub fn Shell() -> impl IntoView {
     }
 }
 
-/// Minimal shell for embed pages — no nav, no footer, no app wrapper.
+/// Minimal shell for embed pages, no nav, no footer, no app wrapper.
 #[component]
 pub fn EmbedShell() -> impl IntoView {
     view! {

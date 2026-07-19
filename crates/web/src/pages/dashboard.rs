@@ -296,10 +296,6 @@ pub fn DashboardPage() -> impl IntoView {
                 document.getElementById('assets-prev').disabled = dbAssetPage <= 1;
                 document.getElementById('assets-next').disabled = dbAssetPage >= totalPages;
 
-                // Animate rows
-                if (typeof anime !== 'undefined') {
-                    anime({ targets: '#assets-container .db-row', opacity: [0,1], translateX: [-15,0], delay: anime.stagger(30), duration: 400, easing: 'easeOutCubic' });
-                }
             }
 
             // ── Game renderers ──
@@ -378,9 +374,6 @@ pub fn DashboardPage() -> impl IntoView {
                 document.getElementById('games-prev').disabled = dbGamePage <= 1;
                 document.getElementById('games-next').disabled = dbGamePage >= totalPages;
 
-                if (typeof anime !== 'undefined') {
-                    anime({ targets: '#games-container .db-row', opacity: [0,1], translateX: [-15,0], delay: anime.stagger(30), duration: 400, easing: 'easeOutCubic' });
-                }
             }
 
             // ── Earnings renderer ──
@@ -498,9 +491,6 @@ pub fn DashboardPage() -> impl IntoView {
                             </div>` : ''}
                         </div>`;
 
-                    if (typeof anime !== 'undefined') {
-                        anime({ targets: '#progress-container > div > div', opacity: [0,1], translateY: [20,0], delay: anime.stagger(80), duration: 500, easing: 'easeOutCubic' });
-                    }
                 } catch(e) { console.error(e); container.innerHTML = '<p class="text-zinc-600 text-sm text-center py-12">Failed to load.</p>'; }
             }
 
@@ -561,21 +551,9 @@ pub fn DashboardPage() -> impl IntoView {
                 document.getElementById('dashboard-loading').classList.add('hidden');
                 document.getElementById('dashboard-content').classList.remove('hidden');
 
-                // anime.js entrance animations
-                if (typeof anime !== 'undefined') {
-                    // Stat cards bounce in
-                    anime({ targets: '.grid.grid-cols-2 > div', opacity: [0,1], translateY: [25,0], scale: [0.9,1], delay: anime.stagger(80), duration: 600, easing: 'easeOutBack' });
-                    // Tab bar slide in
-                    anime({ targets: '.flex.items-center.justify-between', opacity: [0,1], translateX: [-20,0], duration: 500, easing: 'easeOutCubic', delay: 300 });
-                }
             })();
             "#
         </script>
 
-        <style>
-            r#"
-            .db-row { opacity: 0; }
-            "#
-        </style>
     }
 }

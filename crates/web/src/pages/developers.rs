@@ -4,7 +4,7 @@ use leptos_meta::{Title, Meta};
 #[component]
 pub fn DevelopersPage() -> impl IntoView {
     view! {
-        <Title text="Renzora for Developers — API, Plugins & Source" />
+        <Title text="Renzora for Developers, API, Plugins & Source" />
         <Meta name="description" content="Build on Renzora: REST API reference, plugin development and the architecture of the open-source Bevy editor. Extend the engine with hot-loadable cdylibs." />
 
         <section class="py-12 px-6 min-h-screen">
@@ -215,7 +215,7 @@ pub fn DevelopersPage() -> impl IntoView {
                 var data = await res.json();
                 if (data.client_id) {
                     document.getElementById('register-app-form').classList.add('hidden');
-                    alert('App registered!\\n\\nClient ID: ' + data.client_id + '\\nClient Secret: ' + data.client_secret + '\\n\\nSave the secret — it will not be shown again.');
+                    alert('App registered!\\n\\nClient ID: ' + data.client_id + '\\nClient Secret: ' + data.client_secret + '\\n\\nSave the secret, it will not be shown again.');
                     window.location.reload();
                 } else {
                     errorEl.textContent = data.error || data.message || 'Failed to register app';
@@ -236,7 +236,7 @@ pub fn DevelopersPage() -> impl IntoView {
                     const scopeList = ['profile:read','friends:read','friends:write','achievements:read','achievements:write','stats:read','stats:write','leaderboards:read','leaderboards:write','inventory:read'];
                     let msg = 'Tokens for ' + appName + ':\\n\\n';
                     if (tokens.length === 0) msg += '(no tokens)\\n';
-                    else tokens.forEach(t => { msg += t.name + ' (' + t.prefix + '...) — ' + t.scopes.join(', ') + '\\n'; });
+                    else tokens.forEach(t => { msg += t.name + ' (' + t.prefix + '...),' + t.scopes.join(', ') + '\\n'; });
                     msg += '\\nCreate a new token? Enter a name (or Cancel):';
                     const tokenName = prompt(msg);
                     if (!tokenName) return;
@@ -250,7 +250,7 @@ pub fn DevelopersPage() -> impl IntoView {
                     });
                     const data = await createRes.json();
                     if (!createRes.ok) { alert(data.error || 'Failed to create token'); return; }
-                    alert('Token created!\\n\\n' + data.token + '\\n\\nScopes: ' + data.scopes.join(', ') + '\\n\\nSave this — it will not be shown again.');
+                    alert('Token created!\\n\\n' + data.token + '\\n\\nScopes: ' + data.scopes.join(', ') + '\\n\\nSave this, it will not be shown again.');
                 } catch(e) { alert('Error: ' + e.message); }
             }
 

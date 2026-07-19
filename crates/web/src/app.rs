@@ -45,13 +45,17 @@ pub fn App() -> impl IntoView {
 
     view! {
         <Stylesheet href="/assets/style/main.css" />
-        <Title text="Renzora — Open Source Bevy Editor & Game Engine" />
-        <Meta name="description" content="Renzora is a free, open-source Bevy editor and game engine — a full 2D & 3D visual editor for Bevy with Lua & Rhai scripting, a plugin system, physics and real-time rendering, built in Rust. Download for Windows, macOS, Linux and the web." />
+        // Preload the icon-font subset, Phosphor glyphs render in the nav above
+        // the fold on every page, so fetch it in parallel with the CSS instead of
+        // waiting for the stylesheet to be parsed to discover the @font-face.
+        <Link rel="preload" href="/assets/fonts/phosphor-regular.woff2" as_="font" crossorigin="anonymous" />
+        <Title text="Renzora, Open Source Bevy Editor & Game Engine" />
+        <Meta name="description" content="Renzora is a free, open-source Bevy editor and game engine, a full 2D & 3D visual editor for Bevy with Lua & Rhai scripting, a plugin system, physics and real-time rendering, built in Rust. Download for Windows, macOS, Linux and the web." />
         <Meta property="og:type" content="website" />
         <Meta property="og:site_name" content="Renzora" />
-        <Meta property="og:title" content="Renzora — Open Source Bevy Editor & Game Engine" />
-        <Meta property="og:description" content="A free, open-source Bevy editor and game engine — full 2D & 3D scene tooling, scripting, plugins, physics and real-time rendering, built in Rust on Bevy 0.19." />
-        <Meta property="og:image" content="https://renzora.com/assets/previews/interface.png" />
+        <Meta property="og:title" content="Renzora, Open Source Bevy Editor & Game Engine" />
+        <Meta property="og:description" content="A free, open-source Bevy editor and game engine, full 2D & 3D scene tooling, scripting, plugins, physics and real-time rendering, built in Rust on Bevy 0.19." />
+        <Meta property="og:image" content="https://renzora.com/assets/previews/og.jpg" />
         <Meta property="og:url" content="https://renzora.com/" />
 
         <Router>

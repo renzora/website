@@ -7,7 +7,7 @@ pub fn SellOnboardingPage() -> impl IntoView {
             <div class="max-w-2xl mx-auto">
                 <div id="onboard-loading" class="text-center py-12 text-zinc-500 text-sm">"Checking onboarding status..."</div>
 
-                // Already onboarded — redirect message
+                // Already onboarded, redirect message
                 <div id="onboard-complete" class="hidden text-center py-12">
                     <div class="w-16 h-16 bg-green-500/10 rounded-full flex items-center justify-center mx-auto mb-4">
                         <i class="ph ph-check-circle text-3xl text-green-400"></i>
@@ -125,7 +125,7 @@ pub fn SellOnboardingPage() -> impl IntoView {
                                 <i class="ph ph-stripe-logo text-lg"></i>"Connect with Stripe"
                             </button>
                             <button onclick="skipStripe()" class="w-full text-center text-xs text-zinc-500 hover:text-zinc-400 transition-colors cursor-pointer">
-                                "Skip for now — you can set this up later in Settings (required for paid assets)"
+                                "Skip for now, you can set this up later in Settings (required for paid assets)"
                             </button>
                         </div>
                     </div>
@@ -279,7 +279,7 @@ pub fn SellOnboardingPage() -> impl IntoView {
             }
 
             function skipStripe() {
-                // Skip to step 3 — they can only upload free assets
+                // Skip to step 3, they can only upload free assets
                 document.getElementById('step-2-content').classList.add('hidden');
                 document.getElementById('step-2-badge').innerHTML = 'Skipped';
                 document.getElementById('step-2-badge').classList.remove('hidden', 'bg-green-500/10', 'text-green-400');

@@ -3,7 +3,7 @@ use leptos::prelude::*;
 #[component]
 pub fn ShopPage() -> impl IntoView {
     view! {
-        // The page starts empty — no site chrome colors leak in
+        // The page starts empty, no site chrome colors leak in
         <div id="shop-root">
             <div class="flex items-center justify-center min-h-screen">
                 <div class="inline-block animate-spin w-6 h-6 border-2 border-zinc-700 border-t-white rounded-full"></div>

@@ -231,11 +231,11 @@ pub fn AssetEditPage() -> impl IntoView {
                 const el = document.getElementById('edit-price-preview');
                 if (!el) return;
                 if (price === 0) {
-                    el.textContent = 'Free — anyone can download';
+                    el.textContent = 'Free, anyone can download';
                 } else {
                     const usd = (price * 0.10).toFixed(2);
                     const earn = (price * 0.08).toFixed(2);
-                    el.textContent = `${price} credits ($${usd}) — you earn ${Math.floor(price * 0.8)} credits ($${earn})`;
+                    el.textContent = `${price} credits ($${usd}), you earn ${Math.floor(price * 0.8)} credits ($${earn})`;
                 }
             }
 

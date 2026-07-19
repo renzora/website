@@ -6,10 +6,17 @@
     "build": "npm run build:icons && npm run build:css",
     "build:css": "tailwindcss -i assets/style/input.css -o assets/style/main.css --minify",
     "watch:css": "tailwindcss -i assets/style/input.css -o assets/style/main.css --watch",
-    "build:icons": "node scripts/build-icons.mjs"
+    "build:icons": "node scripts/build-icons.mjs",
+    "optimize:images": "node scripts/optimize-images.mjs",
+    "perf": "node scripts/perf.mjs",
+    "perf:local": "node scripts/perf.mjs --local",
+    "perf:compare": "node scripts/perf.mjs --compare"
   },
   "devDependencies": {
     "@phosphor-icons/web": "^2.1.1",
+    "chrome-launcher": "^1.1.2",
+    "lighthouse": "^12.2.1",
+    "sharp": "^0.35.3",
     "subset-font": "^2.3.0",
     "tailwindcss": "^3.4.17"
   }

@@ -1,25 +1,27 @@
 use leptos::prelude::*;
 use leptos_meta::{Title, Meta};
 
-/// FAQ structured data (FAQPage). Mirrors the visible FAQ section below — the
+/// FAQ structured data (FAQPage). Mirrors the visible FAQ section below, the
 /// answers target long-tail queries like "what is a Bevy editor" and "is
 /// Renzora free", reinforcing relevance for the "Bevy editor" term.
-const FAQ_JSONLD: &str = r#"{"@context":"https://schema.org","@type":"FAQPage","mainEntity":[{"@type":"Question","name":"What is Renzora?","acceptedAnswer":{"@type":"Answer","text":"Renzora is a free, open-source Bevy editor and game engine. It gives the Bevy ecosystem a full visual editor — scene tooling, an inspector, scripting, physics, real-time rendering and a marketplace — all built in Rust."}},{"@type":"Question","name":"Is Renzora free and open source?","acceptedAnswer":{"@type":"Answer","text":"Yes. Renzora is completely free and open source under the MIT and Apache-2.0 licenses. You can download it, read the source on GitHub, and extend it with plugins."}},{"@type":"Question","name":"What is a Bevy editor?","acceptedAnswer":{"@type":"Answer","text":"Bevy is a Rust game engine that ships as a code framework without an official visual editor. A Bevy editor like Renzora adds a graphical interface on top — letting you build scenes, edit components, write scripts and preview your game without writing all the boilerplate by hand."}},{"@type":"Question","name":"Which platforms can Renzora export to?","acceptedAnswer":{"@type":"Answer","text":"Renzora exports one project to six targets: Windows, macOS, Linux, Android, iOS and the web via WebAssembly."}},{"@type":"Question","name":"How do I script games in Renzora?","acceptedAnswer":{"@type":"Answer","text":"You can script gameplay in Lua 5.4 or Rhai — Renzora chooses the runtime by file extension — or use visual Blueprint node graphs. Nearly every feature is also a hot-loadable plugin."}}]}"#;
+const FAQ_JSONLD: &str = r#"{"@context":"https://schema.org","@type":"FAQPage","mainEntity":[{"@type":"Question","name":"What is Renzora?","acceptedAnswer":{"@type":"Answer","text":"Renzora is a free, open-source Bevy editor and game engine. It gives the Bevy ecosystem a full visual editor, scene tooling, an inspector, scripting, physics, real-time rendering and a marketplace, all built in Rust."}},{"@type":"Question","name":"Is Renzora free and open source?","acceptedAnswer":{"@type":"Answer","text":"Yes. Renzora is completely free and open source under the MIT and Apache-2.0 licenses. You can download it, read the source on GitHub, and extend it with plugins."}},{"@type":"Question","name":"What is a Bevy editor?","acceptedAnswer":{"@type":"Answer","text":"Bevy is a Rust game engine that ships as a code framework without an official visual editor. A Bevy editor like Renzora adds a graphical interface on top, letting you build scenes, edit components, write scripts and preview your game without writing all the boilerplate by hand."}},{"@type":"Question","name":"Which platforms can Renzora export to?","acceptedAnswer":{"@type":"Answer","text":"Renzora exports one project to six targets: Windows, macOS, Linux, Android, iOS and the web via WebAssembly."}},{"@type":"Question","name":"How do I script games in Renzora?","acceptedAnswer":{"@type":"Answer","text":"You can script gameplay in Lua 5.4 or Rhai, Renzora chooses the runtime by file extension, or use visual Blueprint node graphs. Nearly every feature is also a hot-loadable plugin."}}]}"#;
 
 #[component]
 pub fn HomePage() -> impl IntoView {
     view! {
-        <Title text="Renzora — The Open Source Bevy Editor" />
-        <Meta name="description" content="Renzora is a free, open-source Bevy editor — a full 2D & 3D visual editor for Bevy with Lua & Rhai scripting, hot-loadable plugins, physics and real-time rendering. Built in Rust. Download for Windows, macOS, Linux and the web." />
-
+        <Title text="Renzora, The Open Source Bevy Editor" />
+        <Meta name="description" content="Renzora is a free, open-source Bevy editor, a full 2D & 3D visual editor for Bevy with Lua & Rhai scripting, hot-loadable plugins, physics and real-time rendering. Built in Rust. Download for Windows, macOS, Linux and the web." />
         <div class="max-w-6xl mx-auto px-4 sm:px-6 py-6 space-y-12 sm:space-y-16">
 
-            // ── Hero card (editor screenshot behind, text on top) ──
-            <section class="reveal relative overflow-hidden rounded-2xl border border-white/[0.08] min-h-[440px] flex items-center">
-                <img src="/assets/previews/interface.webp" alt="The Renzora editor with a Times Square scene, hierarchy, inspector and asset browser" class="absolute inset-0 w-full h-full object-cover object-right" fetchpriority="high" decoding="async" />
-                // Uniform overlay — same opacity across the whole header
-                <div class="absolute inset-0 bg-[#0b0617]/80"></div>
-                <div class="absolute inset-0 bg-accent/[0.07] pointer-events-none"></div>
+            // ── Hero, gradient + ambient glows, no screenshot. The editor shots
+            // live in the feature rows below (where they have context); keeping
+            // the hero image-free makes the LCP a text element that paints at the
+            // first render instead of waiting on an image decode.
+            <section class="reveal relative overflow-hidden rounded-2xl border border-white/[0.08] min-h-[440px] flex items-center bg-surface-card">
+                <div class="absolute inset-0 bg-gradient-to-br from-accent/15 via-transparent to-secondary/15 pointer-events-none"></div>
+                <div class="absolute -top-24 left-1/4 w-96 h-96 rounded-full bg-accent/20 blur-[120px] pointer-events-none"></div>
+                <div class="absolute -bottom-24 right-1/4 w-96 h-96 rounded-full bg-secondary/15 blur-[120px] pointer-events-none"></div>
+                <div class="absolute top-0 left-1/2 -translate-x-1/2 w-2/3 h-px bg-gradient-to-r from-transparent via-accent/50 to-transparent"></div>
                 <div class="relative z-10 p-8 sm:p-12 w-full">
                     <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/[0.08] border border-white/[0.12] text-xs font-medium text-zinc-100 backdrop-blur-sm">
                         <span class="w-1.5 h-1.5 rounded-full bg-secondary animate-pulse"></span>
@@ -33,7 +35,7 @@ pub fn HomePage() -> impl IntoView {
                     <p class="mt-5 text-base sm:text-lg text-zinc-200 leading-relaxed [text-shadow:0_1px_3px_rgba(0,0,0,0.5)]">
                         "Renzora is a free, open-source "
                         <span class="text-white font-medium">"Bevy editor"</span>
-                        " — a complete 2D & 3D visual editor with Lua & Rhai scripting, physics and "
+                        ", a complete 2D & 3D visual editor with Lua & Rhai scripting, physics and "
                         "real-time rendering, engineered in Rust on Bevy 0.19."
                     </p>
                     <div class="mt-8 flex flex-wrap gap-3">
@@ -72,17 +74,17 @@ pub fn HomePage() -> impl IntoView {
                 <div class="text-center mb-10">
                     <span class="text-xs font-semibold uppercase tracking-widest text-accent">"Everything in one editor"</span>
                     <h2 class="text-2xl sm:text-3xl font-bold mt-2 text-white">"Eight systems, one engine"</h2>
-                    <p class="text-zinc-500 mt-3 text-sm sm:text-base max-w-xl mx-auto">"Not a thin wrapper — a full production toolkit, with almost every feature shipping as its own plugin."</p>
+                    <p class="text-zinc-500 mt-3 text-sm sm:text-base max-w-xl mx-auto">"Not a thin wrapper, a full production toolkit, with almost every feature shipping as its own plugin."</p>
                 </div>
                 <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
                     <PillarCard icon="ph-stack" color="from-violet-500 to-purple-600" title="Scene Editor" desc="Dockable panels, nested hierarchy, and a reflection-driven inspector with custom components." />
                     <PillarCard icon="ph-code" color="from-fuchsia-500 to-violet-600" title="Scripting" desc="Lua 5.4 and Rhai chosen by file extension, plus visual Blueprint node graphs." />
-                    <PillarCard icon="ph-puzzle-piece" color="from-cyan-400 to-sky-500" title="Plugin System" desc="Almost every feature is a plugin — hot-load cdylibs into plugins/ with renzora::add!." />
+                    <PillarCard icon="ph-puzzle-piece" color="from-cyan-400 to-sky-500" title="Plugin System" desc="Almost every feature is a plugin, hot-load cdylibs into plugins/ with renzora::add!." />
                     <PillarCard icon="ph-atom" color="from-emerald-400 to-teal-500" title="Physics" desc="Rigid bodies, colliders and queries powered by the Avian physics engine." />
                     <PillarCard icon="ph-paint-brush-broad" color="from-sky-400 to-blue-500" title="Materials & Shaders" desc="Node-based PBR material graph, custom WGSL, and 50+ post-process effects." />
                     <PillarCard icon="ph-browsers" color="from-rose-400 to-pink-500" title="Ember UI" desc="Build game and editor UI from .html templates with reactive bindings." />
                     <PillarCard icon="ph-devices" color="from-amber-400 to-orange-500" title="Cross-Platform" desc="Export to Windows, Linux, macOS, Android, iOS and the Web." />
-                    <PillarCard icon="ph-bug" color="from-orange-400 to-red-500" title="Debugging" desc="An 11-panel debugger — profiler, memory, ECS, render and physics stats." />
+                    <PillarCard icon="ph-bug" color="from-orange-400 to-red-500" title="Debugging" desc="An 11-panel debugger, profiler, memory, ECS, render and physics stats." />
                 </div>
             </section>
 
@@ -99,11 +101,11 @@ pub fn HomePage() -> impl IntoView {
                     icon="ph-stack"
                     eyebrow="Scene Editor"
                     title="A reflection-driven editor that understands your types"
-                    body="Compose scenes across up to four viewports with transform gizmos, organize everything in a nested hierarchy, and edit any component in an inspector generated straight from your Rust types. Derive Inspectable on your own structs and they show up — fully editable and serialized with the scene."
+                    body="Compose scenes across up to four viewports with transform gizmos, organize everything in a nested hierarchy, and edit any component in an inspector generated straight from your Rust types. Derive Inspectable on your own structs and they show up, fully editable and serialized with the scene."
                     chips=vec!["Custom components", "Up to 4 viewports", "Transform gizmos"]
                     img="/assets/previews/inspector.webp"
                     alt="The inspector showing a World Environment with transform, directional light, volumetric light and TAA components"
-                    caption="The inspector stacks a World Environment's components — transform, directional light, volumetric god rays and TAA."
+                    caption="The inspector stacks a World Environment's components, transform, directional light, volumetric god rays and TAA."
                     reversed=false
                 />
                 <FeatureRow
@@ -111,7 +113,7 @@ pub fn HomePage() -> impl IntoView {
                     icon="ph-sun"
                     eyebrow="Real-Time Rendering"
                     title="Bevy's renderer, tuned for beautiful real-time scenes"
-                    body="Physically based shading, dynamic lighting and Lumen global illumination render your worlds as you build them. Light a moody neon cafe, a rain-slick street or a daytime cityscape and iterate live in the viewport — what you see is what ships."
+                    body="Physically based shading, dynamic lighting and Lumen global illumination render your worlds as you build them. Light a moody neon cafe, a rain-slick street or a daytime cityscape and iterate live in the viewport, what you see is what ships."
                     chips=vec!["PBR shading", "Lumen GI", "Live viewport"]
                     img="/assets/previews/viewport.webp"
                     alt="A cinematic render of a Parisian cafe street with a blue scooter selected"
@@ -123,11 +125,11 @@ pub fn HomePage() -> impl IntoView {
                     icon="ph-code"
                     eyebrow="Scripting"
                     title="Script in Lua, Rhai or visual Blueprints"
-                    body="Write gameplay logic in a built-in editor with full syntax highlighting. Renzora picks the runtime from the file extension — Lua 5.4 or Rhai — and visual Blueprint node graphs cover the same ground without code. Hook into lifecycle callbacks like on_update and drive entities directly."
+                    body="Write gameplay logic in a built-in editor with full syntax highlighting. Renzora picks the runtime from the file extension, Lua 5.4 or Rhai, and visual Blueprint node graphs cover the same ground without code. Hook into lifecycle callbacks like on_update and drive entities directly."
                     chips=vec!["Lua 5.4", "Rhai", "Blueprint graphs"]
                     img="/assets/previews/code_editor.webp"
                     alt="The built-in code editor with several Lua scripts open, showing car_physics.lua"
-                    caption="The built-in editor with several Lua scripts open — car_physics.lua handling steering, throttle, brake and handbrake input."
+                    caption="The built-in editor with several Lua scripts open, car_physics.lua handling steering, throttle, brake and handbrake input."
                     reversed=false
                 />
                 <FeatureRow
@@ -135,11 +137,11 @@ pub fn HomePage() -> impl IntoView {
                     icon="ph-puzzle-piece"
                     eyebrow="Plugin Architecture"
                     title="Almost everything is a plugin"
-                    body="Renzora is built from roughly 187 workspace crates, and nearly every feature — from the material graph to the audio mixer — ships as its own plugin. Distribution plugins are hot-loadable cdylibs: drop one into plugins/, register it with renzora::add!, and it appears in the editor."
+                    body="Renzora is built from roughly 187 workspace crates, and nearly every feature, from the material graph to the audio mixer, ships as its own plugin. Distribution plugins are hot-loadable cdylibs: drop one into plugins/, register it with renzora::add!, and it appears in the editor."
                     chips=vec!["~187 crates", "Hot-loadable cdylibs", "renzora::add!"]
                     img="/assets/previews/panels.webp"
                     alt="The Add Panel browser listing dockable panels grouped by category"
-                    caption="The Add Panel browser — dockable panels grouped by Blueprint, Debug, Audio, Material, Particle, Scripting, Shader, Terrain and more."
+                    caption="The Add Panel browser, dockable panels grouped by Blueprint, Debug, Audio, Material, Particle, Scripting, Shader, Terrain and more."
                     reversed=true
                 />
                 <FeatureRow
@@ -147,18 +149,18 @@ pub fn HomePage() -> impl IntoView {
                     icon="ph-atom"
                     eyebrow="Physics & Worlds"
                     title="Populate your world, then bring it to life with Avian"
-                    body="Spawn lights, cameras, terrain, splines and 2D nodes from one searchable Add Entity menu — physics bodies included. The Avian physics engine drives rigid bodies, colliders and queries, with a dedicated physics debug view for when you need to see the simulation."
+                    body="Spawn lights, cameras, terrain, splines and 2D nodes from one searchable Add Entity menu, physics bodies included. The Avian physics engine drives rigid bodies, colliders and queries, with a dedicated physics debug view for when you need to see the simulation."
                     chips=vec!["Avian physics", "Rigid bodies & colliders", "Searchable palette"]
                     img="/assets/previews/add_entity.webp"
                     alt="The Add Entity menu with a category sidebar and a list of entity types including physics"
-                    caption="The Add Entity menu — lights, cameras, terrain, 2D nodes and physics, all in one searchable list."
+                    caption="The Add Entity menu, lights, cameras, terrain, 2D nodes and physics, all in one searchable list."
                     reversed=false
                 />
                 <FeatureRow
                     color="sky"
                     icon="ph-paint-brush-broad"
                     eyebrow="Materials & Shaders"
-                    title="Author PBR materials as a graph — or drop down to WGSL"
+                    title="Author PBR materials as a graph, or drop down to WGSL"
                     body="Wire texture, normal-map and math nodes into a Surface Output exposing base color, metallic, roughness, normal, emissive, AO, clearcoat, anisotropy and more. Need full control? Write custom WGSL shaders and stack over fifty post-process effects on top."
                     chips=vec!["Node graph", "Custom WGSL", "50+ post effects"]
                     img="/assets/previews/material_graph.webp"
@@ -171,7 +173,7 @@ pub fn HomePage() -> impl IntoView {
                     icon="ph-browsers"
                     eyebrow="Ember UI"
                     title="Markup-driven UI for your game and the editor itself"
-                    body="Renzora's Ember system builds interfaces from .html templates with reactive double-brace bindings — the same system powers in-game screens and the editor's own panels. Design a match lobby or a HUD visually, point it at an HTML template and a UI layout, then bind it to scripts."
+                    body="Renzora's Ember system builds interfaces from .html templates with reactive double-brace bindings, the same system powers in-game screens and the editor's own panels. Design a match lobby or a HUD visually, point it at an HTML template and a UI layout, then bind it to scripts."
                     chips=vec![".html templates", "Reactive bindings", "Game + editor UI"]
                     img="/assets/previews/ui.webp"
                     alt="The in-engine UI builder editing a match-lobby screen with HTML Template fields in the inspector"
@@ -183,11 +185,11 @@ pub fn HomePage() -> impl IntoView {
                     icon="ph-bug"
                     eyebrow="Debugging & Profiling"
                     title="Eleven debug panels, a console and a command palette"
-                    body="Profile in real time with FPS, frame timing, memory and render stats, then dig into ECS stats, physics and culling debug, Lumen GI and scripting diagnostics — eleven panels in all. A filterable console with categorized logs and a command palette round out the toolkit."
+                    body="Profile in real time with FPS, frame timing, memory and render stats, then dig into ECS stats, physics and culling debug, Lumen GI and scripting diagnostics, eleven panels in all. A filterable console with categorized logs and a command palette round out the toolkit."
                     chips=vec!["11 debug panels", "Live graphs", "Console & palette"]
                     img="/assets/previews/debugging.webp"
                     alt="The editor with a dense row of diagnostic panels: performance, system, render stats, memory and physics debug"
-                    caption="Live diagnostics docked across the bottom — Performance, System, Render Stats, Memory, Physics and Camera debug, with graphs."
+                    caption="Live diagnostics docked across the bottom, Performance, System, Render Stats, Memory, Physics and Camera debug, with graphs."
                     reversed=true
                 />
             </section>
@@ -200,7 +202,7 @@ pub fn HomePage() -> impl IntoView {
                     <div class="text-center max-w-xl mx-auto mb-8">
                         <span class="text-xs font-semibold uppercase tracking-widest text-accent">"Cross-Platform Export"</span>
                         <h2 class="text-2xl sm:text-3xl font-bold mt-2 text-white">"One project. Six platforms."</h2>
-                        <p class="text-zinc-400 mt-3">"Build once and export to desktop, mobile and the browser — Windows, Linux, macOS, Android, iOS and the Web via WebAssembly."</p>
+                        <p class="text-zinc-400 mt-3">"Build once and export to desktop, mobile and the browser, Windows, Linux, macOS, Android, iOS and the Web via WebAssembly."</p>
                     </div>
                     <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
                         <PlatformTile icon="ph-windows-logo" name="Windows" />
@@ -220,7 +222,7 @@ pub fn HomePage() -> impl IntoView {
                         <span class="text-xs font-semibold uppercase tracking-widest text-accent">"Inside the editor"</span>
                         <h2 class="text-xl sm:text-2xl font-bold mt-1 text-white">"More of the toolkit"</h2>
                     </div>
-                    <p class="text-sm text-zinc-500 max-w-sm">"Hierarchy, audio mixing, the Hub Store, the asset browser and the console — every panel is real and dockable."</p>
+                    <p class="text-sm text-zinc-500 max-w-sm">"Hierarchy, audio mixing, the Hub Store, the asset browser and the console, every panel is real and dockable."</p>
                 </div>
                 <div class="grid grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
                     <GalleryShot img="/assets/previews/hierarchy.webp" label="Scene hierarchy with nested glTF imports and per-object visibility." />
@@ -261,11 +263,11 @@ pub fn HomePage() -> impl IntoView {
                     <h2 class="text-2xl sm:text-3xl font-bold mt-2 text-white">"Frequently asked questions"</h2>
                 </div>
                 <div class="max-w-3xl mx-auto space-y-3">
-                    <FaqItem q="What is Renzora?" a="Renzora is a free, open-source Bevy editor and game engine. It gives the Bevy ecosystem a full visual editor — scene tooling, an inspector, scripting, physics, real-time rendering and a marketplace — all built in Rust." />
+                    <FaqItem q="What is Renzora?" a="Renzora is a free, open-source Bevy editor and game engine. It gives the Bevy ecosystem a full visual editor, scene tooling, an inspector, scripting, physics, real-time rendering and a marketplace, all built in Rust." />
                     <FaqItem q="Is Renzora free and open source?" a="Yes. Renzora is completely free and open source under the MIT and Apache-2.0 licenses. You can download it, read the source on GitHub, and extend it with plugins." />
-                    <FaqItem q="What is a Bevy editor?" a="Bevy is a Rust game engine that ships as a code framework without an official visual editor. A Bevy editor like Renzora adds a graphical interface on top — letting you build scenes, edit components, write scripts and preview your game without writing all the boilerplate by hand." />
+                    <FaqItem q="What is a Bevy editor?" a="Bevy is a Rust game engine that ships as a code framework without an official visual editor. A Bevy editor like Renzora adds a graphical interface on top, letting you build scenes, edit components, write scripts and preview your game without writing all the boilerplate by hand." />
                     <FaqItem q="Which platforms can Renzora export to?" a="Renzora exports one project to six targets: Windows, macOS, Linux, Android, iOS and the web via WebAssembly." />
-                    <FaqItem q="How do I script games in Renzora?" a="You can script gameplay in Lua 5.4 or Rhai — Renzora chooses the runtime by file extension — or use visual Blueprint node graphs. Nearly every feature is also a hot-loadable plugin." />
+                    <FaqItem q="How do I script games in Renzora?" a="You can script gameplay in Lua 5.4 or Rhai, Renzora chooses the runtime by file extension, or use visual Blueprint node graphs. Nearly every feature is also a hot-loadable plugin." />
                 </div>
                 <script type="application/ld+json" inner_html=FAQ_JSONLD></script>
             </section>
@@ -304,12 +306,13 @@ pub fn HomePage() -> impl IntoView {
                 function card(a, i) {
                     const price = a.price_credits === 0
                         ? '<span class="text-emerald-400 font-semibold">Free</span>'
-                        : `<span class="inline-flex items-center gap-1 text-zinc-200 font-semibold"><i class="ph-fill ph-diamond text-[11px] text-secondary"></i>${(a.price_credits||0).toLocaleString()}</span>`;
+                        : `<span class="inline-flex items-center gap-1 text-zinc-200 font-semibold"><i class="ph ph-diamond text-[11px] text-secondary"></i>${(a.price_credits||0).toLocaleString()}</span>`;
                     const rating = (a.rating_count > 0)
-                        ? `<span class="inline-flex items-center gap-1 text-amber-400"><i class="ph-fill ph-star text-[11px]"></i>${(a.rating_avg||0).toFixed(1)}</span>`
+                        ? `<span class="inline-flex items-center gap-1 text-amber-400"><i class="ph ph-star text-[11px]"></i>${(a.rating_avg||0).toFixed(1)}</span>`
                         : `<span class="text-zinc-600">New</span>`;
-                    const thumb = a.thumbnail_url
-                        ? `<img src="${a.thumbnail_url}" loading="lazy" class="absolute inset-0 w-full h-full object-cover" />`
+                    const altText = (a.name || 'Marketplace asset').replace(/"/g, '&quot;');
+                    const thumb = (a.thumbnail_url && String(a.thumbnail_url).trim())
+                        ? `<img src="${a.thumbnail_url}" alt="${altText}" loading="lazy" class="absolute inset-0 w-full h-full object-cover" />`
                         : `<div class="absolute inset-0 bg-gradient-to-br ${gradients[i % gradients.length]}"></div>`;
                     const cat = (a.category || 'Asset').toString();
                     return `
@@ -329,7 +332,7 @@ pub fn HomePage() -> impl IntoView {
                     .then(data => {
                         const assets = (data.assets || []).slice(0, 4);
                         if (!assets.length) {
-                            grid.innerHTML = '<a href="/marketplace" class="col-span-2 lg:col-span-4 rounded-xl border border-dashed border-white/[0.1] p-8 text-center text-sm text-zinc-500 hover:text-zinc-300 hover:border-white/20 transition-all">The marketplace is just getting started — browse what\'s there →</a>';
+                            grid.innerHTML = '<a href="/marketplace" class="col-span-2 lg:col-span-4 rounded-xl border border-dashed border-white/[0.1] p-8 text-center text-sm text-zinc-500 hover:text-zinc-300 hover:border-white/20 transition-all">The marketplace is just getting started, browse what\'s there →</a>';
                             return;
                         }
                         grid.innerHTML = assets.map(card).join('');
@@ -337,36 +340,6 @@ pub fn HomePage() -> impl IntoView {
                     .catch(() => {
                         grid.innerHTML = '<a href="/marketplace" class="col-span-2 lg:col-span-4 rounded-xl border border-dashed border-white/[0.1] p-8 text-center text-sm text-zinc-500 hover:text-zinc-300 transition-all">Browse the marketplace →</a>';
                     });
-            })();
-
-            // ── Scroll reveal + stat counters ──
-            (function() {
-                const hasAnime = typeof anime !== 'undefined';
-                const obs = new IntersectionObserver((entries) => {
-                    entries.forEach(e => {
-                        if (!e.isIntersecting) return;
-                        if (hasAnime) anime({ targets: e.target, opacity: [0,1], translateY: [24,0], duration: 700, easing: 'easeOutCubic' });
-                        else e.target.style.opacity = 1;
-                        obs.unobserve(e.target);
-                    });
-                }, { threshold: 0.08 });
-                document.querySelectorAll('.reveal, .feature-row, .pillar-card').forEach(el => { el.style.opacity = 0; obs.observe(el); });
-
-                const counterObs = new IntersectionObserver((entries) => {
-                    entries.forEach(entry => {
-                        if (!entry.isIntersecting) return;
-                        const el = entry.target;
-                        const target = parseInt(el.dataset.target);
-                        const suffix = el.dataset.suffix || '';
-                        if (hasAnime && target) {
-                            const obj = { val: 0 };
-                            anime({ targets: obj, val: target, round: 1, duration: 1400, easing: 'easeOutExpo',
-                                update: () => { el.textContent = obj.val + suffix; } });
-                        } else { el.textContent = target + suffix; }
-                        counterObs.unobserve(el);
-                    });
-                }, { threshold: 0.5 });
-                document.querySelectorAll('.counter').forEach(el => counterObs.observe(el));
             })();
             "#
         </script>
@@ -388,10 +361,10 @@ pub fn HomePage() -> impl IntoView {
 
 #[component]
 fn StatCard(target: &'static str, suffix: &'static str, label: &'static str, color: &'static str) -> impl IntoView {
-    let value_class = format!("text-2xl sm:text-3xl font-extrabold counter {}", color);
+    let value_class = format!("text-2xl sm:text-3xl font-extrabold {}", color);
     view! {
         <div class="rounded-xl border border-white/[0.07] bg-white/[0.02] p-4 sm:p-5 text-center">
-            <div class=value_class data-target=target data-suffix=suffix>"0"</div>
+            <div class=value_class>{target}{suffix}</div>
             <div class="text-[11px] text-zinc-500 mt-1.5 uppercase tracking-wider">{label}</div>
         </div>
     }
@@ -454,7 +427,10 @@ fn FeatureRow(
                 <div class="group relative rounded-2xl overflow-hidden border border-white/[0.08] bg-surface-card shadow-2xl shadow-black/40">
                     <div class="pointer-events-none absolute inset-0 bg-gradient-to-tr from-accent/10 via-transparent to-secondary/10 z-10"></div>
                     <div class="pointer-events-none absolute inset-0 ring-1 ring-inset ring-white/5 rounded-2xl z-10"></div>
-                    <img src=img alt=alt loading="lazy" data-zoom="1" class="relative w-full h-auto block transition-transform duration-500 group-hover:scale-[1.02]" />
+                    <picture class="contents">
+                        <source srcset=img.replace(".webp", ".avif") type="image/avif" />
+                        <img src=img alt=alt loading="lazy" data-zoom="1" class="relative w-full h-auto block transition-transform duration-500 group-hover:scale-[1.02]" />
+                    </picture>
                 </div>
                 <p class="mt-3 text-xs text-zinc-500 italic leading-relaxed">{caption}</p>
             </div>
@@ -477,7 +453,10 @@ fn PlatformTile(icon: &'static str, name: &'static str) -> impl IntoView {
 fn GalleryShot(img: &'static str, label: &'static str) -> impl IntoView {
     view! {
         <figure class="group relative rounded-xl overflow-hidden border border-white/[0.07] bg-surface-card">
-            <img src=img alt=label loading="lazy" data-zoom="1" class="w-full h-44 object-cover object-top transition-transform duration-500 group-hover:scale-105" />
+            <picture class="contents">
+                <source srcset=img.replace(".webp", ".avif") type="image/avif" />
+                <img src=img alt=label loading="lazy" data-zoom="1" class="w-full h-44 object-cover object-top transition-transform duration-500 group-hover:scale-105" />
+            </picture>
             <figcaption class="absolute inset-x-0 bottom-0 p-3 text-xs text-zinc-200 leading-snug bg-gradient-to-t from-black/85 via-black/50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity">{label}</figcaption>
         </figure>
     }

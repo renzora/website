@@ -4,7 +4,7 @@ use leptos_meta::{Title, Meta};
 #[component]
 pub fn DonatePage() -> impl IntoView {
     view! {
-        <Title text="Support Renzora — Fund the Open Source Bevy Editor" />
+        <Title text="Support Renzora, Fund the Open Source Bevy Editor" />
         <Meta name="description" content="Support the development of Renzora, the free and open-source Bevy editor and game engine. Become a supporter and help keep the engine open for everyone." />
 
         <section class="max-w-4xl mx-auto py-12 px-4">
@@ -159,7 +159,7 @@ pub fn DonatePage() -> impl IntoView {
 
         <script>
         r##"
-        // Tier ladder — thresholds are month-to-date donation totals (credits).
+        // Tier ladder, thresholds are month-to-date donation totals (credits).
         var TIERS = [
             { slug: 'bronze',   name: 'Bronze',   credits: 50,   color: '#cd7f32', perks: [] },
             { slug: 'silver',   name: 'Silver',   credits: 100,  color: '#c0c0c0', perks: [] },
@@ -276,7 +276,7 @@ pub fn DonatePage() -> impl IntoView {
                 if (data.ok) {
                     var msg = 'Thank you! You donated ' + amount + ' credits. Total: ' + (data.total_donated || 0).toLocaleString();
                     if (data.new_badges && data.new_badges.length) {
-                        msg += ' — 🏅 You earned the ' + data.new_badges.map(function(b) { return b.name; }).join(' and ') + ' badge' + (data.new_badges.length > 1 ? 's' : '') + '!';
+                        msg += ',🏅 You earned the ' + data.new_badges.map(function(b) { return b.name; }).join(' and ') + ' badge' + (data.new_badges.length > 1 ? 's' : '') + '!';
                     }
                     successEl.textContent = msg;
                     successEl.classList.remove('hidden');
@@ -306,7 +306,7 @@ pub fn DonatePage() -> impl IntoView {
         function renderWall(sponsors) {
             var el = document.getElementById('sponsor-wall');
             if (!sponsors.length) {
-                el.innerHTML = '<p class="text-sm text-zinc-500 text-center py-4">No donations yet this month — be the first on the wall!</p>';
+                el.innerHTML = '<p class="text-sm text-zinc-500 text-center py-4">No donations yet this month, be the first on the wall!</p>';
                 return;
             }
             var byTier = {};
@@ -379,7 +379,7 @@ pub fn DonatePage() -> impl IntoView {
                 var t = data.tier ? TIER_NAMES[data.tier] : null;
                 var status = data.month_total > 0
                     ? 'You have donated ' + data.month_total.toLocaleString() + ' credits this month' + (t ? ' (' + t.name + ' tier)' : '') + '. Customize your wall listing.'
-                    : 'You are a past donator. Donate again this month to return to the wall — set up your listing here.';
+                    : 'You are a past donator. Donate again this month to return to the wall, set up your listing here.';
                 if (!data.link_eligible) status += ' Links show from Titanium (1,000/mo); logos from Diamond (2,500/mo).';
                 document.getElementById('sponsor-status').textContent = status;
                 if (data.profile) {

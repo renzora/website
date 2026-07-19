@@ -6,7 +6,7 @@ mod ssr_pages;
 use axum::{
     body::Body,
     extract::DefaultBodyLimit,
-    http::{HeaderValue, Request},
+    http::{header, HeaderValue, Request},
     response::Response,
     routing::get,
     Extension, Json, Router,
@@ -17,7 +17,38 @@ use sqlx::postgres::PgPoolOptions;
 use tower_http::compression::CompressionLayer;
 use tower_http::cors::CorsLayer;
 use tower_http::services::ServeDir;
+use tower_http::set_header::SetResponseHeaderLayer;
 use tower_http::trace::TraceLayer;
+
+/// Service worker source, served at `/sw.js` (root scope). Network-first for
+/// HTML navigations so it can NEVER mask a deploy with a stale page — the cache
+/// is purely an offline fallback. It deliberately does not cache static assets:
+/// those sit at stable URLs governed by the CDN cache (which you can purge),
+/// whereas an on-device SW cache can't be purged remotely.
+const SW_JS: &str = r#"const CACHE = 'renzora-v1';
+self.addEventListener('install', () => self.skipWaiting());
+self.addEventListener('activate', (e) => {
+  e.waitUntil((async () => {
+    for (const k of await caches.keys()) if (k !== CACHE) await caches.delete(k);
+    await self.clients.claim();
+  })());
+});
+self.addEventListener('fetch', (e) => {
+  const req = e.request;
+  if (req.method !== 'GET' || req.mode !== 'navigate') return;
+  const url = new URL(req.url);
+  if (url.origin !== self.location.origin || url.pathname.startsWith('/api/')) return;
+  e.respondWith((async () => {
+    try {
+      const res = await fetch(req);
+      if (res && res.ok) (await caches.open(CACHE)).put(req, res.clone());
+      return res;
+    } catch (err) {
+      return (await caches.match(req)) || Response.error();
+    }
+  })());
+});
+"#;
 use tracing_subscriber::EnvFilter;
 
 #[tokio::main]
@@ -146,6 +177,8 @@ async fn main() {
     let app = Router::new()
         // Health check
         .route("/health", get(health_check))
+        // Service worker (root scope) — offline fallback, network-first
+        .route("/sw.js", get(service_worker))
         // SEO: robots + sitemap
         .route("/robots.txt", get({
             let s = seo_site_url.clone();
@@ -264,6 +297,26 @@ async fn main() {
         .layer(DefaultBodyLimit::max(50 * 1024 * 1024))
         .layer(cors)
         .layer(TraceLayer::new_for_http())
+        // Edge-cacheable HTML: SSR pages are byte-identical for every visitor
+        // (auth is Authorization-header only, so a browser navigation never
+        // carries it) — safe for a shared cache. A short s-maxage + long
+        // stale-while-revalidate lets Cloudflare serve pages from the edge and
+        // refresh them in the background, while max-age=0 keeps the browser
+        // revalidating for freshness. Only text/html matches; API JSON and
+        // static assets keep their own caching untouched.
+        .layer(SetResponseHeaderLayer::if_not_present(
+            header::CACHE_CONTROL,
+            |res: &Response| {
+                let html = res
+                    .headers()
+                    .get(header::CONTENT_TYPE)
+                    .and_then(|v| v.to_str().ok())
+                    .is_some_and(|ct| ct.starts_with("text/html"));
+                html.then(|| {
+                    HeaderValue::from_static("public, max-age=0, s-maxage=60, stale-while-revalidate=86400")
+                })
+            },
+        ))
         // Outermost: gzip/brotli-compress responses (HTML, CSS, JS, JSON, sitemap).
         // The default predicate skips already-compressed types (images) and tiny
         // bodies. Harmless behind nginx (which won't re-compress an encoded body).
@@ -281,6 +334,18 @@ async fn health_check() -> Json<serde_json::Value> {
         "status": "ok",
         "version": env!("CARGO_PKG_VERSION"),
     }))
+}
+
+/// Serve the service worker at the origin root so its scope covers the whole
+/// site. `no-cache` makes the browser revalidate it on every load, so a new SW
+/// ships promptly; `Service-Worker-Allowed: /` permits the root scope.
+async fn service_worker() -> Response {
+    Response::builder()
+        .header(header::CONTENT_TYPE, "application/javascript; charset=utf-8")
+        .header(header::CACHE_CONTROL, "no-cache")
+        .header("Service-Worker-Allowed", "/")
+        .body(Body::from(SW_JS))
+        .unwrap()
 }
 
 fn xml_escape(s: &str) -> String {

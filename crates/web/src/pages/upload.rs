@@ -44,7 +44,7 @@ pub fn UploadPage() -> impl IntoView {
 
                     // Step label
                     <div class="text-center mb-6">
-                        <p id="step-label" class="text-xs text-zinc-500 uppercase tracking-wider font-medium">"Step 1 of 6 — Content Type"</p>
+                        <p id="step-label" class="text-xs text-zinc-500 uppercase tracking-wider font-medium">"Step 1 of 6, Content Type"</p>
                     </div>
 
                     // Error / success
@@ -58,7 +58,7 @@ pub fn UploadPage() -> impl IntoView {
                     </div>
 
                     // ════════════════════════════════════════
-                    // STEP 1 — Content Type
+                    // STEP 1, Content Type
                     // ════════════════════════════════════════
                     <div id="step-1" class="wizard-step">
                         <div class="grid grid-cols-2 gap-4">
@@ -82,7 +82,7 @@ pub fn UploadPage() -> impl IntoView {
                     </div>
 
                     // ════════════════════════════════════════
-                    // STEP 2 — Category
+                    // STEP 2, Category
                     // ════════════════════════════════════════
                     <div id="step-2" class="wizard-step hidden">
                         <div class="p-6 bg-white/[0.02] border border-zinc-800/50 rounded-2xl">
@@ -100,7 +100,7 @@ pub fn UploadPage() -> impl IntoView {
                     </div>
 
                     // ════════════════════════════════════════
-                    // STEP 3 — Basic Info
+                    // STEP 3, Basic Info
                     // ════════════════════════════════════════
                     <div id="step-3" class="wizard-step hidden">
                         <div class="p-6 bg-white/[0.02] border border-zinc-800/50 rounded-2xl space-y-5">
@@ -131,12 +131,12 @@ pub fn UploadPage() -> impl IntoView {
                                     <label class="block text-sm text-zinc-400 mb-1.5">"Price (credits)"</label>
                                     <input type="number" id="w-price" min="0" value="0" oninput="updatePricePreview()"
                                         class="w-full px-4 py-3 bg-white/[0.02] border border-zinc-800/50 rounded-xl text-zinc-50 text-sm outline-none focus:border-accent/50 transition-all" />
-                                    <p class="text-xs text-zinc-600 mt-1" id="price-preview">"Free — anyone can download"</p>
+                                    <p class="text-xs text-zinc-600 mt-1" id="price-preview">"Free, anyone can download"</p>
                                     <p class="text-xs text-zinc-600 mt-0.5">"You earn 80% of each sale. 1 credit = $0.10 USD."</p>
                                 </div>
                             </div>
 
-                            // Tags — asset only
+                            // Tags, asset only
                             <div id="tags-field" class="hidden">
                                 <label class="block text-sm text-zinc-400 mb-1.5">"Tags"</label>
                                 <div class="relative">
@@ -150,7 +150,7 @@ pub fn UploadPage() -> impl IntoView {
                                 <p class="text-xs text-zinc-600 mt-1">"Add up to 5 tags. Press comma or click a suggestion. New tags are submitted for review."</p>
                             </div>
 
-                            // Download filename — asset only
+                            // Download filename, asset only
                             <div id="filename-field" class="hidden">
                                 <label class="block text-sm text-zinc-400 mb-1.5">"Download Filename"</label>
                                 <input type="text" id="w-download-filename" placeholder="my-asset.zip"
@@ -158,7 +158,7 @@ pub fn UploadPage() -> impl IntoView {
                                 <p class="text-xs text-zinc-600 mt-1">"The filename users will see when downloading. Auto-populated from your uploaded file."</p>
                             </div>
 
-                            // Credit / Attribution — asset only
+                            // Credit / Attribution, asset only
                             <div id="credit-field" class="hidden">
                                 <div class="p-4 bg-white/[0.01] border border-zinc-800/30 rounded-xl space-y-4">
                                     <div class="flex items-center gap-2">
@@ -198,7 +198,7 @@ pub fn UploadPage() -> impl IntoView {
                     </div>
 
                     // ════════════════════════════════════════
-                    // STEP 4 — Type-Specific Details
+                    // STEP 4, Type-Specific Details
                     // ════════════════════════════════════════
                     <div id="step-4" class="wizard-step hidden">
                         <div class="p-6 bg-white/[0.02] border border-zinc-800/50 rounded-2xl space-y-5">
@@ -411,7 +411,7 @@ pub fn UploadPage() -> impl IntoView {
                     </div>
 
                     // ════════════════════════════════════════
-                    // STEP 5 — Files & Media
+                    // STEP 5, Files & Media
                     // ════════════════════════════════════════
                     <div id="step-5" class="wizard-step hidden">
                         <div class="space-y-6">
@@ -490,7 +490,7 @@ pub fn UploadPage() -> impl IntoView {
                     </div>
 
                     // ════════════════════════════════════════
-                    // STEP 6 — Review & Submit
+                    // STEP 6, Review & Submit
                     // ════════════════════════════════════════
                     <div id="step-6" class="wizard-step hidden">
                         <div class="p-6 bg-white/[0.02] border border-zinc-800/50 rounded-2xl space-y-4">
@@ -580,7 +580,7 @@ pub fn UploadPage() -> impl IntoView {
             }
 
             // Update label
-            document.getElementById('step-label').textContent = 'Step ' + n + ' of 6 — ' + STEP_LABELS[n - 1];
+            document.getElementById('step-label').textContent = 'Step ' + n + ' of 6, ' + STEP_LABELS[n - 1];
 
             // Hide errors
             document.getElementById('wizard-error').classList.add('hidden');
@@ -627,7 +627,7 @@ pub fn UploadPage() -> impl IntoView {
         }
 
         // ──────────────────────────────────────
-        // Step 1 — Content Type
+        // Step 1, Content Type
         // ──────────────────────────────────────
         function selectContentType(type) {
             W.contentType = type;
@@ -671,7 +671,7 @@ pub fn UploadPage() -> impl IntoView {
         }
 
         // ──────────────────────────────────────
-        // Step 3 — Basic Info setup
+        // Step 3, Basic Info setup
         // ──────────────────────────────────────
         function setupStep3() {
             const tagsField = document.getElementById('tags-field');
@@ -793,7 +793,7 @@ pub fn UploadPage() -> impl IntoView {
         document.getElementById('w-tags-input').addEventListener('input', function(e) {
             clearTimeout(tagSearchTimeout);
             const val = e.target.value;
-            // Check for comma — add tag immediately
+            // Check for comma, add tag immediately
             if (val.includes(',')) {
                 const parts = val.split(',');
                 parts.forEach((p, i) => {
@@ -833,7 +833,7 @@ pub fn UploadPage() -> impl IntoView {
         }
 
         // ──────────────────────────────────────
-        // Step 4 — Adaptive detail fields
+        // Step 4, Adaptive detail fields
         // ──────────────────────────────────────
         function setupStep4() {
             let hasVisible = false;
@@ -870,7 +870,7 @@ pub fn UploadPage() -> impl IntoView {
         }
 
         // ──────────────────────────────────────
-        // Step 5 — Files setup
+        // Step 5, Files setup
         // ──────────────────────────────────────
         function setupStep5() {
             const fileInput = document.getElementById('w-file');
@@ -941,7 +941,7 @@ pub fn UploadPage() -> impl IntoView {
         }
 
         // ──────────────────────────────────────
-        // Step 6 — Review summary
+        // Step 6, Review summary
         // ──────────────────────────────────────
         function setupStep6() {
             const summary = document.getElementById('review-summary');
@@ -988,7 +988,7 @@ pub fn UploadPage() -> impl IntoView {
             html += '</div>';
             summary.innerHTML = html;
 
-            // No draft mode — always publish directly
+            // No draft mode, always publish directly
         }
 
         function reviewRow(label, value) {
@@ -1054,7 +1054,7 @@ pub fn UploadPage() -> impl IntoView {
 
                 let itemId, itemSlug;
 
-                // Auth — always use Bearer token
+                // Auth, always use Bearer token
                 const token = document.cookie.match('(^|;)\\s*token\\s*=\\s*([^;]+)')?.pop();
                 if (!token) throw new Error('Please sign in first');
                 const headers = { 'Authorization': 'Bearer ' + token };

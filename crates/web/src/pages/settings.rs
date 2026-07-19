@@ -111,7 +111,7 @@ pub fn SettingsPage() -> impl IntoView {
                         <div id="withdraw-section" class="hidden">
                             <div class="border-t border-zinc-800 pt-4 mt-4">
                                 <h3 class="text-sm font-semibold mb-3">"Withdraw Earnings"</h3>
-                                <p class="text-xs text-zinc-500 mb-3">"Withdrawals come from your earnings balance (sales and referrals) — purchased credits can't be withdrawn. Minimum 500 credits ($50), converted at $0.10 each. "<span id="withdraw-available" class="text-zinc-400"></span></p>
+                                <p class="text-xs text-zinc-500 mb-3">"Withdrawals come from your earnings balance (sales and referrals), purchased credits can't be withdrawn. Minimum 500 credits ($50), converted at $0.10 each. "<span id="withdraw-available" class="text-zinc-400"></span></p>
                                 <div class="flex gap-2">
                                     <input type="number" id="withdraw-amount" min="500" step="100" placeholder="Amount in credits (min 500)"
                                         class="flex-1 px-3 py-2.5 bg-surface border border-zinc-800 rounded-lg text-zinc-50 text-sm outline-none focus:border-accent" />

@@ -27,6 +27,15 @@ pub fn json_escape(s: &str) -> String {
     o
 }
 
+/// One aggregated reaction on a post (icon + count) for the SSR feed card. The
+/// SSR card renders these so its height matches the client-rendered card (which
+/// always shows a reactions row), keeping the client re-render shift-free.
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+pub struct SsrReaction {
+    pub icon: String,
+    pub count: i64,
+}
+
 /// A post summary for server-rendered channel/hub feed listings.
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct SsrPostItem {
@@ -38,6 +47,7 @@ pub struct SsrPostItem {
     pub like_count: i32,
     pub comment_count: i32,
     pub created_at: String,
+    pub reactions: Vec<SsrReaction>,
 }
 
 /// Community hub (`/community`) and channel pages (`/community/channel/:slug`).

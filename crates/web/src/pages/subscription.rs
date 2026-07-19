@@ -10,7 +10,7 @@ pub fn SubscriptionPage() -> impl IntoView {
                         <i class="ph ph-heart text-3xl text-accent"></i>
                     </div>
                     <h1 class="text-3xl font-bold">"Become a Supporter"</h1>
-                    <p class="text-zinc-400 mt-2 max-w-xl mx-auto">"Support Renzora with a monthly amount you choose — any amount from 10 credits. Paid from your credit balance, renews every 30 days."</p>
+                    <p class="text-zinc-400 mt-2 max-w-xl mx-auto">"Support Renzora with a monthly amount you choose, any amount from 10 credits. Paid from your credit balance, renews every 30 days."</p>
                 </div>
                 <div id="sub-content">
                     <div class="text-center py-12">
@@ -45,7 +45,7 @@ pub fn SubscriptionPage() -> impl IntoView {
                     var endDate = new Date(sub.current_period_end).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
                     html += '<div class="mb-8 p-6 bg-accent/5 border border-accent/20 rounded-2xl">';
                     html += '<div class="flex items-center justify-between flex-wrap gap-4"><div>';
-                    html += '<div class="flex items-center gap-2"><i class="ph-fill ph-heart-straight text-accent"></i><span class="text-lg font-semibold">You are a Supporter</span>';
+                    html += '<div class="flex items-center gap-2"><i class="ph ph-heart-straight text-accent"></i><span class="text-lg font-semibold">You are a Supporter</span>';
                     html += '<span class="px-2 py-0.5 rounded bg-accent/10 border border-accent/20 text-[10px] text-accent font-medium">ACTIVE</span></div>';
                     html += '<div class="flex items-center gap-4 mt-2 text-sm text-zinc-500 flex-wrap">';
                     html += '<span><i class="ph ph-coins"></i> ' + sub.monthly_amount.toLocaleString() + ' credits/month</span>';
@@ -64,7 +64,7 @@ pub fn SubscriptionPage() -> impl IntoView {
                         html += '<button onclick="cancelSub()" class="px-4 py-2 rounded-lg text-sm text-red-400 hover:bg-red-950/30 border border-transparent hover:border-red-900/50 transition-all">Cancel</button>';
                     }
                     html += '</div></div>';
-                    html += '<p class="text-xs text-zinc-600 mb-8 text-center">Want to change your monthly amount? Pick a new amount below — you\'ll be charged the new amount now and your 30-day period restarts.</p>';
+                    html += '<p class="text-xs text-zinc-600 mb-8 text-center">Want to change your monthly amount? Pick a new amount below, you\'ll be charged the new amount now and your 30-day period restarts.</p>';
                 }
 
                 // Amount picker
@@ -106,7 +106,7 @@ pub fn SubscriptionPage() -> impl IntoView {
                 html += perk('users-three', 'Up to 5 team members');
                 html += perk('lightning', '5,000 API requests/day');
                 html += '</div>';
-                html += '<p class="text-xs text-zinc-600 mt-4">Perks are the same at every amount — pay what feels right. Looking to be recognized on the <a href="/donate" class="text-accent hover:text-accent-hover">supporters wall</a>? That is driven by donations. Credits are deducted from your balance; if it runs low at renewal time your subscription simply ends.</p>';
+                html += '<p class="text-xs text-zinc-600 mt-4">Perks are the same at every amount, pay what feels right. Looking to be recognized on the <a href="/donate" class="text-accent hover:text-accent-hover">supporters wall</a>? That is driven by donations. Credits are deducted from your balance; if it runs low at renewal time your subscription simply ends.</p>';
                 html += '</div>';
 
                 el.innerHTML = html;

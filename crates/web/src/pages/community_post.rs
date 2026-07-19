@@ -21,7 +21,7 @@ fn json_escape(s: &str) -> String {
     o
 }
 
-/// `/community/post/:id` — a single public discussion, server-rendered so it's
+/// `/community/post/:id`, a single public discussion, server-rendered so it's
 /// its own indexable page (post body + comments + DiscussionForumPosting JSON-LD).
 /// Replies/likes are handled by the client JS when signed in.
 #[component]
@@ -32,7 +32,7 @@ pub fn PostDetailPage() -> impl IntoView {
     let head = ssr.clone().map(|p| {
         let snippet: String = p.body.chars().take(70).collect();
         let more = p.body.chars().count() > 70;
-        let title = format!("{}{} — Renzora Community", snippet, if more { "…" } else { "" });
+        let title = format!("{}{}, Renzora Community", snippet, if more { "…" } else { "" });
         let d: String = p.body.chars().take(155).collect();
         let desc = if p.body.chars().count() > 155 { format!("{d}…") } else { d };
         let canonical = format!("https://renzora.com/community/post/{}", p.id);

@@ -7,9 +7,9 @@ pub fn ProfilePage() -> impl IntoView {
     let ssr = use_context::<ProfileSsr>().filter(|p| p.found);
     let has_ssr = ssr.is_some();
     let head = ssr.clone().map(|p| {
-        let title = format!("{} — Renzora", p.username);
+        let title = format!("{}, Renzora", p.username);
         let desc = format!(
-            "{}{} on Renzora — the open-source Bevy editor community. Assets, activity and profile.",
+            "{}{} on Renzora, the open-source Bevy editor community. Assets, activity and profile.",
             p.username,
             if p.role != "user" { format!(" ({})", p.role) } else { String::new() }
         );
@@ -91,7 +91,7 @@ pub fn ProfilePage() -> impl IntoView {
 
                 // SEO: reflect the profile in the tab title + description
                 try {
-                    document.title = p.username + ' — Renzora';
+                    document.title = p.username + ', Renzora';
                     var md = document.querySelector('meta[name="description"]');
                     if (md) md.setAttribute('content', (p.bio ? p.bio + ' · ' : '') + '@' + p.username + ' on Renzora, the open-source Bevy editor.');
                 } catch(e) {}
@@ -118,7 +118,7 @@ pub fn ProfilePage() -> impl IntoView {
                 const g1 = p.banner_color || '#1e1b4b';
                 const g2 = p.profile_color || '#a855f7';
 
-                // Avatar — uploaded image, or the user's initial on a gradient
+                // Avatar, uploaded image, or the user's initial on a gradient
                 const avatar = p.avatar_url
                     ? `<img src="${p.avatar_url}" class="w-full h-full object-cover" />`
                     : `<div class="w-full h-full flex items-center justify-center bg-gradient-to-br from-accent to-secondary text-white text-4xl font-bold">${(p.username||'?').charAt(0).toUpperCase()}</div>`;
@@ -237,7 +237,7 @@ pub fn ProfilePage() -> impl IntoView {
                         ${(p.total_donated||0) > 0 ? `
                         <div class="rounded-xl border border-pink-500/25 bg-white/[0.02] p-4 text-center">
                             <div class="text-2xl font-bold text-pink-400">${p.total_donated.toLocaleString()}</div>
-                            <div class="text-[10px] text-zinc-500 mt-0.5 uppercase tracking-wide"><i class="ph-fill ph-heart text-pink-400"></i> Donated</div>
+                            <div class="text-[10px] text-zinc-500 mt-0.5 uppercase tracking-wide"><i class="ph ph-heart text-pink-400"></i> Donated</div>
                         </div>` : ''}
                     </div>
 
@@ -270,11 +270,6 @@ pub fn ProfilePage() -> impl IntoView {
                 }
 
                 ptab('assets');
-
-                // Animate
-                if (typeof anime !== 'undefined') {
-                    anime({ targets: '#pf-content .rounded-2xl, #pf-content .rounded-xl', opacity: [0,1], translateY: [25,0], delay: anime.stagger(60), duration: 600, easing: 'easeOutCubic' });
-                }
             })();
 
             function renderAssetCard(a) {

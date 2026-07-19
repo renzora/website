@@ -5,7 +5,7 @@ use renzora_common::ssr::{json_escape, ArticleSsr};
 #[component]
 pub fn ArticlesPage() -> impl IntoView {
     view! {
-        <Title text="Renzora Articles — Bevy Editor & Game Dev Writing" />
+        <Title text="Renzora Articles, Bevy Editor & Game Dev Writing" />
         <Meta name="description" content="Articles and tutorials from the Renzora community on the Bevy editor, game development, real-time rendering and Rust." />
 
         <section class="py-12 px-6 min-h-[80vh] bg-gradient-to-b from-[#0c0a10] via-[#060608] to-[#060608]">
@@ -111,7 +111,7 @@ pub fn ArticleDetailPage() -> impl IntoView {
     let ssr = use_context::<ArticleSsr>().filter(|a| a.found);
     let has_ssr = ssr.is_some();
     let head = ssr.clone().map(|a| {
-        let title = format!("{} — Renzora", a.title);
+        let title = format!("{}, Renzora", a.title);
         let base = if a.summary.is_empty() { a.title.clone() } else { a.summary.clone() };
         let desc: String = base.chars().take(160).collect();
         let canonical = format!("https://renzora.com/articles/{}", a.slug);

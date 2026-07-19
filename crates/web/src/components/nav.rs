@@ -8,23 +8,23 @@ pub fn Nav() -> impl IntoView {
             // Logo
             <a href="/" class="flex items-center gap-2.5 px-4 h-[60px] shrink-0 border-b border-white/[0.06]">
                 <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-accent to-secondary flex items-center justify-center shadow-lg shadow-accent/20">
-                    <i class="ph-fill ph-star text-white text-lg"></i>
+                    <i class="ph ph-star text-white text-lg"></i>
                 </div>
                 <div class="leading-none">
                     <div class="text-[15px] font-bold text-white tracking-tight">"renzora"</div>
-                    <div class="text-[9px] font-semibold uppercase tracking-[0.18em] text-zinc-500 mt-1">"Game Engine"</div>
+                    <div class="text-[9px] font-semibold uppercase tracking-[0.18em] text-zinc-400 mt-1">"Game Engine"</div>
                 </div>
             </a>
 
             // Nav links
             <nav class="flex-1 overflow-y-auto px-3 py-4">
-                <p class="text-[10px] font-semibold uppercase tracking-[0.18em] text-zinc-600 px-2 mb-2">"Menu"</p>
+                <p class="text-[10px] font-semibold uppercase tracking-[0.18em] text-zinc-400 px-2 mb-2">"Menu"</p>
                 <div class="space-y-0.5">
                     <a href="/" class="side-link nav-link" data-path="/">
                         <i class="ph ph-house text-lg"></i>"Home"
                     </a>
                     <a href="/download" class="side-link nav-link" data-path="/download">
-                        <i class="ph ph-download-simple text-lg"></i>"Engine"
+                        <i class="ph ph-download-simple text-lg"></i>"Download Engine"
                     </a>
                     <a href="/marketplace" class="side-link nav-link" data-path="/marketplace">
                         <i class="ph ph-storefront text-lg"></i>"Marketplace"
@@ -36,7 +36,7 @@ pub fn Nav() -> impl IntoView {
                         <i class="ph ph-book-open text-lg"></i>"Docs"
                     </a>
                     <a href="/donate" class="side-link nav-link" data-path="/donate">
-                        <i class="ph ph-heart text-lg"></i>"Support"
+                        <i class="ph ph-heart text-lg"></i>"Donate"
                     </a>
                 </div>
             </nav>
@@ -51,14 +51,14 @@ pub fn Nav() -> impl IntoView {
                         <span class="text-sm font-semibold text-white">"r1-alpha6"</span>
                         <span class="text-[9px] font-semibold px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-400">"Free"</span>
                     </div>
-                    <a href="/download" class="mt-2.5 block text-center text-xs font-semibold text-white bg-accent hover:bg-accent-hover transition-colors rounded-lg py-1.5">"Download"</a>
+                    <a href="/download" class="mt-2.5 block text-center text-xs font-semibold text-white bg-purple-600 hover:bg-purple-500 transition-colors rounded-lg py-1.5">"Download"</a>
                 </div>
 
                 // Credits card (logged in)
                 <a href="/wallet" id="nav-side-credits" class="hidden rounded-xl p-3 bg-white/[0.03] border border-white/[0.07] hover:bg-white/[0.05] transition-colors">
                     <p class="text-[9px] font-semibold uppercase tracking-[0.16em] text-zinc-500">"Your Credits"</p>
                     <div class="flex items-center gap-1.5 mt-1.5">
-                        <i class="ph-fill ph-coin text-amber-400 text-base"></i>
+                        <i class="ph ph-coin text-amber-400 text-base"></i>
                         <span id="nav-credits-side" class="text-lg font-bold text-white">"0"</span>
                     </div>
                     <span class="mt-2.5 block text-center text-xs font-semibold text-white bg-amber-500/90 hover:bg-amber-500 transition-colors rounded-lg py-1.5">"Get more Credits"</span>
@@ -67,7 +67,7 @@ pub fn Nav() -> impl IntoView {
                 // Guest card (logged out)
                 <a href="/login" id="nav-side-guest" class="block rounded-xl p-3 bg-white/[0.03] border border-white/[0.07] hover:bg-white/[0.05] transition-colors text-center">
                     <p class="text-xs text-zinc-400 leading-relaxed">"Sign in to build, sell and connect."</p>
-                    <span class="mt-2.5 block text-xs font-semibold text-white bg-accent hover:bg-accent-hover transition-colors rounded-lg py-1.5">"Sign In"</span>
+                    <span class="mt-2.5 block text-xs font-semibold text-white bg-purple-600 hover:bg-purple-500 transition-colors rounded-lg py-1.5">"Sign In"</span>
                 </a>
             </div>
         </aside>
@@ -78,14 +78,14 @@ pub fn Nav() -> impl IntoView {
         // ── Fixed top header ──
         <header id="app-header">
             // Mobile hamburger
-            <button id="sidebar-burger" onclick="toggleSidebar()" class="text-zinc-400 hover:text-white p-1.5 -ml-1 rounded-lg hover:bg-white/[0.06] transition-all">
+            <button id="sidebar-burger" onclick="toggleSidebar()" aria-label="Open navigation menu" class="text-zinc-400 hover:text-white p-1.5 -ml-1 rounded-lg hover:bg-white/[0.06] transition-all">
                 <i class="ph ph-list text-xl"></i>
             </button>
 
             // Page brand / tagline
             <div class="min-w-0">
                 <p class="text-[15px] font-semibold text-white leading-tight">"Renzora"</p>
-                <p class="text-[11px] text-zinc-500 leading-tight truncate hidden sm:block">"The open-source Bevy engine — editor, marketplace & community"</p>
+                <p class="text-[11px] text-zinc-500 leading-tight truncate hidden sm:block">"The open-source Bevy engine, editor, marketplace & community"</p>
             </div>
 
             <div class="flex-1"></div>
@@ -124,7 +124,7 @@ pub fn Nav() -> impl IntoView {
 
             // Logged-out
             <div id="nav-guest" class="flex gap-2">
-                <a id="nav-signin-link" href="/login" class="text-sm text-white bg-accent/90 hover:bg-accent px-4 py-1.5 rounded-lg transition-all flex items-center gap-1.5">
+                <a id="nav-signin-link" href="/login" class="text-sm text-white bg-purple-600 hover:bg-purple-500 px-4 py-1.5 rounded-lg transition-all flex items-center gap-1.5">
                     <i class="ph ph-sign-in text-base"></i>"Sign In"
                 </a>
             </div>
@@ -133,7 +133,7 @@ pub fn Nav() -> impl IntoView {
             <div id="nav-user" class="hidden items-center gap-2">
                 // Credits
                 <a href="/wallet" class="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-amber-500/10 border border-amber-500/20 hover:bg-amber-500/20 transition-all">
-                    <i class="ph-fill ph-coin text-sm text-amber-400"></i>
+                    <i class="ph ph-coin text-sm text-amber-400"></i>
                     <span id="nav-credits" class="text-sm text-white font-semibold">"0"</span>
                 </a>
                 // Messages
@@ -182,7 +182,7 @@ pub fn Nav() -> impl IntoView {
                             <i class="ph ph-users-three text-base"></i>"Teams"
                         </a>
                         <a href="/subscription" class="flex items-center gap-2.5 px-4 py-2.5 text-sm text-zinc-400 hover:text-white hover:bg-white/[0.06] transition-all">
-                            <i class="ph ph-heart text-base"></i>"Support Renzora"
+                            <i class="ph ph-heart text-base"></i>"Donate to Renzora"
                         </a>
                         <a href="/developers" class="flex items-center gap-2.5 px-4 py-2.5 text-sm text-zinc-400 hover:text-white hover:bg-white/[0.06] transition-all">
                             <i class="ph ph-code text-base"></i>"Developers"
@@ -308,7 +308,7 @@ pub fn Nav() -> impl IntoView {
                         }
                         if (msg.event === 'credit_update') {
                             // Refetch the balance rather than adding to the displayed
-                            // text — the display is locale-formatted ("1,600") and
+                            // text, the display is locale-formatted ("1,600") and
                             // parseInt would mangle it.
                             (async function() {
                                 try {
@@ -584,7 +584,7 @@ pub fn Nav() -> impl IntoView {
             "#
         </style>
 
-        // Global image lightbox — any <img data-zoom> opens full-size on click (site-wide)
+        // Global image lightbox, any <img data-zoom> opens full-size on click (site-wide)
         <script>
             r##"
             (function() {

@@ -2,7 +2,7 @@ use leptos::prelude::*;
 use leptos_meta::{Link, Meta, Title};
 use renzora_common::ssr::DocSsr;
 
-/// Docs landing (`/docs`) — redirects to the default version's portal home.
+/// Docs landing (`/docs`), redirects to the default version's portal home.
 #[component]
 pub fn DocsPage() -> impl IntoView {
     view! {
@@ -30,19 +30,27 @@ pub fn DocsPage() -> impl IntoView {
 pub fn DocArticle() -> impl IntoView {
     let ssr = use_context::<DocSsr>().filter(|d| d.found && d.is_page);
     let head = ssr.clone().map(|d| {
-        let title = format!("{} — Renzora Docs", d.title);
+        let title = format!("{}, Renzora Docs", d.title);
         let canonical = format!("https://renzora.com/docs/{}/{}", d.version, d.slug);
         view! {
             <Title text=title />
-            <Meta name="description" content=format!("{} — documentation for Renzora, the open-source Bevy editor.", d.title) />
+            <Meta name="description" content=format!("{}, documentation for Renzora, the open-source Bevy editor.", d.title) />
             <Link rel="canonical" href=canonical />
         }
     });
     // Server-rendered doc HTML (crawlable); the client script re-renders with the
     // sidebar + syntax highlighting on load.
     let ssr_body = ssr.map(|d| view! { <div class="doc-body" inner_html=d.content_html></div> });
+    // Version-landing pages have no server-rendered article, paint a static
+    // heading immediately so the LCP is a text element at first render, not the
+    // client-rendered landing (which arrives ~2s later). renderLanding() then
+    // swaps in the full landing with the same heading (no visible flash).
+    let landing = ssr_body.is_none().then(|| view! {
+        <h1 class="text-3xl font-bold mb-2">"Renzora Documentation"</h1>
+        <p class="text-zinc-400 text-sm mb-8">"Guides, references and the API for the Renzora Bevy editor."</p>
+    });
     let default_head = view! {
-        <Title text="Renzora Documentation — Bevy Editor Guides & API" />
+        <Title text="Renzora Documentation, Bevy Editor Guides & API" />
         <Meta name="description" content="Documentation for Renzora, the open-source Bevy editor: getting started, the scene editor, Lua & Rhai scripting, materials, plugins, physics and cross-platform export." />
     };
     view! {
@@ -51,7 +59,7 @@ pub fn DocArticle() -> impl IntoView {
         <div class="flex min-h-[calc(100vh-56px)] max-w-[1200px] mx-auto">
             <DocsSidebar />
             <div class="flex-1 min-w-0 px-8 py-10 lg:px-12">
-                <article id="doc-content">{ssr_body}</article>
+                <article id="doc-content">{ssr_body}{landing}</article>
             </div>
         </div>
         <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css" />
@@ -64,8 +72,7 @@ pub fn DocArticle() -> impl IntoView {
 
             function renderLanding(sidebar, version) {
                 window.__landingSidebar = sidebar; window.__landingVersion = version;
-                const level = localStorage.getItem('renzora-docs-level') || 'basic';
-                const groups = (sidebar.groups || []).filter(g => level === 'advanced' || g.level !== 'advanced');
+                const groups = (sidebar.groups || []);
                 const el = document.getElementById('doc-content');
                 el.innerHTML = `
                     <h1 class="text-3xl font-bold mb-2">${sidebar.label}</h1>
@@ -91,9 +98,6 @@ pub fn DocArticle() -> impl IntoView {
                     `).join('')}
                 `;
             }
-            window.addEventListener('docs-level-changed', () => {
-                if (window.__landingSidebar) renderLanding(window.__landingSidebar, window.__landingVersion);
-            });
 
             (async function() {
                 const parts = window.location.pathname.split('/').filter(Boolean); // ['docs', version, ...slug]
@@ -338,11 +342,6 @@ fn DocsSidebar() -> impl IntoView {
     view! {
         <aside class="w-64 shrink-0 border-r border-zinc-800 bg-surface sticky top-14 h-[calc(100vh-56px)] overflow-y-auto hidden lg:block">
             <div class="p-4">
-                // Basic / Advanced level toggle
-                <div id="level-toggle" class="flex gap-1 mb-4 p-0.5 bg-surface-card border border-zinc-800 rounded-lg">
-                    <button onclick="setDocsLevel('basic')" data-level="basic" class="flex-1 px-2 py-1.5 text-[11px] font-medium rounded-md transition-all">"Basic"</button>
-                    <button onclick="setDocsLevel('advanced')" data-level="advanced" class="flex-1 px-2 py-1.5 text-[11px] font-medium rounded-md transition-all">"Advanced"</button>
-                </div>
                 // Version switcher
                 <div class="mb-4">
                     <label class="block text-[10px] font-semibold uppercase tracking-[0.08em] text-zinc-500 mb-1.5">"Version"</label>
@@ -365,15 +364,6 @@ fn DocsSidebar() -> impl IntoView {
             let docVersions = null;
             let currentVersion = null;
 
-            function getDocsLevel() { return localStorage.getItem('renzora-docs-level') || 'basic'; }
-            function setDocsLevel(lvl) {
-                localStorage.setItem('renzora-docs-level', lvl);
-                renderLevelToggle();
-                renderSidebar();
-                window.dispatchEvent(new CustomEvent('docs-level-changed', { detail: lvl }));
-            }
-            function groupVisible(group, level) { return level === 'advanced' || group.level !== 'advanced'; }
-
             (async function() {
                 const parts = window.location.pathname.split('/').filter(Boolean);
                 try {
@@ -386,23 +376,8 @@ fn DocsSidebar() -> impl IntoView {
                 const res = await fetch('/api/docs/sidebar/' + currentVersion);
                 if (!res.ok) return;
                 sidebarData = await res.json();
-                // Auto-reveal Advanced when the current page lives in an advanced-only group.
-                const currentPath = parts.slice(2).join('/');
-                if (currentPath && getDocsLevel() === 'basic') {
-                    const g = (sidebarData.groups || []).find(gr => (gr.categories || []).some(c => c.pages.some(p => p.slug === currentPath)));
-                    if (g && g.level === 'advanced') localStorage.setItem('renzora-docs-level', 'advanced');
-                }
-                renderLevelToggle();
                 renderSidebar();
             })();
-
-            function renderLevelToggle() {
-                const level = getDocsLevel();
-                document.querySelectorAll('#level-toggle button').forEach(b => {
-                    const on = b.dataset.level === level;
-                    b.className = 'flex-1 px-2 py-1.5 text-[11px] font-medium rounded-md transition-all ' + (on ? 'bg-accent text-white' : 'text-zinc-400 hover:text-zinc-200');
-                });
-            }
 
             function renderVersionSelect() {
                 const sel = document.getElementById('version-select');
@@ -420,11 +395,10 @@ fn DocsSidebar() -> impl IntoView {
 
             function renderSidebar() {
                 if (!sidebarData) return;
-                const level = getDocsLevel();
                 const parts = window.location.pathname.split('/').filter(Boolean);
                 const currentPath = parts.slice(2).join('/');
                 const el = document.getElementById('sidebar-nav');
-                el.innerHTML = (sidebarData.groups || []).filter(group => groupVisible(group, level)).map(group => `
+                el.innerHTML = (sidebarData.groups || []).map(group => `
                     <div class="mb-6">
                         <div class="text-[10px] font-bold uppercase tracking-[0.12em] text-accent/80 mb-3 px-2">${group.group}</div>
                         ${group.categories.map(cat => `

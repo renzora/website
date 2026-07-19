@@ -29,7 +29,7 @@ pub fn AssetDetailPage() -> impl IntoView {
     let ssr = use_context::<AssetSsr>().filter(|a| a.found);
     let has_ssr = ssr.is_some();
     let head = ssr.clone().map(|a| {
-        let title = format!("{} — Renzora Marketplace", a.name);
+        let title = format!("{}, Renzora Marketplace", a.name);
         let full = a.description.chars().count();
         let d: String = a.description.chars().take(155).collect();
         let desc = if full > 155 { format!("{d}…") } else { d };
@@ -68,7 +68,7 @@ pub fn AssetDetailPage() -> impl IntoView {
     view! {
         {head}
         <section class="py-8 px-6 relative min-h-screen">
-            // Background layer — inside the section so it's part of the document flow
+            // Background layer, inside the section so it's part of the document flow
             <div class="fixed inset-0 pointer-events-none overflow-hidden" style="z-index:0" id="asset-bg-layer">
                 <canvas id="asset-canvas" class="absolute inset-0 w-full h-full" style="z-index:1"></canvas>
                 <div class="absolute top-[10%] left-[15%] w-96 h-96 bg-accent/20 rounded-full blur-[80px] animate-pulse" style="z-index:0"></div>
