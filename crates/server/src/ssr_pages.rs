@@ -201,7 +201,7 @@ pub async fn doc_article(db_unused: PgPool, full_slug: String, req: Request<Body
             dto.found = true;
             dto.is_page = true;
             dto.title = title;
-            dto.content_html = html;
+            dto.content_html = crate::docs_files::optimize_doc_images(&html);
         }
     }
     render_with(dto, req).await
