@@ -39,6 +39,7 @@ pub fn router() -> Router<AppState> {
 
     Router::new()
         .route("/webhook", post(stripe_webhook))
+        .route("/donate/checkout", post(create_guest_checkout))
         .route("/donate/leaderboard", get(donation_leaderboard))
         .route("/donate/total", get(donation_total))
         .route("/donate/sponsors", get(list_sponsors))
@@ -214,6 +215,157 @@ async fn create_topup(
     Ok(Json(TopUpResponse { checkout_url }))
 }
 
+#[derive(serde::Deserialize)]
+struct GuestDonateBody {
+    /// Whole US dollars.
+    amount_usd: i64,
+    email: String,
+    message: Option<String>,
+    anonymous: Option<bool>,
+}
+
+/// Create a Stripe Checkout session for a one-time donation from someone WITHOUT
+/// an account. No auth required. The payment is recorded (against their email)
+/// by the webhook; they can later appear on the supporters wall by signing in
+/// with the same email, which claims the donation.
+async fn create_guest_checkout(
+    State(state): State<AppState>,
+    Json(body): Json<GuestDonateBody>,
+) -> Result<Json<TopUpResponse>, ApiError> {
+    let stripe_secret = state
+        .stripe_secret_key
+        .as_ref()
+        .ok_or_else(|| ApiError::Internal("Stripe not configured".into()))?;
+
+    if body.amount_usd < 1 {
+        return Err(ApiError::Validation("Minimum donation is $1".into()));
+    }
+    let email = body.email.trim().to_string();
+    if !email.contains('@') {
+        return Err(ApiError::Validation("Enter a valid email".into()));
+    }
+
+    let price_cents = body.amount_usd * 100;
+    let amount_credits = body.amount_usd * 10; // 1 credit = $0.10
+    let message: String = body
+        .message
+        .as_deref()
+        .unwrap_or("")
+        .chars()
+        .take(280)
+        .collect();
+    let anonymous = if body.anonymous.unwrap_or(false) { "true" } else { "false" };
+
+    let price_cents_s = price_cents.to_string();
+    let amount_credits_s = amount_credits.to_string();
+    let success_url = format!("{}/donate?donated=1", state.site_url);
+    let cancel_url = format!("{}/donate?cancelled=1", state.site_url);
+
+    let client = reqwest::Client::new();
+    let response = client
+        .post("https://api.stripe.com/v1/checkout/sessions")
+        .header("Authorization", format!("Bearer {stripe_secret}"))
+        .form(&[
+            ("mode", "payment"),
+            ("success_url", &success_url),
+            ("cancel_url", &cancel_url),
+            ("customer_email", &email),
+            ("line_items[0][price_data][currency]", "usd"),
+            ("line_items[0][price_data][product_data][name]", "Donation to Renzora"),
+            ("line_items[0][price_data][unit_amount]", &price_cents_s),
+            ("line_items[0][quantity]", "1"),
+            ("metadata[type]", "guest_donation"),
+            ("metadata[email]", &email),
+            ("metadata[amount_credits]", &amount_credits_s),
+            ("metadata[message]", &message),
+            ("metadata[anonymous]", anonymous),
+        ])
+        .send()
+        .await
+        .map_err(|e| ApiError::Internal(format!("Stripe request failed: {e}")))?;
+
+    if !response.status().is_success() {
+        let err_text = response.text().await.unwrap_or_default();
+        return Err(ApiError::Internal(format!("Stripe error: {err_text}")));
+    }
+
+    let session: serde_json::Value = response
+        .json()
+        .await
+        .map_err(|e| ApiError::Internal(format!("Failed to parse Stripe response: {e}")))?;
+
+    let checkout_url = session["url"]
+        .as_str()
+        .ok_or_else(|| ApiError::Internal("Missing checkout URL in Stripe response".into()))?
+        .to_string();
+
+    Ok(Json(TopUpResponse { checkout_url }))
+}
+
+/// Attach any unclaimed guest donations for `email` to `user_id`: mark them
+/// claimed and record each as a donation so the donor shows on the supporters
+/// wall. The money was already captured by Stripe, so no credits are added.
+pub(crate) async fn claim_guest_donations(db: &sqlx::PgPool, user_id: Uuid, email: &str) {
+    let email = email.trim();
+    let rows: Vec<(Uuid, i64, String, bool)> = sqlx::query_as(
+        "SELECT id, amount_credits, message, anonymous FROM guest_donations \
+         WHERE LOWER(email) = LOWER($1) AND claimed_by IS NULL",
+    )
+    .bind(email)
+    .fetch_all(db)
+    .await
+    .unwrap_or_default();
+
+    for (gid, amount, message, anonymous) in rows {
+        // Claim atomically; only record the donation if we won the claim.
+        let claimed = sqlx::query(
+            "UPDATE guest_donations SET claimed_by = $1 WHERE id = $2 AND claimed_by IS NULL",
+        )
+        .bind(user_id)
+        .bind(gid)
+        .execute(db)
+        .await;
+        if matches!(claimed, Ok(r) if r.rows_affected() > 0) {
+            let _ = sqlx::query(
+                "INSERT INTO donations (id, user_id, amount, message, anonymous) VALUES ($1, $2, $3, $4, $5)",
+            )
+            .bind(Uuid::new_v4())
+            .bind(user_id)
+            .bind(amount)
+            .bind(&message)
+            .bind(anonymous)
+            .execute(db)
+            .await;
+        }
+    }
+
+    // Award donation badges for the new lifetime total (no notification here).
+    if let Ok((total,)) = sqlx::query_as::<_, (i64,)>(
+        "SELECT COALESCE(SUM(amount), 0)::bigint FROM donations WHERE user_id = $1",
+    )
+    .bind(user_id)
+    .fetch_one(db)
+    .await
+    {
+        for (threshold, slug) in [
+            (100_i64, "donor_bronze"),
+            (500, "donor_silver"),
+            (1000, "donor_gold"),
+            (5000, "donor_platinum"),
+        ] {
+            if total >= threshold {
+                let _ = sqlx::query(
+                    "INSERT INTO user_badges (user_id, badge_id) SELECT $1, id FROM badges WHERE slug = $2 ON CONFLICT DO NOTHING",
+                )
+                .bind(user_id)
+                .bind(slug)
+                .execute(db)
+                .await;
+            }
+        }
+    }
+}
+
 /// Stripe webhook handler — processes completed checkout sessions.
 async fn stripe_webhook(
     State(state): State<AppState>,
@@ -243,34 +395,69 @@ async fn stripe_webhook(
         let payment_status = session["payment_status"].as_str().unwrap_or("");
 
         if payment_status == "paid" {
-            let user_id_str = session["metadata"]["user_id"]
-                .as_str()
-                .ok_or_else(|| ApiError::Internal("Missing user_id in metadata".into()))?;
-            let credits_str = session["metadata"]["credits"]
-                .as_str()
-                .ok_or_else(|| ApiError::Internal("Missing credits in metadata".into()))?;
             let stripe_session_id = session["id"]
                 .as_str()
                 .ok_or_else(|| ApiError::Internal("Missing session id".into()))?;
+            let kind = session["metadata"]["type"].as_str().unwrap_or("");
 
-            let user_id: Uuid = user_id_str
-                .parse()
-                .map_err(|_| ApiError::Internal("Invalid user_id".into()))?;
-            let credits: i64 = credits_str
-                .parse()
-                .map_err(|_| ApiError::Internal("Invalid credits amount".into()))?;
+            if kind == "guest_donation" {
+                // One-time real-money donation from someone without an account.
+                let email = session["metadata"]["email"].as_str().unwrap_or("").trim().to_lowercase();
+                let amount_credits: i64 = session["metadata"]["amount_credits"]
+                    .as_str()
+                    .and_then(|s| s.parse().ok())
+                    .unwrap_or(0);
+                let message = session["metadata"]["message"].as_str().unwrap_or("");
+                let anonymous = session["metadata"]["anonymous"].as_str() == Some("true");
 
-            transaction::add_credits(&state.db, user_id, credits, stripe_session_id)
-                .await
-                .map_err(|e| ApiError::Internal(format!("Failed to add credits: {e}")))?;
+                if !email.is_empty() && amount_credits > 0 {
+                    // Idempotent on the Stripe session id (webhooks can retry).
+                    let _ = sqlx::query(
+                        "INSERT INTO guest_donations (id, email, amount_credits, message, anonymous, stripe_session_id) \
+                         VALUES ($1, $2, $3, $4, $5, $6) ON CONFLICT (stripe_session_id) DO NOTHING",
+                    )
+                    .bind(Uuid::new_v4())
+                    .bind(&email)
+                    .bind(amount_credits)
+                    .bind(message)
+                    .bind(anonymous)
+                    .bind(stripe_session_id)
+                    .execute(&state.db)
+                    .await;
+                    tracing::info!("Recorded guest donation ({amount_credits} credit-equiv) from {email}");
 
-            tracing::info!("Added {credits} credits to user {user_id}");
+                    // If an account already exists for this email, attach it now.
+                    if let Ok(Some(user)) = User::find_by_email(&state.db, &email).await {
+                        claim_guest_donations(&state.db, user.id, &email).await;
+                    }
+                }
+            } else {
+                // Credit top-up (existing flow).
+                let user_id_str = session["metadata"]["user_id"]
+                    .as_str()
+                    .ok_or_else(|| ApiError::Internal("Missing user_id in metadata".into()))?;
+                let credits_str = session["metadata"]["credits"]
+                    .as_str()
+                    .ok_or_else(|| ApiError::Internal("Missing credits in metadata".into()))?;
+                let user_id: Uuid = user_id_str
+                    .parse()
+                    .map_err(|_| ApiError::Internal("Invalid user_id".into()))?;
+                let credits: i64 = credits_str
+                    .parse()
+                    .map_err(|_| ApiError::Internal("Invalid credits amount".into()))?;
 
-            // Live credit update
-            state.ws_broadcast.send_to_user(user_id, "credit_update", serde_json::json!({
-                "amount": credits,
-                "type": "topup",
-            }));
+                transaction::add_credits(&state.db, user_id, credits, stripe_session_id)
+                    .await
+                    .map_err(|e| ApiError::Internal(format!("Failed to add credits: {e}")))?;
+
+                tracing::info!("Added {credits} credits to user {user_id}");
+
+                // Live credit update
+                state.ws_broadcast.send_to_user(user_id, "credit_update", serde_json::json!({
+                    "amount": credits,
+                    "type": "topup",
+                }));
+            }
         }
     }
 

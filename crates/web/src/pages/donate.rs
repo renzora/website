@@ -45,6 +45,19 @@ pub fn DonatePage() -> impl IntoView {
                 </div>
             </div>
 
+            // Post-donation thank-you (shown when returning from Stripe with ?donated=1)
+            <div id="donate-thanks" class="hidden mb-6 p-6 bg-gradient-to-br from-emerald-500/[0.08] to-accent/[0.06] border border-emerald-500/25 rounded-2xl text-center scroll-mt-24">
+                <div class="w-12 h-12 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center mx-auto mb-3">
+                    <i class="ph ph-heart text-2xl text-emerald-400"></i>
+                </div>
+                <h2 class="text-lg font-bold text-zinc-100">"Thank you so much"</h2>
+                <p class="text-sm text-zinc-400 mt-1.5 max-w-md mx-auto">"Your donation means the world to us. Create an account or sign in with the same email to be added to the supporters wall."</p>
+                <div class="mt-4 flex items-center justify-center gap-2 flex-wrap">
+                    <a href="/register" class="px-5 py-2.5 rounded-xl text-sm font-semibold bg-accent text-white hover:bg-accent-hover transition-colors">"Create an account"</a>
+                    <a href="/login" class="px-5 py-2.5 rounded-xl text-sm font-medium bg-white/[0.05] text-zinc-200 border border-white/[0.08] hover:bg-white/[0.08] transition-colors">"Sign in"</a>
+                </div>
+            </div>
+
             // Donation form (auth required)
             <div id="donate-form" class="hidden bg-surface-card border border-zinc-800 rounded-2xl p-6 mb-6 scroll-mt-24">
                 <h2 class="text-base font-semibold text-zinc-200 mb-1">"Make a Donation"</h2>
@@ -70,9 +83,40 @@ pub fn DonatePage() -> impl IntoView {
                 <div id="donate-success" class="hidden text-xs text-green-400 mt-2"></div>
             </div>
 
-            <div id="donate-login" class="hidden text-center mb-6 p-6 bg-surface-card border border-zinc-800 rounded-2xl">
-                <p class="text-sm text-zinc-400">"Sign in to donate and join the supporters wall"</p>
-                <a href="/login" class="inline-block mt-3 px-6 py-2 bg-accent hover:bg-accent-hover text-white text-sm font-medium rounded-xl transition-colors">"Sign In"</a>
+            // Guest one-time donation (shown when logged out) — no account required
+            <div id="donate-login" class="hidden bg-surface-card border border-zinc-800 rounded-2xl p-6 mb-6 scroll-mt-24">
+                <h2 class="text-base font-semibold text-zinc-200 mb-1">"Make a one-time donation"</h2>
+                <p class="text-xs text-zinc-500 mb-4">"No account needed. Sign in afterwards with the same email to appear on the supporters wall."</p>
+                <div class="grid grid-cols-4 gap-2 mb-3">
+                    <button class="guest-preset px-4 py-3 bg-zinc-800/50 border border-zinc-700 rounded-xl text-sm text-zinc-300 hover:border-accent/50 hover:text-accent transition-colors" data-amount="5">"$5"</button>
+                    <button class="guest-preset px-4 py-3 bg-zinc-800/50 border border-zinc-700 rounded-xl text-sm text-zinc-300 hover:border-accent/50 hover:text-accent transition-colors" data-amount="10">"$10"</button>
+                    <button class="guest-preset px-4 py-3 bg-zinc-800/50 border border-zinc-700 rounded-xl text-sm text-zinc-300 hover:border-accent/50 hover:text-accent transition-colors" data-amount="25">"$25"</button>
+                    <button class="guest-preset px-4 py-3 bg-zinc-800/50 border border-zinc-700 rounded-xl text-sm text-zinc-300 hover:border-accent/50 hover:text-accent transition-colors" data-amount="50">"$50"</button>
+                </div>
+                <div class="flex gap-3 mb-3">
+                    <div class="relative flex-1">
+                        <span class="absolute left-4 top-1/2 -translate-y-1/2 text-sm text-zinc-500">"$"</span>
+                        <input id="guest-amount" type="number" min="1" class="w-full pl-7 pr-4 py-2.5 bg-zinc-900 border border-zinc-700 rounded-xl text-sm text-zinc-200 placeholder:text-zinc-600 focus:outline-none focus:border-accent/50" placeholder="Amount (USD)" />
+                    </div>
+                    <input id="guest-email" type="email" class="flex-1 px-4 py-2.5 bg-zinc-900 border border-zinc-700 rounded-xl text-sm text-zinc-200 placeholder:text-zinc-600 focus:outline-none focus:border-accent/50" placeholder="Email (for your receipt)" />
+                </div>
+                <input id="guest-message" type="text" class="w-full px-4 py-2.5 bg-zinc-900 border border-zinc-700 rounded-xl text-sm text-zinc-200 placeholder:text-zinc-600 focus:outline-none focus:border-accent/50 mb-3" placeholder="Message (optional)" />
+                <div class="flex items-center justify-between">
+                    <label class="flex items-center gap-2 text-sm text-zinc-400 cursor-pointer">
+                        <input type="checkbox" id="guest-anon" class="checkbox checkbox-sm checkbox-accent" />
+                        "Donate anonymously"
+                    </label>
+                    <button id="guest-donate-btn" class="px-6 py-2.5 bg-accent hover:bg-accent-hover text-white text-sm font-medium rounded-xl transition-colors">"Donate with card"</button>
+                </div>
+                <div id="guest-error" class="hidden text-xs text-red-400 mt-2"></div>
+                <p class="text-xs text-zinc-500 mt-3 text-center">"Already have an account? "<a href="/login" class="text-accent hover:text-accent-hover">"Sign in to donate with credits"</a></p>
+            </div>
+
+            // Other ways to give
+            <div class="text-center mb-8">
+                <a href="https://github.com/sponsors/renzora" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-2 text-sm text-zinc-400 hover:text-white transition-colors">
+                    <i class="ph ph-github-logo text-base"></i>"Prefer GitHub? Sponsor us there"
+                </a>
             </div>
 
             // Recognition tiers
@@ -289,6 +333,47 @@ pub fn DonatePage() -> impl IntoView {
                     errorEl.classList.remove('hidden');
                 }
             });
+
+            // ── Guest (no-account) one-time donation ──
+            document.querySelectorAll('.guest-preset').forEach(function(btn) {
+                btn.addEventListener('click', function() {
+                    document.getElementById('guest-amount').value = btn.dataset.amount;
+                    document.querySelectorAll('.guest-preset').forEach(b => b.classList.remove('border-accent', 'text-accent'));
+                    btn.classList.add('border-accent', 'text-accent');
+                });
+            });
+            document.getElementById('guest-donate-btn')?.addEventListener('click', async function() {
+                var amount = parseInt(document.getElementById('guest-amount').value);
+                var email = document.getElementById('guest-email').value.trim();
+                var message = document.getElementById('guest-message').value;
+                var anonymous = document.getElementById('guest-anon').checked;
+                var errorEl = document.getElementById('guest-error');
+                errorEl.classList.add('hidden');
+                if (!amount || amount < 1) { errorEl.textContent = 'Enter an amount in dollars'; errorEl.classList.remove('hidden'); return; }
+                if (!email || email.indexOf('@') < 1) { errorEl.textContent = 'Enter a valid email'; errorEl.classList.remove('hidden'); return; }
+                var btn = this;
+                btn.disabled = true; btn.textContent = 'Redirecting...';
+                try {
+                    var res = await fetch('/api/credits/donate/checkout', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ amount_usd: amount, email: email, message: message, anonymous: anonymous })
+                    });
+                    var data = await res.json();
+                    if (res.ok && data.checkout_url) { window.location.href = data.checkout_url; return; }
+                    errorEl.textContent = data.error || 'Could not start checkout'; errorEl.classList.remove('hidden');
+                } catch (e) {
+                    errorEl.textContent = 'Something went wrong. Please try again.'; errorEl.classList.remove('hidden');
+                }
+                btn.disabled = false; btn.textContent = 'Donate with card';
+            });
+
+            // Returning from Stripe: thank them and nudge sign-up for the wall.
+            if (new URLSearchParams(window.location.search).get('donated') === '1') {
+                var thx = document.getElementById('donate-thanks');
+                if (thx) { thx.classList.remove('hidden'); thx.scrollIntoView({ behavior: 'smooth', block: 'center' }); }
+                if (typeof fireConfetti === 'function') fireConfetti();
+            }
         })();
 
         function renderGoal(goal) {

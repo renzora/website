@@ -87,6 +87,9 @@ async fn register(
     )
     .await?;
 
+    // Attach any guest donations made with this email to the new account.
+    crate::credits::claim_guest_donations(&state.db, user.id, &body.email).await;
+
     let access_token =
         jwt::create_access_token(user.id, &state.jwt_secret).map_err(|e| ApiError::Internal(e.to_string()))?;
     let refresh_token =
@@ -110,6 +113,9 @@ async fn login(
     if !user.verify_password(&body.password) {
         return Err(ApiError::InvalidCredentials);
     }
+
+    // Attach any guest donations made with this email to this account.
+    crate::credits::claim_guest_donations(&state.db, user.id, &user.email).await;
 
     // If 2FA is enabled, return a temporary token instead of full auth
     if user.totp_enabled {
