@@ -7,8 +7,20 @@ pub fn LoginPage() -> impl IntoView {
             // Auth card
             <div id="lobby-auth" class="w-[380px] max-w-full bg-[rgba(8,8,14,0.75)] backdrop-blur-2xl border border-white/[0.1] rounded-3xl shadow-2xl shadow-black/60 p-8">
                 <div class="text-center mb-6">
-                    <h1 class="text-xl font-bold tracking-tight">"Renzora"</h1>
+                    <div class="w-12 h-12 rounded-2xl bg-gradient-to-br from-accent to-secondary flex items-center justify-center mx-auto mb-3 shadow-lg shadow-accent/20">
+                        <i class="ph ph-star text-white text-xl"></i>
+                    </div>
+                    <h1 class="text-xl font-bold tracking-tight" id="lobby-title">"Welcome back"</h1>
                     <p class="text-zinc-500 text-sm mt-1" id="lobby-subtitle">"Sign in to continue"</p>
+                </div>
+
+                // Why join, revealed in register mode
+                <div id="lobby-benefits" class="hidden mb-6 space-y-2.5 text-left">
+                    <div class="flex items-center gap-2.5 text-sm text-zinc-300"><i class="ph ph-storefront text-teal-400 text-base"></i>"Free assets, models and plugins"</div>
+                    <div class="flex items-center gap-2.5 text-sm text-zinc-300"><i class="ph ph-upload-simple text-accent text-base"></i>"Publish and sell your creations"</div>
+                    <div class="flex items-center gap-2.5 text-sm text-zinc-300"><i class="ph ph-users-three text-sky-400 text-base"></i>"Teams and collaboration"</div>
+                    <div class="flex items-center gap-2.5 text-sm text-zinc-300"><i class="ph ph-chats-circle text-violet-400 text-base"></i>"Community, help and devlogs"</div>
+                    <div class="flex items-center gap-2.5 text-sm text-zinc-300"><i class="ph ph-trophy text-amber-400 text-base"></i>"Earn XP and level up"</div>
                 </div>
 
                 <div id="lobby-error" class="hidden mb-4 p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-xs"></div>
@@ -52,7 +64,9 @@ pub fn LoginPage() -> impl IntoView {
                 mode = 'register';
                 document.getElementById('lobby-login').classList.add('hidden');
                 document.getElementById('lobby-register').classList.remove('hidden');
-                document.getElementById('lobby-subtitle').textContent = 'Join the Renzora community';
+                document.getElementById('lobby-benefits').classList.remove('hidden');
+                document.getElementById('lobby-title').textContent = 'Join Renzora';
+                document.getElementById('lobby-subtitle').textContent = 'Create your free account, it only takes a moment';
                 document.getElementById('lobby-toggle-text').textContent = 'Already have an account? ';
                 document.getElementById('lobby-toggle-btn').textContent = 'Sign In';
             }
@@ -61,7 +75,9 @@ pub fn LoginPage() -> impl IntoView {
                 mode = mode==='login'?'register':'login';
                 document.getElementById('lobby-login').classList.toggle('hidden', mode!=='login');
                 document.getElementById('lobby-register').classList.toggle('hidden', mode!=='register');
-                document.getElementById('lobby-subtitle').textContent = mode==='login'?'Sign in to continue':'Join the Renzora community';
+                document.getElementById('lobby-benefits').classList.toggle('hidden', mode!=='register');
+                document.getElementById('lobby-title').textContent = mode==='login'?'Welcome back':'Join Renzora';
+                document.getElementById('lobby-subtitle').textContent = mode==='login'?'Sign in to continue':'Create your free account, it only takes a moment';
                 document.getElementById('lobby-toggle-text').textContent = mode==='login'?"Don't have an account? ":'Already have an account? ';
                 document.getElementById('lobby-toggle-btn').textContent = mode==='login'?'Register':'Sign In';
                 document.getElementById('lobby-error').classList.add('hidden');
