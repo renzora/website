@@ -50,7 +50,7 @@ pub fn DownloadPage() -> impl IntoView {
                     <picture class="contents">
                         <source type="image/avif" sizes="(max-width: 1100px) 100vw, 1100px" srcset="/assets/previews/interface-640.avif 640w, /assets/previews/interface-1280.avif 1280w, /assets/previews/interface-1920.avif 1920w" />
                         <source type="image/webp" sizes="(max-width: 1100px) 100vw, 1100px" srcset="/assets/previews/interface-640.webp 640w, /assets/previews/interface-1280.webp 1280w, /assets/previews/interface-1920.webp 1920w" />
-                        <img src="/assets/previews/interface-1280.webp" alt="The Renzora editor" class="w-full h-auto block" width="1600" height="858" fetchpriority="high" decoding="async" data-zoom="1" />
+                        <img src="/assets/previews/interface-1280.webp" alt="The Renzora editor" class="w-full h-auto block" width="1600" height="858" fetchpriority="high" decoding="async" />
                     </picture>
                 </div>
                 <p class="text-center text-sm text-zinc-500 mt-4 max-w-2xl mx-auto">
@@ -135,9 +135,9 @@ pub fn DownloadPage() -> impl IntoView {
                 <div id="editor-downloads" class="grid grid-cols-1 md:grid-cols-3 gap-4">
                     // Static cards, no GitHub API call. After each release, set the
                     // version above and fill each `href` with the asset download URL.
-                    <PlatformCard name="Windows" icon="ph-windows-logo" req="Windows 10+, 64-bit" href="https://github.com/renzora/engine/releases/tag/r1-alpha6" />
-                    <PlatformCard name="macOS" icon="ph-apple-logo" req="macOS 12 Monterey+" href="https://github.com/renzora/engine/releases/tag/r1-alpha6" />
-                    <PlatformCard name="Linux" icon="ph-linux-logo" req="Ubuntu 22.04+, Fedora 38+" href="https://github.com/renzora/engine/releases/tag/r1-alpha6" />
+                    <PlatformCard name="Windows" icon="ph-windows-logo" req="Windows 10+, x64" href="https://github.com/renzora/engine/releases/download/r1-alpha6/windows-x64.zip" />
+                    <PlatformCard name="macOS" icon="ph-apple-logo" req="macOS 12+, Apple Silicon" href="https://github.com/renzora/engine/releases/download/r1-alpha6/macos-arm64.zip" />
+                    <PlatformCard name="Linux" icon="ph-linux-logo" req="Linux, ARM64" href="https://github.com/renzora/engine/releases/download/r1-alpha6/linux-arm64.zip" />
                 </div>
                 <p class="text-xs text-zinc-500 mt-4 text-center">
                     "Each build is the engine binary with the "<code class="text-zinc-300">"renzora_editor"</code>" bundle beside it, just run it to open the editor."
@@ -179,6 +179,102 @@ pub fn DownloadPage() -> impl IntoView {
             </div>
         </section>
 
+
+        // ── Support / Donate ──
+        <section class="pb-24 px-6">
+            <div class="max-w-[1000px] mx-auto">
+                <div class="relative overflow-hidden rounded-3xl border border-rose-500/25 bg-gradient-to-br from-rose-500/[0.12] via-purple-600/[0.05] to-rose-500/[0.08] p-10 md:p-16 text-center">
+                    <div class="absolute -top-20 left-1/2 -translate-x-1/2 w-[32rem] h-56 bg-rose-500/15 rounded-full blur-[110px] pointer-events-none"></div>
+                    <div class="absolute -bottom-16 right-1/4 w-72 h-40 bg-purple-600/10 rounded-full blur-[90px] pointer-events-none"></div>
+                    <div class="relative z-10">
+                        <div class="w-16 h-16 rounded-2xl bg-rose-500/15 border border-rose-500/30 flex items-center justify-center mx-auto mb-5 shadow-lg shadow-rose-500/20">
+                            <i class="ph ph-heart text-3xl text-rose-400"></i>
+                        </div>
+                        <h2 class="text-3xl md:text-5xl font-extrabold tracking-tight">"Thank you for being here"</h2>
+                        <p class="text-zinc-300 mt-5 text-base md:text-lg leading-relaxed max-w-2xl mx-auto">
+                            "Renzora is free and open source, and it always will be. No paywalls, no locked features, no catch. It's lovingly built by a tiny team who just want to give the Bevy community the editor it deserves."
+                        </p>
+                        <p class="text-zinc-400 mt-4 text-base leading-relaxed max-w-2xl mx-auto">
+                            "If Renzora has saved you time, taught you something, or brought you a little joy, a donation, however small, genuinely means the world. It keeps the lights on and lets us keep building for you."
+                        </p>
+                        <a href="/donate" class="mt-8 inline-flex items-center gap-2.5 px-8 py-4 rounded-xl text-base font-semibold bg-rose-500 text-white hover:bg-rose-400 transition-all hover:shadow-[0_0_40px_rgba(244,63,94,0.4)] hover:scale-[1.03]">
+                            <i class="ph ph-heart text-lg"></i>"Support Renzora's future"
+                        </a>
+                        <p class="text-xs text-zinc-500 mt-5">"With love, the Renzora team ♥"</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        // ── Post-download signup prompt (revealed after a download starts) ──
+        <div id="dl-modal" class="hidden fixed inset-0 z-[100] items-center justify-center p-4">
+            <div class="absolute inset-0 bg-black/70 backdrop-blur-sm" onclick="dlClose()"></div>
+            <div class="relative w-full max-w-md bg-surface-card border border-white/[0.08] rounded-2xl shadow-2xl shadow-black/60 p-6 max-h-[90vh] overflow-y-auto">
+                <button onclick="dlClose()" class="absolute top-3 right-3 w-8 h-8 rounded-full bg-white/[0.05] hover:bg-white/[0.1] text-zinc-400 hover:text-white flex items-center justify-center transition-all" aria-label="Close">
+                    <i class="ph ph-x"></i>
+                </button>
+                <div class="text-center">
+                    <div class="w-14 h-14 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center mx-auto mb-4">
+                        <i class="ph ph-check-circle text-3xl text-emerald-400"></i>
+                    </div>
+                    <h2 class="text-xl font-bold">"Your download is starting"</h2>
+                    <p class="text-zinc-400 mt-2 text-sm">"Create a free account to get the most out of Renzora."</p>
+                </div>
+                <ul class="mt-6 space-y-3.5">
+                    <li class="flex items-start gap-3">
+                        <div class="w-8 h-8 rounded-lg bg-teal-500/10 flex items-center justify-center shrink-0"><i class="ph ph-storefront text-teal-400"></i></div>
+                        <p class="text-sm text-zinc-300 leading-snug">"Download free assets, models and plugins from the marketplace"</p>
+                    </li>
+                    <li class="flex items-start gap-3">
+                        <div class="w-8 h-8 rounded-lg bg-accent/10 flex items-center justify-center shrink-0"><i class="ph ph-upload-simple text-accent"></i></div>
+                        <p class="text-sm text-zinc-300 leading-snug">"Publish and sell your own creations"</p>
+                    </li>
+                    <li class="flex items-start gap-3">
+                        <div class="w-8 h-8 rounded-lg bg-sky-500/10 flex items-center justify-center shrink-0"><i class="ph ph-users-three text-sky-400"></i></div>
+                        <p class="text-sm text-zinc-300 leading-snug">"Create teams and collaborate on projects"</p>
+                    </li>
+                    <li class="flex items-start gap-3">
+                        <div class="w-8 h-8 rounded-lg bg-violet-500/10 flex items-center justify-center shrink-0"><i class="ph ph-chats-circle text-violet-400"></i></div>
+                        <p class="text-sm text-zinc-300 leading-snug">"Get help and share devlogs with the community"</p>
+                    </li>
+                    <li class="flex items-start gap-3">
+                        <div class="w-8 h-8 rounded-lg bg-amber-500/10 flex items-center justify-center shrink-0"><i class="ph ph-trophy text-amber-400"></i></div>
+                        <p class="text-sm text-zinc-300 leading-snug">"Earn XP, level up, and unlock perks"</p>
+                    </li>
+                </ul>
+                <a href="/register" class="mt-6 block text-center px-6 py-3 rounded-xl text-sm font-semibold bg-purple-600 text-white hover:bg-purple-500 transition-all">"Create your free account"</a>
+                <div class="mt-3 flex items-center justify-center gap-3 text-xs">
+                    <a href="/login" class="text-zinc-400 hover:text-white transition-colors">"Sign in"</a>
+                    <span class="text-zinc-700">"·"</span>
+                    <a href="/donate" class="text-rose-400 hover:text-rose-300 transition-colors inline-flex items-center gap-1"><i class="ph ph-heart"></i>"Donate"</a>
+                    <span class="text-zinc-700">"·"</span>
+                    <button onclick="dlClose()" class="text-zinc-500 hover:text-zinc-300 transition-colors">"Maybe later"</button>
+                </div>
+            </div>
+        </div>
+
+        // ── Post-download prompt logic ──
+        <script>
+            r#"
+            function dlPrompt() {
+                // Skip the signup prompt for people who are already logged in.
+                if (document.cookie.match(/(^|;)\s*user\s*=/)) return;
+                const m = document.getElementById('dl-modal');
+                if (!m) return;
+                m.classList.remove('hidden');
+                m.classList.add('flex');
+                document.body.style.overflow = 'hidden';
+            }
+            function dlClose() {
+                const m = document.getElementById('dl-modal');
+                if (!m) return;
+                m.classList.add('hidden');
+                m.classList.remove('flex');
+                document.body.style.overflow = '';
+            }
+            document.addEventListener('keydown', function(e) { if (e.key === 'Escape') dlClose(); });
+            "#
+        </script>
 
         // ── Particle canvas ──
         <script>
@@ -338,7 +434,7 @@ fn PlatformCard(name: &'static str, icon: &'static str, req: &'static str, href:
             <p class="text-[11px] text-zinc-500">{req}</p>
             {if available {
                 view! {
-                    <a href=href target="_blank" rel="noopener noreferrer" class="w-full mt-1 inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium bg-purple-600 text-white hover:bg-purple-500 transition-all">
+                    <a href=href target="_blank" rel="noopener noreferrer" onclick="dlPrompt()" class="w-full mt-1 inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium bg-purple-600 text-white hover:bg-purple-500 transition-all">
                         <i class="ph ph-download-simple"></i>"Download"
                     </a>
                 }.into_any()
