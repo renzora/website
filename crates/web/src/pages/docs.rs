@@ -2,6 +2,12 @@ use leptos::prelude::*;
 use leptos_meta::{Link, Meta, Title};
 use renzora_common::ssr::DocSsr;
 
+/// The highlight.js github-dark theme, self-hosted and inlined so docs code
+/// blocks are styled without a render-blocking cross-origin stylesheet.
+static HLJS_CSS: std::sync::LazyLock<String> = std::sync::LazyLock::new(|| {
+    std::fs::read_to_string("assets/highlight/github-dark.min.css").unwrap_or_default()
+});
+
 /// Docs landing (`/docs`), redirects to the default version's portal home.
 #[component]
 pub fn DocsPage() -> impl IntoView {
@@ -38,6 +44,9 @@ pub fn DocArticle() -> impl IntoView {
             <Link rel="canonical" href=canonical />
         }
     });
+    // Only article pages have code blocks, so only they load the highlighter; the
+    // landing shouldn't pay for the 120KB library it has no use for.
+    let is_article = ssr.is_some();
     // Server-rendered doc HTML (crawlable); the client script re-renders with the
     // sidebar + syntax highlighting on load.
     let ssr_body = ssr.map(|d| view! { <div class="doc-body" inner_html=d.content_html></div> });
@@ -62,8 +71,13 @@ pub fn DocArticle() -> impl IntoView {
                 <article id="doc-content">{ssr_body}{landing}</article>
             </div>
         </div>
-        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css" />
-        <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+        // Syntax highlighting, self-hosted (no cross-origin dependency), loaded
+        // only on article pages that actually contain code. Theme CSS inlined;
+        // the library is deferred so it never blocks paint.
+        {is_article.then(|| view! {
+            <style inner_html=HLJS_CSS.as_str()></style>
+            <script defer src="/assets/highlight/highlight.min.js"></script>
+        })}
         <script>
             r##"
             function docsNotFound() {
@@ -149,7 +163,7 @@ pub fn DocArticle() -> impl IntoView {
                     if (!code) return;
                     const langClass = [...code.classList].find(c => c.startsWith('language-'));
                     const lang = langClass ? langClass.replace('language-', '') : '';
-                    hljs.highlightElement(code);
+                    if (window.hljs) hljs.highlightElement(code);
                     const wrapper = document.createElement('div');
                     wrapper.className = 'code-block-wrapper';
                     const header = document.createElement('div');

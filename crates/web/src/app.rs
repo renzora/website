@@ -44,10 +44,8 @@ pub fn App() -> impl IntoView {
     provide_meta_context();
 
     view! {
-        <Stylesheet href="/assets/style/main.css" />
-        // Preload the icon-font subset, Phosphor glyphs render in the nav above
-        // the fold on every page, so fetch it in parallel with the CSS instead of
-        // waiting for the stylesheet to be parsed to discover the @font-face.
+        // CSS is inlined in the shell <head> (no external stylesheet). Still preload
+        // the icon-font subset so the fetch starts in parallel with HTML parsing.
         <Link rel="preload" href="/assets/fonts/phosphor-regular.woff2" as_="font" crossorigin="anonymous" />
         <Title text="Renzora, Open Source Bevy Editor & Game Engine" />
         <Meta name="description" content="Renzora is a free, open-source Bevy editor and game engine, a full 2D & 3D visual editor for Bevy with Lua & Rhai scripting, a plugin system, physics and real-time rendering, built in Rust. Download for Windows, macOS, Linux and the web." />

@@ -36,6 +36,19 @@ fn origin_of(url: &str) -> Option<String> {
     (end > after).then(|| origin.to_string())
 }
 
+/// The compiled CSS bundles, read once per process and inlined into every SSR
+/// `<head>` so the first paint isn't render-blocked on two extra round trips
+/// (PSI measured ~420ms on mobile for the external sheets). The CSS is baked
+/// into the image at build time and never changes while the server runs; the
+/// inlined bytes ride along in the (edge-cached) HTML and are always in sync.
+fn read_css(path: &str) -> String {
+    std::fs::read_to_string(path).unwrap_or_default()
+}
+static MAIN_CSS: std::sync::LazyLock<String> =
+    std::sync::LazyLock::new(|| read_css("assets/style/main.css"));
+static PHOSPHOR_CSS: std::sync::LazyLock<String> =
+    std::sync::LazyLock::new(|| read_css("assets/style/phosphor.css"));
+
 /// The HTML shell that wraps the entire application for SSR.
 #[component]
 pub fn Shell() -> impl IntoView {
@@ -48,18 +61,13 @@ pub fn Shell() -> impl IntoView {
     let og_image = format!("{site}/assets/previews/og.jpg");
     let json_ld = JSON_LD.replace("{SITE}", &site);
 
-    // Marketplace/home thumbnails come from S3_PUBLIC_URL. When that's a distinct
-    // origin, warm the connection (TLS + DNS) before the images are discovered so
-    // image-heavy pages paint their thumbnails a round trip sooner. Emitted only
-    // when cross-origin, so it's never a wasted hint.
+    // Marketplace/asset thumbnails come from S3_PUBLIC_URL. When that's a distinct
+    // origin, resolve its DNS early. Only a dns-prefetch (not a preconnect): pages
+    // without those images — e.g. the home page — otherwise open an unused TLS
+    // connection, which PSI flags. Emitted only when cross-origin.
     let asset_hint = origin_of(&std::env::var("S3_PUBLIC_URL").unwrap_or_default())
         .filter(|o| *o != site)
-        .map(|o| {
-            view! {
-                <link rel="preconnect" href=o.clone() />
-                <link rel="dns-prefetch" href=o />
-            }
-        });
+        .map(|o| view! { <link rel="dns-prefetch" href=o /> });
 
     view! {
         <!DOCTYPE html>
@@ -83,9 +91,10 @@ pub fn Shell() -> impl IntoView {
                 <meta name="twitter:image" content=og_image />
                 <script type="application/ld+json" inner_html=json_ld></script>
 
-                // Phosphor icons, self-hosted subset (only the icons the app uses)
-                <link rel="stylesheet" href="/assets/style/phosphor.css" />
-                <link rel="stylesheet" href="/assets/style/main.css" />
+                // CSS inlined into <head> so the first paint isn't render-blocked
+                // on external sheets (self-hosted Phosphor icon subset + Tailwind).
+                <style inner_html=PHOSPHOR_CSS.as_str()></style>
+                <style inner_html=MAIN_CSS.as_str()></style>
 
                 // Instant navigation: prerender/prefetch internal links on hover
                 // intent (Chromium via Speculation Rules; others via the fallback
@@ -170,8 +179,8 @@ pub fn EmbedShell() -> impl IntoView {
             <head>
                 <meta charset="utf-8" />
                 <meta name="viewport" content="width=device-width, initial-scale=1" />
-                <link rel="stylesheet" href="/assets/style/phosphor.css" />
-                <link rel="stylesheet" href="/assets/style/main.css" />
+                <style inner_html=PHOSPHOR_CSS.as_str()></style>
+                <style inner_html=MAIN_CSS.as_str()></style>
                 <style>
                     "body { margin: 0; padding: 0; background: #060608; overflow: hidden; }
                     * { box-sizing: border-box; }

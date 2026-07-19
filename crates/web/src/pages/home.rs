@@ -327,19 +327,29 @@ pub fn HomePage() -> impl IntoView {
                             </div>
                         </a>`;
                 }
-                fetch('/api/marketplace?page=1')
-                    .then(r => r.ok ? r.json() : { assets: [] })
-                    .then(data => {
-                        const assets = (data.assets || []).slice(0, 4);
-                        if (!assets.length) {
-                            grid.innerHTML = '<a href="/marketplace" class="col-span-2 lg:col-span-4 rounded-xl border border-dashed border-white/[0.1] p-8 text-center text-sm text-zinc-500 hover:text-zinc-300 hover:border-white/20 transition-all">The marketplace is just getting started, browse what\'s there →</a>';
-                            return;
-                        }
-                        grid.innerHTML = assets.map(card).join('');
-                    })
-                    .catch(() => {
-                        grid.innerHTML = '<a href="/marketplace" class="col-span-2 lg:col-span-4 rounded-xl border border-dashed border-white/[0.1] p-8 text-center text-sm text-zinc-500 hover:text-zinc-300 transition-all">Browse the marketplace →</a>';
-                    });
+                function loadMarket() {
+                    fetch('/api/marketplace?page=1')
+                        .then(r => r.ok ? r.json() : { assets: [] })
+                        .then(data => {
+                            const assets = (data.assets || []).slice(0, 4);
+                            if (!assets.length) {
+                                grid.innerHTML = '<a href="/marketplace" class="col-span-2 lg:col-span-4 rounded-xl border border-dashed border-white/[0.1] p-8 text-center text-sm text-zinc-500 hover:text-zinc-300 hover:border-white/20 transition-all">The marketplace is just getting started, browse what\'s there →</a>';
+                                return;
+                            }
+                            grid.innerHTML = assets.map(card).join('');
+                        })
+                        .catch(() => {
+                            grid.innerHTML = '<a href="/marketplace" class="col-span-2 lg:col-span-4 rounded-xl border border-dashed border-white/[0.1] p-8 text-center text-sm text-zinc-500 hover:text-zinc-300 transition-all">Browse the marketplace →</a>';
+                        });
+                }
+                // Defer this below-the-fold fetch until the grid nears the viewport
+                // so it never competes with the initial render (PSI critical chain).
+                if ('IntersectionObserver' in window && grid) {
+                    const io = new IntersectionObserver((es, o) => {
+                        if (es[0].isIntersecting) { o.disconnect(); loadMarket(); }
+                    }, { rootMargin: '300px' });
+                    io.observe(grid);
+                } else { loadMarket(); }
             })();
             "#
         </script>
@@ -385,6 +395,28 @@ fn PillarCard(icon: &'static str, color: &'static str, title: &'static str, desc
     }
 }
 
+/// Intrinsic pixel dimensions for the preview images, so each <img> can carry an
+/// explicit width/height — reserves the aspect-ratio box and prevents layout
+/// shift when the below-the-fold images lazy-load in on scroll.
+fn img_dims(img: &str) -> (u32, u32) {
+    match img.rsplit('/').next().unwrap_or("").trim_end_matches(".webp") {
+        "inspector" => (341, 320),
+        "viewport" => (1200, 515),
+        "code_editor" => (827, 687),
+        "panels" => (866, 637),
+        "add_entity" => (722, 619),
+        "material_graph" => (922, 761),
+        "ui" | "debugging" => (1200, 644),
+        "hierarchy" => (344, 379),
+        "renzora_ember" => (1200, 566),
+        "mixer" => (528, 302),
+        "marketplace" => (1040, 576),
+        "console" => (704, 508),
+        "assets_panel" => (1200, 202),
+        _ => (1200, 675),
+    }
+}
+
 #[component]
 fn FeatureRow(
     color: &'static str,
@@ -404,6 +436,7 @@ fn FeatureRow(
     let media_order = if reversed { "lg:order-1" } else { "lg:order-2" };
     let text_col_class = format!("{}", text_order);
     let media_col_class = format!("{}", media_order);
+    let (iw, ih) = img_dims(img);
     view! {
         <div class="feature-row grid lg:grid-cols-2 gap-8 lg:gap-12 items-center mb-16 lg:mb-24 last:mb-0">
             <div class=text_col_class>
@@ -429,7 +462,7 @@ fn FeatureRow(
                     <div class="pointer-events-none absolute inset-0 ring-1 ring-inset ring-white/5 rounded-2xl z-10"></div>
                     <picture class="contents">
                         <source srcset=img.replace(".webp", ".avif") type="image/avif" />
-                        <img src=img alt=alt loading="lazy" data-zoom="1" class="relative w-full h-auto block transition-transform duration-500 group-hover:scale-[1.02]" />
+                        <img src=img alt=alt loading="lazy" data-zoom="1" width=iw height=ih class="relative w-full h-auto block transition-transform duration-500 group-hover:scale-[1.02]" />
                     </picture>
                 </div>
                 <p class="mt-3 text-xs text-zinc-500 italic leading-relaxed">{caption}</p>
@@ -451,11 +484,12 @@ fn PlatformTile(icon: &'static str, name: &'static str) -> impl IntoView {
 
 #[component]
 fn GalleryShot(img: &'static str, label: &'static str) -> impl IntoView {
+    let (iw, ih) = img_dims(img);
     view! {
         <figure class="group relative rounded-xl overflow-hidden border border-white/[0.07] bg-surface-card">
             <picture class="contents">
                 <source srcset=img.replace(".webp", ".avif") type="image/avif" />
-                <img src=img alt=label loading="lazy" data-zoom="1" class="w-full h-44 object-cover object-top transition-transform duration-500 group-hover:scale-105" />
+                <img src=img alt=label loading="lazy" data-zoom="1" width=iw height=ih class="w-full h-44 object-cover object-top transition-transform duration-500 group-hover:scale-105" />
             </picture>
             <figcaption class="absolute inset-x-0 bottom-0 p-3 text-xs text-zinc-200 leading-snug bg-gradient-to-t from-black/85 via-black/50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity">{label}</figcaption>
         </figure>
