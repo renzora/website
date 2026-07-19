@@ -48,10 +48,15 @@ RUN npm install --no-audit --no-fund
 # both class names and ph-* icon tokens, incl. DB-seeded ones)
 COPY tailwind.config.js ./
 COPY assets/style/input.css ./assets/style/input.css
+# Preview image sources: committed PNG originals + the canonical .webp masters
+# (some hand-cropped, e.g. inspector). optimize:images regenerates the .avif
+# companions and responsive srcset variants from the .webp so the deployed set
+# always matches source, the same way main.css is rebuilt here.
+COPY assets/previews ./assets/previews
 COPY scripts ./scripts
 COPY migrations ./migrations
 COPY crates ./crates
-RUN npm run build:icons && npm run build:css
+RUN npm run build:icons && npm run build:css && npm run optimize:images
 
 # Stage 2: Runtime (must match builder's glibc — rust:latest uses Trixie)
 FROM debian:trixie-slim
@@ -69,6 +74,8 @@ COPY assets/ /app/assets/
 COPY --from=css /app/assets/style/main.css /app/assets/style/main.css
 COPY --from=css /app/assets/style/phosphor.css /app/assets/style/phosphor.css
 COPY --from=css /app/assets/fonts /app/assets/fonts
+# Override the context-copied previews with the freshly generated avif/variants.
+COPY --from=css /app/assets/previews /app/assets/previews
 COPY docs/ /app/docs/
 
 EXPOSE 3000
