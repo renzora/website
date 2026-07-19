@@ -317,6 +317,25 @@ async fn main() {
                 })
             },
         ))
+        // A `Link: preload` header for the icon-font subset, so Cloudflare Early
+        // Hints can replay it as a 103 before the HTML body. Early Hints reads
+        // HTTP Link headers, not the in-<head> <link rel=preload> tag. Only
+        // text/html carries it.
+        .layer(SetResponseHeaderLayer::if_not_present(
+            header::LINK,
+            |res: &Response| {
+                let html = res
+                    .headers()
+                    .get(header::CONTENT_TYPE)
+                    .and_then(|v| v.to_str().ok())
+                    .is_some_and(|ct| ct.starts_with("text/html"));
+                html.then(|| {
+                    HeaderValue::from_static(
+                        "</assets/fonts/phosphor-regular.woff2>; rel=preload; as=font; crossorigin",
+                    )
+                })
+            },
+        ))
         // Outermost: gzip/brotli-compress responses (HTML, CSS, JS, JSON, sitemap).
         // The default predicate skips already-compressed types (images) and tiny
         // bodies. Harmless behind nginx (which won't re-compress an encoded body).
