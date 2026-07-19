@@ -417,6 +417,25 @@ fn img_dims(img: &str) -> (u32, u32) {
     }
 }
 
+/// Build the AVIF and WebP srcset strings for a preview, given its intrinsic
+/// width. Emits the down-scaled variants that `optimize-images.mjs` generates
+/// (widths smaller than the source) plus the full-size original. Keep the width
+/// list in sync with PREVIEW_WIDTHS in that script.
+fn srcsets(img: &str, iw: u32) -> (String, String) {
+    let stem = img.trim_end_matches(".webp");
+    let mut avif = String::new();
+    let mut webp = String::new();
+    for w in [640u32, 1024] {
+        if w < iw {
+            avif.push_str(&format!("{stem}-{w}.avif {w}w, "));
+            webp.push_str(&format!("{stem}-{w}.webp {w}w, "));
+        }
+    }
+    avif.push_str(&format!("{stem}.avif {iw}w"));
+    webp.push_str(&format!("{stem}.webp {iw}w"));
+    (avif, webp)
+}
+
 #[component]
 fn FeatureRow(
     color: &'static str,
@@ -437,6 +456,10 @@ fn FeatureRow(
     let text_col_class = format!("{}", text_order);
     let media_col_class = format!("{}", media_order);
     let (iw, ih) = img_dims(img);
+    let (avif_srcset, webp_srcset) = srcsets(img, iw);
+    // Media column is ~528px at lg (max-w-6xl, px-6, 2-col with gap-12), full
+    // content width below that.
+    let sizes = "(min-width: 1024px) 528px, 94vw";
     view! {
         <div class="feature-row grid lg:grid-cols-2 gap-8 lg:gap-12 items-center mb-16 lg:mb-24 last:mb-0">
             <div class=text_col_class>
@@ -461,8 +484,8 @@ fn FeatureRow(
                     <div class="pointer-events-none absolute inset-0 bg-gradient-to-tr from-accent/10 via-transparent to-secondary/10 z-10"></div>
                     <div class="pointer-events-none absolute inset-0 ring-1 ring-inset ring-white/5 rounded-2xl z-10"></div>
                     <picture class="contents">
-                        <source srcset=img.replace(".webp", ".avif") type="image/avif" />
-                        <img src=img alt=alt loading="lazy" data-zoom="1" width=iw height=ih class="relative w-full h-auto block transition-transform duration-500 group-hover:scale-[1.02]" />
+                        <source srcset=avif_srcset sizes=sizes type="image/avif" />
+                        <img src=img srcset=webp_srcset sizes=sizes alt=alt loading="lazy" data-zoom="1" width=iw height=ih class="relative w-full h-auto block transition-transform duration-500 group-hover:scale-[1.02]" />
                     </picture>
                 </div>
                 <p class="mt-3 text-xs text-zinc-500 italic leading-relaxed">{caption}</p>
@@ -485,11 +508,14 @@ fn PlatformTile(icon: &'static str, name: &'static str) -> impl IntoView {
 #[component]
 fn GalleryShot(img: &'static str, label: &'static str) -> impl IntoView {
     let (iw, ih) = img_dims(img);
+    let (avif_srcset, webp_srcset) = srcsets(img, iw);
+    // Gallery is a 3-col grid at lg (~357px per cell), 2-col below.
+    let sizes = "(min-width: 1024px) 360px, 47vw";
     view! {
         <figure class="group relative rounded-xl overflow-hidden border border-white/[0.07] bg-surface-card">
             <picture class="contents">
-                <source srcset=img.replace(".webp", ".avif") type="image/avif" />
-                <img src=img alt=label loading="lazy" data-zoom="1" width=iw height=ih class="w-full h-44 object-cover object-top transition-transform duration-500 group-hover:scale-105" />
+                <source srcset=avif_srcset sizes=sizes type="image/avif" />
+                <img src=img srcset=webp_srcset sizes=sizes alt=label loading="lazy" data-zoom="1" width=iw height=ih class="w-full h-44 object-cover object-top transition-transform duration-500 group-hover:scale-105" />
             </picture>
             <figcaption class="absolute inset-x-0 bottom-0 p-3 text-xs text-zinc-200 leading-snug bg-gradient-to-t from-black/85 via-black/50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity">{label}</figcaption>
         </figure>

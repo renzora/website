@@ -14,6 +14,10 @@ import path from 'path';
 const DIR = 'assets/previews';
 const HERO = 'interface';
 const HERO_WIDTHS = [640, 1280, 1920];
+// Down-scaled widths for the feature-row and gallery previews, referenced via
+// srcset so the browser fetches a size that matches its slot instead of the
+// full-resolution source. Must stay in sync with the srcset widths in home.rs.
+const PREVIEW_WIDTHS = [640, 1024];
 
 // The <picture> fallback for each preview stays .webp; we only add .avif here.
 // Regenerate from the PNG source when present (best quality), else from the webp.
@@ -39,6 +43,16 @@ for (const base of bases) {
   const a = fs.statSync(avif).size;
   saved += w - a;
   console.log(`${base.padEnd(16)} webp ${(w / 1024).toFixed(0)}K → avif ${(a / 1024).toFixed(0)}K`);
+
+  // Responsive down-scaled variants (webp + avif). Only emit widths smaller
+  // than the source so we never upscale; the hero has its own wider set below.
+  if (base !== HERO) {
+    for (const vw of PREVIEW_WIDTHS) {
+      if (vw >= width) continue;
+      await sharp(src).resize({ width: vw }).webp({ quality: 76 }).toFile(path.join(DIR, `${base}-${vw}.webp`));
+      await sharp(src).resize({ width: vw }).avif({ quality: 50 }).toFile(path.join(DIR, `${base}-${vw}.avif`));
+    }
+  }
 }
 
 // Hero: responsive widths from the high-res PNG (falls back to the webp).
