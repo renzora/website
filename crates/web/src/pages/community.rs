@@ -387,8 +387,8 @@ pub fn CommunityPage() -> impl IntoView {
                 let pop = $('reaction-pop');
                 if (!pop){ pop = document.createElement('div'); pop.id='reaction-pop'; pop.className='fixed z-50 p-2 bg-surface-card border border-zinc-700 rounded-xl shadow-2xl grid grid-cols-6 gap-1'; document.body.appendChild(pop);
                   document.addEventListener('click', e => { if (pop && !pop.contains(e.target)) pop.classList.add('hidden'); }); }
-                pop.innerHTML = REACTIONS.map(i => `<button onclick="__react('${id}','${i}');document.getElementById('reaction-pop').classList.add('hidden')" class="w-8 h-8 rounded-lg flex items-center justify-center text-lg text-zinc-300 hover:bg-accent/20 hover:text-accent"><i class="ph ${i}"></i></button>`).join('');
                 const r = ev.currentTarget.getBoundingClientRect();
+                pop.innerHTML = REACTIONS.map(i => `<button onclick="__react('${id}','${i}');document.getElementById('reaction-pop').classList.add('hidden')" class="w-8 h-8 rounded-lg flex items-center justify-center text-lg text-zinc-300 hover:bg-accent/20 hover:text-accent"><i class="ph ${i}"></i></button>`).join('');
                 pop.style.left = Math.min(r.left, window.innerWidth-230)+'px';
                 pop.style.top = (r.bottom+6)+'px';
                 pop.classList.remove('hidden');

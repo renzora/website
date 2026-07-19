@@ -188,17 +188,21 @@ pub fn DownloadPage() -> impl IntoView {
                 const canvas = document.getElementById('hero-canvas');
                 if (!canvas) return;
                 const ctx = canvas.getContext('2d');
-                let w, h, particles = [], mouse = { x: -1000, y: -1000 };
+                let w, h, rect, particles = [], mouse = { x: -1000, y: -1000 };
 
                 function resize() {
-                    w = canvas.width = canvas.offsetWidth;
-                    h = canvas.height = canvas.offsetHeight;
+                    // Batch layout reads before any write so we force at most one reflow.
+                    const ow = canvas.offsetWidth, oh = canvas.offsetHeight;
+                    rect = canvas.getBoundingClientRect();
+                    w = canvas.width = ow;
+                    h = canvas.height = oh;
                 }
                 resize();
                 window.addEventListener('resize', resize);
+                window.addEventListener('scroll', () => { rect = canvas.getBoundingClientRect(); }, { passive: true });
 
                 canvas.addEventListener('mousemove', e => {
-                    const rect = canvas.getBoundingClientRect();
+                    // Use the cached rect, never read layout during the move.
                     mouse.x = e.clientX - rect.left;
                     mouse.y = e.clientY - rect.top;
                 });
