@@ -19,8 +19,11 @@ const HERO_WIDTHS = [640, 1280, 1920];
 // full-resolution source. Must stay in sync with the srcset widths in home.rs.
 const PREVIEW_WIDTHS = [640, 1024];
 
-// The <picture> fallback for each preview stays .webp; we only add .avif here.
-// Regenerate from the PNG source when present (best quality), else from the webp.
+// The .webp base for each preview is the canonical display master committed to
+// git (some, like inspector, are hand-cropped and cannot be re-derived from the
+// PNG). We generate the .avif companion and the responsive srcset variants from
+// that .webp so any crop is preserved; the hero additionally derives wide
+// variants from its high-res PNG below.
 const isVariant = (f) => /-\d+\.(webp|avif)$/.test(f);
 const bases = [
   ...new Set(
@@ -34,11 +37,9 @@ const bases = [
 let saved = 0;
 for (const base of bases) {
   const webp = path.join(DIR, `${base}.webp`);
-  const png = path.join(DIR, `${base}.png`);
-  const src = fs.existsSync(png) ? png : webp;
   const width = (await sharp(webp).metadata()).width;
   const avif = path.join(DIR, `${base}.avif`);
-  await sharp(src).resize({ width }).avif({ quality: 52 }).toFile(avif);
+  await sharp(webp).avif({ quality: 52 }).toFile(avif);
   const w = fs.statSync(webp).size;
   const a = fs.statSync(avif).size;
   saved += w - a;
@@ -49,8 +50,8 @@ for (const base of bases) {
   if (base !== HERO) {
     for (const vw of PREVIEW_WIDTHS) {
       if (vw >= width) continue;
-      await sharp(src).resize({ width: vw }).webp({ quality: 76 }).toFile(path.join(DIR, `${base}-${vw}.webp`));
-      await sharp(src).resize({ width: vw }).avif({ quality: 50 }).toFile(path.join(DIR, `${base}-${vw}.avif`));
+      await sharp(webp).resize({ width: vw }).webp({ quality: 76 }).toFile(path.join(DIR, `${base}-${vw}.webp`));
+      await sharp(webp).resize({ width: vw }).avif({ quality: 50 }).toFile(path.join(DIR, `${base}-${vw}.avif`));
     }
   }
 }
