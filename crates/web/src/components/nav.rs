@@ -5,20 +5,8 @@ pub fn Nav() -> impl IntoView {
     view! {
         // ── Fixed left sidebar ──
         <aside id="app-sidebar">
-            // Logo
-            <a href="/" class="flex items-center gap-2.5 px-4 h-[60px] shrink-0 border-b border-white/[0.06]">
-                <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-accent to-secondary flex items-center justify-center shadow-lg shadow-accent/20">
-                    <i class="ph ph-star text-white text-lg"></i>
-                </div>
-                <div class="leading-none">
-                    <div class="text-[15px] font-bold text-white tracking-tight">"renzora"</div>
-                    <div class="text-[9px] font-semibold uppercase tracking-[0.18em] text-zinc-400 mt-1">"Game Engine"</div>
-                </div>
-            </a>
-
-            // Nav links
-            <nav class="flex-1 overflow-y-auto px-3 py-4">
-                <p class="text-[10px] font-semibold uppercase tracking-[0.18em] text-zinc-400 px-2 mb-2">"Menu"</p>
+            // Nav links (top)
+            <nav class="shrink-0 px-3 py-4">
                 <div class="space-y-0.5">
                     <a href="/" class="side-link nav-link" data-path="/">
                         <i class="ph ph-house text-lg"></i>"Home"
@@ -41,8 +29,20 @@ pub fn Nav() -> impl IntoView {
                 </div>
             </nav>
 
-            // Bottom cards
-            <div class="p-3 border-t border-white/[0.06] space-y-2">
+            // Cards, centered in the space between the nav and the footer
+            <div class="flex-1 flex flex-col justify-center px-3 space-y-2">
+                // Sign in / register box (logged out)
+                <div id="nav-side-guest" class="rounded-xl p-3 bg-white/[0.03] border border-white/[0.07]">
+                    <p class="text-[9px] font-semibold uppercase tracking-[0.16em] text-zinc-400">"Join the conversation"</p>
+                    <form class="mt-2 space-y-1.5" onsubmit="return sideLogin(event)">
+                        <input type="email" name="email" required placeholder="Email" autocomplete="email" class="w-full px-2.5 py-1.5 bg-black/30 border border-white/[0.08] rounded-lg text-zinc-50 text-xs outline-none focus:border-accent/50 transition-all placeholder:text-zinc-600" />
+                        <input type="password" name="password" required placeholder="Password" autocomplete="current-password" class="w-full px-2.5 py-1.5 bg-black/30 border border-white/[0.08] rounded-lg text-zinc-50 text-xs outline-none focus:border-accent/50 transition-all placeholder:text-zinc-600" />
+                        <p id="nav-side-login-err" class="hidden text-[10px] text-red-400 leading-snug"></p>
+                        <button type="submit" id="nav-side-login-btn" class="w-full text-xs font-semibold text-white bg-purple-600 hover:bg-purple-500 transition-colors rounded-lg py-1.5">"Sign In"</button>
+                    </form>
+                    <a href="/register" class="mt-2 block text-center text-[11px] text-zinc-500 hover:text-zinc-300 transition-colors">"New here? "<span class="text-accent font-semibold">"Create an account"</span></a>
+                </div>
+
                 // Engine download card
                 <div class="rounded-xl p-3 bg-gradient-to-br from-accent/[0.15] to-secondary/[0.08] border border-white/[0.07]">
                     <p class="text-[9px] font-semibold uppercase tracking-[0.16em] text-zinc-400">"Renzora Engine"</p>
@@ -63,13 +63,23 @@ pub fn Nav() -> impl IntoView {
                     </div>
                     <span class="mt-2.5 block text-center text-xs font-semibold text-white bg-amber-500/90 hover:bg-amber-500 transition-colors rounded-lg py-1.5">"Get more Credits"</span>
                 </a>
-
-                // Guest card (logged out)
-                <a href="/login" id="nav-side-guest" class="block rounded-xl p-3 bg-white/[0.03] border border-white/[0.07] hover:bg-white/[0.05] transition-colors text-center">
-                    <p class="text-xs text-zinc-400 leading-relaxed">"Sign in to build, sell and connect."</p>
-                    <span class="mt-2.5 block text-xs font-semibold text-white bg-purple-600 hover:bg-purple-500 transition-colors rounded-lg py-1.5">"Sign In"</span>
-                </a>
             </div>
+
+            // Footer — social links + legal, pinned to the bottom
+            <footer class="shrink-0 px-3 py-3 space-y-2.5">
+                <div class="flex items-center justify-center gap-1">
+                    <a href="https://youtube.com/@renzoragame" target="_blank" rel="noopener noreferrer" aria-label="YouTube" class="p-2 rounded-lg text-zinc-500 hover:text-white hover:bg-white/[0.06] transition-all"><i class="ph ph-youtube-logo text-lg"></i></a>
+                    <a href="https://github.com/renzora" target="_blank" rel="noopener noreferrer" aria-label="GitHub" class="p-2 rounded-lg text-zinc-500 hover:text-white hover:bg-white/[0.06] transition-all"><i class="ph ph-github-logo text-lg"></i></a>
+                    <a href="https://discord.gg/9UHUGUyDJv" target="_blank" rel="noopener noreferrer" aria-label="Discord" class="p-2 rounded-lg text-zinc-500 hover:text-white hover:bg-white/[0.06] transition-all"><i class="ph ph-discord-logo text-lg"></i></a>
+                </div>
+                <div class="flex flex-wrap items-center justify-center gap-x-1.5 gap-y-1 text-[11px] text-zinc-600">
+                    <a href="/privacy" class="hover:text-zinc-300 transition-colors">"Privacy"</a>
+                    <span class="text-zinc-700">"·"</span>
+                    <a href="/terms" class="hover:text-zinc-300 transition-colors">"Terms"</a>
+                    <span class="text-zinc-700">"·"</span>
+                    <span class="text-zinc-600">"© 2026 Renzora"</span>
+                </div>
+            </footer>
         </aside>
 
         // ── Mobile scrim ──
@@ -82,11 +92,16 @@ pub fn Nav() -> impl IntoView {
                 <i class="ph ph-list text-xl"></i>
             </button>
 
-            // Page brand / tagline
-            <div class="min-w-0">
-                <p class="text-[15px] font-semibold text-white leading-tight">"Renzora"</p>
-                <p class="text-[11px] text-zinc-500 leading-tight truncate hidden sm:block">"The open-source Bevy engine, editor, marketplace & community"</p>
-            </div>
+            // Page brand — mirrors the sidebar logo (icon + renzora / Game Engine)
+            <a href="/" class="flex items-center gap-2.5 min-w-0">
+                <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-accent to-secondary flex items-center justify-center shadow-lg shadow-accent/20 shrink-0">
+                    <i class="ph ph-star text-white text-lg"></i>
+                </div>
+                <div class="leading-none">
+                    <div class="text-[15px] font-bold text-white tracking-tight">"renzora"</div>
+                    <div class="text-[9px] font-semibold uppercase tracking-[0.18em] text-zinc-400 mt-1">"Game Engine"</div>
+                </div>
+            </a>
 
             <div class="flex-1"></div>
 
@@ -252,6 +267,32 @@ pub fn Nav() -> impl IntoView {
                 document.cookie = 'refresh_token=;path=/;max-age=0';
                 document.cookie = 'user=;path=/;max-age=0';
                 window.location.href = '/';
+            }
+            // Inline sidebar sign-in — mirrors the /login flow, then reloads in place.
+            async function sideLogin(e) {
+                e.preventDefault();
+                const form = e.target;
+                const err = document.getElementById('nav-side-login-err');
+                const btn = document.getElementById('nav-side-login-btn');
+                err.classList.add('hidden');
+                btn.disabled = true; btn.textContent = 'Signing in...';
+                try {
+                    const res = await fetch('/api/auth/login', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ email: form.email.value, password: form.password.value })
+                    });
+                    const data = await res.json();
+                    if (!res.ok) throw new Error(data.error || 'Invalid email or password');
+                    document.cookie = `token=${data.access_token};path=/;max-age=2592000;SameSite=Strict`;
+                    document.cookie = `refresh_token=${data.refresh_token};path=/;max-age=2592000;SameSite=Strict`;
+                    document.cookie = `user=${encodeURIComponent(JSON.stringify(data.user))};path=/;max-age=2592000;SameSite=Strict`;
+                    window.location.reload();
+                } catch (error) {
+                    err.textContent = error.message; err.classList.remove('hidden');
+                    btn.disabled = false; btn.textContent = 'Sign In';
+                }
+                return false;
             }
             function toggleNotifs() {
                 const dd = document.getElementById('notif-dropdown');

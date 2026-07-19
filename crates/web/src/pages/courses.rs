@@ -202,7 +202,7 @@ pub fn ChapterViewPage() -> impl IntoView {
 
                 document.getElementById('chapter-layout').innerHTML = `
                     <!-- Sidebar -->
-                    <aside class="w-64 shrink-0 border-r border-zinc-800 bg-surface sticky top-14 h-[calc(100vh-56px)] overflow-y-auto hidden lg:block">
+                    <aside class="w-64 shrink-0 border-r border-zinc-800 bg-surface sticky top-[60px] h-[calc(100vh-60px)] overflow-y-auto hidden lg:block">
                         <div class="p-4">
                             <a href="/courses/${course.slug}" class="text-xs text-accent hover:text-accent-hover flex items-center gap-1 mb-3"><i class="ph ph-arrow-left"></i>Back to course</a>
                             <h3 class="text-sm font-semibold mb-3">${course.title}</h3>

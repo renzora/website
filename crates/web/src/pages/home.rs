@@ -59,16 +59,6 @@ pub fn HomePage() -> impl IntoView {
                 </div>
             </section>
 
-            // ── Stats strip ──
-            <section class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 sm:gap-4">
-                <StatCard target="187" suffix="+" label="Workspace crates" color="text-accent" />
-                <StatCard target="6" suffix="" label="Export platforms" color="text-secondary" />
-                <StatCard target="3" suffix="" label="Ways to script" color="text-emerald-400" />
-                <StatCard target="11" suffix="" label="Debug panels" color="text-amber-400" />
-                <StatCard target="4" suffix="" label="Max viewports" color="text-rose-400" />
-                <StatCard target="50" suffix="+" label="Post effects" color="text-sky-400" />
-            </section>
-
             // ── Eight systems, one engine (pillar cards) ──
             <section>
                 <div class="text-center mb-10">
@@ -215,25 +205,6 @@ pub fn HomePage() -> impl IntoView {
                 </div>
             </section>
 
-            // ── Screenshot gallery ──
-            <section>
-                <div class="flex items-end justify-between mb-6 flex-wrap gap-3">
-                    <div>
-                        <span class="text-xs font-semibold uppercase tracking-widest text-accent">"Inside the editor"</span>
-                        <h2 class="text-xl sm:text-2xl font-bold mt-1 text-white">"More of the toolkit"</h2>
-                    </div>
-                    <p class="text-sm text-zinc-500 max-w-sm">"Hierarchy, audio mixing, the Hub Store, the asset browser and the console, every panel is real and dockable."</p>
-                </div>
-                <div class="grid grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
-                    <GalleryShot img="/assets/previews/hierarchy.webp" label="Scene hierarchy with nested glTF imports and per-object visibility." />
-                    <GalleryShot img="/assets/previews/renzora_ember.webp" label="The Ember UI toolkit: charts, inputs, timelines and inspector widgets." />
-                    <GalleryShot img="/assets/previews/mixer.webp" label="An audio mixer with per-bus faders, pan, level meters and solo." />
-                    <GalleryShot img="/assets/previews/marketplace.webp" label="The built-in Hub Store with free models and scripts to import." />
-                    <GalleryShot img="/assets/previews/console.webp" label="A filterable console with categorized logs and a command bar." />
-                    <GalleryShot img="/assets/previews/assets_panel.webp" label="A color-coded asset browser keeps your project organized." />
-                </div>
-            </section>
-
             // ── Fresh from the marketplace ──
             <section>
                 <div class="flex items-center justify-between mb-5">
@@ -370,17 +341,6 @@ pub fn HomePage() -> impl IntoView {
 }
 
 #[component]
-fn StatCard(target: &'static str, suffix: &'static str, label: &'static str, color: &'static str) -> impl IntoView {
-    let value_class = format!("text-2xl sm:text-3xl font-extrabold {}", color);
-    view! {
-        <div class="rounded-xl border border-white/[0.07] bg-white/[0.02] p-4 sm:p-5 text-center">
-            <div class=value_class>{target}{suffix}</div>
-            <div class="text-[11px] text-zinc-500 mt-1.5 uppercase tracking-wider">{label}</div>
-        </div>
-    }
-}
-
-#[component]
 fn PillarCard(icon: &'static str, color: &'static str, title: &'static str, desc: &'static str) -> impl IntoView {
     let icon_class = format!("ph {} text-white text-xl", icon);
     let icon_wrap = format!("w-11 h-11 rounded-xl bg-gradient-to-br {} flex items-center justify-center shadow-lg", color);
@@ -485,7 +445,7 @@ fn FeatureRow(
                     <div class="pointer-events-none absolute inset-0 ring-1 ring-inset ring-white/5 rounded-2xl z-10"></div>
                     <picture class="contents">
                         <source srcset=avif_srcset sizes=sizes type="image/avif" />
-                        <img src=img srcset=webp_srcset sizes=sizes alt=alt loading="lazy" data-zoom="1" width=iw height=ih class="relative w-full h-auto block transition-transform duration-500 group-hover:scale-[1.02]" />
+                        <img src=img srcset=webp_srcset sizes=sizes alt=alt loading="lazy" width=iw height=ih class="relative w-full h-auto block transition-transform duration-500 group-hover:scale-[1.02]" />
                     </picture>
                 </div>
                 <p class="mt-3 text-xs text-zinc-500 italic leading-relaxed">{caption}</p>
@@ -505,22 +465,6 @@ fn PlatformTile(icon: &'static str, name: &'static str) -> impl IntoView {
     }
 }
 
-#[component]
-fn GalleryShot(img: &'static str, label: &'static str) -> impl IntoView {
-    let (iw, ih) = img_dims(img);
-    let (avif_srcset, webp_srcset) = srcsets(img, iw);
-    // Gallery is a 3-col grid at lg (~357px per cell), 2-col below.
-    let sizes = "(min-width: 1024px) 360px, 47vw";
-    view! {
-        <figure class="group relative rounded-xl overflow-hidden border border-white/[0.07] bg-surface-card">
-            <picture class="contents">
-                <source srcset=avif_srcset sizes=sizes type="image/avif" />
-                <img src=img srcset=webp_srcset sizes=sizes alt=label loading="lazy" data-zoom="1" width=iw height=ih class="w-full h-44 object-cover object-top transition-transform duration-500 group-hover:scale-105" />
-            </picture>
-            <figcaption class="absolute inset-x-0 bottom-0 p-3 text-xs text-zinc-200 leading-snug bg-gradient-to-t from-black/85 via-black/50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity">{label}</figcaption>
-        </figure>
-    }
-}
 
 #[component]
 fn ExploreCard(icon: &'static str, name: &'static str, desc: &'static str, href: &'static str) -> impl IntoView {

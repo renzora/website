@@ -94,20 +94,6 @@ pub fn SubscriptionPage() -> impl IntoView {
                 html += '<p id="sub-error" class="hidden text-sm text-red-400 mt-3"></p>';
                 html += '</div>';
 
-                // Perks
-                html += '<div class="p-6 bg-white/[0.02] border border-zinc-800/50 rounded-2xl">';
-                html += '<h3 class="text-sm font-semibold mb-4">Supporter perks</h3>';
-                html += '<div class="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[13px]">';
-                var perk = function(icon, text) { return '<div class="flex items-center gap-2 text-zinc-400"><i class="ph ph-' + icon + ' text-accent text-sm"></i>' + text + '</div>'; };
-                html += perk('seal-check', 'Supporter profile badge');
-                html += perk('discord-logo', 'Supporter Discord role');
-                html += perk('palette', 'Custom profile colors & banner');
-                html += perk('hard-drive', '10GB cloud storage');
-                html += perk('users-three', 'Up to 5 team members');
-                html += perk('lightning', '5,000 API requests/day');
-                html += '</div>';
-                html += '<p class="text-xs text-zinc-600 mt-4">Perks are the same at every amount, pay what feels right. Looking to be recognized on the <a href="/donate" class="text-accent hover:text-accent-hover">supporters wall</a>? That is driven by donations. Credits are deducted from your balance; if it runs low at renewal time your subscription simply ends.</p>';
-                html += '</div>';
 
                 el.innerHTML = html;
             })();

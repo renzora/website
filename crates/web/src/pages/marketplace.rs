@@ -9,49 +9,9 @@ pub fn MarketplacePage() -> impl IntoView {
 
         <section class="min-h-[calc(100vh-3rem)]">
 
-        // ── Particles (full screen fixed) ──
-        <canvas id="mp-particles" class="fixed inset-0 w-full h-full pointer-events-none z-0"></canvas>
-
-        // ── Hero ──
-        <div class="relative overflow-hidden">
-            <div class="absolute inset-0 bg-gradient-to-b from-teal-500/[0.05] via-cyan-500/[0.02] to-transparent"></div>
-            <div class="absolute top-0 left-1/3 w-[600px] h-[300px] bg-teal-500/[0.04] rounded-full blur-3xl"></div>
-            <div class="absolute bottom-0 right-1/4 w-[400px] h-[200px] bg-cyan-500/[0.03] rounded-full blur-3xl"></div>
-            <div class="relative px-6 pt-10 pb-8">
-                <div class="flex items-end justify-between">
-                    <div>
-                        <div class="flex items-center gap-3 mb-2">
-                            <div class="w-10 h-10 rounded-xl bg-teal-500/10 border border-teal-500/20 flex items-center justify-center">
-                                <i class="ph ph-storefront text-xl text-teal-400"></i>
-                            </div>
-                            <div>
-                                <h1 class="text-2xl font-bold tracking-tight">"Marketplace"</h1>
-                                <p class="text-zinc-500 text-sm">"Assets, plugins, models, audio, and more."</p>
-                            </div>
-                        </div>
-                    </div>
-                    <a id="publish-btn-hero" href="/marketplace/upload" class="hidden group inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-medium bg-teal-500 text-white hover:bg-teal-400 transition-all hover:shadow-[0_0_24px_rgba(20,184,166,0.25)] hover:-translate-y-0.5">
-                        <i class="ph ph-plus-circle text-base group-hover:rotate-90 transition-transform duration-300"></i>"Upload"
-                    </a>
-                </div>
-                // Quick stats
-                <div class="flex items-center gap-6 mt-5">
-                    <div class="flex items-center gap-2 text-sm">
-                        <span id="mp-stat-total" class="font-semibold text-zinc-200">"-"</span>
-                        <span class="text-zinc-600">"assets"</span>
-                    </div>
-                    <div class="w-px h-4 bg-zinc-800"></div>
-                    <div class="flex items-center gap-2 text-sm">
-                        <span id="mp-stat-free" class="font-semibold text-emerald-400">"-"</span>
-                        <span class="text-zinc-600">"free"</span>
-                    </div>
-                </div>
-            </div>
-        </div>
-
         <div class="flex">
             // ── Left Sidebar: Categories ──
-            <aside class="w-56 shrink-0 border-r border-white/[0.04] sticky top-14 h-[calc(100vh-3.5rem)] overflow-y-auto hidden lg:block bg-black/20 backdrop-blur-xl">
+            <aside class="w-56 shrink-0 border-r border-white/[0.04] sticky top-[60px] h-[calc(100vh-60px)] overflow-y-auto hidden lg:block bg-surface">
                 <div class="py-3">
                     <div class="px-3 py-1.5 text-[10px] font-semibold text-zinc-600 uppercase tracking-wider">"Categories"</div>
                     <div id="mp-sidebar-cats">
@@ -93,7 +53,7 @@ pub fn MarketplacePage() -> impl IntoView {
             // ── Main Content ──
             <div class="flex-1 min-w-0">
                 // Top bar: search + sort + filters
-                <div class="sticky top-14 z-20 bg-black/30 backdrop-blur-2xl px-6 py-3">
+                <div class="sticky top-[60px] z-20 bg-black/30 backdrop-blur-2xl px-6 py-3">
                     <div class="flex items-center gap-3">
                         // Mobile category toggle
                         <button onclick="toggleMobileCats()" class="lg:hidden inline-flex items-center gap-1.5 px-3 py-2.5 bg-white/[0.03] border border-zinc-800/50 rounded-xl text-zinc-400 text-sm hover:border-zinc-600 transition-all shrink-0">
@@ -124,6 +84,10 @@ pub fn MarketplacePage() -> impl IntoView {
                         </div>
                         // Result count
                         <span id="mp-result-count" class="text-xs text-zinc-600 shrink-0 hidden sm:block"></span>
+                        // Upload (creators only, revealed via JS)
+                        <a id="publish-btn-hero" href="/marketplace/upload" class="hidden group inline-flex items-center gap-1.5 px-3 py-2.5 rounded-xl text-sm font-medium bg-teal-500 text-white hover:bg-teal-400 transition-all shrink-0">
+                            <i class="ph ph-plus-circle text-base group-hover:rotate-90 transition-transform duration-300"></i><span class="hidden sm:inline">"Upload"</span>
+                        </a>
                     </div>
                     // Advanced filter panel
                     <div id="adv-filter-panel" class="hidden mt-3 p-4 bg-white/[0.02] border border-zinc-800/50 rounded-xl">
@@ -208,65 +172,6 @@ pub fn MarketplacePage() -> impl IntoView {
 
         <script>
             r##"
-            // ── Particle canvas ──
-            (function() {
-                const canvas = document.getElementById('mp-particles');
-                if (!canvas) return;
-                const ctx = canvas.getContext('2d');
-                let w, h, particles = [];
-                function resize() {
-                    w = canvas.width = window.innerWidth;
-                    h = canvas.height = window.innerHeight;
-                }
-                resize();
-                window.addEventListener('resize', resize);
-
-                for (let i = 0; i < 40; i++) {
-                    particles.push({
-                        x: Math.random() * w,
-                        y: Math.random() * h,
-                        r: Math.random() * 1.5 + 0.5,
-                        dx: (Math.random() - 0.5) * 0.3,
-                        dy: (Math.random() - 0.5) * 0.2,
-                        o: Math.random() * 0.3 + 0.1
-                    });
-                }
-
-                function draw() {
-                    ctx.clearRect(0, 0, w, h);
-                    for (const p of particles) {
-                        p.x += p.dx;
-                        p.y += p.dy;
-                        if (p.x < 0) p.x = w;
-                        if (p.x > w) p.x = 0;
-                        if (p.y < 0) p.y = h;
-                        if (p.y > h) p.y = 0;
-                        ctx.beginPath();
-                        ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
-                        ctx.fillStyle = `rgba(94, 234, 212, ${p.o})`;
-                        ctx.fill();
-                    }
-                    // Draw subtle connections
-                    for (let i = 0; i < particles.length; i++) {
-                        for (let j = i + 1; j < particles.length; j++) {
-                            const dx = particles[i].x - particles[j].x;
-                            const dy = particles[i].y - particles[j].y;
-                            const dist = Math.sqrt(dx * dx + dy * dy);
-                            if (dist < 120) {
-                                ctx.beginPath();
-                                ctx.moveTo(particles[i].x, particles[i].y);
-                                ctx.lineTo(particles[j].x, particles[j].y);
-                                ctx.strokeStyle = `rgba(94, 234, 212, ${0.04 * (1 - dist / 120)})`;
-                                ctx.lineWidth = 0.5;
-                                ctx.stroke();
-                            }
-                        }
-                    }
-                    requestAnimationFrame(draw);
-                }
-                draw();
-            })();
-
             // ── Marketplace logic ──
             let mpView = 'grid';
             let lastAssets = [];

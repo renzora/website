@@ -354,7 +354,7 @@ pub fn DocArticle() -> impl IntoView {
 #[component]
 fn DocsSidebar() -> impl IntoView {
     view! {
-        <aside class="w-64 shrink-0 border-r border-zinc-800 bg-surface sticky top-14 h-[calc(100vh-56px)] overflow-y-auto hidden lg:block">
+        <aside class="w-64 shrink-0 border-r border-zinc-800 bg-surface sticky top-[60px] h-[calc(100vh-60px)] overflow-y-auto hidden lg:block">
             <div class="p-4">
                 // Version switcher
                 <div class="mb-4">
