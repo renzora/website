@@ -10,13 +10,11 @@ Everything to do with credits lives on the [Credits page](/wallet) (the `/wallet
 
 | Stat | Meaning |
 |---|---|
-| **Balance** | Spendable credits — buy assets, gift, donate, subscribe. **Cannot be withdrawn.** |
-| **Earnings** | Credits earned from sales and referrals — withdraw to your bank, or convert into spendable credits |
+| **Balance** | Credits available to spend right now |
 | **Total Spent** | Credits you've spent buying assets |
+| **Total Earned** | Credits you've earned from your own sales |
 
 Below that you can add credits, see your referral link, and browse your full transaction history.
-
-> **Two balances.** Purchased credits and earned credits are tracked separately. Only **earnings** can be withdrawn to a bank; converting earnings into spendable credits is one-way and makes them non-withdrawable.
 
 ## Buying credits
 
@@ -57,27 +55,23 @@ When someone buys your asset, the sale is split between you and the platform:
 
 > Example: you list an asset for **500 credits**. Each sale credits you **400 credits** and the platform fee is **100 credits**.
 
-Earnings land in your **earnings balance** immediately as an `earning` transaction. From there you have two options:
-
-- **Withdraw** them to your bank (below), or
-- **Convert** them into spendable credits from the [Credits page](/wallet) — instant and 1:1, but one-way: converted credits can no longer be withdrawn.
+Earnings land in your balance immediately as an `earning` transaction. You can spend them like any other credits, or withdraw them to your bank (below).
 
 ### Withdrawing to your bank
 
-Convert earnings into real money via **Stripe Connect**:
+Convert earned credits back into real money via **Stripe Connect**:
 
 1. In [Settings](/settings), connect a bank account and complete Stripe onboarding (a one-time Stripe Express setup).
-2. In the same section, request a withdrawal.
-3. The amount is deducted from your **earnings balance** and a Stripe transfer is sent to your bank.
+2. On the [Credits page](/wallet), request a withdrawal.
+3. The credits are deducted and a Stripe transfer is sent to your bank.
 
 | Rule | Value |
 |---|---|
 | Minimum withdrawal | **500 credits ($50.00)** |
-| Source | Earnings balance only — purchased credits can't be withdrawn |
 | Pending withdrawals | One at a time |
 | Payout method | Bank account via Stripe Connect |
 
-> You must finish Stripe onboarding before withdrawing. If a transfer fails, the credits are automatically refunded to your earnings balance.
+> You must finish Stripe onboarding before withdrawing. If a transfer fails, the credits are automatically refunded to your balance.
 
 ## Promo codes
 
@@ -105,44 +99,14 @@ Send credits to other people from the [Gifts page](/gifts):
 - Or generate a **gift code** (`GIFT-XXXXXXXX`) to share however you like; the recipient redeems it on the same page.
 - Unredeemed gift codes **expire after 90 days**.
 
-## Supporter subscription
-
-Support Renzora with a monthly, pay-what-you-want subscription from the [Supporter page](/subscription):
-
-- **Choose any amount from 10 credits/month** — perks are identical at every amount.
-- The first month is charged from your credit balance immediately; each term lasts **30 days**.
-- **Auto-renew** (optional, on by default) deducts the same amount automatically at the end of each term. If your balance is too low at renewal, the subscription simply ends — you're notified and can re-subscribe any time.
-- Perks: Supporter profile badge, Discord role, custom profile colors, 10GB cloud storage, up to 5 team members, and a 5,000/day API limit.
-
 ## Donations
 
 You can donate credits to support Renzora from the [Donate page](/donate):
 
 - **Minimum donation: 1 credit.**
 - Donations can include a message and may be anonymous.
-- Cumulative donations unlock **donor badges** at 100, 500, 1,000, and 5,000 credits (bronze → silver → gold → platinum). You're notified when a new badge is earned, and your all-time total shows on your profile (unless donated anonymously).
+- Cumulative donations unlock **donor badges** at 100, 500, 1,000, and 5,000 credits (bronze → silver → gold → platinum).
 - There's a public **donation leaderboard** (anonymous donors are hidden).
-
-### Community goal & supporters wall
-
-The Donate page tracks a **monthly community goal** — a progress bar of all donations made in the current calendar month against a target.
-
-Donating also lists you on the **supporters wall** (Bevy-style), tiered by how much you donate *this month*:
-
-| Tier | This month | Wall recognition |
-|---|---|---|
-| Bronze | 50+ ($5) | Name |
-| Silver | 100+ ($10) | Name |
-| Gold | 250+ ($25) | Name |
-| Platinum | 500+ ($50) | Name |
-| Titanium | 1,000+ ($100) | Name + link |
-| Diamond | 2,500+ ($250) | **Logo** + link |
-| Corporate Bronze | 5,000+ ($500) | **Large logo** + link |
-| Corporate Silver | 10,000+ ($1,000) | Larger logo + link |
-| Corporate Gold | 25,000+ ($2,500) | Largest logo, top billing |
-
-The wall reflects the **current month only**. At the start of a new month it resets: anyone who doesn't donate again drops to the **Past Donators** list until they contribute again. Donors can set a display name and website link, and (from Diamond) upload a logo, or hide themselves from the wall. Anonymous donations count toward the goal but don't appear on the wall.
-
 
 ## Referrals
 
@@ -156,10 +120,8 @@ The [Credits page](/wallet) lists every credit movement, newest first, filterabl
 |---|---|
 | `topup` | Credits bought via Stripe |
 | `purchase` | Credits spent buying an asset |
-| `earning` | Earnings from one of your sales (goes to your earnings balance) |
-| `referral` | 5% reward from a referred user's purchase (goes to your earnings balance) |
-| `subscription` | A Supporter subscription charge or renewal |
-| `convert` | Earnings converted into spendable credits |
+| `earning` | Credits earned from one of your sales |
+| `referral` | 5% reward from a referred user's purchase |
 | `voucher_credit` | Credits added by redeeming a voucher |
 | `gift_sent` / `gift_received` | A gift card you sent or received |
 | `donation` | Credits you donated to Renzora |
