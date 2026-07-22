@@ -23,24 +23,18 @@ pub fn HomePage() -> impl IntoView {
                 <div class="absolute -bottom-24 right-1/4 w-96 h-96 rounded-full bg-secondary/15 blur-[120px] pointer-events-none"></div>
                 <div class="absolute top-0 left-1/2 -translate-x-1/2 w-2/3 h-px bg-gradient-to-r from-transparent via-accent/50 to-transparent"></div>
                 <div class="relative z-10 p-8 sm:p-12 w-full">
-                    <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/[0.08] border border-white/[0.12] text-xs font-medium text-zinc-100 backdrop-blur-sm">
-                        <span class="w-1.5 h-1.5 rounded-full bg-secondary animate-pulse"></span>
-                        "Open source · Rust · Bevy 0.19"
-                    </div>
-                    <h1 class="mt-5 text-4xl sm:text-5xl font-extrabold tracking-tight leading-[1.05] text-white drop-shadow-lg">
-                        "The most complete "
-                        <span class="bg-gradient-to-r from-accent to-secondary bg-clip-text text-transparent">"Bevy editor"</span>
-                        ", fully open source."
+                    <h1 class="text-4xl sm:text-5xl font-extrabold tracking-tight leading-[1.05] text-white drop-shadow-lg">
+                        "A Rust game engine, built on "
+                        <span class="bg-gradient-to-r from-accent to-secondary bg-clip-text text-transparent">"Bevy"</span>
                     </h1>
                     <p class="mt-5 text-base sm:text-lg text-zinc-200 leading-relaxed [text-shadow:0_1px_3px_rgba(0,0,0,0.5)]">
-                        "Renzora is a free, open-source "
+                        "Renzora Engine is a free, open-source game engine that doubles as a full "
                         <span class="text-white font-medium">"Bevy editor"</span>
-                        ", a complete 2D & 3D visual editor with Lua & Rhai scripting, physics and "
-                        "real-time rendering, engineered in Rust on Bevy 0.19."
+                        ", built on Bevy and its fast-growing ecosystem."
                     </p>
                     <div class="mt-8 flex flex-wrap gap-3">
                         <a href="/download" class="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold bg-purple-600 text-white hover:bg-purple-500 transition-all hover:shadow-[0_0_30px_rgba(168,85,247,0.35)]">
-                            <i class="ph ph-download-simple text-lg"></i>"Download the Engine"
+                            <i class="ph ph-download-simple text-lg"></i>"Download Engine"
                         </a>
                         <a href="/docs" class="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold bg-white/[0.1] text-white border border-white/[0.15] hover:bg-white/[0.16] transition-all backdrop-blur-sm">
                             <i class="ph ph-book-open text-lg"></i>"Read the Docs"

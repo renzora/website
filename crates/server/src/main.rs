@@ -155,6 +155,7 @@ async fn main() {
 
     // Leptos SSR handler for frontend pages
     let render = leptos_axum::render_app_to_stream(Shell);
+    let render_home = render.clone();
     let ssr = move |req: Request<Body>| {
         let render = render.clone();
         async move { render(req).await }
@@ -196,8 +197,44 @@ async fn main() {
         // API routes (includes file-based docs)
         .nest("/api", api_router(state).merge(Router::new().nest("/docs", docs_files::router())))
         // Frontend pages — explicit SSR routes
-        .route("/", get(ssr.clone()))
+        // `/` is the marketing landing for logged-out visitors, and the community
+        // feed for signed-in users, rendered under the bare `/` URL (no redirect).
+        .route("/", get({
+            let db = seo_db.clone();
+            let render_home = render_home.clone();
+            move |req: Request<Body>| {
+                let db = db.clone();
+                let render_home = render_home.clone();
+                async move {
+                    let signed_in = req.headers()
+                        .get(axum::http::header::COOKIE)
+                        .and_then(|c| c.to_str().ok())
+                        .map(|c| c.split(';').any(|kv| {
+                            let kv = kv.trim();
+                            kv.starts_with("token=") && kv.len() > "token=".len()
+                        }))
+                        .unwrap_or(false);
+                    let mut resp = if signed_in {
+                        let (mut parts, body) = req.into_parts();
+                        parts.uri = axum::http::Uri::from_static("/community");
+                        ssr_pages::community_page(db, None, Request::from_parts(parts, body)).await
+                    } else {
+                        render_home(req).await
+                    };
+                    // `/` now depends on the auth cookie (feed vs landing), so it must never be
+                    // cached as a shared/static page, otherwise sign-in/out serves stale content.
+                    let h = resp.headers_mut();
+                    h.insert(
+                        axum::http::header::CACHE_CONTROL,
+                        axum::http::HeaderValue::from_static("private, no-store, max-age=0, must-revalidate"),
+                    );
+                    h.insert(axum::http::header::VARY, axum::http::HeaderValue::from_static("Cookie"));
+                    resp
+                }
+            }
+        }))
         .route("/download", get(ssr.clone()))
+        .route("/game", get(ssr.clone()))
         .route("/login", get(ssr.clone()))
         .route("/register", get(ssr.clone()))
         .route("/docs", get(ssr.clone()))

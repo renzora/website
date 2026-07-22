@@ -4,8 +4,8 @@ use leptos_meta::{Title, Meta};
 #[component]
 pub fn DownloadPage() -> impl IntoView {
     view! {
-        <Title text="Download Renzora, Free Open Source Bevy Editor" />
-        <Meta name="description" content="Download Renzora, the free and open-source Bevy editor, for Windows, macOS and Linux. A full 2D & 3D visual editor for the Bevy game engine, built in Rust." />
+        <Title text="Download Renzora Engine, Free Open Source Bevy Editor" />
+        <Meta name="description" content="Download Renzora Engine, the free and open-source Bevy editor, for Windows, macOS and Linux. A full 2D & 3D visual editor for the Bevy game engine, built in Rust." />
 
         // ── Hero ──
         <section class="relative min-h-[72vh] flex items-start justify-center overflow-hidden -mt-14 pt-36 px-6">
@@ -21,7 +21,7 @@ pub fn DownloadPage() -> impl IntoView {
                 </div>
 
                 <h1 class="dl-hero-title text-5xl md:text-6xl lg:text-7xl font-extrabold tracking-tight leading-[1.05]">
-                    "Download Renzora"
+                    "Renzora Engine"
                 </h1>
                 <p class="dl-hero-sub mt-4 text-sm text-zinc-500 uppercase tracking-widest font-medium">"Powered by Rust & Bevy 0.19"</p>
                 <p class="dl-hero-sub mt-5 text-lg md:text-xl text-zinc-300 leading-relaxed max-w-2xl mx-auto">
@@ -187,20 +187,18 @@ pub fn DownloadPage() -> impl IntoView {
                     <div class="absolute -top-20 left-1/2 -translate-x-1/2 w-[32rem] h-56 bg-rose-500/15 rounded-full blur-[110px] pointer-events-none"></div>
                     <div class="absolute -bottom-16 right-1/4 w-72 h-40 bg-purple-600/10 rounded-full blur-[90px] pointer-events-none"></div>
                     <div class="relative z-10">
-                        <div class="w-16 h-16 rounded-2xl bg-rose-500/15 border border-rose-500/30 flex items-center justify-center mx-auto mb-5 shadow-lg shadow-rose-500/20">
-                            <i class="ph ph-heart text-3xl text-rose-400"></i>
-                        </div>
-                        <h2 class="text-3xl md:text-5xl font-extrabold tracking-tight">"Thank you for being here"</h2>
+                        <img src="/assets/previews/hazel.webp" alt="Hazel, the Renzora mascot" width="112" height="112" class="w-28 h-28 rounded-2xl object-cover mx-auto mb-5 shadow-lg shadow-rose-500/20 ring-1 ring-rose-500/30" />
+                        <h2 class="text-3xl md:text-5xl font-extrabold tracking-tight">"Support Renzora"</h2>
                         <p class="text-zinc-300 mt-5 text-base md:text-lg leading-relaxed max-w-2xl mx-auto">
-                            "Renzora is free and open source, and it always will be. No paywalls, no locked features, no catch. It's lovingly built by a tiny team who just want to give the Bevy community the editor it deserves."
+                            "Renzora Engine is free and open source, and it always will be. It's built in the open, with a lot of love, for anyone who dreams of making their own games."
                         </p>
                         <p class="text-zinc-400 mt-4 text-base leading-relaxed max-w-2xl mx-auto">
-                            "If Renzora has saved you time, taught you something, or brought you a little joy, a donation, however small, genuinely means the world. It keeps the lights on and lets us keep building for you."
+                            "If Renzora has helped you build something, taught you something, or just made your day a little easier, a donation, however small, genuinely means the world. It keeps the lights on and keeps the engine growing."
                         </p>
                         <a href="/donate" class="mt-8 inline-flex items-center gap-2.5 px-8 py-4 rounded-xl text-base font-semibold bg-rose-500 text-white hover:bg-rose-400 transition-all hover:shadow-[0_0_40px_rgba(244,63,94,0.4)] hover:scale-[1.03]">
                             <i class="ph ph-heart text-lg"></i>"Support Renzora's future"
                         </a>
-                        <p class="text-xs text-zinc-500 mt-5">"With love, the Renzora team ♥"</p>
+                        <p class="text-sm text-zinc-400 mt-5 italic">"Thank you, truly. Hazel ♥"</p>
                     </div>
                 </div>
             </div>

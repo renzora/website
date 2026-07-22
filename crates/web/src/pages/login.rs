@@ -7,9 +7,7 @@ pub fn LoginPage() -> impl IntoView {
             // Auth card
             <div id="lobby-auth" class="w-[380px] max-w-full bg-[rgba(8,8,14,0.75)] backdrop-blur-2xl border border-white/[0.1] rounded-3xl shadow-2xl shadow-black/60 p-8">
                 <div class="text-center mb-6">
-                    <div class="w-12 h-12 rounded-2xl bg-gradient-to-br from-accent to-secondary flex items-center justify-center mx-auto mb-3 shadow-lg shadow-accent/20">
-                        <i class="ph ph-star text-white text-xl"></i>
-                    </div>
+                    <img src="/assets/previews/hazel.webp" alt="Hazel" width="48" height="48" class="w-12 h-12 rounded-xl object-cover mx-auto mb-3" />
                     <h1 class="text-xl font-bold tracking-tight" id="lobby-title">"Welcome back"</h1>
                     <p class="text-zinc-500 text-sm mt-1" id="lobby-subtitle">"Sign in to continue"</p>
                 </div>

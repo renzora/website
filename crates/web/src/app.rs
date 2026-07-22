@@ -19,6 +19,7 @@ use crate::pages::{
     courses::{CoursesPage, CourseDetailPage, ChapterViewPage, CreateCoursePage, EditCoursePage},
     download::DownloadPage,
     friends::FriendsPage,
+    game::GamePage,
     gifts::GiftsPage,
     home::HomePage,
     library::LibraryPage,
@@ -62,6 +63,7 @@ pub fn App() -> impl IntoView {
                 <Routes fallback=|| view! { <p class="text-center text-zinc-500 py-20">"Page not found."</p> }>
                     <Route path=path!("/") view=HomePage />
                     <Route path=path!("/download") view=DownloadPage />
+                    <Route path=path!("/game") view=GamePage />
                     <Route path=path!("/login") view=LoginPage />
                     <Route path=path!("/register") view=RegisterPage />
                     <Route path=path!("/docs") view=DocsPage />

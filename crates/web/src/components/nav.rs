@@ -5,32 +5,63 @@ pub fn Nav() -> impl IntoView {
     view! {
         // ── Fixed left sidebar ──
         <aside id="app-sidebar">
-            // Nav links (top)
-            <nav class="shrink-0 px-3 py-4">
-                <div class="space-y-0.5">
-                    <a href="/" class="side-link nav-link" data-path="/">
-                        <i class="ph ph-house text-lg"></i>"Home"
-                    </a>
-                    <a href="/download" class="side-link nav-link" data-path="/download">
-                        <i class="ph ph-download-simple text-lg"></i>"Download Engine"
-                    </a>
-                    <a href="/marketplace" class="side-link nav-link" data-path="/marketplace">
-                        <i class="ph ph-storefront text-lg"></i>"Marketplace"
-                    </a>
-                    <a href="/community" class="side-link nav-link" data-path="/community">
-                        <i class="ph ph-users-three text-lg"></i>"Community"
-                    </a>
-                    <a href="/docs" class="side-link nav-link" data-path="/docs">
-                        <i class="ph ph-book-open text-lg"></i>"Docs"
-                    </a>
-                    <a href="/donate" class="side-link nav-link" data-path="/donate">
-                        <i class="ph ph-heart text-lg"></i>"Donate"
-                    </a>
-                </div>
+            // Main menu (mobile only, the desktop menu is in the top header)
+            <nav class="lg:hidden mx-3 mt-4 rounded-2xl border border-white/[0.06] bg-gradient-to-br from-white/[0.07] to-white/[0.02] p-2 space-y-0.5 overflow-hidden">
+                <a href="/" class="side-link nav-link" data-path="/">
+                    <i class="ph ph-house text-lg"></i>"Home"
+                </a>
+                <a href="/download" class="side-link nav-link" data-path="/download">
+                    <i class="ph ph-download-simple text-lg"></i>"Download Engine"
+                </a>
+                <a href="/community" class="side-link nav-link nav-community" data-path="/community">
+                    <i class="ph ph-users-three text-lg"></i>"Community"
+                </a>
+                <a href="/marketplace" class="side-link nav-link" data-path="/marketplace">
+                    <i class="ph ph-storefront text-lg"></i>"Marketplace"
+                </a>
+                <a href="/docs" class="side-link nav-link" data-path="/docs">
+                    <i class="ph ph-book-open text-lg"></i>"Docs"
+                </a>
+                <a href="/donate" class="side-link nav-link donate" data-path="/donate">
+                    <i class="ph ph-heart text-lg"></i>"Donate"
+                </a>
             </nav>
 
-            // Cards, centered in the space between the nav and the footer
+            // Cards, centered in the remaining space
             <div class="flex-1 flex flex-col justify-center px-3 space-y-2">
+                // XP card (logged in)
+                <div id="nav-xp-wrap" class="hidden flex-col rounded-xl p-3 bg-white/[0.03] border border-white/[0.07]">
+                    <div class="flex items-center justify-between mb-2">
+                        <span class="text-[10px] font-semibold uppercase tracking-[0.14em] text-zinc-400">"Level "<span id="nav-level" class="text-accent font-bold">"1"</span></span>
+                        <span id="nav-xp-text" class="text-[10px] text-zinc-500 font-medium">"0 XP"</span>
+                    </div>
+                    <div class="h-3 bg-black/40 border border-white/[0.08] rounded-full overflow-hidden shadow-inner">
+                        <div id="nav-xp-bar" class="h-full bg-gradient-to-r from-accent to-secondary rounded-full transition-all relative" style="width:0%">
+                            <div class="absolute inset-0 bg-[linear-gradient(90deg,transparent_25%,rgba(255,255,255,0.15)_50%,transparent_75%)] bg-[length:200%_100%] animate-[xpShimmer_2s_linear_infinite]"></div>
+                        </div>
+                    </div>
+                </div>
+
+                // Community goal (everyone)
+                <a href="/donate" id="nav-goal-card" class="hidden rounded-xl p-3 bg-gradient-to-br from-accent/[0.12] to-purple-600/[0.06] border border-white/[0.07] hover:border-white/[0.14] transition-colors">
+                    <div class="flex items-center justify-between mb-1.5">
+                        <span id="nav-goal-title" class="text-[9px] font-semibold uppercase tracking-[0.16em] text-zinc-400 truncate">"Community Goal"</span>
+                        <span id="nav-goal-percent" class="text-[10px] font-semibold text-accent shrink-0 ml-1">"0%"</span>
+                    </div>
+                    <div class="h-2 bg-black/40 border border-white/[0.08] rounded-full overflow-hidden mb-1.5">
+                        <div id="nav-goal-bar" class="h-full bg-gradient-to-r from-accent to-purple-500 rounded-full transition-all duration-700" style="width:0%"></div>
+                    </div>
+                    <div class="text-[10px] text-zinc-500"><span id="nav-goal-current" class="text-zinc-300 font-medium">"0"</span>" / "<span id="nav-goal-target">"0"</span>" this month"</div>
+                </a>
+
+                // Friends card (logged in)
+                <div id="nav-friends-card" class="hidden rounded-xl p-3 bg-white/[0.03] border border-white/[0.07]">
+                    <div class="flex items-center justify-between mb-2">
+                        <span class="text-[9px] font-semibold uppercase tracking-[0.16em] text-zinc-400">"Friends "<span id="nav-friends-count" class="normal-case tracking-normal text-emerald-400 font-medium"></span></span>
+                        <a href="/friends" class="text-[10px] text-zinc-500 hover:text-accent transition-colors">"See all"</a>
+                    </div>
+                    <div id="nav-friends-list" class="space-y-0.5"></div>
+                </div>
                 // Sign in / register box (logged out)
                 <div id="nav-side-guest" class="rounded-xl p-3 bg-white/[0.03] border border-white/[0.07]">
                     <p class="text-[9px] font-semibold uppercase tracking-[0.16em] text-zinc-400">"Join the conversation"</p>
@@ -41,6 +72,19 @@ pub fn Nav() -> impl IntoView {
                         <button type="submit" id="nav-side-login-btn" class="w-full text-xs font-semibold text-white bg-purple-600 hover:bg-purple-500 transition-colors rounded-lg py-1.5">"Sign In"</button>
                     </form>
                     <a href="/register" class="mt-2 block text-center text-[11px] text-zinc-500 hover:text-zinc-300 transition-colors">"New here? "<span class="text-accent font-semibold">"Create an account"</span></a>
+                </div>
+
+                // Renzora Game card (coming soon)
+                <div class="rounded-xl p-3 bg-gradient-to-br from-fuchsia-500/[0.15] to-purple-600/[0.08] border border-white/[0.07]">
+                    <div class="flex items-center justify-between gap-2">
+                        <p class="text-[9px] font-semibold uppercase tracking-[0.16em] text-zinc-400">"Renzora Game"</p>
+                        <span class="text-[9px] font-semibold px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-400 shrink-0">"Coming Soon"</span>
+                    </div>
+                    <div class="flex items-center gap-1.5 mt-1.5">
+                        <i class="ph ph-game-controller text-fuchsia-400 text-sm"></i>
+                        <span class="text-sm font-semibold text-white">"Open-world adventure"</span>
+                    </div>
+                    <a href="/game" class="mt-2.5 block text-center text-xs font-semibold text-white bg-fuchsia-600 hover:bg-fuchsia-500 transition-colors rounded-lg py-1.5">"Join Waiting List"</a>
                 </div>
 
                 // Engine download card
@@ -87,45 +131,26 @@ pub fn Nav() -> impl IntoView {
 
         // ── Fixed top header ──
         <header id="app-header">
-            // Mobile hamburger
-            <button id="sidebar-burger" onclick="toggleSidebar()" aria-label="Open navigation menu" class="text-zinc-400 hover:text-white p-1.5 -ml-1 rounded-lg hover:bg-white/[0.06] transition-all">
-                <i class="ph ph-list text-xl"></i>
-            </button>
-
-            // Page brand — mirrors the sidebar logo (icon + renzora / Game Engine)
-            <a href="/" class="flex items-center gap-2.5 min-w-0">
-                <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-accent to-secondary flex items-center justify-center shadow-lg shadow-accent/20 shrink-0">
-                    <i class="ph ph-star text-white text-lg"></i>
-                </div>
-                <div class="leading-none">
+            // Brand
+            <a href="/" class="flex items-center gap-2.5 min-w-0 shrink-0 mr-1">
+                <img src="/assets/previews/hazel.webp" alt="Hazel" width="36" height="36" class="w-9 h-9 rounded-lg object-cover shrink-0" />
+                <div class="leading-none hidden sm:block">
                     <div class="text-[15px] font-bold text-white tracking-tight">"renzora"</div>
                     <div class="text-[9px] font-semibold uppercase tracking-[0.18em] text-zinc-400 mt-1">"Game Engine"</div>
                 </div>
             </a>
 
-            <div class="flex-1"></div>
+            // Mobile hamburger (opens the sidebar on small screens)
+            <button id="sidebar-burger" onclick="toggleSidebar()" aria-label="Open navigation menu" class="lg:hidden text-zinc-400 hover:text-white p-1.5 rounded-lg hover:bg-white/[0.06] transition-all">
+                <i class="ph ph-list text-xl"></i>
+            </button>
 
-            // XP bar (logged in only)
-            <div id="nav-xp-wrap" class="hidden items-center gap-2 mr-1">
-                <div class="relative flex items-center">
-                    <div class="w-7 h-7 rounded-lg flex items-center justify-center z-10">
-                        <span id="nav-level" class="text-[11px] font-black text-accent">"1"</span>
-                    </div>
-                    <div class="w-24 h-3.5 -ml-1 bg-black/40 border border-white/[0.08] rounded-r-lg overflow-hidden shadow-inner">
-                        <div id="nav-xp-bar" class="h-full bg-gradient-to-r from-accent to-secondary rounded-r-lg transition-all relative" style="width:0%">
-                            <div class="absolute inset-0 bg-[linear-gradient(90deg,transparent_25%,rgba(255,255,255,0.15)_50%,transparent_75%)] bg-[length:200%_100%] animate-[xpShimmer_2s_linear_infinite]"></div>
-                        </div>
-                    </div>
-                </div>
-                <span id="nav-xp-text" class="text-[10px] text-zinc-500 font-medium hidden md:block">"0 XP"</span>
-            </div>
-
-            // Search
+            // Search (left of the header)
             <div class="relative" id="global-search-wrap">
                 <button onclick="toggleGlobalSearch()" class="text-zinc-400 hover:text-white p-2 rounded-lg hover:bg-white/[0.06] transition-all" title="Search (Ctrl+K)">
                     <i class="ph ph-magnifying-glass text-lg"></i>
                 </button>
-                <div id="global-search-panel" class="hidden absolute right-0 top-full mt-2 w-[420px] max-w-[90vw] bg-[rgba(12,7,21,0.95)] backdrop-blur-2xl border border-white/[0.08] rounded-xl shadow-2xl shadow-black/60 overflow-hidden z-50">
+                <div id="global-search-panel" class="hidden absolute left-0 top-full mt-2 w-[420px] max-w-[90vw] bg-[rgba(12,7,21,0.95)] backdrop-blur-2xl border border-white/[0.08] rounded-xl shadow-2xl shadow-black/60 overflow-hidden z-50">
                     <div class="flex items-center gap-2 px-4 py-3 border-b border-white/[0.06]">
                         <i class="ph ph-magnifying-glass text-zinc-500"></i>
                         <input type="text" id="global-search-input" placeholder="Search assets, users, docs..." oninput="globalSearch(this.value)" class="flex-1 bg-transparent text-sm text-zinc-50 outline-none placeholder:text-zinc-600" />
@@ -136,6 +161,18 @@ pub fn Nav() -> impl IntoView {
                     </div>
                 </div>
             </div>
+
+            // Main nav (desktop top bar)
+            <nav class="hidden lg:flex items-center gap-1 ml-2">
+                <a href="/" class="top-link nav-link" data-path="/"><i class="ph ph-house text-base"></i>"Home"</a>
+                <a href="/download" class="top-link nav-link" data-path="/download"><i class="ph ph-download-simple text-base"></i>"Download Engine"</a>
+                <a href="/community" class="top-link nav-link nav-community" data-path="/community"><i class="ph ph-users-three text-base"></i>"Community"</a>
+                <a href="/marketplace" class="top-link nav-link" data-path="/marketplace"><i class="ph ph-storefront text-base"></i>"Marketplace"</a>
+                <a href="/docs" class="top-link nav-link" data-path="/docs"><i class="ph ph-book-open text-base"></i>"Docs"</a>
+                <a href="/donate" class="top-link nav-link donate" data-path="/donate"><i class="ph ph-heart text-base"></i>"Donate"</a>
+            </nav>
+
+            <div class="flex-1"></div>
 
             // Logged-out
             <div id="nav-guest" class="flex gap-2">
@@ -150,6 +187,7 @@ pub fn Nav() -> impl IntoView {
                 <a href="/wallet" class="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-amber-500/10 border border-amber-500/20 hover:bg-amber-500/20 transition-all">
                     <i class="ph ph-coin text-sm text-amber-400"></i>
                     <span id="nav-credits" class="text-sm text-white font-semibold">"0"</span>
+                    <span class="text-xs text-amber-400/80 font-medium hidden sm:inline">"credits"</span>
                 </a>
                 // Messages
                 <a href="/messages" class="relative p-2 rounded-lg hover:bg-white/[0.06] transition-colors" title="Messages">
@@ -247,6 +285,8 @@ pub fn Nav() -> impl IntoView {
                         if (profileLink) profileLink.href = '/profile/' + u.username;
                         if (sideCredits) { sideCredits.classList.remove('hidden'); sideCredits.classList.add('block'); }
                         if (sideGuest) { sideGuest.classList.add('hidden'); }
+                        // Home is the community feed when signed in, so drop the redundant Community nav item.
+                        document.querySelectorAll('.nav-community').forEach(el => { el.style.display = 'none'; });
                     } catch(e) {}
                     // Credits, badges, XP and creator status are loaded together by loadUserSummary().
                 }
@@ -287,7 +327,10 @@ pub fn Nav() -> impl IntoView {
                     document.cookie = `token=${data.access_token};path=/;max-age=2592000;SameSite=Strict`;
                     document.cookie = `refresh_token=${data.refresh_token};path=/;max-age=2592000;SameSite=Strict`;
                     document.cookie = `user=${encodeURIComponent(JSON.stringify(data.user))};path=/;max-age=2592000;SameSite=Strict`;
-                    window.location.reload();
+                    // Home/community sign-ins land on the feed (/); elsewhere just reload in place.
+                    var _p = window.location.pathname;
+                    if (_p === '/' || _p === '/community' || _p.indexOf('/community/') === 0) { window.location.href = '/'; }
+                    else { window.location.reload(); }
                 } catch (error) {
                     err.textContent = error.message; err.classList.remove('hidden');
                     btn.disabled = false; btn.textContent = 'Sign In';
@@ -606,12 +649,65 @@ pub fn Nav() -> impl IntoView {
 
             // Set redirect param on sign in link
             const signinLink = document.getElementById('nav-signin-link');
-            if (signinLink && window.location.pathname !== '/login' && window.location.pathname !== '/register') {
-                signinLink.href = '/login?redirect=' + encodeURIComponent(window.location.pathname + window.location.search);
+            const _sp = window.location.pathname;
+            // Deep pages carry a redirect back to themselves; home/community sign-ins default to the feed (/).
+            if (signinLink && _sp !== '/login' && _sp !== '/register' && _sp !== '/' && _sp !== '/community' && _sp.indexOf('/community/') !== 0) {
+                signinLink.href = '/login?redirect=' + encodeURIComponent(_sp + window.location.search);
+            }
+
+            // ── Sidebar cards: online friends + community goal ──
+            async function loadNavFriends() {
+                const token = getCookie('token');
+                if (!token) return;
+                const card = document.getElementById('nav-friends-card');
+                const list = document.getElementById('nav-friends-list');
+                if (!card || !list) return;
+                try {
+                    const H = { 'Authorization': 'Bearer ' + token };
+                    const [friends, presence] = await Promise.all([
+                        fetch('/api/gameservices/friends', { headers: H }).then(r => r.ok ? r.json() : []).catch(() => []),
+                        fetch('/api/gameservices/friends/presence', { headers: H }).then(r => r.ok ? r.json() : []).catch(() => []),
+                    ]);
+                    if (!Array.isArray(friends) || !friends.length) return;
+                    const online = new Set((presence || []).filter(p => p.online).map(p => p.user_id));
+                    const sorted = friends.slice().sort((a, b) => (online.has(b.user_id) ? 1 : 0) - (online.has(a.user_id) ? 1 : 0));
+                    const onlineCount = friends.filter(f => online.has(f.user_id)).length;
+                    list.innerHTML = sorted.slice(0, 5).map(f => {
+                        const on = online.has(f.user_id);
+                        const av = f.avatar_url
+                            ? `<img src="${f.avatar_url}" class="w-6 h-6 rounded-full object-cover" />`
+                            : `<span class="w-6 h-6 rounded-full bg-gradient-to-br from-accent to-secondary flex items-center justify-center text-white text-[10px] font-bold">${(f.username || '?').charAt(0).toUpperCase()}</span>`;
+                        return `<a href="/profile/${f.username}" class="flex items-center gap-2 px-1 py-1 rounded-md hover:bg-white/[0.04] transition-colors">
+                            <span class="relative shrink-0">${av}<span class="absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full border-2 border-[#0b0617] ${on ? 'bg-emerald-400' : 'bg-zinc-600'}"></span></span>
+                            <span class="text-xs text-zinc-300 truncate flex-1">${f.username}</span>
+                        </a>`;
+                    }).join('');
+                    const cnt = document.getElementById('nav-friends-count');
+                    if (cnt) cnt.textContent = onlineCount > 0 ? '· ' + onlineCount + ' online' : '';
+                    card.classList.remove('hidden');
+                } catch (e) {}
+            }
+            async function loadNavGoal() {
+                const card = document.getElementById('nav-goal-card');
+                if (!card) return;
+                try {
+                    const data = await fetch('/api/credits/donate/sponsors').then(r => r.ok ? r.json() : null).catch(() => null);
+                    const goal = data && data.goal;
+                    if (!goal || !goal.enabled) return;
+                    document.getElementById('nav-goal-title').textContent = goal.title || 'Community Goal';
+                    document.getElementById('nav-goal-current').textContent = (goal.current || 0).toLocaleString();
+                    document.getElementById('nav-goal-target').textContent = (goal.target || 0).toLocaleString();
+                    const pct = goal.percent || 0;
+                    document.getElementById('nav-goal-percent').textContent = pct + '%';
+                    card.classList.remove('hidden');
+                    setTimeout(() => { const bar = document.getElementById('nav-goal-bar'); if (bar) bar.style.width = Math.min(100, pct) + '%'; }, 100);
+                } catch (e) {}
             }
 
             updateNav();
             loadUserSummary();  // ONE request: credits, notifications, messages, XP, creator status
+            loadNavFriends();   // online friends card (logged in)
+            loadNavGoal();      // community goal card (everyone)
             connectWs();        // Live updates from here on
             "#
         </script>

@@ -70,6 +70,13 @@ pub fn DocArticle() -> impl IntoView {
             <div class="flex-1 min-w-0 px-8 py-10 lg:px-12">
                 <article id="doc-content">{ssr_body}{landing}</article>
             </div>
+            // Right column: on-this-page section nav (built client-side from the article headings)
+            <aside id="doc-toc" class="hidden xl:block w-56 shrink-0 sticky top-[60px] h-[calc(100vh-60px)] overflow-y-auto py-10 pr-6 pl-2">
+                <div id="doc-toc-inner" class="hidden">
+                    <div class="text-[10px] font-semibold uppercase tracking-[0.12em] text-zinc-500 mb-3">"On this page"</div>
+                    <nav id="doc-toc-list" class="border-l border-zinc-800 flex flex-col"></nav>
+                </div>
+            </aside>
         </div>
         // Syntax highlighting, self-hosted (no cross-origin dependency), loaded
         // only on article pages that actually contain code. Theme CSS inlined;
@@ -179,6 +186,7 @@ pub fn DocArticle() -> impl IntoView {
                     wrapper.appendChild(pre);
                 });
 
+                buildToc();
             })();
 
             // Open any doc image in a lightbox. Event delegation on document so it
@@ -225,6 +233,56 @@ pub fn DocArticle() -> impl IntoView {
             function closeLightbox() {
                 const ov = document.getElementById('doc-lightbox');
                 if (ov) { ov.classList.remove('open'); document.body.style.overflow = ''; }
+            }
+
+            // ── On-this-page section nav (right column) ──
+            let tocObserver = null;
+            function buildToc() {
+                const inner = document.getElementById('doc-toc-inner');
+                const list = document.getElementById('doc-toc-list');
+                if (!inner || !list) return;
+                const body = document.querySelector('#doc-content .doc-body');
+                const headings = body ? Array.from(body.querySelectorAll('h2, h3')) : [];
+                if (!headings.length) { inner.classList.add('hidden'); return; }
+                let html = '';
+                headings.forEach((h, i) => {
+                    if (!h.id) {
+                        const slug = h.textContent.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40);
+                        h.id = 'sec-' + i + (slug ? '-' + slug : '');
+                    }
+                    const sub = h.tagName === 'H3';
+                    html += `<a href="#${h.id}" data-toc="${h.id}" class="toc-link block py-1.5 text-[13px] leading-snug text-zinc-500 hover:text-zinc-200 transition-colors ${sub ? 'pl-6' : 'pl-3'}">${h.textContent}</a>`;
+                });
+                list.innerHTML = html;
+                inner.classList.remove('hidden');
+                list.querySelectorAll('a[href^="#"]').forEach(a => {
+                    a.addEventListener('click', (e) => {
+                        const target = document.getElementById(a.getAttribute('href').slice(1));
+                        if (target) { e.preventDefault(); window.scrollTo({ top: target.getBoundingClientRect().top + window.scrollY - 76, behavior: 'smooth' }); history.replaceState(null, '', a.getAttribute('href')); }
+                    });
+                });
+                setupTocSpy(headings);
+            }
+            function setupTocSpy(headings) {
+                if (tocObserver) tocObserver.disconnect();
+                const links = Array.from(document.querySelectorAll('#doc-toc-list .toc-link'));
+                const linkFor = {};
+                links.forEach(l => linkFor[l.getAttribute('data-toc')] = l);
+                const visible = new Set();
+                function highlight() {
+                    let topId = null, topPos = Infinity;
+                    visible.forEach(id => {
+                        const el = document.getElementById(id);
+                        if (el) { const t = el.getBoundingClientRect().top; if (t < topPos) { topPos = t; topId = id; } }
+                    });
+                    links.forEach(l => { l.classList.remove('text-accent','font-medium'); l.classList.add('text-zinc-500'); });
+                    if (topId && linkFor[topId]) { linkFor[topId].classList.remove('text-zinc-500'); linkFor[topId].classList.add('text-accent','font-medium'); }
+                }
+                tocObserver = new IntersectionObserver((entries) => {
+                    entries.forEach(e => { if (e.isIntersecting) visible.add(e.target.id); else visible.delete(e.target.id); });
+                    highlight();
+                }, { rootMargin: '-76px 0px -78% 0px', threshold: 0 });
+                headings.forEach(h => tocObserver.observe(h));
             }
             "##
         </script>
@@ -355,7 +413,7 @@ pub fn DocArticle() -> impl IntoView {
 fn DocsSidebar() -> impl IntoView {
     view! {
         <aside class="w-64 shrink-0 border-r border-zinc-800 bg-surface sticky top-[60px] h-[calc(100vh-60px)] overflow-y-auto hidden lg:block">
-            <div class="p-4">
+            <div class="p-3">
                 // Version switcher
                 <div class="mb-4">
                     <label class="block text-[10px] font-semibold uppercase tracking-[0.08em] text-zinc-500 mb-1.5">"Version"</label>
@@ -414,14 +472,13 @@ fn DocsSidebar() -> impl IntoView {
                 const el = document.getElementById('sidebar-nav');
                 el.innerHTML = (sidebarData.groups || []).map(group => `
                     <div class="mb-6">
-                        <div class="text-[10px] font-bold uppercase tracking-[0.12em] text-accent/80 mb-3 px-2">${group.group}</div>
                         ${group.categories.map(cat => `
                             <div class="mb-4">
                                 <h4 class="text-[11px] font-semibold uppercase tracking-[0.08em] text-zinc-500 mb-2 px-2">${cat.category}</h4>
                                 <ul class="flex flex-col gap-px">
                                     ${cat.pages.map(p => {
                                         const isActive = currentPath === p.slug;
-                                        return `<li><a href="/docs/${currentVersion}/${p.slug}" class="block px-2 py-1.5 text-[13px] rounded transition-all ${isActive ? 'bg-accent/10 text-accent' : 'text-zinc-400 hover:text-zinc-50 hover:bg-white/5'}">${p.title}</a></li>`;
+                                        return `<li><a href="/docs/${currentVersion}/${p.slug}" class="menu-item ${isActive ? 'active' : ''}"><i class="ph ph-file-text text-base"></i>${p.title}</a></li>`;
                                     }).join('')}
                                 </ul>
                             </div>

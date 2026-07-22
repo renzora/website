@@ -24,6 +24,7 @@ pub mod profiles;
 pub mod subscriptions;
 pub mod teams;
 pub mod user;
+pub mod waitlist;
 pub mod ws;
 
 use axum::{extract::State, Json, Router};
@@ -51,6 +52,7 @@ pub fn api_router(state: AppState) -> Router {
         .nest("/auth", auth::router())
         .nest("/marketplace", marketplace::router())
         .nest("/games", games::router())
+        .nest("/waitlist", waitlist::router())
         .nest("/gameservices", gameservices::router())
         .nest("/courses", courses::router())
         .nest("/credits", credits::router())

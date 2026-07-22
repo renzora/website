@@ -11,39 +11,39 @@ pub fn MarketplacePage() -> impl IntoView {
 
         <div class="flex">
             // ── Left Sidebar: Categories ──
-            <aside class="w-56 shrink-0 border-r border-white/[0.04] sticky top-[60px] h-[calc(100vh-60px)] overflow-y-auto hidden lg:block bg-surface">
-                <div class="py-3">
-                    <div class="px-3 py-1.5 text-[10px] font-semibold text-zinc-600 uppercase tracking-wider">"Categories"</div>
+            <aside class="w-64 shrink-0 border-r border-white/[0.04] sticky top-[60px] h-[calc(100vh-60px)] overflow-y-auto hidden lg:block bg-surface">
+                <div class="p-3">
+                    <div class="menu-label">"Categories"</div>
                     <div id="mp-sidebar-cats">
-                        <button class="w-full flex items-center gap-2.5 px-4 py-2 text-sm bg-white/5 text-zinc-50">
+                        <button class="menu-item active">
                             <i class="ph ph-squares-four text-base"></i>"All"
                         </button>
                     </div>
                 </div>
-                <div class="py-2 border-t border-zinc-800">
-                    <div class="px-3 py-1.5 text-[10px] font-semibold text-zinc-600 uppercase tracking-wider">"Price"</div>
-                    <button onclick="setPrice('all')" id="price-all" class="mp-price-btn w-full flex items-center gap-2.5 px-4 py-2 text-sm bg-white/5 text-zinc-50">
+                <div class="p-3 border-t border-zinc-800">
+                    <div class="menu-label">"Price"</div>
+                    <button onclick="setPrice('all')" id="price-all" class="mp-price-btn menu-item active">
                         <i class="ph ph-coins text-base"></i>"All Prices"
                     </button>
-                    <button onclick="setPrice('free')" id="price-free" class="mp-price-btn w-full flex items-center gap-2.5 px-4 py-2 text-sm text-zinc-400 hover:text-zinc-50 hover:bg-white/5 transition-all">
+                    <button onclick="setPrice('free')" id="price-free" class="mp-price-btn menu-item">
                         <i class="ph ph-gift text-base"></i>"Free Only"
                     </button>
-                    <button onclick="setPrice('paid')" id="price-paid" class="mp-price-btn w-full flex items-center gap-2.5 px-4 py-2 text-sm text-zinc-400 hover:text-zinc-50 hover:bg-white/5 transition-all">
+                    <button onclick="setPrice('paid')" id="price-paid" class="mp-price-btn menu-item">
                         <i class="ph ph-credit-card text-base"></i>"Paid Only"
                     </button>
                 </div>
-                <div class="py-2 border-t border-zinc-800">
-                    <div class="px-3 py-1.5 text-[10px] font-semibold text-zinc-600 uppercase tracking-wider">"Min Rating"</div>
-                    <button onclick="setMinRating(0)" id="rating-0" class="mp-rating-btn w-full flex items-center gap-2.5 px-4 py-2 text-sm bg-white/5 text-zinc-50">
+                <div class="p-3 border-t border-zinc-800">
+                    <div class="menu-label">"Min Rating"</div>
+                    <button onclick="setMinRating(0)" id="rating-0" class="mp-rating-btn menu-item active">
                         <i class="ph ph-star text-base"></i>"Any"
                     </button>
-                    <button onclick="setMinRating(3)" id="rating-3" class="mp-rating-btn w-full flex items-center gap-2.5 px-4 py-2 text-sm text-zinc-400 hover:text-zinc-50 hover:bg-white/5 transition-all">
+                    <button onclick="setMinRating(3)" id="rating-3" class="mp-rating-btn menu-item">
                         <span class="text-amber-400">"★★★"</span><span class="text-zinc-600">"☆☆"</span>"& up"
                     </button>
-                    <button onclick="setMinRating(4)" id="rating-4" class="mp-rating-btn w-full flex items-center gap-2.5 px-4 py-2 text-sm text-zinc-400 hover:text-zinc-50 hover:bg-white/5 transition-all">
+                    <button onclick="setMinRating(4)" id="rating-4" class="mp-rating-btn menu-item">
                         <span class="text-amber-400">"★★★★"</span><span class="text-zinc-600">"☆"</span>"& up"
                     </button>
-                    <button onclick="setMinRating(5)" id="rating-5" class="mp-rating-btn w-full flex items-center gap-2.5 px-4 py-2 text-sm text-zinc-400 hover:text-zinc-50 hover:bg-white/5 transition-all">
+                    <button onclick="setMinRating(5)" id="rating-5" class="mp-rating-btn menu-item">
                         <span class="text-amber-400">"★★★★★"</span>"only"
                     </button>
                 </div>
@@ -203,7 +203,7 @@ pub fn MarketplacePage() -> impl IntoView {
                 // Sidebar categories
                 const sideEl = document.getElementById('mp-sidebar-cats');
                 sideEl.innerHTML = categories.map(c => `
-                    <button onclick="setCategory('${c.slug}')" id="scat-${c.slug}" class="mp-cat-btn w-full flex items-center gap-2.5 px-4 py-2 text-sm transition-all ${c.slug === currentCategory ? 'bg-white/5 text-zinc-50' : 'text-zinc-400 hover:text-zinc-50 hover:bg-white/5'}">
+                    <button onclick="setCategory('${c.slug}')" id="scat-${c.slug}" class="menu-item mp-cat-btn ${c.slug === currentCategory ? 'active' : ''}">
                         <i class="ph ${c.icon} text-base"></i>${c.name}
                     </button>
                 `).join('');
@@ -222,24 +222,18 @@ pub fn MarketplacePage() -> impl IntoView {
             function setPrice(val) {
                 currentPrice = val;
                 currentPage = 1;
-                document.querySelectorAll('.mp-price-btn').forEach(el => {
-                    el.classList.remove('bg-white/5', 'text-zinc-50');
-                    el.classList.add('text-zinc-400');
-                });
+                document.querySelectorAll('.mp-price-btn').forEach(el => el.classList.remove('active'));
                 const active = document.getElementById('price-' + val);
-                if (active) { active.classList.add('bg-white/5', 'text-zinc-50'); active.classList.remove('text-zinc-400'); }
+                if (active) { active.classList.add('active'); active.classList.remove('text-zinc-400'); }
                 loadAssets();
             }
 
             function setMinRating(val) {
                 currentMinRating = val;
                 currentPage = 1;
-                document.querySelectorAll('.mp-rating-btn').forEach(el => {
-                    el.classList.remove('bg-white/5', 'text-zinc-50');
-                    el.classList.add('text-zinc-400');
-                });
+                document.querySelectorAll('.mp-rating-btn').forEach(el => el.classList.remove('active'));
                 const active = document.getElementById('rating-' + val);
-                if (active) { active.classList.add('bg-white/5', 'text-zinc-50'); active.classList.remove('text-zinc-400'); }
+                if (active) { active.classList.add('active'); active.classList.remove('text-zinc-400'); }
                 loadAssets();
             }
 
@@ -251,12 +245,9 @@ pub fn MarketplacePage() -> impl IntoView {
                 else url.searchParams.set('category', slug);
                 history.pushState({}, '', url);
                 // Update sidebar
-                document.querySelectorAll('.mp-cat-btn').forEach(el => {
-                    el.classList.remove('bg-white/5', 'text-zinc-50');
-                    el.classList.add('text-zinc-400');
-                });
+                document.querySelectorAll('.mp-cat-btn').forEach(el => el.classList.remove('active'));
                 const sActive = document.getElementById('scat-' + slug);
-                if (sActive) { sActive.classList.add('bg-white/5', 'text-zinc-50'); sActive.classList.remove('text-zinc-400'); }
+                if (sActive) { sActive.classList.add('active'); sActive.classList.remove('text-zinc-400'); }
                 // Update mobile chips
                 document.querySelectorAll('[id^="cat-"]').forEach(el => {
                     const isActive = el.id === 'cat-' + slug;
@@ -290,12 +281,9 @@ pub fn MarketplacePage() -> impl IntoView {
                 currentMinRating = parseInt(minRating) || 0;
 
                 // Sync sidebar rating buttons
-                document.querySelectorAll('.mp-rating-btn').forEach(el => {
-                    el.classList.remove('bg-white/5', 'text-zinc-50');
-                    el.classList.add('text-zinc-400');
-                });
+                document.querySelectorAll('.mp-rating-btn').forEach(el => el.classList.remove('active'));
                 const rBtn = document.getElementById('rating-' + currentMinRating);
-                if (rBtn) { rBtn.classList.add('bg-white/5', 'text-zinc-50'); rBtn.classList.remove('text-zinc-400'); }
+                if (rBtn) { rBtn.classList.add('active'); rBtn.classList.remove('text-zinc-400'); }
 
                 // Handle free from min price = 0
                 const minPrice = document.getElementById('adv-min-price')?.value;
@@ -320,16 +308,10 @@ pub fn MarketplacePage() -> impl IntoView {
                 currentPage = 1;
 
                 // Reset sidebar buttons
-                document.querySelectorAll('.mp-rating-btn').forEach(el => {
-                    el.classList.remove('bg-white/5', 'text-zinc-50');
-                    el.classList.add('text-zinc-400');
-                });
-                document.getElementById('rating-0')?.classList.add('bg-white/5', 'text-zinc-50');
-                document.querySelectorAll('.mp-price-btn').forEach(el => {
-                    el.classList.remove('bg-white/5', 'text-zinc-50');
-                    el.classList.add('text-zinc-400');
-                });
-                document.getElementById('price-all')?.classList.add('bg-white/5', 'text-zinc-50');
+                document.querySelectorAll('.mp-rating-btn').forEach(el => el.classList.remove('active'));
+                document.getElementById('rating-0')?.classList.add('active');
+                document.querySelectorAll('.mp-price-btn').forEach(el => el.classList.remove('active'));
+                document.getElementById('price-all')?.classList.add('active');
 
                 loadAssets();
             }

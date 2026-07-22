@@ -4,6 +4,7 @@ pub mod asset_edit;
 pub mod community;
 pub mod community_post;
 pub mod courses;
+pub mod game;
 pub mod dashboard;
 pub mod developers;
 pub mod docs;

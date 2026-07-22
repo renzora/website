@@ -33,6 +33,7 @@ pub fn router() -> Router<AppState> {
         .route("/gift-cards/sent", get(list_sent_gifts))
         .route("/gift-cards/received", get(list_received_gifts))
         .route("/donate", post(make_donation))
+        .route("/tip", post(send_tip))
         .route("/donate/sponsor-profile", get(get_sponsor_profile).put(update_sponsor_profile))
         .route("/donate/sponsor-logo", axum::routing::put(upload_sponsor_logo))
         .layer(axum::middleware::from_fn(middleware::require_auth));
@@ -1183,6 +1184,92 @@ async fn make_donation(
         "total_donated": total.0,
         "new_badges": new_badges,
     })))
+}
+
+#[derive(serde::Deserialize)]
+struct TipBody {
+    recipient_id: Uuid,
+    amount: i64,
+    post_id: Option<Uuid>,
+}
+
+/// Tip credits from the authenticated user to another user. Moves credits
+/// between balances atomically and notifies the recipient.
+async fn send_tip(
+    State(state): State<AppState>,
+    Extension(auth): Extension<AuthUser>,
+    Json(body): Json<TipBody>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    if body.amount < 1 {
+        return Err(ApiError::Validation("Minimum tip is 1 credit".into()));
+    }
+    if body.recipient_id == auth.user_id {
+        return Err(ApiError::Validation("You cannot tip yourself".into()));
+    }
+
+    let sender = User::find_by_id(&state.db, auth.user_id).await?.ok_or(ApiError::NotFound)?;
+    let recipient = User::find_by_id(&state.db, body.recipient_id).await?.ok_or(ApiError::NotFound)?;
+    if sender.credit_balance < body.amount {
+        return Err(ApiError::Validation("Insufficient credits".into()));
+    }
+
+    let mut tx = state.db.begin().await.map_err(|e| ApiError::Internal(e.to_string()))?;
+
+    // Deduct from the sender, guarding against a concurrent overspend.
+    let deducted = sqlx::query(
+        "UPDATE users SET credit_balance = credit_balance - $1 WHERE id = $2 AND credit_balance >= $1",
+    )
+    .bind(body.amount)
+    .bind(auth.user_id)
+    .execute(&mut *tx)
+    .await
+    .map_err(|e| ApiError::Internal(e.to_string()))?;
+    if deducted.rows_affected() == 0 {
+        return Err(ApiError::Validation("Insufficient credits".into()));
+    }
+
+    sqlx::query("UPDATE users SET credit_balance = credit_balance + $1 WHERE id = $2")
+        .bind(body.amount)
+        .bind(body.recipient_id)
+        .execute(&mut *tx)
+        .await
+        .map_err(|e| ApiError::Internal(e.to_string()))?;
+
+    sqlx::query("INSERT INTO transactions (id, user_id, type, amount, reason) VALUES ($1, $2, 'tip', $3, $4)")
+        .bind(Uuid::new_v4())
+        .bind(auth.user_id)
+        .bind(-body.amount)
+        .bind(format!("Tip to @{}", recipient.username))
+        .execute(&mut *tx)
+        .await
+        .map_err(|e| ApiError::Internal(e.to_string()))?;
+    sqlx::query("INSERT INTO transactions (id, user_id, type, amount, reason) VALUES ($1, $2, 'tip', $3, $4)")
+        .bind(Uuid::new_v4())
+        .bind(body.recipient_id)
+        .bind(body.amount)
+        .bind(format!("Tip from @{}", sender.username))
+        .execute(&mut *tx)
+        .await
+        .map_err(|e| ApiError::Internal(e.to_string()))?;
+
+    tx.commit().await.map_err(|e| ApiError::Internal(e.to_string()))?;
+
+    // Notify + live-update the recipient (and refresh the sender's balance).
+    let link = body.post_id.map(|pid| format!("/community/post/{pid}"));
+    let _ = crate::notify::notify(
+        &state,
+        body.recipient_id,
+        "tip",
+        "You received a tip!",
+        &format!("@{} tipped you {} credits", sender.username, body.amount),
+        link.as_deref(),
+        None,
+    )
+    .await;
+    state.ws_broadcast.send_to_user(body.recipient_id, "credit_update", serde_json::json!({"amount": body.amount, "type": "tip"}));
+    state.ws_broadcast.send_to_user(auth.user_id, "credit_update", serde_json::json!({"amount": -body.amount, "type": "tip"}));
+
+    Ok(Json(serde_json::json!({ "ok": true, "amount": body.amount })))
 }
 
 async fn donation_leaderboard(

@@ -145,13 +145,16 @@ pub fn Shell() -> impl IntoView {
                     select option:checked{background-color:#241633!important}
                     select{-webkit-appearance:none;-moz-appearance:none;appearance:none;background-image:url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2371717a' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E\");background-repeat:no-repeat;background-position:right 8px center;padding-right:28px}
 
+                    /* Site-wide base font size (bumped from the 16px browser default;
+                       rem-based Tailwind sizes scale with it). */
+                    html{font-size:17px}
                     /* ── App shell layout: fixed sidebar + top header ── */
                     :root{--sidebar-w:248px;--header-h:60px}
-                    .app-main{margin-left:var(--sidebar-w);padding-top:var(--header-h);min-height:100vh}
-                    @media (max-width:1023px){.app-main{margin-left:0}}
-                    #app-sidebar{position:fixed;top:0;left:0;bottom:0;width:var(--sidebar-w);z-index:60;display:flex;flex-direction:column;background:#0b0617;border-right:1px solid rgba(255,255,255,0.06)}
-                    #app-header{position:fixed;top:0;left:var(--sidebar-w);right:0;height:var(--header-h);z-index:55;display:flex;align-items:center;gap:1rem;padding:0 1.25rem;background:rgba(11,6,23,0.78);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);border-bottom:1px solid rgba(255,255,255,0.06)}
-                    @media (max-width:1023px){#app-sidebar{transform:translateX(-100%);transition:transform .25s ease}#app-sidebar.open{transform:translateX(0)}#app-header{left:0}}
+                    .app-main{margin-right:var(--sidebar-w);padding-top:var(--header-h);min-height:100vh}
+                    @media (max-width:1023px){.app-main{margin-right:0}}
+                    #app-sidebar{position:fixed;top:var(--header-h);right:0;bottom:0;width:var(--sidebar-w);z-index:60;display:flex;flex-direction:column;background:#0b0617;border-left:1px solid rgba(255,255,255,0.06)}
+                    #app-header{position:fixed;top:0;left:0;right:0;height:var(--header-h);z-index:62;display:flex;align-items:center;gap:1rem;padding:0 1.25rem;background:rgba(11,6,23,0.78);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);border-bottom:1px solid rgba(255,255,255,0.06)}
+                    @media (max-width:1023px){#app-sidebar{transform:translateX(100%);transition:transform .25s ease}#app-sidebar.open{transform:translateX(0)}#app-header{right:0}}
                     #sidebar-scrim{position:fixed;inset:0;z-index:59;background:rgba(0,0,0,0.5);backdrop-filter:blur(2px);display:none}
                     #sidebar-scrim.open{display:block}
                     @media (min-width:1024px){#sidebar-scrim{display:none!important}#sidebar-burger{display:none}}
@@ -159,7 +162,23 @@ pub fn Shell() -> impl IntoView {
                     .side-link{position:relative;display:flex;align-items:center;gap:.7rem;padding:.55rem .7rem;border-radius:.6rem;font-size:.9rem;color:#a1a1aa;transition:all .15s}
                     .side-link:hover{color:#f4f4f5;background:rgba(255,255,255,0.05)}
                     .side-link.active{color:#fff;background:linear-gradient(90deg,rgba(168,85,247,0.22),rgba(168,85,247,0.06))}
-                    .side-link.active::before{content:'';position:absolute;left:-.7rem;top:50%;transform:translateY(-50%);width:3px;height:60%;border-radius:0 3px 3px 0;background:linear-gradient(180deg,#a855f7,#22d3ee)}"
+                    .side-link.active::before{content:'';position:absolute;left:-.7rem;top:50%;transform:translateY(-50%);width:3px;height:60%;border-radius:0 3px 3px 0;background:linear-gradient(180deg,#a855f7,#22d3ee)}
+                    .side-link.donate{color:#f87171}
+                    .side-link.donate:hover{color:#fca5a5;background:rgba(248,113,113,0.08)}
+                    .side-link.donate.active{color:#fff;background:linear-gradient(90deg,rgba(248,113,113,0.22),rgba(248,113,113,0.06))}
+                    .side-link.donate.active::before{background:linear-gradient(180deg,#f87171,#fb7185)}
+                    .top-link{position:relative;display:inline-flex;align-items:center;gap:.4rem;padding:.4rem .7rem;border-radius:.5rem;font-size:.85rem;font-weight:500;color:#a1a1aa;transition:all .15s;white-space:nowrap}
+                    .top-link:hover{color:#f4f4f5;background:rgba(255,255,255,0.05)}
+                    .top-link.active{color:#fff;background:linear-gradient(180deg,rgba(168,85,247,0.22),rgba(168,85,247,0.06))}
+                    .top-link.donate{color:#f87171}
+                    .top-link.donate:hover{color:#fca5a5;background:rgba(248,113,113,0.08)}
+                    .top-link.donate.active{color:#fff;background:linear-gradient(180deg,rgba(248,113,113,0.22),rgba(248,113,113,0.06))}
+                    .menu-item{display:flex;align-items:center;gap:.625rem;width:100%;padding:.375rem .5rem;border-radius:.5rem;font-size:.875rem;line-height:1.25rem;color:#d4d4d8;text-align:left;transition:background-color .15s,color .15s}
+                    .menu-item:hover{background:rgba(255,255,255,0.04)}
+                    .menu-item.active{background:rgba(168,85,247,0.15);color:#a855f7}
+                    .menu-item i{color:#71717a;transition:color .15s}
+                    .menu-item.active i{color:#a855f7}
+                    .menu-label{margin-bottom:.5rem;padding:0 .5rem;font-size:.6875rem;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:#71717a}"
                 </style>
                 <MetaTags />
             </head>

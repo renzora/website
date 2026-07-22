@@ -71,34 +71,29 @@ pub fn CommunityPage() -> impl IntoView {
         <Title text=title />
         <Meta name="description" content=desc />
 
-        <section class="py-8 px-4 md:px-6 min-h-[80vh] bg-gradient-to-b from-[#0c0a10] via-[#060608] to-[#060608]">
-            <div class="max-w-[1100px] mx-auto grid grid-cols-1 lg:grid-cols-[240px_minmax(0,1fr)] gap-6">
+        <section class="min-h-[80vh] bg-gradient-to-b from-[#0c0a10] via-[#060608] to-[#060608]">
+            <div class="flex flex-col lg:flex-row">
 
                 // ── Channel rail ──
-                <aside class="lg:sticky lg:top-20 self-start order-2 lg:order-1">
-                    <div class="bg-surface-card border border-zinc-800 rounded-xl p-3">
-                        <div class="flex items-center justify-between px-1 mb-2">
-                            <h2 class="text-xs font-semibold uppercase tracking-wide text-zinc-500">"Channels"</h2>
-                            <button id="suggest-toggle" title="Suggest a channel" class="w-6 h-6 rounded-md flex items-center justify-center text-zinc-500 hover:text-accent hover:bg-white/[0.04] transition-colors">
-                                <i class="ph ph-plus"></i>
-                            </button>
-                        </div>
-                        <div id="suggest-box" class="hidden mb-3 space-y-2">
-                            <input id="suggest-name" type="text" maxlength="48" placeholder="Channel name" class="w-full px-2.5 py-1.5 bg-surface border border-zinc-800 rounded-lg text-xs text-zinc-50 outline-none focus:border-accent" />
-                            <button id="suggest-submit" class="w-full px-2.5 py-1.5 rounded-lg text-xs font-medium bg-accent text-white hover:bg-accent-hover transition-colors">"Suggest"</button>
-                            <p class="text-[10px] text-zinc-600 leading-tight">"Suggestions are reviewed by an admin before going live."</p>
-                        </div>
-                        <div id="channel-list" class="space-y-0.5">
-                            <div class="text-center py-6"><div class="inline-block animate-spin w-4 h-4 border-2 border-zinc-700 border-t-accent rounded-full"></div></div>
-                        </div>
+                <aside class="order-2 lg:order-1 lg:w-64 lg:shrink-0 lg:border-r lg:border-white/[0.04] lg:sticky lg:top-[60px] lg:h-[calc(100vh-60px)] lg:overflow-y-auto lg:bg-surface px-4 py-6 lg:p-3">
+                    <div class="flex items-center justify-between px-2 mb-2">
+                        <h2 class="text-[11px] font-semibold uppercase tracking-[0.08em] text-zinc-500">"Channels"</h2>
+                        <button id="suggest-toggle" title="Suggest a channel" class="w-6 h-6 rounded-md flex items-center justify-center text-zinc-500 hover:text-accent hover:bg-white/[0.04] transition-colors">
+                            <i class="ph ph-plus"></i>
+                        </button>
                     </div>
-                    <a href="/articles" class="mt-2 flex items-center gap-2.5 px-3 py-2.5 rounded-xl bg-surface-card border border-zinc-800 text-sm text-zinc-300 hover:border-zinc-700 hover:text-white transition-colors">
-                        <i class="ph ph-article text-base text-accent"></i><span class="flex-1">"Articles"</span><i class="ph ph-arrow-right text-zinc-600"></i>
-                    </a>
+                    <div id="suggest-box" class="hidden mb-3 space-y-2">
+                        <input id="suggest-name" type="text" maxlength="48" placeholder="Channel name" class="w-full px-2.5 py-1.5 bg-surface border border-zinc-800 rounded-lg text-xs text-zinc-50 outline-none focus:border-accent" />
+                        <button id="suggest-submit" class="w-full px-2.5 py-1.5 rounded-lg text-xs font-medium bg-accent text-white hover:bg-accent-hover transition-colors">"Suggest"</button>
+                        <p class="text-[10px] text-zinc-600 leading-tight">"Suggestions are reviewed by an admin before going live."</p>
+                    </div>
+                    <div id="channel-list" class="space-y-0.5">
+                        <div class="text-center py-6"><div class="inline-block animate-spin w-4 h-4 border-2 border-zinc-700 border-t-accent rounded-full"></div></div>
+                    </div>
                 </aside>
 
                 // ── Feed column ──
-                <div class="min-w-0 order-1 lg:order-2">
+                <div class="order-1 lg:order-2 lg:flex-1 min-w-0 w-full max-w-[760px] mx-auto px-4 md:px-6 py-8">
                     <div class="flex items-center justify-between mb-4">
                         <div class="min-w-0">
                             <h1 class="text-2xl font-bold flex items-center gap-2"><i id="channel-icon" class="ph ph-globe-hemisphere-west text-accent"></i><span id="channel-title">{title_text}</span></h1>
@@ -220,8 +215,8 @@ pub fn CommunityPage() -> impl IntoView {
               }
               function channelRow(slug, icon, name, count){
                 const active = state.channel === slug;
-                return `<button onclick="__selChannel(${slug ? "'"+esc(slug)+"'" : 'null'})" class="w-full flex items-center gap-2.5 px-2 py-1.5 rounded-lg text-sm text-left transition-colors ${active ? 'bg-accent/15 text-accent' : 'text-zinc-300 hover:bg-white/[0.04]'}">
-                  <i class="ph ${esc(icon||'ph-hash')} text-base ${active?'text-accent':'text-zinc-500'}"></i>
+                return `<button onclick="__selChannel(${slug ? "'"+esc(slug)+"'" : 'null'})" class="menu-item ${active ? 'active' : ''}">
+                  <i class="ph ${esc(icon||'ph-hash')} text-base"></i>
                   <span class="flex-1 truncate">${esc(name)}</span>
                   ${count !== '' ? `<span class="text-[10px] text-zinc-600">${count}</span>` : ''}
                 </button>`;
@@ -333,6 +328,7 @@ pub fn CommunityPage() -> impl IntoView {
                           <i class="ph ph-chat-circle"></i><span id="ccount-${p.id}">${p.comment_count}</span>
                         </button>
                         <div class="flex-1"></div>
+                        ${me && p.user_id !== me.id ? `<button onclick="__tip('${p.id}','${esc(p.username)}','${p.user_id}')" class="text-xs text-amber-400/80 hover:text-amber-400 transition-colors inline-flex items-center gap-1" title="Tip credits"><i class="ph ph-coins"></i><span class="hidden sm:inline">Tip</span></button>` : ''}
                         ${me && p.user_id !== me.id ? `<button onclick="__report('${p.id}')" class="text-xs hover:text-amber-400 transition-colors" title="Report"><i class="ph ph-flag"></i></button>` : ''}
                         ${canDelete ? `<button onclick="__delete(event,'${p.id}')" class="text-xs hover:text-red-400 transition-colors" title="Delete"><i class="ph ph-trash"></i></button>` : ''}
                       </div>
@@ -393,6 +389,51 @@ pub fn CommunityPage() -> impl IntoView {
                 pop.style.top = (r.bottom+6)+'px';
                 pop.classList.remove('hidden');
               };
+
+              window.__tip = function(postId, username, recipientId){
+                if (!token){ window.location.href = '/login'; return; }
+                let m = $('tip-modal');
+                if (!m){
+                  m = document.createElement('div');
+                  m.id = 'tip-modal';
+                  m.className = 'fixed inset-0 z-[100] hidden items-center justify-center p-4';
+                  m.innerHTML = `<div class="absolute inset-0 bg-black/70 backdrop-blur-sm" onclick="__closeTip()"></div>
+                    <div class="relative w-full max-w-xs bg-surface-card border border-white/[0.08] rounded-2xl shadow-2xl p-5">
+                      <div class="text-center mb-4">
+                        <div class="w-11 h-11 rounded-2xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center mx-auto mb-2"><i class="ph ph-coins text-xl text-amber-400"></i></div>
+                        <h3 class="text-base font-semibold text-zinc-100">Tip <span id="tip-user" class="text-accent"></span></h3>
+                        <p class="text-xs text-zinc-500 mt-0.5">Send credits from your balance</p>
+                      </div>
+                      <div class="grid grid-cols-4 gap-2 mb-3">${[5,10,25,50].map(a=>`<button type="button" class="tip-preset px-2 py-2 bg-zinc-800/50 border border-zinc-700 rounded-lg text-sm text-zinc-300 hover:border-amber-500/50 hover:text-amber-400 transition-colors" data-amount="${a}">${a}</button>`).join('')}</div>
+                      <input id="tip-amount" type="number" min="1" class="w-full px-3 py-2 bg-zinc-900 border border-zinc-700 rounded-lg text-sm text-zinc-200 placeholder:text-zinc-600 focus:outline-none focus:border-amber-500/50 mb-3" placeholder="Credits" />
+                      <p id="tip-msg" class="hidden text-xs mb-2"></p>
+                      <div class="flex gap-2">
+                        <button type="button" onclick="__closeTip()" class="flex-1 py-2 rounded-lg text-sm text-zinc-400 hover:text-zinc-200 border border-zinc-700">Cancel</button>
+                        <button type="button" id="tip-send" class="flex-1 py-2 rounded-lg text-sm font-semibold bg-amber-500 text-white hover:bg-amber-400">Send tip</button>
+                      </div>
+                    </div>`;
+                  document.body.appendChild(m);
+                  m.addEventListener('click', function(e){ if (e.target.classList.contains('tip-preset')) $('tip-amount').value = e.target.dataset.amount; });
+                }
+                $('tip-user').textContent = username;
+                $('tip-amount').value = '';
+                const msg = $('tip-msg'); msg.classList.add('hidden');
+                m.classList.remove('hidden'); m.classList.add('flex');
+                const sendBtn = $('tip-send'); sendBtn.disabled = false; sendBtn.textContent = 'Send tip';
+                sendBtn.onclick = async function(){
+                  const amount = parseInt($('tip-amount').value);
+                  msg.classList.add('hidden');
+                  if (!amount || amount < 1){ msg.textContent = 'Enter an amount'; msg.className = 'text-xs mb-2 text-red-400'; msg.classList.remove('hidden'); return; }
+                  sendBtn.disabled = true; sendBtn.textContent = 'Sending...';
+                  try {
+                    const res = await fetch('/api/credits/tip', { method:'POST', headers:{...authHeaders,'Content-Type':'application/json'}, body: JSON.stringify({ recipient_id: recipientId, amount, post_id: postId }) });
+                    const d = await res.json();
+                    if (res.ok && d.ok){ msg.textContent = 'Sent ' + amount + ' credits to ' + username + ' 🎉'; msg.className = 'text-xs mb-2 text-green-400'; msg.classList.remove('hidden'); setTimeout(__closeTip, 1400); }
+                    else { msg.textContent = d.error || 'Failed to send tip'; msg.className = 'text-xs mb-2 text-red-400'; msg.classList.remove('hidden'); sendBtn.disabled = false; sendBtn.textContent = 'Send tip'; }
+                  } catch(e){ msg.textContent = 'Something went wrong'; msg.className = 'text-xs mb-2 text-red-400'; msg.classList.remove('hidden'); sendBtn.disabled = false; sendBtn.textContent = 'Send tip'; }
+                };
+              };
+              window.__closeTip = function(){ const m = $('tip-modal'); if (m){ m.classList.add('hidden'); m.classList.remove('flex'); } };
 
               window.__report = async function(id){
                 if (!confirm('Report this post to moderators?')) return;

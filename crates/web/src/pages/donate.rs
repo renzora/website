@@ -8,10 +8,18 @@ pub fn DonatePage() -> impl IntoView {
         <Meta name="description" content="Support the development of Renzora, the free and open-source Bevy editor and game engine. Become a supporter and help keep the engine open for everyone." />
 
         <section class="max-w-4xl mx-auto py-12 px-4">
-            // Hero
-            <div class="text-center mb-8">
-                <h1 class="text-4xl font-extrabold tracking-tight text-zinc-100">"Support Renzora"</h1>
-                <p class="text-sm text-zinc-400 mt-3 max-w-xl mx-auto">"Help us build the free and open source Renzora Engine. Every donation this month counts toward our community goal and lists you on the supporters wall."</p>
+            // Hero — support appeal
+            <div class="relative overflow-hidden rounded-3xl border border-rose-500/25 bg-gradient-to-br from-rose-500/[0.10] via-purple-600/[0.04] to-rose-500/[0.06] p-8 md:p-12 mb-10">
+                <div class="absolute -top-16 right-0 w-[28rem] h-48 bg-rose-500/12 rounded-full blur-[100px] pointer-events-none"></div>
+                <div class="relative z-10 flex flex-col md:flex-row items-center gap-8 md:gap-12">
+                    <div class="flex-1 text-center md:text-left order-2 md:order-1">
+                        <h1 class="text-3xl md:text-4xl font-extrabold tracking-tight text-zinc-100">"Support Renzora"</h1>
+                        <p class="text-zinc-300 mt-4 leading-relaxed">"Renzora Engine is free and open source, and it always will be. It's built in the open, with a lot of love, for anyone who dreams of making their own games."</p>
+                        <p class="text-zinc-400 mt-3 leading-relaxed">"If Renzora has helped you build something, taught you something, or just made your day a little easier, a donation, however small, genuinely means the world. It keeps the lights on and keeps the engine growing."</p>
+                        <p class="text-sm text-zinc-400 mt-5 italic">"Thank you, truly. Hazel ♥"</p>
+                    </div>
+                    <img src="/assets/previews/logo.webp" alt="Hazel, the Renzora mascot" width="387" height="449" class="w-44 md:w-56 h-auto rounded-2xl object-cover shrink-0 order-1 md:order-2 shadow-xl shadow-rose-500/20 ring-1 ring-rose-500/20" />
+                </div>
             </div>
 
             // Community goal progress
