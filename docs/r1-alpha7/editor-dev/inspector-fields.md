@@ -81,7 +81,7 @@ All optional; each has a sensible default derived from the struct name.
 | `readonly` | any field | Force a non-editable `{:?}` debug display |
 | `default = <num>` | (see note) | Parsed but **ignored** by `#[derive(Inspectable)]` |
 
-> ⚠️ `#[field(default = ...)]` is recognised by the attribute parser but **has no effect under `#[derive(Inspectable)]`** — initial values come from your type's own `Default` impl (the generated "Add Component" action inserts `T::default()`). `default` is only consumed by the `#[post_process]` attribute macro, which uses it to build the effect's `Default`. Don't rely on it to seed inspector fields.
+> ⚠️ `#[field(default = ...)]` is recognised by the attribute parser but **has no effect under `#[derive(Inspectable)]`** — initial values come from your type's own `Default` impl (the generated "Add Component" action inserts `T::default()`). `default` is only consumed by the `#[post_process]` attribute macro, which no longer has any users in the tree. Don't rely on it to seed inspector fields.
 
 ### Supported field types
 
@@ -112,7 +112,7 @@ Fields named `enabled` or starting with `_p` are skipped automatically (a conven
 
 The `TestComponentPlugin` above is **editor-scope** (`add!(_, Editor)`), so its whole crate is always built with the `editor` feature and the `register_inspectable` call needs no guard.
 
-A plugin that must run in **both** the editor and the shipped game (for example, a post-process effect or any runtime component that also wants an inspector) is different: its `register_inspectable` call must be compiled out when the `editor` feature is off. The crate declares its own `editor` feature that forwards to `renzora/editor`, and gates the call. This is exactly what every effect crate (e.g. `renzora_ascii`) does:
+A plugin that must run in **both** the editor and the shipped game (any runtime component that also wants an inspector) is different: its `register_inspectable` call must be compiled out when the `editor` feature is off. The crate declares its own `editor` feature that forwards to `renzora/editor`, and gates the call. This is what a dual-mode distribution plugin like `renzora_vignette` or `renzora_lumen` does:
 
 ```toml
 [features]
@@ -230,22 +230,28 @@ fn register(app: &mut App) {
 
 The drawer takes `&mut World` and the selected `Entity`, builds its UI (typically via a local `CommandQueue` so it can use ember widgets and two-way bindings), and returns the **root entity**; the inspector parents that under the component's section header. Read the world through bindings and write it from your own systems or interaction callbacks — see *Building Editor Panels* for the reactive helpers.
 
-> **Your drawer runs on expand, and again after every collapse — write it idempotent.**
-> Inspector sections are built empty and filled only while they're actually
-> expanded, so a drawer is *not* called once per selection. It's called when its
-> section opens, its subtree is despawned when the section closes, and it's called
-> again on the next open. Two consequences: don't stash state in the returned
-> entities that you can't rebuild (put it in a `Resource` and read it back), and
-> don't do expensive one-time setup in the drawer body — it can run many times per
-> selection.
+> **Your drawer runs whenever its section becomes visible, and its subtree is
+> thrown away whenever it stops being — write it idempotent.** A drawer is *not*
+> called once per selection. It is called when its section is expanded **and** when
+> the section scrolls back into view, and its subtree is despawned when the section
+> is collapsed **or** scrolls far enough out of view. Two consequences: don't stash
+> state in the returned entities that you can't rebuild (put it in a `Resource` and
+> read it back), and don't do expensive one-time setup in the drawer body — it can
+> run many times per selection.
 >
-> Why it works this way: collapsing a section only sets its body to
-> `Display::None`, and `bevy_ui` does **not** prune hidden subtrees from its
+> Why it works this way: hiding is not free. Collapsing a section only sets its
+> body to `Display::None`, and `bevy_ui` does **not** prune hidden subtrees from its
 > per-frame walk — `compute_hidden_layout` clears the cache and recurses, so hidden
-> rows are never cached and pay full layout every frame. An entity with a dozen
-> components and two sections open was laying out every row of the other ten, and
-> running all ten drawers to build content nobody could see. The reconciliation
-> lives in `renzora_inspector::native::reconcile_section_bodies`.
+> rows are never cached and pay full layout every frame. Scrolling a section off
+> screen is the same story: still built, still walked, still charged. An entity with
+> a dozen components and two sections open was laying out every row of the other
+> ten, and running all ten drawers to build content nobody could see.
+>
+> So the inspector builds section bodies empty and fills them only while they are
+> both expanded *and* near the viewport. Both decisions land in one place —
+> `renzora_inspector::native::reconcile_section_bodies` builds and tears down;
+> `cull_offscreen_sections` only sets the flag it reads. See
+> [Profiling](profiling.md#standing-findings--dont-undo-these) for what it measured.
 
 ## Reference
 

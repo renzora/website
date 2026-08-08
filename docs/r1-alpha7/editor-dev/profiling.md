@@ -1,7 +1,7 @@
 # Profiling with Tracy
 
-Renzora ships a **Tracy profiler bridge** (`renzora_tracy`) — a standalone
-distribution plugin that streams live engine telemetry to a running
+Renzora ships a **Tracy profiler bridge** (`plugins/tracy`) — a standalone C-ABI
+plugin that streams live engine telemetry to a running
 [Tracy](https://github.com/wolfpld/tracy) profiler over its native protocol:
 
 - a **frame mark** per app frame, and
@@ -9,12 +9,14 @@ distribution plugin that streams live engine telemetry to a running
   per-render-pass GPU/CPU span times, and system CPU/memory where the platform
   supports it.
 
-> **Per-system CPU zones** (the detailed timeline of which ECS system ran when)
-> and **GPU-pass zones** come from Bevy's `trace_tracy` feature, which is **not**
-> in the normal build — it has no runtime off-switch and would arm Tracy at every
-> launch. The bridge above gives frame marks + plots with no such cost. When you
-> need the full flame graph, use the **profiling build** below — it re-adds the
-> instrumentation for a throwaway binary.
+> **This plugin gives you plots, never a flame graph.** Per-system CPU zones and
+> GPU-pass zones are `#[cfg(feature = "trace")]` inside `bevy_ecs` and
+> `#[cfg(feature = "tracing-tracy")]` inside `bevy_render` — instrumentation that
+> was compiled out does not exist to be switched on, so no plugin loaded at run
+> time can produce it. With only this bridge running, Tracy's **Flame Graph and
+> zone Statistics windows stay empty** and `tracy-csvexport -e`/`-g` return
+> nothing; all the signal is in the plot rows. For the flame graph, use the
+> **profiling build** below, which compiles the instrumentation in.
 
 ## The profiling build — full flame graph + per-system Statistics
 
@@ -41,7 +43,7 @@ Start a Tracy **server first**, then `cargo renzora profile` — the on-demand
 client only buffers once a profiler connects, so launch order doesn't lose data.
 
 > **Leave the in-app "Tracy Profiler" toggle OFF in a profiling build.** Bevy
-> already emits one frame mark per frame; the `renzora_tracy` bridge marking too
+> already emits one frame mark per frame; the `plugins/tracy` bridge marking too
 > would double-count every frame and halve the reported frame time.
 
 `cargo renzora profile` launches with **`RENZORA_NO_XR=1`**. If an OpenXR runtime
@@ -101,47 +103,185 @@ ms/frame per pass (divide summed GPU time by frame count).
 
 ## Enabling it
 
-Tracy is **gated behind two switches**, because activating it both connects the
-Tracy client (a network listener + capture ring buffers) and turns on Bevy's
-per-frame system-stat sampling — all of which cost real RAM/CPU. It stays
-completely dormant unless **both** are on:
+One switch: **Settings → Plugins → Tracy Profiler → Enable Tracy**. It takes
+effect immediately — no restart. The opt-in persists in
+`~/.config/renzora/tracy.json` (`%APPDATA%\renzora\tracy.json` on Windows).
 
-1. **Dev Mode** — Settings → Editor → Developer → *Dev Mode*.
-2. **Tracy Profiler** — Settings → Plugins → *Tracy Profiler* → *Enable Tracy*.
+> Earlier versions also required Dev Mode and a restart. Both were consequences
+> of the bridge living inside the editor binary: it had to decide at startup
+> whether to install its diagnostic sources, so the switch could only be read
+> once. As a plugin it installs nothing — it reads measurements the host already
+> publishes — so enabling is just "start feeding".
 
-The gate is **read once at startup**, so changing either switch takes effect the
-next time you launch the editor. Both persist across runs (Dev Mode in
-`~/.renzora/editor.toml`; the Tracy opt-in in `~/.config/renzora/tracy.json`,
-or `%APPDATA%\renzora\tracy.json` on Windows).
+**Turning it off** stops the feeding immediately: no plots, no frame marks. It
+does **not** close the Tracy listener socket, because `tracy-client` has no
+shutdown outside its `manual-lifetime` feature. That costs an idle socket and
+nothing more — the client is built with `ondemand`, so it buffers no trace data
+until a profiler actually connects. To get the socket back too, restart.
 
-> **Leave Tracy off when you're not profiling.** When dormant the plugin adds
-> *nothing* — no client, no diagnostic sampling, no per-frame work, so it has a
-> zero memory footprint. Only when both switches are on (and after a restart)
-> does it stand up the client and the system-stat diagnostics that consume RAM.
+**To remove Tracy entirely**, delete `plugins/tracy.dll` from beside the
+executable. There is no profiler code in the engine itself.
+
+### Choosing what to plot
+
+Under the master switch is a **Plots** list — one toggle per group, applied on
+the next frame:
+
+| Group | Covers | Default |
+|---|---|---|
+| Frame | `fps`, `frame_time`, `frame_count` | on |
+| Entity count | `entity_count` | on |
+| CPU & memory | `system/*`, `process/*` | on |
+| Render passes — GPU time | `render/*/elapsed_gpu` | on |
+| Render passes — CPU time | `render/*/elapsed_cpu` | on |
+| Shader & pipeline counters | `*_invocations`, `*_primitives_out` | **off** |
+| Other diagnostics | anything else, incl. `ui/*` reactivity | on |
+
+Grouped rather than one toggle per plot because the render paths are per-pass and
+open-ended — a heavier scene has more of them, and a checklist that grows as you
+load a level is not a settings panel.
+
+Invocation counts default off because they are the one group that is usually
+noise: raw counters in the millions, which Tracy autoscales, crowding the
+millisecond timings that a frame-budget question actually turns on. Turn them on
+when the question is "how much geometry is this pass actually touching".
+
+*Other diagnostics* is the catch-all and defaults on deliberately. The host's
+diagnostic set is open — any engine crate or plugin can register a path — and
+silently dropping unrecognised ones would look exactly like the engine having
+stopped measuring.
+
+#### Reading the `ui/*` rows
+
+The reactive UI publishes seven diagnostics, and together they answer "why did
+the editor get slower when I selected something":
+
+Eleven `ui/*` diagnostics stream, and between them they answer "why did the
+editor get slower when I selected something".
+
+**The bevy_ui pipeline** — where the cost usually is:
+
+| Path | Meaning |
+|---|---|
+| `ui/content_ms` | `Prepare` → `Content`: propagation + text measurement |
+| `ui/layout_ms` | `Content` → `Layout`: taffy solving the tree |
+| `ui/nodes_total` | Live `Node` count |
+| `ui/text_nodes` | Live `Node` + `Text` count — what measurement scales with |
+
+**The reactive layer** — where it usually *isn't*:
+
+| Path | Meaning |
+|---|---|
+| `ui/bindings_total` | Bindings walked this frame (excludes parked) |
+| `ui/bindings_parked` | Bindings behind a collapsed section — free |
+| `ui/bindings_skipped` | Skipped by the dependency gate without running |
+| `ui/bindings_changed` | Produced a new value, i.e. a UI write happened |
+| `ui/reactions_us` | Binding recompute time, µs |
+| `ui/lists_us` | Keyed-list snapshot + diff time, µs |
+| `ui/rows_rebuilt` | List rows built or rebuilt |
+
+**Check the reactive rows first, to rule them out.** Opening inspector sections
+looks exactly like a reactivity problem and has twice been diagnosed as one; both
+times it was not. The tell is `bindings_changed` sitting near zero while the
+frame time climbs — nothing is recomputing, the rows simply exist. Note the units
+differ deliberately: the reactive figures are **µs** and the pipeline ones are
+**ms**, because that is the ratio between them.
+
+Then read `content_ms` against `layout_ms`, because the two point to opposite
+fixes. **Content-bound** means text measurement dominates — fewer or cheaper
+labels per row. **Taffy-bound** means the tree does — fewer nodes per row.
+`nodes_total` is the number both scale with, and watching it jump on selection
+tells you what a row really costs: an inspector that adds ~1,000 nodes for ~120
+bindings is paying for the nodes, not the bindings.
+
+#### What "off" does to a row already on screen
+
+Turning a group off stops it feeding on the next frame. **A row already on
+Tracy's timeline stays there, showing a frozen line**, and that is a limit of
+Tracy rather than a shortcut here: its protocol carries `PlotDataInt`,
+`PlotDataFloat`, `PlotDataDouble`, `PlotConfig` and `PlotName`, and nothing that
+removes a plot. The data model is append-only — once a name has been emitted in a
+capture, the server keeps its row for the rest of that capture.
+
+Two ways to get the clean feed:
+
+- **Set the toggles before connecting.** A group that is off when the profiler
+  attaches is never emitted, so no row is ever created. The plugin checks the
+  toggle *before* it creates the plot name, which is the only moment the decision
+  can still be made.
+- **Reconnect.** The on-demand client discards plot data while nothing is
+  attached, and replays only GPU contexts, lock names and thread names on
+  connect — never plots. So the next connection shows exactly the groups that are
+  enabled at that moment.
 
 ## Capturing
 
-Enable the two switches above and restart the editor, then start a Tracy server
-(the desktop `Tracy.exe` profiler, or the headless `tracy-capture` CLI). The
-editor connects and the timeline fills with frame marks and plots. Because the
-bridge is Editor-scoped, it profiles the editor — including gameplay running in
-the viewport's play mode.
+Enable the toggle, then start a Tracy server (the desktop `Tracy.exe`, or the
+headless `tracy-capture` CLI). The editor connects and the timeline fills with
+frame marks and plots. Because the plugin is Editor-scoped, it profiles the
+editor — including gameplay running in the viewport's play mode.
 
 ## How it's wired (for plugin authors)
 
-`renzora_tracy` is a self-contained distribution plugin: it depends only on
-`bevy`, the `renzora` contract, `renzora_ember` (its settings toggle), and
-`renzora_ui` (the "applies on restart" toast). It
+`plugins/tracy` is a standalone C-ABI plugin — it does not link Bevy, and its
+only dependencies are `renzora_plugin` and `tracy-client`. It
 
-- reads the host's dev-mode flag via `renzora::load_dev_mode()` — a persisted
-  accessor on the shared contract, so the plugin needn't link the editor's
-  `EditorSettings` type,
-- registers its own *Tracy Profiler* category with `register_settings_section`,
-- persists its opt-in to the user's config dir itself, and
-- gates the bridge at startup on `dev_mode && opt-in`, adding *nothing* (not even
-  the diagnostic sources) when off.
+- reads the host's measurements through the `Diagnostics` system param
+  (`SystemCall::diagnostics`, ABI MINOR 4.8), which hands a system this frame's
+  `DiagnosticsStore` as `(path, value, smoothed)` triples,
+- registers its *Tracy Profiler* section with `App::add_settings_section`, whose
+  `EmberToggle` reports through `PanelActionId`,
+- persists its own opt-in, and
+- creates nothing at all while off — no client, no socket, no plot names.
+
+This is the reference example for reading diagnostics from a plugin: an FPS
+overlay, a perf HUD or a telemetry uploader all want the same param.
+
+```rust
+use renzora_plugin::diagnostics::Diagnostics;
+
+fn report(diags: Diagnostics) {
+    if let Some(fps) = diags.get("fps") {
+        info(&format!("{:.0} fps", fps.smoothed));
+    }
+}
+```
+
+Two things the host does not promise. **Which measurements exist** — an editor
+carries all of them, a shipped game usually carries none, and a backend without
+GPU timestamp queries has `render/*/elapsed_cpu` but not `elapsed_gpu`; `get`
+returns `Option` for that reason. **That a present measurement has a value** — a
+diagnostic registers before its first sample, so check `Diagnostic::is_valid()`
+rather than plotting a `NaN`.
 
 Nothing about Tracy is hardcoded into the editor or the contract.
+
+## The UI Layout panel — bevy_ui cost without a Tracy build
+
+Tracy answers "which system", but standing up a profiling build to ask one
+question about the editor's own UI is a slow loop. The **UI Layout** panel
+(Debug → UI Layout) answers the specific question that kept coming up, live and
+with no rebuild: *where is bevy_ui's per-frame cost going?*
+
+It brackets the UI pipeline with three timestamps around the public system sets:
+
+```text
+  A ── UiSystems::Prepare ‥ Propagate ‥ Content ── B ── Layout ── C
+       └──────── content (text measurement) ──────┘   └─ taffy ─┘
+```
+
+and reports the two halves separately, plus a node census (total / hidden / text
+/ visible text). The split is the actionable part, because the two halves have
+opposite fixes: **content-bound** means fewer or cheaper labels, **taffy-bound**
+means fewer nodes. The census refreshes only while the tab is open, and then only
+every 30 frames — a panel about frame time should not cost frame time.
+
+Read it against **UI Reactivity**'s `ms/frame recompute`. Whichever is larger is
+the one worth optimising, and the answer is usually not the one you expect: the
+measured split was **0.23 ms of reactivity against 5.48 ms of UI layout**.
+
+> The stats resource is written *without* `bypass_change_detection`, deliberately
+> — see [Reactivity](reactivity.md#bypass_change_detection-is-now-a-staleness-bug).
 
 ## Standing findings — don't undo these
 
@@ -166,8 +306,37 @@ even cached. This is why the dock despawns backgrounded panels rather than hidin
 them (see [Panels](panels.md)) — hiding a panel does not make it free, and nothing
 in the layout stage will make it free later.
 
+**The inspector culls its off-screen sections, and must keep doing so.** Because
+`bevy_ui` never prunes hidden subtrees (above), an open component section that has
+scrolled out of the panel still charges a full tree walk every frame. The
+inspector therefore throws a section's rows away once its body leaves the viewport
+by more than half a screen, and rebuilds them when it scrolls back — the same
+fill/unfill machinery collapsing a section already used, applied on a second axis.
+Measured on one entity with its components open:
+
+| | before | after |
+|---|---|---|
+| ms/frame UI layout | 5.48 | **3.36** |
+| Layout (taffy) | 4.05 | **2.34** |
+| Content (text measure) | 1.43 | **1.01** |
+| Nodes total | 2814 | 2433 |
+
+Two invariants hold it together, and both are "don't" rules that fail silently:
+a section is **never culled before its height has been measured** (the reserved
+height is what stops the list collapsing and the scroll range shifting under the
+user), and a body is **never measured while it is not holding its rows** (that
+records its padding as the section's height and reserves that forever). Both are
+covered by `cull_tests` in `renzora_inspector::native`.
+
+Note that this is *not* built on [`virtual_scroll`](widgets.md), which every other
+editor list uses. That windows a `keyed_list` by measuring one row stride and
+assuming every item shares it — exact for the asset grid and the hierarchy, and
+wrong for the inspector, where a collapsed section is one header and an open one
+with a native drawer is hundreds of px. Measuring each section's own height
+sidesteps the assumption instead of fighting it.
+
 A note on where to spend effort: across this pass, removing *discrete work*
-(a system, a rebuild, a subtree) predicted its measured win 4 times out of 4, while
+(a system, a rebuild, a subtree) predicted its measured win 5 times out of 5, while
 shaving *per-unit constants* on work that still ran predicted it 0 times out of 3.
 If a change doesn't remove something from the frame entirely, be sceptical of the
 estimate until Tracy confirms it.

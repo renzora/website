@@ -33,34 +33,40 @@ Not everything called a "camera effect" is the same kind of thing. There are thr
 
 | Family | Example crates | How it renders |
 |---|---|---|
-| **Unified post-process** | ~53 effect crates (`renzora_ascii`, `renzora_vignette`, `renzora_crt`, …) | A fullscreen fragment pass inside the single `UnifiedPostProcessNode`. Built with `#[post_process]` / `PostProcessEffect`. |
-| **Bevy built-in wrappers** | `renzora_bloom_effect`, `renzora_dof`, `renzora_ssao`, `renzora_ssr`, `renzora_motion_blur`, `renzora_auto_exposure`, `renzora_atmosphere`, `renzora_skybox`, `renzora_environment_map`, `renzora_forward_decal`, `renzora_distance_fog`, `renzora_volumetric_fog`, `renzora_antialiasing` | Author user-facing settings, then route a **stock Bevy component** onto the camera (`Bloom`, `DepthOfField`, `ScreenSpaceAmbientOcclusion`, `ScreenSpaceReflections`, `Atmosphere`, `Skybox`, `EnvironmentMapLight`, `ForwardDecal`, FXAA/SMAA/TAA/CAS, …). No custom WGSL pass of their own. |
+| **Unified post-process** | 53 [standalone plugins](../extending/standalone-plugins.md) under `plugins/` (`ascii`, `crt`, `sepia`, …) | A fullscreen fragment pass, registered through the C ABI with `add_post_process`. These link no Bevy and hot-reload, shader included. |
+| **Bevy built-in wrappers** | `renzora_bloom_effect`, `renzora_dof`, `renzora_ssao`, `renzora_ssr`, `renzora_vignette`, `renzora_motion_blur`, `renzora_auto_exposure`, `renzora_atmosphere`, `renzora_skybox`, `renzora_environment_map`, `renzora_forward_decal`, `renzora_distance_fog`, `renzora_volumetric_fog`, `renzora_antialiasing` | Author user-facing settings, then route a **stock Bevy component** onto the camera (`Bloom`, `DepthOfField`, `ScreenSpaceAmbientOcclusion`, `ScreenSpaceReflections`, `Atmosphere`, `Skybox`, `EnvironmentMapLight`, `ForwardDecal`, FXAA/SMAA/TAA/CAS, …). No custom WGSL pass of their own. |
 | **Custom multi-pass render-graph crates** | `renzora_lumen` + `renzora_rt` (GI), `renzora_oit` (transparency); plus material/mesh sky & water (`renzora_clouds`, `renzora_night_stars`, `renzora_water`, `renzora_pool_water`, `renzora_lighting`) | Their own render-graph nodes/passes, outside the unified node. |
 
-The first two families both get their settings onto the camera the same way — through `EffectRouting` (below). The third family wires up its own graph nodes.
+The **wrappers** get their settings onto the camera through `EffectRouting` (below). The third family wires up its own graph nodes. Plugin effects need neither: their settings component sits on any entity and the bridge uploads its bytes each frame.
 
-For authoring a unified effect (the `#[post_process]` macro, the WGSL contract, and the hand-written trait path), see **[Post-Processing Effects](/docs/r1-alpha5/extending/post-processing)**. This page covers the pipeline-level picture.
+For authoring a unified effect (the three files, the WGSL contract, and where the line falls between a plugin effect and an in-tree one), see **[Post-Processing Effects](../extending/post-processing.md)**. This page covers the pipeline-level picture.
 
-### The unified post-process node
+### Render composition — one registry, four phases
 
-All unified effects share **one** render-graph node. Each effect registers a type-erased `TypedEffectHandler<T>` into a `PostProcessRegistry`, and a handler runs only when its settings component is present on the view:
+Effects do not each get a render-graph node. They register a type-erased pass into a single `RenderComposition` resource, tagged with a **phase** and an **order**, and the registry keeps itself sorted by `(phase, order)`:
 
 ```rust
 // crates/renzora/src/postprocess.rs (abridged)
-impl ViewNode for UnifiedPostProcessNode {
-    type ViewQuery = (Entity, &'static ViewTarget);
-
-    fn run(/* … */) -> Result<(), NodeRunError> {
-        let registry = world.resource::<PostProcessRegistry>();
-        for handler in &registry.handlers {
-            handler.execute(world, render_context, view_target, entity)?; // no component → returns early
-        }
-        Ok(())
-    }
+#[derive(Resource, Default)]
+pub struct RenderComposition {
+    passes: Vec<RenderPassEntry>,   // kept sorted by (phase, order)
 }
 ```
 
-This means **inactive effects cost nothing** — there is no per-effect node and nothing executes for effects you didn't add. Effects run in the order their `PostProcessPlugin::<T>` registered (i.e. plugin registration order, which you can nudge with the `add!` priority). The framework itself lives inside `renzora.dll` (`renzora::postprocess`, re-exported through the `renzora_postprocess` shim) so all effect crates share one registry and matching `TypeId`s across the dynamic-plugin boundary.
+Four dispatcher systems drain it, one per phase, each pinned into `Core3d` relative to Bevy's own post-process anchors:
+
+| Phase | Runs | Image |
+|---|---|---|
+| `Gi` | `EarlyPostProcess`, before temporal AA | HDR |
+| `HdrPost` | `EarlyPostProcess`, after temporal AA | HDR |
+| `LdrPost` | `PostProcess`, after tonemapping, before FXAA/SMAA | LDR |
+| `Overlay` | `PostProcess`, after FXAA/SMAA and after `LdrPost` | final |
+
+This file is the **only** place that imports `tonemapping`, `temporal_anti_alias`, `fxaa` and `smaa`. An effect never orders against them; it names a phase and the framework positions it. Ordering against an anchor that isn't in the schedule — a 2D lean export with no anti-alias plugin — is a harmless no-op, which is why the anti-alias anchors are `render_3d`-gated and the phases still work without them.
+
+A pass runs only when its settings component is present, so **inactive effects cost nothing** — no pipeline bind, no pass. Within a phase, `order` decides; there is no per-effect priority API and the `add!` priority does not affect render order.
+
+The framework lives inside `renzora.dll` (`renzora::postprocess`, re-exported through the `renzora_postprocess` shim) so every in-tree effect shares one registry and matching `TypeId`s across the dlopen boundary. Standalone plugin effects reach the same registry through `renzora_postprocess::plugin_bridge`, which turns an `add_post_process` call from the C ABI into a `RenderPassEntry` — so a plugin effect and an engine pass sort against each other in one list.
 
 ## EffectRouting — getting settings onto the camera
 
@@ -195,30 +201,56 @@ if let Some(render_app) = app.get_sub_app_mut(RenderApp) {
 ## Graphics quality tiers
 
 Most of the cost of an idle scene is **fullscreen, resolution-bound** work on the
-active camera — screen-space GI, the auto-exposure histogram, bloom, and TAA —
-not geometry. That cost scales with pixel count, so it dominates on weak GPUs and
-high-DPI (Retina) displays even when the scene is empty. **Settings → Viewport →
-Performance → Graphics Quality** is the single switch that trades those passes for
-frame rate:
+active camera — the per-frame atmosphere→IBL cubemap bake, the procedural cloud
+dome, a raymarched sky, screen-space GI, SSAO, the auto-exposure histogram, bloom,
+and TAA — **not geometry**. That cost is scene-independent (one cube costs the same
+as a full level) and scales with pixel count, so it dominates on weak GPUs and
+high-DPI displays where the physical framebuffer is 2–4× the logical size. The
+quality tier is the single switch that trades those passes for frame rate:
 
-| Tier | Screen-space GI | SSAO | Auto-exposure | Bloom | TAA |
-|---|---|---|---|---|---|
-| **High** | on | on | on | on | on |
-| **Medium** *(default)* | **off** | on | on | on | on |
-| **Low** | off | **off** | off | off | off |
+| Tier | IBL bake | Shadows | Clouds | Atmosphere | Screen-space GI | SSAO | Auto-exp | Bloom | TAA |
+|---|---|---|---|---|---|---|---|---|---|
+| **High** | 256² | 2048² | on | Raymarched | on | on | on | on | on |
+| **Medium** *(default)* | **128²** | **1024²** | on | **LookupTexture** | **off** | **off** | on | on | on |
+| **Low** | **64²** | **512²** | **off** | LookupTexture | off | off | **off** | **off** | **off** |
 
-The ladder drops the next-most-expensive pass at each step down; `Medium` is the
-shipping default because screen-space GI is the heaviest pass and removing it
-keeps the editor responsive on older / integrated GPUs while preserving the
-tonemapped look. The tier is stored per project (in `project.toml`'s `[editor]`
-section) on `ViewportSettings.graphics_quality`.
+(Shadows = per-cascade `DirectionalLightShadowMap` resolution; each of the up-to-4
+cascades clears a depth target that size every frame regardless of geometry, so
+halving it quarters the per-cascade depth bandwidth.)
 
-SSAO is gated for the same reason as the rest — it's fullscreen and
-resolution-bound. Profiling put it **second only to the deferred prepass** among
-GPU passes (0.46 ms of a 2.63 ms GPU frame on a discrete card, proportionally far
-worse on the integrated GPUs `Low` exists for), and it was previously ungated, so
-choosing `Low` explicitly for frame rate still paid for it. Gating it took the
+`Medium` is the shipping default: it sheds the heaviest fullscreen passes
+(screen-space GI, SSAO, the ~40×-cheaper lookup sky instead of the raymarch, and a
+16× smaller IBL bake) while preserving the tonemapped look, so the engine runs
+acceptably on older / integrated GPUs. `Low` is a compatibility floor.
+
+SSAO sits with screen-space GI at `High`-only rather than with bloom/TAA at
+`Medium` because its three full-res compute passes are exactly the cost class
+`Medium` exists to shed. Profiling put it **second only to the deferred prepass**
+among GPU passes (0.46 ms of a 2.63 ms GPU frame on a discrete card, proportionally
+far worse on the integrated GPUs `Low` exists for), and it was previously ungated,
+so choosing `Low` explicitly for frame rate still paid for it. Gating it took the
 measured GPU total at `Low` from 2.870 ms to 1.798 ms — **−37%**.
+
+**The tier applies in both the editor and shipped games**, from two sources that
+write one shared `ResolvedGraphicsQuality` resource:
+
+- **Editor** — **Settings → Viewport → Performance → Graphics Quality**, stored per
+  project on `ViewportSettings.graphics_quality` in `project.toml`'s editor-only
+  `[editor]` section. Enforced on the viewport cameras by
+  `renzora_level_presets::graphics_quality` (Editor scope).
+- **Shipped game** — the `[rendering] graphics_quality` key (`"Low"` / `"Medium"` /
+  `"High"`), which lives outside the `[editor]` block so export keeps it. The
+  runtime resolves it and enforces it on the play camera in
+  `renzora_engine::graphics_quality` (registered only when `!is_editor`). Without a
+  key a game defaults to `Medium` — a game no longer runs the full stack
+  unconditionally the way it did before r1-alpha7.
+
+```toml
+[rendering]
+mode = "deferred"
+graphics_quality = "Medium"   # Low | Medium | High
+render_scale = 1.0            # 3D resolution as a fraction of the logical window
+```
 
 ### The integrated-GPU hint
 
@@ -237,14 +269,59 @@ silences it permanently. Ignoring it costs one toast per launch, which is about 
 right pressure for a hint you haven't acted on.
 
 Mechanically the tier is a **ceiling, not an authority**: it only ever forces an
-effect *off*, by flipping the `enabled` flag on the routed effect source (the same
-crash-safe switches the Render Toggles debug panel uses), and remembers what it
-disabled so raising the tier restores it. Where a tier leaves an effect on, the
-inspector still fully owns it. Passes whose attachment layout is fixed at camera
-spawn — the **atmosphere** and the **prepass bundle** — are deliberately *not*
-touched (toggling them at runtime trips a wgpu validation crash), so they stay
-resident at every tier. The enforcement lives in
-`renzora_level_presets::graphics_quality`.
+effect *off*, and remembers the last tier so raising it re-applies effects from
+their untouched scene sources. Where a tier leaves an effect on, the inspector
+still fully owns it. Every mutation is one a router already performs dynamically,
+so nothing grows a camera's bind-group layout after first render: GI flips an
+`enabled` flag; bloom / TAA / auto-exposure / SSAO remove the routed component; the
+atmosphere switches `rendering_method` (a field, not an add/remove); clouds despawn
+their separate dome entity; and the IBL probe's *face size* is chosen at camera
+spawn. The spawn-locked **prepass bundle** and the atmosphere/IBL *components*
+themselves stay resident at every tier (only their cheaper settings change) —
+toggling those at runtime trips a wgpu validation crash.
+
+### 3D render scale
+
+Most of that fullscreen cost scales with **pixel count**, and on a high-DPI
+display the pixel count is a trap: a window configured 1280×720 *logical* renders
+at the **physical** framebuffer size — 1920×1080 at 150% scaling, **2.25× the
+pixels** — for no benefit at the game's chosen resolution. The `[rendering]
+render_scale` key renders the 3D scene at a fraction of the logical window and
+upscales it to fill the window, with the **UI composited on top at native
+(crisp) resolution**:
+
+```toml
+[rendering]
+render_scale = 1.0   # default; 0.1 – 2.0
+```
+
+Because it's a fraction of the **logical** window, `render_scale = 1.0` renders at
+the design resolution — which on a high-DPI display is fewer pixels than the
+physical framebuffer, so **`1.0` already undoes the DPI pixel-bloat automatically**
+with no per-machine value, and is a **zero-overhead no-op** on a 1.0-DPI display
+(it renders straight to the window). Below `1.0` it doubles as a straight
+performance slider (`0.5` = quarter the 3D pixels); at or above the display's DPI
+factor it saturates to native — it never super-samples. It is **shipped-game only**
+(the editor uses the per-camera **Render Resolution** Full/Half/Quarter), and it
+stands down entirely while a non-`Disabled` `[viewport] stretch_mode` owns the
+present pass.
+
+### Vsync and measuring frame cost
+
+A shipped game creates its window with vsync on, which caps the frame rate to the
+monitor's refresh — so on a fast GPU the reported FPS is pinned at (say) 60 and
+**hides the true per-frame cost**. To read real frametimes, uncap it with the
+`[window] vsync` key (it lives outside `[editor]`, so export keeps it):
+
+```toml
+[window]
+width = 1280
+height = 720
+vsync = false   # uncap the frame rate — useful for profiling
+```
+
+`apply_window_config` maps this to the window's `PresentMode` (`AutoVsync` when
+true, `AutoNoVsync` when false). Defaults to `true`.
 
 ## Debugging the pipeline
 
@@ -259,9 +336,10 @@ Wireframe visualization relies on the `POLYGON_MODE_LINE` feature noted above (s
 
 ## What's next
 
-- **[Post-Processing Effects](/docs/r1-alpha5/extending/post-processing)** — author a unified effect end to end (`#[post_process]`, the WGSL contract, hand-written effects).
-- **[WGSL Shaders](/docs/r1-alpha5/rendering/shaders)** — writing shaders and materials for Renzora.
-- **[Camera System](/docs/r1-alpha5/rendering/camera)** — cameras, viewports, and prepasses.
-- **[Architecture](/docs/r1-alpha5/setup/architecture)** — where the render crates sit in the one-binary / plugin model.
+- **[Post-Processing Effects](../extending/post-processing.md)** — author an effect end to end: the three files, the WGSL contract, and what stays in-tree.
+- **[Standalone Plugins](../extending/standalone-plugins.md)** — the C ABI the effect plugins are built on.
+- **[WGSL Shaders](./shaders.md)** — writing shaders and materials for Renzora.
+- **[Camera System](./camera.md)** — cameras, viewports, and prepasses.
+- **[Architecture](../setup/architecture.md)** — where the render crates sit in the one-binary / plugin model.
 </content>
 </invoke>
