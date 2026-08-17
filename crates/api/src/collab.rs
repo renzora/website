@@ -99,6 +99,38 @@ const QUEUE_DEPTH: usize = 512;
 /// Concurrent sessions one account may host.
 const MAX_ROOMS_PER_HOST: usize = 3;
 
+// ── The envelope ────────────────────────────────────────────────────────────
+//
+// These three functions are the entire byte-level contract with the editor.
+// Their opposite numbers live in `crates/renzora_collab/src/relay.rs` in the
+// engine repo, and the canonical layout — with worked byte examples — is
+// written down in the engine's `docs/r1-alpha7/platform-api/collab.md`.
+//
+// Both sides are tested against the *same* literal bytes, because two
+// implementations that merely agree in prose drift silently: get the endianness
+// wrong and a message for peer 3 goes to peer 50331648 and is simply dropped,
+// with no error anywhere to notice.
+
+/// Bytes at the front of every relayed message.
+pub const ENVELOPE_LEN: usize = 4;
+
+/// Read the peer field. Callers must have checked the length first.
+fn envelope_target(data: &[u8]) -> u32 {
+    u32::from_le_bytes([data[0], data[1], data[2], data[3]])
+}
+
+/// Re-stamp a payload for a new recipient.
+///
+/// The payload is copied rather than the incoming buffer being mutated in
+/// place, because one inbound message can fan out to several guests and each
+/// needs its own header.
+fn reframe(peer: u32, payload: &[u8]) -> Vec<u8> {
+    let mut out = Vec::with_capacity(payload.len() + ENVELOPE_LEN);
+    out.extend_from_slice(&peer.to_le_bytes());
+    out.extend_from_slice(payload);
+    out
+}
+
 // ── Rooms ───────────────────────────────────────────────────────────────────
 
 type Tx = mpsc::Sender<Message>;
@@ -497,12 +529,16 @@ async fn relay_handler(
         }
     }
 
-    ws.on_upgrade(move |socket| run_relay(socket, state, code, user_id, username))
+    // Only the room registry from here on. The relay needs no database and no
+    // configuration, and saying so in the signature is what lets it be tested
+    // end to end without standing up a Postgres.
+    let rooms = state.collab_rooms.clone();
+    ws.on_upgrade(move |socket| run_relay(socket, rooms, code, user_id, username))
 }
 
 async fn run_relay(
     mut socket: WebSocket,
-    state: AppState,
+    rooms: CollabRooms,
     code: String,
     user_id: Uuid,
     username: String,
@@ -515,11 +551,11 @@ async fn run_relay(
 
     // Claim a slot.
     let role = {
-        let mut rooms = match state.collab_rooms.0.lock() {
-            Ok(rooms) => rooms,
+        let mut registry = match rooms.0.lock() {
+            Ok(registry) => registry,
             Err(_) => return,
         };
-        let Some(room) = rooms.get_mut(&code) else {
+        let Some(room) = registry.get_mut(&code) else {
             return;
         };
         let participant = Participant { username: username.clone(), tx: tx.clone() };
@@ -573,10 +609,10 @@ async fn run_relay(
                     Some(Ok(Message::Binary(data))) => {
                         // Under four bytes there is no envelope to read, so the
                         // sender is not speaking this protocol.
-                        if data.len() > MAX_MESSAGE || data.len() < 4 {
+                        if data.len() > MAX_MESSAGE || data.len() < ENVELOPE_LEN {
                             break;
                         }
-                        if !forward(&state, &code, role, data) {
+                        if !forward(&rooms, &code, role, data) {
                             break;
                         }
                     }
@@ -596,7 +632,7 @@ async fn run_relay(
         }
     }
 
-    depart(&state, &code, role).await;
+    depart(&rooms, &code, role).await;
 }
 
 #[derive(Clone, Copy)]
@@ -610,12 +646,12 @@ fn control(value: serde_json::Value) -> Message {
 }
 
 /// Route one payload. Returns false if the sender should be disconnected.
-fn forward(state: &AppState, code: &str, from: Role, data: Vec<u8>) -> bool {
-    let target = u32::from_le_bytes([data[0], data[1], data[2], data[3]]);
-    let Ok(mut rooms) = state.collab_rooms.0.lock() else {
+fn forward(rooms: &CollabRooms, code: &str, from: Role, data: Vec<u8>) -> bool {
+    let target = envelope_target(&data);
+    let Ok(mut registry) = rooms.0.lock() else {
         return false;
     };
-    let Some(room) = rooms.get_mut(code) else {
+    let Some(room) = registry.get_mut(code) else {
         return false;
     };
 
@@ -628,25 +664,19 @@ fn forward(state: &AppState, code: &str, from: Role, data: Vec<u8>) -> bool {
             let Some(host) = &room.host else {
                 return false; // nobody to talk to
             };
-            let mut framed = peer.to_le_bytes().to_vec();
-            framed.extend_from_slice(&data[4..]);
-            host.tx.try_send(Message::Binary(framed)).is_ok()
+            host.tx.try_send(Message::Binary(reframe(peer, &data[ENVELOPE_LEN..]))).is_ok()
         }
         Role::Host => {
-            let payload = &data[4..];
+            let framed = reframe(HOST_PEER, &data[ENVELOPE_LEN..]);
             if target == BROADCAST {
                 // A guest that cannot keep up is dropped from the send list but
                 // does not fail the broadcast — the others are keeping up fine,
                 // and its own socket task will notice and leave.
-                let mut framed = HOST_PEER.to_le_bytes().to_vec();
-                framed.extend_from_slice(payload);
                 for guest in room.guests.values() {
                     let _ = guest.tx.try_send(Message::Binary(framed.clone()));
                 }
                 true
             } else {
-                let mut framed = HOST_PEER.to_le_bytes().to_vec();
-                framed.extend_from_slice(payload);
                 if let Some(guest) = room.guests.get(&target) {
                     let _ = guest.tx.try_send(Message::Binary(framed));
                 }
@@ -659,14 +689,14 @@ fn forward(state: &AppState, code: &str, from: Role, data: Vec<u8>) -> bool {
 }
 
 /// Remove a participant, and tear the room down if it was the host.
-async fn depart(state: &AppState, code: &str, role: Role) {
+async fn depart(rooms: &CollabRooms, code: &str, role: Role) {
     let closing = {
-        let Ok(mut rooms) = state.collab_rooms.0.lock() else {
+        let Ok(mut registry) = rooms.0.lock() else {
             return;
         };
         match role {
             Role::Guest(peer) => {
-                if let Some(room) = rooms.get_mut(code) {
+                if let Some(room) = registry.get_mut(code) {
                     room.guests.remove(&peer);
                     if let Some(host) = &room.host {
                         let _ = host.tx.try_send(control(serde_json::json!({
@@ -680,7 +710,7 @@ async fn depart(state: &AppState, code: &str, role: Role) {
             // The host leaving ends the session. Guests are not left connected
             // to a room with nothing in it: the host owns the document, so
             // without it there is nothing for anyone to be editing.
-            Role::Host => rooms.remove(code),
+            Role::Host => registry.remove(code),
         }
     };
     if let Some(room) = closing {
@@ -698,4 +728,283 @@ fn close_room(room: Room, reason: &str) {
         let _ = host.tx.try_send(Message::Close(None));
     }
     tracing::info!(code = %room.code, "collab session ended: {reason}");
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use futures_util::{SinkExt, StreamExt};
+    use tokio_tungstenite::tungstenite::Message as ClientMessage;
+
+    // ── Golden vectors ──────────────────────────────────────────────────────
+    //
+    // These exact bytes are asserted in BOTH repos. The engine's copy is in
+    // `crates/renzora_collab/src/relay.rs`, and the layout is written up in the
+    // engine's `docs/r1-alpha7/platform-api/collab.md`.
+    //
+    // Literal bytes, not `3u32.to_le_bytes()`: a test written in terms of the
+    // implementation's own helper passes just as happily when the helper is
+    // wrong. The point is to pin the wire, so the wire is spelled out.
+
+    /// Peer 3, payload `b"hi"`.
+    const PEER_3_HI: &[u8] = &[0x03, 0x00, 0x00, 0x00, b'h', b'i'];
+    /// The host (peer 0), payload `b"hi"`.
+    const HOST_HI: &[u8] = &[0x00, 0x00, 0x00, 0x00, b'h', b'i'];
+    /// The broadcast target, payload `b"hi"`.
+    const BROADCAST_HI: &[u8] = &[0xFF, 0xFF, 0xFF, 0xFF, b'h', b'i'];
+
+    #[test]
+    fn envelope_is_little_endian() {
+        assert_eq!(envelope_target(PEER_3_HI), 3);
+        assert_eq!(envelope_target(HOST_HI), HOST_PEER);
+        assert_eq!(envelope_target(BROADCAST_HI), BROADCAST);
+        assert_eq!(reframe(3, b"hi"), PEER_3_HI);
+        assert_eq!(reframe(HOST_PEER, b"hi"), HOST_HI);
+    }
+
+    /// The failure this pins down is silent: read the header big-endian and a
+    /// message for peer 3 is addressed to peer 50331648, which matches nobody
+    /// and is dropped without an error anywhere.
+    #[test]
+    fn big_endian_would_be_a_different_peer() {
+        assert_eq!(u32::from_be_bytes([0x03, 0x00, 0x00, 0x00]), 50_331_648);
+        assert_ne!(envelope_target(PEER_3_HI), 50_331_648);
+    }
+
+    #[test]
+    fn header_is_four_bytes_and_payload_follows_it() {
+        assert_eq!(ENVELOPE_LEN, 4);
+        assert_eq!(&reframe(7, b"payload")[ENVELOPE_LEN..], b"payload");
+        // An empty payload is a valid message, not a malformed one.
+        assert_eq!(reframe(1, b""), &[0x01, 0x00, 0x00, 0x00]);
+    }
+
+    // ── End to end, through a real relay ────────────────────────────────────
+
+    const HOST_ID: Uuid = Uuid::from_u128(1);
+    const GUEST_ID: Uuid = Uuid::from_u128(2);
+
+    #[derive(Deserialize)]
+    struct WhoQuery {
+        who: String,
+    }
+
+    /// Stands in for `relay_handler` with the token exchange and the username
+    /// lookup removed — the parts that need a database and are not what these
+    /// tests are about. Everything after the upgrade is the real code path.
+    async fn test_upgrade(
+        ws: WebSocketUpgrade,
+        State(rooms): State<CollabRooms>,
+        Path(code): Path<String>,
+        Query(who): Query<WhoQuery>,
+    ) -> Response {
+        let (user_id, name) = if who.who == "host" {
+            (HOST_ID, "ada".to_string())
+        } else {
+            (GUEST_ID, format!("guest-{}", who.who))
+        };
+        ws.on_upgrade(move |socket| run_relay(socket, rooms, code, user_id, name))
+    }
+
+    /// A relay serving one pre-made room, on a port the OS picked.
+    async fn relay_with_room(code: &str) -> (String, CollabRooms) {
+        let rooms = CollabRooms::new();
+        rooms.0.lock().unwrap().insert(
+            code.to_string(),
+            Room {
+                code: code.to_string(),
+                host_user_id: HOST_ID,
+                host_username: "ada".into(),
+                project: "demo".into(),
+                created_at: Instant::now(),
+                host: None,
+                guests: HashMap::new(),
+                next_peer: 1,
+            },
+        );
+
+        let app = Router::new().route("/ws/:code", get(test_upgrade)).with_state(rooms.clone());
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let port = listener.local_addr().unwrap().port();
+        tokio::spawn(async move {
+            let _ = axum::serve(listener, app).await;
+        });
+        (format!("ws://127.0.0.1:{port}/ws"), rooms)
+    }
+
+    type Client = tokio_tungstenite::WebSocketStream<
+        tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>,
+    >;
+
+    async fn connect(base: &str, code: &str, who: &str) -> Client {
+        let (socket, _) =
+            tokio_tungstenite::connect_async(format!("{base}/{code}?who={who}")).await.unwrap();
+        socket
+    }
+
+    /// Next message, failing the test rather than hanging forever if the relay
+    /// never sends one.
+    async fn next(client: &mut Client) -> ClientMessage {
+        tokio::time::timeout(Duration::from_secs(5), client.next())
+            .await
+            .expect("relay went quiet")
+            .expect("stream ended")
+            .expect("read failed")
+    }
+
+    async fn next_json(client: &mut Client) -> serde_json::Value {
+        match next(client).await {
+            ClientMessage::Text(text) => serde_json::from_str(&text).unwrap(),
+            other => panic!("expected a control frame, got {other:?}"),
+        }
+    }
+
+    async fn next_binary(client: &mut Client) -> Vec<u8> {
+        match next(client).await {
+            ClientMessage::Binary(data) => data,
+            other => panic!("expected a payload, got {other:?}"),
+        }
+    }
+
+    /// The whole contract in one pass: both directions, both addressing modes,
+    /// and the exact bytes on the wire.
+    #[tokio::test]
+    async fn relay_routes_by_peer_id() {
+        let (base, _rooms) = relay_with_room("TESTROOM").await;
+
+        let mut host = connect(&base, "TESTROOM", "host").await;
+        let ready = next_json(&mut host).await;
+        assert_eq!(ready["event"], "ready");
+        assert_eq!(ready["role"], "host");
+        assert_eq!(ready["peer"], 0);
+
+        let mut guest = connect(&base, "TESTROOM", "g1").await;
+        let ready = next_json(&mut guest).await;
+        assert_eq!(ready["role"], "guest");
+        assert_eq!(ready["peer"], 1);
+
+        let joined = next_json(&mut host).await;
+        assert_eq!(joined["event"], "peer_joined");
+        assert_eq!(joined["peer"], 1);
+        assert_eq!(joined["username"], "guest-g1");
+
+        // Guest to host. The guest addresses the host (0) and the relay rewrites
+        // the header to say who it came *from*.
+        guest.send(ClientMessage::Binary(HOST_HI.to_vec())).await.unwrap();
+        assert_eq!(
+            next_binary(&mut host).await,
+            &[0x01, 0x00, 0x00, 0x00, b'h', b'i'],
+            "the host should see the message tagged with the sending guest's id"
+        );
+
+        // Host to that specific guest.
+        let addressed = reframe(1, b"yours");
+        assert_eq!(&addressed[..4], &[0x01, 0x00, 0x00, 0x00]);
+        host.send(ClientMessage::Binary(addressed)).await.unwrap();
+        assert_eq!(
+            next_binary(&mut guest).await,
+            &[0x00, 0x00, 0x00, 0x00, b'y', b'o', b'u', b'r', b's'],
+            "a guest should always see the host as peer 0"
+        );
+
+        // Host to everyone.
+        host.send(ClientMessage::Binary(BROADCAST_HI.to_vec())).await.unwrap();
+        assert_eq!(next_binary(&mut guest).await, HOST_HI);
+
+        // And departure is announced, since there is no per-guest socket whose
+        // close could say it.
+        drop(guest);
+        let left = next_json(&mut host).await;
+        assert_eq!(left["event"], "peer_left");
+        assert_eq!(left["peer"], 1);
+    }
+
+    /// A guest's own tag is ignored. Without this, guest 1 could label a message
+    /// as guest 2 and the host would have no way to tell.
+    #[tokio::test]
+    async fn a_guest_cannot_forge_another_peers_id() {
+        let (base, _rooms) = relay_with_room("FORGERY").await;
+
+        let mut host = connect(&base, "FORGERY", "host").await;
+        let _ = next_json(&mut host).await;
+        let mut guest = connect(&base, "FORGERY", "g1").await;
+        let _ = next_json(&mut guest).await;
+        let _ = next_json(&mut host).await; // peer_joined
+
+        // Claim to be peer 9.
+        guest.send(ClientMessage::Binary(reframe(9, b"spoof"))).await.unwrap();
+        let seen = next_binary(&mut host).await;
+        assert_eq!(
+            envelope_target(&seen),
+            1,
+            "the relay must replace a guest's tag with its real id"
+        );
+    }
+
+    /// Guests hear nothing from each other directly — everything goes through
+    /// the host, which is what makes the host the authority on the document.
+    #[tokio::test]
+    async fn guests_do_not_see_each_other() {
+        let (base, _rooms) = relay_with_room("TWOGUEST").await;
+
+        let mut host = connect(&base, "TWOGUEST", "host").await;
+        let _ = next_json(&mut host).await;
+        let mut a = connect(&base, "TWOGUEST", "a").await;
+        let _ = next_json(&mut a).await;
+        let _ = next_json(&mut host).await;
+        let mut b = connect(&base, "TWOGUEST", "b").await;
+        let ready_b = next_json(&mut b).await;
+        assert_eq!(ready_b["peer"], 2, "peer ids are handed out in order");
+        let _ = next_json(&mut host).await;
+
+        a.send(ClientMessage::Binary(reframe(2, b"psst"))).await.unwrap();
+
+        // The host receives it, tagged as from guest 1...
+        let seen = next_binary(&mut host).await;
+        assert_eq!(envelope_target(&seen), 1);
+
+        // ...and guest 2 hears nothing, despite being the address on it.
+        let quiet = tokio::time::timeout(Duration::from_millis(300), b.next()).await;
+        assert!(quiet.is_err(), "a guest received traffic from another guest");
+    }
+
+    /// The host leaving ends the room, because the host owns the document and
+    /// without it there is nothing to be editing.
+    #[tokio::test]
+    async fn losing_the_host_closes_the_room() {
+        let (base, rooms) = relay_with_room("HOSTGONE").await;
+
+        let mut host = connect(&base, "HOSTGONE", "host").await;
+        let _ = next_json(&mut host).await;
+        let mut guest = connect(&base, "HOSTGONE", "g1").await;
+        let _ = next_json(&mut guest).await;
+        let _ = next_json(&mut host).await;
+
+        drop(host);
+
+        let gone = next_json(&mut guest).await;
+        assert_eq!(gone["event"], "host_gone");
+
+        // Give the departure a moment to land, then the room should be gone.
+        tokio::time::sleep(Duration::from_millis(200)).await;
+        assert!(rooms.0.lock().unwrap().get("HOSTGONE").is_none());
+    }
+
+    /// A message with no room for a header is not this protocol.
+    #[tokio::test]
+    async fn a_headerless_message_is_refused() {
+        let (base, _rooms) = relay_with_room("SHORTMSG").await;
+
+        let mut host = connect(&base, "SHORTMSG", "host").await;
+        let _ = next_json(&mut host).await;
+        let mut guest = connect(&base, "SHORTMSG", "g1").await;
+        let _ = next_json(&mut guest).await;
+        let _ = next_json(&mut host).await;
+
+        guest.send(ClientMessage::Binary(vec![1, 2, 3])).await.unwrap();
+
+        // The relay hangs the guest up, which the host sees as a departure.
+        let left = next_json(&mut host).await;
+        assert_eq!(left["event"], "peer_left");
+    }
 }

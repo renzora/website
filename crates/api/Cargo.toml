@@ -30,3 +30,10 @@ totp-rs = { workspace = true }
 rand = { workspace = true }
 image = { workspace = true }
 zip = { workspace = true }
+
+[dev-dependencies]
+# A WebSocket *client*, so the relay can be tested by driving two real sockets
+# through it rather than by calling its internals. Both are already in the lock
+# via axum's `ws` feature, so this adds nothing to the build.
+tokio-tungstenite = "0.24"
+futures-util = "0.3"
