@@ -2,6 +2,7 @@ pub mod admin;
 pub mod api_tokens;
 pub mod levels;
 pub mod articles;
+pub mod collab;
 pub mod auth;
 pub mod creator;
 pub mod courses;
@@ -45,6 +46,9 @@ pub struct AppState {
     pub stripe_webhook_secret: Option<String>,
     pub site_url: String,
     pub ws_broadcast: Arc<WsBroadcast>,
+    /// Live collaborative-editing sessions. In memory on purpose — a room only
+    /// exists while its host's socket does (see `collab`).
+    pub collab_rooms: collab::CollabRooms,
 }
 
 pub fn api_router(state: AppState) -> Router {
@@ -70,6 +74,8 @@ pub fn api_router(state: AppState) -> Router {
         .nest("/messages", messages::router())
         .nest("/user", user::router())
         .nest("/ws", ws::router())
+        .nest("/ws", collab::ws_router())
+        .nest("/collab", collab::router())
         .nest("/levels", levels::router())
         .route("/launcher/download", axum::routing::post(launcher_download_track))
         .with_state(state)

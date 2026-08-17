@@ -129,6 +129,7 @@ async fn main() {
         stripe_webhook_secret,
         site_url,
         ws_broadcast: std::sync::Arc::new(renzora_api::WsBroadcast::new()),
+        collab_rooms: renzora_api::collab::CollabRooms::new(),
     };
 
     // Background task: renew or expire Supporter subscriptions whose period
