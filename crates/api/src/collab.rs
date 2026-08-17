@@ -515,17 +515,8 @@ async fn relay_handler(
                 return Response::builder().status(500).body("Registry unavailable".into()).unwrap()
             }
         };
-        let Some(room) = rooms.get(&code) else {
+        if !rooms.contains_key(&code) {
             return Response::builder().status(404).body("No such session".into()).unwrap();
-        };
-        // A second host socket for the same room would leave the first one
-        // connected but unreachable, so refuse it outright rather than
-        // silently replacing it.
-        if room.host_user_id == user_id && room.host.is_some() {
-            return Response::builder()
-                .status(409)
-                .body("This session already has a host connected".into())
-                .unwrap();
         }
     }
 
@@ -559,6 +550,13 @@ async fn run_relay(
             return;
         };
         let participant = Participant { username: username.clone(), tx: tx.clone() };
+        // The host slot goes to the room's creator, and only while it is empty.
+        // A second connection from that same account becomes an ordinary guest
+        // rather than being refused: someone testing with two editors is signed
+        // in as themselves in both, and refusing the second made that
+        // impossible. It cannot strand a live host either — a host leaving
+        // takes the room with it, so an occupied slot always means a host who
+        // is genuinely still there.
         if room.host_user_id == user_id && room.host.is_none() {
             room.host = Some(participant);
             Role::Host
@@ -917,6 +915,37 @@ mod tests {
         let left = next_json(&mut host).await;
         assert_eq!(left["event"], "peer_left");
         assert_eq!(left["peer"], 1);
+    }
+
+
+    /// One account, two editors: the second connection joins as a guest.
+    ///
+    /// This used to be refused with a 409 to stop a second host socket
+    /// stranding the first. It made the obvious way to try the feature —
+    /// signing in as yourself in two editors — impossible, and the refusal is
+    /// not actually needed: a host leaving takes the room with it, so an
+    /// occupied host slot always means a host who is still there.
+    #[tokio::test]
+    async fn the_same_account_can_join_its_own_room_as_a_guest() {
+        let (base, _rooms) = relay_with_room("SELFJOIN").await;
+
+        let mut first = connect(&base, "SELFJOIN", "host").await;
+        let ready = next_json(&mut first).await;
+        assert_eq!(ready["role"], "host");
+
+        // Same identity, second socket.
+        let mut second = connect(&base, "SELFJOIN", "host").await;
+        let ready = next_json(&mut second).await;
+        assert_eq!(ready["role"], "guest", "a second connection must not be refused");
+        assert_eq!(ready["peer"], 1);
+
+        // And it is a real guest: the host is told, and traffic routes.
+        let joined = next_json(&mut first).await;
+        assert_eq!(joined["event"], "peer_joined");
+        assert_eq!(joined["peer"], 1);
+
+        second.send(ClientMessage::Binary(HOST_HI.to_vec())).await.unwrap();
+        assert_eq!(envelope_target(&next_binary(&mut first).await), 1);
     }
 
     /// A guest's own tag is ignored. Without this, guest 1 could label a message
