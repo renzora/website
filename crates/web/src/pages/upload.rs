@@ -39,10 +39,10 @@ pub fn UploadPage() -> impl IntoView {
                         <span id="wizard-success-text"></span>
                     </div>
 
-                    <div class="p-6 md:p-8 bg-white/[0.02] border border-zinc-800/50 rounded-2xl divide-y divide-zinc-800/40">
+                    <div class="space-y-6">
 
                         // ── Basics ──
-                        <div class="pb-7 space-y-5">
+                        <div class="p-6 md:p-8 bg-white/[0.02] border border-zinc-800/50 rounded-2xl space-y-5">
                             <h2 class="text-base font-semibold flex items-center gap-2">
                                 <i class="ph ph-info text-accent"></i>"Basics"
                             </h2>
@@ -85,7 +85,7 @@ pub fn UploadPage() -> impl IntoView {
                         </div>
 
                         // ── Files & media ──
-                        <div class="py-7 space-y-5">
+                        <div class="p-6 md:p-8 bg-white/[0.02] border border-zinc-800/50 rounded-2xl space-y-5">
                             <h2 class="text-base font-semibold flex items-center gap-2">
                                 <i class="ph ph-file-arrow-up text-cyan-400"></i>"Files & Media"
                             </h2>
@@ -98,7 +98,7 @@ pub fn UploadPage() -> impl IntoView {
                                     <p id="file-drop-label" class="text-sm text-zinc-500">"Drop a file or click to browse"</p>
                                     <p class="text-xs text-zinc-600 mt-2">"Accepted formats vary by category — max 50 MB"</p>
                                     <input type="file" id="w-file" class="hidden" onchange="previewMainFile(this)"
-                                        accept=".zip,.rar,.7z,.lua,.rhai,.wgsl,.fbx,.obj,.gltf,.glb,.blend,.png,.jpg,.svg,.wav,.ogg,.mp3,.flac,.ttf,.otf" />
+                                        accept=".zip,.rar,.7z,.lua,.rhai,.wgsl,.glsl,.fbx,.obj,.gltf,.glb,.blend,.png,.jpg,.svg,.hdr,.exr,.mp4,.webm,.mov,.wav,.ogg,.mp3,.flac,.ttf,.otf,.json,.ron" />
                                 </div>
                             </div>
 
@@ -138,7 +138,7 @@ pub fn UploadPage() -> impl IntoView {
                         </div>
 
                         // ── Details ──
-                        <div class="py-7 space-y-5">
+                        <div class="p-6 md:p-8 bg-white/[0.02] border border-zinc-800/50 rounded-2xl space-y-5">
                             <h2 class="text-base font-semibold flex items-center gap-2">
                                 <i class="ph ph-sliders-horizontal text-accent"></i>"Details"
                             </h2>
@@ -189,7 +189,7 @@ pub fn UploadPage() -> impl IntoView {
                             </label>
 
                             // Category-specific fields, revealed by the category above.
-                            <div data-show-for-category="sfx,music" class="hidden space-y-4 p-4 bg-white/[0.01] border border-zinc-800/30 rounded-xl">
+                            <div data-show-for-category="sfx,music,media" class="hidden space-y-4 p-4 bg-white/[0.01] border border-zinc-800/30 rounded-xl">
                                 <p class="text-xs text-zinc-500 uppercase tracking-wider font-medium">"Audio Details"</p>
                                 <div class="grid grid-cols-2 gap-4">
                                     <div>
@@ -238,7 +238,7 @@ pub fn UploadPage() -> impl IntoView {
                                 </div>
                             </div>
 
-                            <div data-show-for-category="3d-models,animations" class="hidden space-y-4 p-4 bg-white/[0.01] border border-zinc-800/30 rounded-xl">
+                            <div data-show-for-category="3d-models,animations,prefabs" class="hidden space-y-4 p-4 bg-white/[0.01] border border-zinc-800/30 rounded-xl">
                                 <p class="text-xs text-zinc-500 uppercase tracking-wider font-medium">"3D Details"</p>
                                 <div class="grid grid-cols-2 gap-4">
                                     <div>
@@ -259,7 +259,7 @@ pub fn UploadPage() -> impl IntoView {
                                 </div>
                             </div>
 
-                            <div data-show-for-category="2d-art,textures,particles" class="hidden space-y-4 p-4 bg-white/[0.01] border border-zinc-800/30 rounded-xl">
+                            <div data-show-for-category="2d-art,textures,particles,svg,ui-templates,hdris" class="hidden space-y-4 p-4 bg-white/[0.01] border border-zinc-800/30 rounded-xl">
                                 <p class="text-xs text-zinc-500 uppercase tracking-wider font-medium">"2D / Texture Details"</p>
                                 <div class="grid grid-cols-2 gap-4">
                                     <div>
@@ -277,7 +277,7 @@ pub fn UploadPage() -> impl IntoView {
                                 </div>
                             </div>
 
-                            <div data-show-for-category="materials" class="hidden space-y-4 p-4 bg-white/[0.01] border border-zinc-800/30 rounded-xl">
+                            <div data-show-for-category="materials,shaders" class="hidden space-y-4 p-4 bg-white/[0.01] border border-zinc-800/30 rounded-xl">
                                 <p class="text-xs text-zinc-500 uppercase tracking-wider font-medium">"Material Details"</p>
                                 <div>
                                     <label class="block text-sm text-zinc-400 mb-1.5">"Render Pipeline"</label>
@@ -303,7 +303,7 @@ pub fn UploadPage() -> impl IntoView {
                         </div>
 
                         // ── Credit / attribution ──
-                        <div class="pt-7 space-y-4">
+                        <div class="p-6 md:p-8 bg-white/[0.02] border border-zinc-800/50 rounded-2xl space-y-4">
                             <h2 class="text-base font-semibold flex items-center gap-2">
                                 <i class="ph ph-heart text-accent"></i>"Credit / Attribution"
                             </h2>
@@ -601,7 +601,7 @@ pub fn UploadPage() -> impl IntoView {
             put('engine_versions', 'w-engine-versions');
 
             const shown = (cats) => cats.includes(selectedCategory);
-            if (shown(['sfx', 'music'])) {
+            if (shown(['sfx', 'music', 'media'])) {
                 put('bpm', 'w-bpm');
                 put('genre', 'w-genre');
                 putBool('loopable', 'w-loopable');
@@ -610,15 +610,15 @@ pub fn UploadPage() -> impl IntoView {
                 put('script_language', 'w-script-lang');
                 put('dependencies', 'w-dependencies');
             }
-            if (shown(['3d-models', 'animations'])) {
+            if (shown(['3d-models', 'animations', 'prefabs'])) {
                 put('poly_count', 'w-polycount');
                 put('texture_resolution', 'w-texres');
             }
-            if (shown(['2d-art', 'textures', 'particles'])) {
+            if (shown(['2d-art', 'textures', 'particles', 'svg', 'ui-templates', 'hdris'])) {
                 put('resolution', 'w-resolution');
                 putBool('tileable', 'w-tileable');
             }
-            if (shown(['materials'])) {
+            if (shown(['materials', 'shaders'])) {
                 put('render_pipeline', 'w-pipeline');
                 put('texture_resolution', 'w-mat-texres');
             }
