@@ -23,7 +23,6 @@ pub fn router() -> Router<AppState> {
         .route("/purchased", get(purchased_assets))
         .route("/:id/update", put(update_asset))
         .route("/:id/files", put(update_asset_files))
-        .route("/:id/download", get(download_asset))
         .route("/:id/comments", post(add_comment))
         .route("/comments/:comment_id", delete(delete_comment))
         .route("/:id/reviews", post(submit_review))
@@ -32,11 +31,17 @@ pub fn router() -> Router<AppState> {
         .route("/:id/reviews/flag", post(flag_review))
         .route("/:id/reviews/helpful", post(mark_review_helpful))
         .route("/:id/delete", delete(delete_asset))
-        .route("/:id/files/:file_id/download", get(download_single_file))
-        .route("/:id/download-zip", get(download_all_zip))
         .route("/tags/submit", post(submit_tag))
         .route("/subcategories/submit", post(submit_subcategory))
         .layer(axum::middleware::from_fn(middleware::require_auth));
+
+    // Downloads authenticate optionally: a free asset is downloadable by
+    // anyone, a paid one still needs a signed-in owner (see `authorize_download`).
+    let downloads = Router::new()
+        .route("/:id/download", get(download_asset))
+        .route("/:id/files/:file_id/download", get(download_single_file))
+        .route("/:id/download-zip", get(download_all_zip))
+        .layer(axum::middleware::from_fn(middleware::optional_auth));
 
     Router::new()
         .route("/", get(list_assets))
@@ -49,6 +54,7 @@ pub fn router() -> Router<AppState> {
         .route("/:id/media", get(list_media))
         .route("/:id/asset-files", get(list_asset_files))
         .route("/:id/preview-file", get(preview_file_proxy))
+        .merge(downloads)
         .merge(protected)
 }
 
@@ -731,25 +737,46 @@ async fn update_asset_files(
     Ok(Json(asset_to_detail(&updated, &creator, Some(true))))
 }
 
-/// Download an asset (requires auth + ownership or free).
+/// Gate a download. Free published assets are open to everyone, signed in or
+/// not; a paid asset requires a signed-in user who owns it. The creator can
+/// always fetch their own asset, which is also the only way to reach one that
+/// is still unpublished — anonymous downloads must not expose drafts.
+fn authorize_download(asset: &Asset, auth: &Option<AuthUser>, owns: bool) -> Result<(), ApiError> {
+    let is_creator = auth.as_ref().is_some_and(|u| asset.creator_id == u.user_id);
+    if is_creator {
+        return Ok(());
+    }
+    if !asset.published {
+        return Err(ApiError::NotFound);
+    }
+    if asset.price_credits == 0 {
+        return Ok(());
+    }
+    if owns {
+        Ok(())
+    } else {
+        Err(ApiError::Unauthorized)
+    }
+}
+
+/// Download an asset. Free published assets need no account; paid ones need
+/// a signed-in owner.
 ///
 /// Returns presigned download URLs for all files.
 async fn download_asset(
     State(state): State<AppState>,
-    Extension(auth): Extension<AuthUser>,
+    Extension(auth): Extension<Option<AuthUser>>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<DownloadResponse>, ApiError> {
     let asset = Asset::find_by_id(&state.db, id)
         .await?
         .ok_or(ApiError::NotFound)?;
 
-    // Check ownership: free assets are always accessible, paid require ownership
-    if asset.price_credits > 0 {
-        let owns = asset::user_owns_asset(&state.db, auth.user_id, id).await?;
-        if !owns && asset.creator_id != auth.user_id {
-            return Err(ApiError::Unauthorized);
-        }
-    }
+    let owns = match &auth {
+        Some(u) => asset::user_owns_asset(&state.db, u.user_id, id).await?,
+        None => false,
+    };
+    authorize_download(&asset, &auth, owns)?;
 
     // Increment download counter
     Asset::increment_downloads(&state.db, id).await?;
@@ -1614,19 +1641,18 @@ async fn list_asset_files(
 /// Download a single file from a multi-file asset (auth + ownership).
 async fn download_single_file(
     State(state): State<AppState>,
-    Extension(auth): Extension<AuthUser>,
+    Extension(auth): Extension<Option<AuthUser>>,
     Path((asset_id, file_id)): Path<(Uuid, Uuid)>,
 ) -> Result<Json<DownloadResponse>, ApiError> {
     let asset = Asset::find_by_id(&state.db, asset_id)
         .await?
         .ok_or(ApiError::NotFound)?;
 
-    if asset.price_credits > 0 {
-        let owns = asset::user_owns_asset(&state.db, auth.user_id, asset_id).await?;
-        if !owns && asset.creator_id != auth.user_id {
-            return Err(ApiError::Unauthorized);
-        }
-    }
+    let owns = match &auth {
+        Some(u) => asset::user_owns_asset(&state.db, u.user_id, asset_id).await?,
+        None => false,
+    };
+    authorize_download(&asset, &auth, owns)?;
 
     let file = AssetFile::find_by_id(&state.db, file_id)
         .await?
@@ -1648,19 +1674,18 @@ async fn download_single_file(
 /// Download all files as a zip (auth + ownership). Streams files from S3 into an in-memory zip.
 async fn download_all_zip(
     State(state): State<AppState>,
-    Extension(auth): Extension<AuthUser>,
+    Extension(auth): Extension<Option<AuthUser>>,
     Path(id): Path<Uuid>,
 ) -> Result<axum::response::Response, ApiError> {
     let asset = Asset::find_by_id(&state.db, id)
         .await?
         .ok_or(ApiError::NotFound)?;
 
-    if asset.price_credits > 0 {
-        let owns = asset::user_owns_asset(&state.db, auth.user_id, id).await?;
-        if !owns && asset.creator_id != auth.user_id {
-            return Err(ApiError::Unauthorized);
-        }
-    }
+    let owns = match &auth {
+        Some(u) => asset::user_owns_asset(&state.db, u.user_id, id).await?,
+        None => false,
+    };
+    authorize_download(&asset, &auth, owns)?;
 
     let files = AssetFile::list_by_asset(&state.db, id).await?;
     if files.is_empty() {

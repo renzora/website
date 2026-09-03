@@ -372,22 +372,21 @@ pub fn AssetDetailPage() -> impl IntoView {
                         <div class="w-full lg:w-80 shrink-0">
                             <div class="bg-white/[0.02] border border-zinc-800/50 rounded-2xl p-6 sticky top-20">
 
-                                ${token ? `
+                                ${(isCreator || a.owned || a.price_credits === 0) ? `
+                                    <button onclick="downloadAsset('${a.id}')" class="w-full mt-4 px-4 py-3 rounded-xl text-sm font-semibold bg-green-600 text-white hover:bg-green-500 transition-all hover:shadow-[0_0_20px_rgba(22,163,74,0.2)] flex items-center justify-center gap-2"><i class="ph ph-download-simple text-lg"></i>Download</button>
                                     ${isCreator ? `
-                                        <button onclick="downloadAsset('${a.id}')" class="w-full mt-4 px-4 py-3 rounded-xl text-sm font-semibold bg-green-600 text-white hover:bg-green-500 transition-all hover:shadow-[0_0_20px_rgba(22,163,74,0.2)] flex items-center justify-center gap-2"><i class="ph ph-download-simple text-lg"></i>Download</button>
                                         <p class="text-xs text-zinc-500 text-center mt-2">This is your asset</p>
                                     ` : a.owned ? `
-                                        <button onclick="downloadAsset('${a.id}')" class="w-full mt-4 px-4 py-3 rounded-xl text-sm font-semibold bg-green-600 text-white hover:bg-green-500 transition-all hover:shadow-[0_0_20px_rgba(22,163,74,0.2)] flex items-center justify-center gap-2"><i class="ph ph-download-simple text-lg"></i>Download</button>
                                         <a href="/library" class="w-full mt-2 px-4 py-2.5 rounded-xl text-sm font-medium bg-white/[0.03] border border-zinc-800/50 text-zinc-300 hover:border-zinc-600 hover:text-white transition-all flex items-center justify-center gap-2"><i class="ph ph-books text-lg"></i>Show in Library</a>
                                         <p class="text-xs text-green-400 text-center mt-2"><i class="ph ph-check-circle"></i> You own this asset</p>
-                                    ` : a.price_credits === 0 ? `
-                                        <button onclick="purchaseAsset('${a.id}')" class="w-full mt-4 px-4 py-3 rounded-xl text-sm font-semibold bg-accent text-white hover:bg-accent-hover transition-all hover:shadow-[0_0_20px_rgba(99,102,241,0.2)] flex items-center justify-center gap-2"><i class="ph ph-download-simple text-lg"></i>Download for Free</button>
                                     ` : `
-                                        <div class="mt-4 flex gap-2">
-                                            <input type="text" id="promo-input" placeholder="Promo code" maxlength="32" class="flex-1 px-3 py-2.5 bg-white/[0.02] border border-zinc-800/50 rounded-xl text-xs text-zinc-50 outline-none focus:border-accent/50 uppercase" />
-                                        </div>
-                                        <button onclick="purchaseAsset('${a.id}')" class="w-full mt-2 px-4 py-3 rounded-xl text-sm font-semibold bg-accent text-white hover:bg-accent-hover transition-all hover:shadow-[0_0_20px_rgba(99,102,241,0.2)] flex items-center justify-center gap-2"><i class="ph ph-shopping-cart text-lg"></i>Buy for ${a.price_credits.toLocaleString()} credits</button>
+                                        <p class="text-xs text-zinc-500 text-center mt-2">Free ${token ? '' : '&middot; no account needed'}</p>
                                     `}
+                                ` : token ? `
+                                    <div class="mt-4 flex gap-2">
+                                        <input type="text" id="promo-input" placeholder="Promo code" maxlength="32" class="flex-1 px-3 py-2.5 bg-white/[0.02] border border-zinc-800/50 rounded-xl text-xs text-zinc-50 outline-none focus:border-accent/50 uppercase" />
+                                    </div>
+                                    <button onclick="purchaseAsset('${a.id}')" class="w-full mt-2 px-4 py-3 rounded-xl text-sm font-semibold bg-accent text-white hover:bg-accent-hover transition-all hover:shadow-[0_0_20px_rgba(99,102,241,0.2)] flex items-center justify-center gap-2"><i class="ph ph-shopping-cart text-lg"></i>Buy for ${a.price_credits.toLocaleString()} credits</button>
                                 ` : `
                                     <a href="/login" class="block w-full mt-4 px-4 py-3 rounded-xl text-sm font-semibold bg-accent text-white hover:bg-accent-hover transition-all text-center">Sign in to purchase</a>
                                 `}
@@ -591,10 +590,9 @@ pub fn AssetDetailPage() -> impl IntoView {
 
             async function downloadAllZip(assetId) {
                 const token = document.cookie.match('(^|;)\\s*token\\s*=\\s*([^;]+)')?.pop();
-                if (!token) return;
                 try {
                     const res = await fetch('/api/marketplace/' + assetId + '/download-zip', {
-                        headers: { 'Authorization': 'Bearer ' + token }
+                        headers: token ? { 'Authorization': 'Bearer ' + token } : {}
                     });
                     if (!res.ok) { alert('Download failed'); return; }
                     const blob = await res.blob();
@@ -1285,10 +1283,11 @@ pub fn AssetDetailPage() -> impl IntoView {
             }
 
             async function downloadAsset(id) {
+                // No token needed for a free asset — the API authorises, and only
+                // sends credentials when we actually have them.
                 const token = document.cookie.match('(^|;)\\s*token\\s*=\\s*([^;]+)')?.pop();
-                if (!token) return;
                 const res = await fetch('/api/marketplace/' + id + '/download', {
-                    headers: { 'Authorization': 'Bearer ' + token }
+                    headers: token ? { 'Authorization': 'Bearer ' + token } : {}
                 });
                 const data = await res.json();
                 if (!res.ok) { alert(data.error || 'Download failed'); return; }
