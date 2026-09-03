@@ -21,7 +21,7 @@ pub fn ShopPage() -> impl IntoView {
                             <i class="ph ph-storefront text-5xl mb-3 opacity-40"></i>
                             <p class="text-lg font-medium">Shop not found</p>
                             <p class="text-sm mt-1">This user hasn't set up their storefront yet.</p>
-                            <a href="/profile/${username}" class="text-accent mt-4 text-sm hover:underline">View profile instead</a>
+                            <a href="/marketplace" class="text-accent mt-4 text-sm hover:underline">Browse the marketplace</a>
                         </div>`;
                     return;
                 }
@@ -35,10 +35,7 @@ pub fn ShopPage() -> impl IntoView {
                 document.head.appendChild(fontLink);
 
                 // Build item cards
-                const allItems = [
-                    ...s.assets.map(a => ({ ...a, type: 'asset', href: `/marketplace/asset/${a.slug}` })),
-                    ...s.games.map(g => ({ ...g, type: 'game', href: `/games/${g.slug}` })),
-                ];
+                const allItems = s.assets.map(a => ({ ...a, type: 'asset', href: `/marketplace/asset/${a.slug}` }));
 
                 const isGrid = s.layout !== 'list';
                 const gridClass = isGrid
@@ -49,7 +46,7 @@ pub fn ShopPage() -> impl IntoView {
                     const priceHtml = item.price_credits === 0
                         ? `<span style="color: #4ade80; font-weight: 600;">Free</span>`
                         : `<span style="color: ${s.accent_color}; font-weight: 600;">${item.price_credits} credits</span>`;
-                    const typeIcon = item.type === 'game' ? 'ph-game-controller' : 'ph-package';
+                    const typeIcon = 'ph-package';
                     const thumb = item.thumbnail_url
                         ? `<img src="${item.thumbnail_url}" class="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105" />`
                         : `<div class="w-full h-full flex items-center justify-center" style="background: ${s.accent_color}10"><i class="ph ${typeIcon}" style="font-size: 2rem; color: ${s.accent_color}40"></i></div>`;
@@ -115,7 +112,6 @@ pub fn ShopPage() -> impl IntoView {
 
                 // Stat counts
                 const assetCount = s.assets.length;
-                const gameCount = s.games.length;
                 const totalDownloads = allItems.reduce((n, i) => n + i.downloads, 0);
 
                 const bgStyle = s.bg_image
@@ -140,7 +136,6 @@ pub fn ShopPage() -> impl IntoView {
                                     ${badgesHtml}
                                     <div class="flex flex-wrap gap-6 mt-4 text-sm" style="opacity: 0.5">
                                         ${assetCount ? `<span><i class="ph ph-package"></i> ${assetCount} asset${assetCount !== 1 ? 's' : ''}</span>` : ''}
-                                        ${gameCount ? `<span><i class="ph ph-game-controller"></i> ${gameCount} game${gameCount !== 1 ? 's' : ''}</span>` : ''}
                                         <span><i class="ph ph-download-simple"></i> ${totalDownloads.toLocaleString()} downloads</span>
                                     </div>
                                 </div>
@@ -156,7 +151,7 @@ pub fn ShopPage() -> impl IntoView {
 
                         <!-- Footer -->
                         <div class="text-center py-8 text-xs" style="opacity: 0.25">
-                            <a href="/profile/${s.username}" class="hover:underline">${s.username}'s profile</a>
+                            <span>${s.username}</span>
                             <span class="mx-2">·</span>
                             <a href="/marketplace" class="hover:underline">Marketplace</a>
                         </div>

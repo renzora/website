@@ -61,7 +61,7 @@ pub fn UploadPage() -> impl IntoView {
                     // STEP 1, Content Type
                     // ════════════════════════════════════════
                     <div id="step-1" class="wizard-step">
-                        <div class="grid grid-cols-2 gap-4">
+                        <div class="grid grid-cols-1 gap-4">
                             <button type="button" onclick="selectContentType('asset')"
                                 class="group p-8 bg-white/[0.02] border border-zinc-800/50 rounded-2xl text-left hover:border-accent/40 hover:bg-accent/[0.03] transition-all">
                                 <div class="w-12 h-12 bg-accent/10 rounded-xl flex items-center justify-center mb-4 group-hover:bg-accent/20 transition-colors">
@@ -69,14 +69,6 @@ pub fn UploadPage() -> impl IntoView {
                                 </div>
                                 <h3 class="text-lg font-semibold mb-1">"Marketplace Asset"</h3>
                                 <p class="text-sm text-zinc-500">"3D models, scripts, audio, textures, plugins, and more."</p>
-                            </button>
-                            <button type="button" onclick="selectContentType('game')"
-                                class="group p-8 bg-white/[0.02] border border-zinc-800/50 rounded-2xl text-left hover:border-accent/40 hover:bg-accent/[0.03] transition-all">
-                                <div class="w-12 h-12 bg-accent/10 rounded-xl flex items-center justify-center mb-4 group-hover:bg-accent/20 transition-colors">
-                                    <i class="ph ph-game-controller text-2xl text-accent"></i>
-                                </div>
-                                <h3 class="text-lg font-semibold mb-1">"Game"</h3>
-                                <p class="text-sm text-zinc-500">"Publish a playable game for the Renzora community."</p>
                             </button>
                         </div>
                     </div>
@@ -364,36 +356,6 @@ pub fn UploadPage() -> impl IntoView {
                                 </div>
                             </div>
 
-                            // ── Game-only fields ──
-                            <div data-show-for="game" class="hidden space-y-5">
-                                <div>
-                                    <label class="block text-sm text-zinc-400 mb-1.5">"Platforms"</label>
-                                    <div class="flex flex-wrap gap-3">
-                                        <label class="flex items-center gap-2 cursor-pointer select-none">
-                                            <input type="checkbox" id="w-platform-windows" class="accent-accent w-4 h-4" checked />
-                                            <span class="text-sm text-zinc-300">"Windows"</span>
-                                        </label>
-                                        <label class="flex items-center gap-2 cursor-pointer select-none">
-                                            <input type="checkbox" id="w-platform-mac" class="accent-accent w-4 h-4" />
-                                            <span class="text-sm text-zinc-300">"macOS"</span>
-                                        </label>
-                                        <label class="flex items-center gap-2 cursor-pointer select-none">
-                                            <input type="checkbox" id="w-platform-linux" class="accent-accent w-4 h-4" />
-                                            <span class="text-sm text-zinc-300">"Linux"</span>
-                                        </label>
-                                        <label class="flex items-center gap-2 cursor-pointer select-none">
-                                            <input type="checkbox" id="w-platform-web" class="accent-accent w-4 h-4" />
-                                            <span class="text-sm text-zinc-300">"Web"</span>
-                                        </label>
-                                    </div>
-                                </div>
-                                <div>
-                                    <label class="block text-sm text-zinc-400 mb-1.5">"Minimum System Requirements"</label>
-                                    <textarea id="w-sysreq" rows="3" placeholder="OS: Windows 10+, RAM: 4GB, GPU: OpenGL 3.3+"
-                                        class="w-full px-4 py-3 bg-white/[0.02] border border-zinc-800/50 rounded-xl text-zinc-50 text-sm outline-none focus:border-accent/50 transition-all resize-y"></textarea>
-                                </div>
-                            </div>
-
                             // ── Empty state ──
                             <div id="step4-empty" class="hidden text-center py-6">
                                 <p class="text-sm text-zinc-500">"No additional details needed for this category."</p>
@@ -526,7 +488,7 @@ pub fn UploadPage() -> impl IntoView {
         // ──────────────────────────────────────
         const W = {
             step: 1,
-            contentType: null,  // 'asset' or 'game'
+            contentType: 'asset',
             category: null,     // slug
             categoryName: null, // display name
         };
@@ -639,7 +601,7 @@ pub fn UploadPage() -> impl IntoView {
             const grid = document.getElementById('category-grid');
             grid.innerHTML = '<div class="text-center text-sm text-zinc-500 col-span-3 py-8">Loading categories...</div>';
 
-            const url = type === 'game' ? '/api/games/categories' : '/api/marketplace/categories';
+            const url = '/api/marketplace/categories';
             try {
                 const res = await fetch(url);
                 if (!res.ok) throw new Error('Failed to load');
@@ -879,19 +841,11 @@ pub fn UploadPage() -> impl IntoView {
             const extras = document.getElementById('media-extras');
             const title = document.getElementById('file-section-title');
 
-            if (W.contentType === 'game') {
-                fileInput.accept = '.zip,.exe,.tar.gz,.dmg,.appimage';
-                hint.textContent = 'ZIP, EXE, .tar.gz, .dmg, or .appimage \u2014 Max 2 GB';
-                thumbHint.textContent = 'Recommended: 1920\u00d71080 (16:9). PNG or JPG.';
-                title.textContent = 'Game Files';
-                extras.classList.add('hidden');
-            } else {
-                fileInput.accept = '.zip,.rar,.7z,.lua,.rhai,.wgsl,.fbx,.obj,.gltf,.glb,.blend,.png,.jpg,.svg,.wav,.ogg,.mp3,.flac,.ttf,.otf';
-                hint.textContent = 'Accepted formats vary by category \u2014 Max 50 MB';
-                thumbHint.textContent = 'Recommended: 1280\u00d7720 (16:9). PNG or JPG.';
-                title.textContent = 'Asset Files';
-                extras.classList.remove('hidden');
-            }
+            fileInput.accept = '.zip,.rar,.7z,.lua,.rhai,.wgsl,.fbx,.obj,.gltf,.glb,.blend,.png,.jpg,.svg,.wav,.ogg,.mp3,.flac,.ttf,.otf';
+            hint.textContent = 'Accepted formats vary by category \u2014 Max 50 MB';
+            thumbHint.textContent = 'Recommended: 1280\u00d7720 (16:9). PNG or JPG.';
+            title.textContent = 'Asset Files';
+            extras.classList.remove('hidden');
         }
 
         function previewMainFile(input) {
@@ -900,7 +854,7 @@ pub fn UploadPage() -> impl IntoView {
                 const f = input.files[0];
                 const sizeMB = (f.size / 1024 / 1024).toFixed(1);
                 label.innerHTML = '<strong>' + f.name + '</strong> <span class="text-zinc-600">(' + sizeMB + ' MB)</span>';
-                const maxMB = W.contentType === 'game' ? 2048 : 50;
+                const maxMB = 50;
                 if (f.size > maxMB * 1024 * 1024) {
                     label.innerHTML += ' <span class="text-red-400">\u2014 exceeds ' + maxMB + 'MB limit</span>';
                 }
@@ -953,7 +907,7 @@ pub fn UploadPage() -> impl IntoView {
             const thumb = document.getElementById('w-thumbnail').files[0];
             const screenshots = document.getElementById('w-screenshots').files;
 
-            const typeLabel = W.contentType === 'game' ? 'Game' : 'Marketplace Asset';
+            const typeLabel = 'Marketplace Asset';
             const priceLabel = price === 0 ? 'Free' : price + ' credits ($' + (price * 0.10).toFixed(2) + ')';
 
             let html = '<div class="divide-y divide-zinc-800/50">';
@@ -1059,84 +1013,55 @@ pub fn UploadPage() -> impl IntoView {
                 if (!token) throw new Error('Please sign in first');
                 const headers = { 'Authorization': 'Bearer ' + token };
 
-                if (W.contentType === 'game') {
-                    const res = await fetch('/api/games/upload', {
+                const res = await fetch('/api/marketplace/upload', {
+                    method: 'POST',
+                    headers: headers,
+                    body: fd
+                });
+                const data = await safeJson(res);
+                if (!res.ok) throw new Error(data.error || 'Upload failed');
+                itemId = data.id;
+                itemSlug = data.slug;
+
+                // Upload screenshots
+                for (let i = 0; i < Math.min(screenshots.length, 10); i++) {
+                    const mfd = new FormData();
+                    mfd.append('media_type', 'image');
+                    mfd.append('file', screenshots[i]);
+                    await fetch('/api/marketplace/' + itemId + '/media', {
                         method: 'POST',
                         headers: headers,
-                        body: fd
+                        body: mfd
                     });
-                    const data = await safeJson(res);
-                    if (!res.ok) throw new Error(data.error || 'Upload failed');
-                    itemId = data.id;
-                    itemSlug = data.slug;
-
-                    // Upload screenshots
-                    for (let i = 0; i < Math.min(screenshots.length, 10); i++) {
-                        const mfd = new FormData();
-                        mfd.append('type', 'image');
-                        mfd.append('sort_order', i.toString());
-                        mfd.append('file', screenshots[i]);
-                        await fetch('/api/games/' + itemId + '/media', {
-                            method: 'POST',
-                            headers: headers,
-                            body: mfd
-                        });
-                    }
-
-                    const link = '/games/' + itemSlug;
-                    document.getElementById('wizard-success-text').innerHTML = 'Game published! <a href="' + link + '" class="underline">View your game <i class="ph ph-arrow-right"></i></a>';
-
-                } else {
-                    const res = await fetch('/api/marketplace/upload', {
-                        method: 'POST',
-                        headers: headers,
-                        body: fd
-                    });
-                    const data = await safeJson(res);
-                    if (!res.ok) throw new Error(data.error || 'Upload failed');
-                    itemId = data.id;
-                    itemSlug = data.slug;
-
-                    // Upload screenshots
-                    for (let i = 0; i < Math.min(screenshots.length, 10); i++) {
-                        const mfd = new FormData();
-                        mfd.append('media_type', 'image');
-                        mfd.append('file', screenshots[i]);
-                        await fetch('/api/marketplace/' + itemId + '/media', {
-                            method: 'POST',
-                            headers: headers,
-                            body: mfd
-                        });
-                    }
-
-                    // Video URL
-                    const videoUrl = document.getElementById('w-video-url').value.trim();
-                    if (videoUrl) {
-                        const vfd = new FormData();
-                        vfd.append('video_url', videoUrl);
-                        await fetch('/api/marketplace/' + itemId + '/media', {
-                            method: 'POST',
-                            headers: headers,
-                            body: vfd
-                        });
-                    }
-
-                    // Audio previews
-                    const audioFiles = document.getElementById('w-audio')?.files || [];
-                    for (let i = 0; i < Math.min(audioFiles.length, 10); i++) {
-                        const afd = new FormData();
-                        afd.append('media_type', 'audio');
-                        afd.append('file', audioFiles[i]);
-                        await fetch('/api/marketplace/' + itemId + '/media', {
-                            method: 'POST',
-                            headers: headers,
-                            body: afd
-                        });
-                    }
-
-                    const assetLink = '/marketplace/asset/' + itemSlug;
-                    document.getElementById('wizard-success-text').innerHTML = 'Asset published! <a href="' + assetLink + '" class="underline">View your asset <i class="ph ph-arrow-right"></i></a>';
                 }
+
+                // Video URL
+                const videoUrl = document.getElementById('w-video-url').value.trim();
+                if (videoUrl) {
+                    const vfd = new FormData();
+                    vfd.append('video_url', videoUrl);
+                    await fetch('/api/marketplace/' + itemId + '/media', {
+                        method: 'POST',
+                        headers: headers,
+                        body: vfd
+                    });
+                }
+
+                // Audio previews
+                const audioFiles = document.getElementById('w-audio')?.files || [];
+                for (let i = 0; i < Math.min(audioFiles.length, 10); i++) {
+                    const afd = new FormData();
+                    afd.append('media_type', 'audio');
+                    afd.append('file', audioFiles[i]);
+                    await fetch('/api/marketplace/' + itemId + '/media', {
+                        method: 'POST',
+                        headers: headers,
+                        body: afd
+                    });
+                }
+
+                const assetLink = '/marketplace/asset/' + itemSlug;
+                document.getElementById('wizard-success-text').innerHTML = 'Asset published! <a href="' + assetLink + '" class="underline">View your asset <i class="ph ph-arrow-right"></i></a>';
 
                 okEl.classList.remove('hidden');
                 window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -1177,7 +1102,7 @@ pub fn UploadPage() -> impl IntoView {
             // Check for ?type= param to auto-select content type
             const params = new URLSearchParams(window.location.search);
             const typeParam = params.get('type');
-            if (typeParam === 'game' || typeParam === 'asset') {
+            if (typeParam === 'asset') {
                 selectContentType(typeParam);
             }
         })();

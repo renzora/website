@@ -25,12 +25,12 @@ pub fn DownloadPage() -> impl IntoView {
                 </h1>
                 <p class="dl-hero-sub mt-4 text-sm text-zinc-500 uppercase tracking-widest font-medium">"Powered by Rust & Bevy 0.19"</p>
                 <p class="dl-hero-sub mt-5 text-lg md:text-xl text-zinc-300 leading-relaxed max-w-2xl mx-auto">
-                    "The first fully-featured game engine built on Bevy. Get the editor for Windows, macOS, and Linux, or install the Cargo CLI and scaffold your first game in minutes."
+                    "The first fully-featured game engine built on Bevy. Get the editor for Windows, macOS, and Linux, or clone the repo and build it with Cargo in minutes."
                 </p>
 
                 <div class="mt-10 flex gap-3 justify-center flex-wrap">
                     <a href="#install" class="dl-hero-cta group relative inline-flex items-center gap-2 px-6 py-3 rounded-xl text-sm font-semibold bg-purple-600 text-white hover:bg-purple-500 transition-all hover:shadow-[0_0_30px_rgba(99,102,241,0.3)] hover:scale-[1.02]">
-                        <i class="ph ph-terminal-window text-lg"></i>"Install with Cargo"
+                        <i class="ph ph-terminal-window text-lg"></i>"Build from source"
                     </a>
                     <a href="#downloads" class="dl-hero-cta inline-flex items-center gap-2 px-6 py-3 rounded-xl text-sm font-semibold bg-white/5 text-zinc-50 border border-zinc-700/50 hover:border-zinc-500 hover:bg-white/10 transition-all backdrop-blur-sm">
                         <i class="ph ph-download-simple text-lg"></i>"Download prebuilt"
@@ -79,8 +79,8 @@ pub fn DownloadPage() -> impl IntoView {
                                 <i class="ph ph-terminal-window text-2xl text-accent"></i>
                             </div>
                             <div>
-                                <h3 class="text-xl font-semibold">"Install with Cargo"</h3>
-                                <p class="text-sm text-zinc-400 mt-0.5">"The Renzora CLI, published on crates.io. Needs a Rust toolchain, plus Docker and git on your PATH."</p>
+                                <h3 class="text-xl font-semibold">"Build from source"</h3>
+                                <p class="text-sm text-zinc-400 mt-0.5">"Clone the engine and build it with Cargo. Needs a Rust toolchain and git on your PATH."</p>
                             </div>
                         </div>
 
@@ -92,29 +92,26 @@ pub fn DownloadPage() -> impl IntoView {
                                 <span class="text-[11px] text-zinc-600 ml-2">"terminal"</span>
                             </div>
                             <div class="p-4 font-mono text-[13px] leading-relaxed space-y-2">
+                                <p class="break-all">
+                                    <span class="text-zinc-600 select-none">"$ "</span>
+                                    <span class="text-emerald-400">"git"</span>
+                                    <span class="text-zinc-200">" clone https://github.com/renzora/engine.git"</span>
+                                </p>
+                                <p>
+                                    <span class="text-zinc-600 select-none">"$ "</span>
+                                    <span class="text-emerald-400">"cd"</span>
+                                    <span class="text-zinc-200">" engine"</span>
+                                </p>
                                 <p>
                                     <span class="text-zinc-600 select-none">"$ "</span>
                                     <span class="text-emerald-400">"cargo"</span>
-                                    <span class="text-zinc-200">" install renzora"</span>
-                                    <span class="text-zinc-600">"      # the published CLI"</span>
-                                </p>
-                                <p>
-                                    <span class="text-zinc-600 select-none">"$ "</span>
-                                    <span class="text-emerald-400">"renzora"</span>
-                                    <span class="text-zinc-200">" new my-game"</span>
-                                    <span class="text-zinc-600">"     # scaffold a project"</span>
-                                </p>
-                                <p>
-                                    <span class="text-zinc-600 select-none">"$ "</span>
-                                    <span class="text-emerald-400">"renzora"</span>
-                                    <span class="text-zinc-200">" run"</span>
-                                    <span class="text-zinc-600">"             # build it and open the editor"</span>
+                                    <span class="text-zinc-200">" renzora"</span>
+                                    <span class="text-zinc-600">"        # build it and open the editor"</span>
                                 </p>
                             </div>
                         </div>
                         <p class="text-xs text-zinc-500 mt-4">
-                            <code class="text-zinc-300">"renzora new"</code>" scaffolds a fresh project; "
-                            <code class="text-zinc-300">"renzora run"</code>" compiles it and launches the editor on your game."
+                            <code class="text-zinc-300">"cargo renzora"</code>" compiles the engine and launches the editor. The first build takes a few minutes; after that it is incremental."
                         </p>
                     </div>
                 </div>
@@ -228,12 +225,8 @@ pub fn DownloadPage() -> impl IntoView {
                         <p class="text-sm text-zinc-300 leading-snug">"Publish and sell your own creations"</p>
                     </li>
                     <li class="flex items-start gap-3">
-                        <div class="w-8 h-8 rounded-lg bg-sky-500/10 flex items-center justify-center shrink-0"><i class="ph ph-users-three text-sky-400"></i></div>
-                        <p class="text-sm text-zinc-300 leading-snug">"Create teams and collaborate on projects"</p>
-                    </li>
-                    <li class="flex items-start gap-3">
-                        <div class="w-8 h-8 rounded-lg bg-violet-500/10 flex items-center justify-center shrink-0"><i class="ph ph-chats-circle text-violet-400"></i></div>
-                        <p class="text-sm text-zinc-300 leading-snug">"Get help and share devlogs with the community"</p>
+                        <div class="w-8 h-8 rounded-lg bg-sky-500/10 flex items-center justify-center shrink-0"><i class="ph ph-books text-sky-400"></i></div>
+                        <p class="text-sm text-zinc-300 leading-snug">"Keep every purchase in your library, ready to re-download"</p>
                     </li>
                     <li class="flex items-start gap-3">
                         <div class="w-8 h-8 rounded-lg bg-amber-500/10 flex items-center justify-center shrink-0"><i class="ph ph-trophy text-amber-400"></i></div>

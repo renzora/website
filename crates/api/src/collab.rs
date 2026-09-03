@@ -63,7 +63,7 @@ use serde::{Deserialize, Serialize};
 use tokio::sync::mpsc;
 use uuid::Uuid;
 
-use crate::{error::ApiError, jwt, middleware, middleware::AuthUser, notify, AppState};
+use crate::{error::ApiError, jwt, middleware, middleware::AuthUser, AppState};
 
 /// The peer id the host answers to. Guests only ever talk to the host, so this
 /// is the only value they will ever see in an inbound envelope.
@@ -433,26 +433,8 @@ async fn invite(
     }
 
     let code = normalize(&code);
-    let title = format!("{host_username} invited you to edit together");
-    let body_text = if project.is_empty() {
-        format!("Join their session with code {code}")
-    } else {
-        format!("Join “{project}” with code {code}")
-    };
-    notify::notify(
-        &state,
-        body.user_id,
-        "collab_invite",
-        &title,
-        &body_text,
-        Some(&format!("renzora://collab/{code}")),
-        None,
-    )
-    .await?;
-
-    // Also push it as its own live event, so an editor that is running can offer
-    // a one-click join instead of making the user read the code out of a
-    // notification and type it back in.
+    // Push the invite as a live event, so an editor that is running can offer a
+    // one-click join instead of making the user type the code back in.
     state.ws_broadcast.send_to_user(
         body.user_id,
         "collab_invite",

@@ -1,153 +1,26 @@
 use axum::{
     extract::{Extension, Multipart, Path, State},
-    http::HeaderMap,
-    routing::{delete, get, post, put},
+    routing::{get, put},
     Json, Router,
 };
 use serde::Deserialize;
 use sqlx::Row;
 use uuid::Uuid;
 
-use crate::{error::ApiError, jwt, marketplace, middleware, middleware::AuthUser, middleware::JwtSecret, AppState};
+use crate::{error::ApiError, marketplace, middleware, middleware::AuthUser, AppState};
 
 pub fn router() -> Router<AppState> {
     let protected = Router::new()
-        .route("/follow/:username", post(toggle_follow))
-        .route("/friend/:username", post(toggle_friend))
-        .route("/block/:username", post(block_user))
         .route("/avatar", put(upload_avatar))
         .route("/banner", put(upload_banner).delete(delete_banner))
         .route("/storefront", put(update_storefront))
-        .route("/connections", get(list_connections))
-        .route("/connections", post(add_connection))
-        .route("/connections/:platform", delete(remove_connection))
         .layer(axum::middleware::from_fn(middleware::require_auth));
 
     Router::new()
-        .route("/view/:username", get(get_profile))
         .route("/:username/assets", get(get_profile_assets))
-        .route("/:username/followers", get(get_followers))
-        .route("/:username/following", get(get_following))
-        .route("/:username/friends-list", get(get_friends_list))
         .route("/shop/:username", get(get_storefront))
         .route("/search", get(search_users))
-        .route("/popular", get(popular_users))
         .merge(protected)
-}
-
-/// Extract the viewer's user id from an optional Bearer token (same logic as get_profile).
-fn optional_viewer_id(headers: &HeaderMap, jwt_secret: &JwtSecret) -> Option<Uuid> {
-    headers
-        .get("authorization")
-        .and_then(|v| v.to_str().ok())
-        .and_then(|h| h.strip_prefix("Bearer "))
-        .and_then(|token| jwt::validate_token(token, &jwt_secret.0).ok())
-        .filter(|c| c.token_type == "access")
-        .map(|c| c.sub)
-}
-
-/// Enforce the target's profile_visibility for social lists: "friends_only"
-/// profiles are only visible to the target themselves or accepted friends.
-async fn check_list_visibility(
-    state: &AppState,
-    target_id: Uuid,
-    visibility: &str,
-    viewer_id: Option<Uuid>,
-) -> Result<(), ApiError> {
-    if visibility != "friends_only" {
-        return Ok(());
-    }
-    match viewer_id {
-        Some(vid) if vid == target_id => Ok(()),
-        Some(vid) => {
-            let status = renzora_models::friend::Friend::status(&state.db, vid, target_id).await?;
-            if status.as_deref() == Some("accepted") {
-                Ok(())
-            } else {
-                Err(ApiError::Unauthorized)
-            }
-        }
-        None => Err(ApiError::Unauthorized),
-    }
-}
-
-/// Look up a user's id and profile_visibility by username.
-async fn find_target(state: &AppState, username: &str) -> Result<(Uuid, String), ApiError> {
-    let row: Option<(Uuid, String)> = sqlx::query_as("SELECT id, profile_visibility FROM users WHERE username=$1")
-        .bind(username).fetch_optional(&state.db).await?;
-    row.ok_or(ApiError::NotFound)
-}
-
-fn serialize_user_rows(rows: &[(String, Option<String>, String)]) -> Vec<serde_json::Value> {
-    rows.iter().map(|r| serde_json::json!({
-        "username": r.0,
-        "avatar_url": r.1,
-        "role": r.2,
-    })).collect()
-}
-
-async fn get_followers(
-    State(state): State<AppState>,
-    Path(username): Path<String>,
-    headers: HeaderMap,
-    Extension(jwt_secret): Extension<JwtSecret>,
-) -> Result<Json<Vec<serde_json::Value>>, ApiError> {
-    let (target_id, visibility) = find_target(&state, &username).await?;
-    check_list_visibility(&state, target_id, &visibility, optional_viewer_id(&headers, &jwt_secret)).await?;
-
-    let rows: Vec<(String, Option<String>, String)> = sqlx::query_as(
-        "SELECT u.username, u.avatar_url, u.role FROM follows f JOIN users u ON u.id = f.follower_id WHERE f.following_id = $1 ORDER BY f.created_at DESC LIMIT 50"
-    ).bind(target_id).fetch_all(&state.db).await?;
-    Ok(Json(serialize_user_rows(&rows)))
-}
-
-async fn get_following(
-    State(state): State<AppState>,
-    Path(username): Path<String>,
-    headers: HeaderMap,
-    Extension(jwt_secret): Extension<JwtSecret>,
-) -> Result<Json<Vec<serde_json::Value>>, ApiError> {
-    let (target_id, visibility) = find_target(&state, &username).await?;
-    check_list_visibility(&state, target_id, &visibility, optional_viewer_id(&headers, &jwt_secret)).await?;
-
-    let rows: Vec<(String, Option<String>, String)> = sqlx::query_as(
-        "SELECT u.username, u.avatar_url, u.role FROM follows f JOIN users u ON u.id = f.following_id WHERE f.follower_id = $1 ORDER BY f.created_at DESC LIMIT 50"
-    ).bind(target_id).fetch_all(&state.db).await?;
-    Ok(Json(serialize_user_rows(&rows)))
-}
-
-async fn get_friends_list(
-    State(state): State<AppState>,
-    Path(username): Path<String>,
-    headers: HeaderMap,
-    Extension(jwt_secret): Extension<JwtSecret>,
-) -> Result<Json<Vec<serde_json::Value>>, ApiError> {
-    let (target_id, visibility) = find_target(&state, &username).await?;
-    check_list_visibility(&state, target_id, &visibility, optional_viewer_id(&headers, &jwt_secret)).await?;
-
-    let rows: Vec<(String, Option<String>, String)> = sqlx::query_as(
-        "SELECT u.username, u.avatar_url, u.role FROM friends f JOIN users u ON u.id = f.friend_id WHERE f.user_id = $1 AND f.status = 'accepted' ORDER BY u.username LIMIT 50"
-    ).bind(target_id).fetch_all(&state.db).await?;
-    Ok(Json(serialize_user_rows(&rows)))
-}
-
-async fn popular_users(
-    State(state): State<AppState>,
-) -> Result<Json<Vec<serde_json::Value>>, ApiError> {
-    let rows: Vec<(String, Option<String>, String, i64)> = sqlx::query_as(
-        "SELECT u.username, u.avatar_url, u.role, COUNT(*)::bigint as follower_count \
-         FROM follows f JOIN users u ON u.id = f.following_id \
-         GROUP BY u.id, u.username, u.avatar_url, u.role \
-         ORDER BY follower_count DESC LIMIT 10"
-    ).fetch_all(&state.db).await?;
-
-    let items: Vec<serde_json::Value> = rows.iter().map(|r| serde_json::json!({
-        "username": r.0,
-        "avatar_url": r.1,
-        "role": r.2,
-        "follower_count": r.3,
-    })).collect();
-    Ok(Json(items))
 }
 
 #[derive(serde::Deserialize)]
@@ -178,100 +51,6 @@ async fn search_users(
     })).collect();
 
     Ok(Json(results))
-}
-
-async fn get_profile(
-    State(state): State<AppState>,
-    Path(username): Path<String>,
-    headers: HeaderMap,
-    Extension(jwt_secret): Extension<JwtSecret>,
-) -> Result<Json<serde_json::Value>, ApiError> {
-    // Try to extract viewer identity from optional Bearer token
-    let viewer_id = headers
-        .get("authorization")
-        .and_then(|v| v.to_str().ok())
-        .and_then(|h| h.strip_prefix("Bearer "))
-        .and_then(|token| jwt::validate_token(token, &jwt_secret.0).ok())
-        .filter(|c| c.token_type == "access")
-        .map(|c| c.sub);
-    let row = sqlx::query("SELECT id, username, role, bio, website, location, gender, profile_color, banner_color, avatar_url, banner_url, follower_count, following_count, post_count, credit_balance, total_xp, level, seller_level, seller_xp, created_at, storefront_enabled FROM users WHERE username=$1")
-        .bind(&username)
-        .fetch_optional(&state.db)
-        .await?
-        .ok_or(ApiError::NotFound)?;
-
-    let id: Uuid = row.get("id");
-
-    // Badges
-    let badge_rows = sqlx::query("SELECT b.slug, b.name, b.description, b.icon, b.color FROM user_badges ub JOIN badges b ON b.id=ub.badge_id WHERE ub.user_id=$1")
-        .bind(id)
-        .fetch_all(&state.db)
-        .await?;
-
-    let badges: Vec<serde_json::Value> = badge_rows.iter().map(|r| serde_json::json!({
-        "slug": r.get::<String, _>("slug"),
-        "name": r.get::<String, _>("name"),
-        "description": r.get::<String, _>("description"),
-        "icon": r.get::<String, _>("icon"),
-        "color": r.get::<String, _>("color"),
-    })).collect();
-
-    // Check if viewer follows this user
-    let is_following = if let Some(vid) = viewer_id {
-        let r: Option<(Uuid,)> = sqlx::query_as("SELECT follower_id FROM follows WHERE follower_id=$1 AND following_id=$2")
-            .bind(vid).bind(id).fetch_optional(&state.db).await?;
-        r.is_some()
-    } else {
-        false
-    };
-
-    // Social connections
-    let connections = renzora_models::social_connection::SocialConnection::list_for_user(&state.db, id).await.unwrap_or_default();
-
-    // Count published assets
-    let asset_count: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM assets WHERE creator_id=$1 AND published=true"
-    )
-    .bind(id)
-    .fetch_one(&state.db)
-    .await?;
-
-    // Total donated (public donations only — anonymous ones stay private)
-    let total_donated: i64 = sqlx::query_scalar(
-        "SELECT COALESCE(SUM(amount), 0)::bigint FROM donations WHERE user_id=$1 AND anonymous=false"
-    )
-    .bind(id)
-    .fetch_one(&state.db)
-    .await?;
-
-    Ok(Json(serde_json::json!({
-        "id": id,
-        "username": row.get::<String, _>("username"),
-        "role": row.get::<String, _>("role"),
-        "bio": row.get::<String, _>("bio"),
-        "website": row.get::<String, _>("website"),
-        "location": row.get::<String, _>("location"),
-        "gender": row.get::<String, _>("gender"),
-        "profile_color": row.get::<String, _>("profile_color"),
-        "banner_color": row.get::<String, _>("banner_color"),
-        "avatar_url": row.get::<Option<String>, _>("avatar_url"),
-        "banner_url": row.get::<Option<String>, _>("banner_url"),
-        "follower_count": row.get::<i32, _>("follower_count"),
-        "following_count": row.get::<i32, _>("following_count"),
-        "post_count": row.get::<i32, _>("post_count"),
-        "credit_balance": row.get::<i64, _>("credit_balance"),
-        "total_xp": row.get::<i64, _>("total_xp"),
-        "level": row.get::<i32, _>("level"),
-        "seller_level": row.get::<i32, _>("seller_level"),
-        "seller_xp": row.get::<i64, _>("seller_xp"),
-        "is_following": is_following,
-        "badges": badges,
-        "asset_count": asset_count,
-        "total_donated": total_donated,
-        "connections": connections,
-        "storefront_enabled": row.get::<bool, _>("storefront_enabled"),
-        "created_at": row.get::<time::OffsetDateTime, _>("created_at").to_string(),
-    })))
 }
 
 #[derive(Deserialize)]
@@ -418,33 +197,6 @@ async fn delete_banner(
     Ok(Json(serde_json::json!({ "message": "Banner removed" })))
 }
 
-async fn toggle_follow(
-    State(state): State<AppState>,
-    Extension(auth): Extension<AuthUser>,
-    Path(username): Path<String>,
-) -> Result<Json<serde_json::Value>, ApiError> {
-    let row: Option<(Uuid,)> = sqlx::query_as("SELECT id FROM users WHERE username=$1")
-        .bind(&username).fetch_optional(&state.db).await?;
-    let target_id = row.ok_or(ApiError::NotFound)?.0;
-
-    if target_id == auth.user_id {
-        return Err(ApiError::Validation("Cannot follow yourself".into()));
-    }
-
-    let following = renzora_models::profile::toggle_follow(&state.db, auth.user_id, target_id).await?;
-
-    if following {
-        if let Some(follower) = renzora_models::user::User::find_by_id(&state.db, auth.user_id).await? {
-            let user = &follower.username;
-            let _ = crate::notify::notify(&state, target_id, "follow",
-                &format!("{user} started following you"), "", Some(&format!("/profile/{user}")),
-                follower.avatar_url.as_deref()).await;
-        }
-    }
-
-    Ok(Json(serde_json::json!({"following": following})))
-}
-
 // ── Storefront ──
 
 async fn get_storefront(
@@ -490,27 +242,6 @@ async fn get_storefront(
         "views": r.get::<i64, _>("views"),
     })).collect();
 
-    // Published games
-    let game_rows = sqlx::query(
-        "SELECT id, name, slug, description, category, price_credits, thumbnail_url, version, downloads, views FROM games WHERE creator_id=$1 AND published=true ORDER BY created_at DESC"
-    )
-    .bind(id)
-    .fetch_all(&state.db)
-    .await?;
-
-    let games: Vec<serde_json::Value> = game_rows.iter().map(|r| serde_json::json!({
-        "id": r.get::<Uuid, _>("id"),
-        "name": r.get::<String, _>("name"),
-        "slug": r.get::<String, _>("slug"),
-        "description": r.get::<String, _>("description"),
-        "category": r.get::<String, _>("category"),
-        "price_credits": r.get::<i64, _>("price_credits"),
-        "thumbnail_url": r.get::<Option<String>, _>("thumbnail_url"),
-        "version": r.get::<String, _>("version"),
-        "downloads": r.get::<i64, _>("downloads"),
-        "views": r.get::<i64, _>("views"),
-    })).collect();
-
     // Badges
     let badge_rows = sqlx::query("SELECT b.slug, b.name, b.description, b.icon, b.color FROM user_badges ub JOIN badges b ON b.id=ub.badge_id WHERE ub.user_id=$1")
         .bind(id).fetch_all(&state.db).await?;
@@ -542,7 +273,6 @@ async fn get_storefront(
         "css": row.get::<String, _>("storefront_css"),
         "badges": badges,
         "assets": assets,
-        "games": games,
     })))
 }
 
@@ -623,118 +353,4 @@ async fn update_storefront(
     Ok(Json(serde_json::json!({"message": "Storefront updated"})))
 }
 
-async fn toggle_friend(
-    State(state): State<AppState>,
-    Extension(auth): Extension<AuthUser>,
-    Path(username): Path<String>,
-) -> Result<Json<serde_json::Value>, ApiError> {
-    let target = renzora_models::user::User::find_by_username(&state.db, &username).await?.ok_or(ApiError::NotFound)?;
-    if target.id == auth.user_id {
-        return Err(ApiError::Validation("Cannot friend yourself".into()));
-    }
-
-    // Check current status
-    let status = renzora_models::friend::Friend::status(&state.db, auth.user_id, target.id).await?;
-
-    match status.as_deref() {
-        Some("accepted") => {
-            // Remove friend
-            renzora_models::friend::Friend::remove(&state.db, auth.user_id, target.id).await?;
-            Ok(Json(serde_json::json!({"status": "none"})))
-        }
-        Some("pending") => {
-            // Already pending - could be incoming or outgoing
-            // Check if we sent it or they sent it
-            let incoming = renzora_models::friend::Friend::status(&state.db, target.id, auth.user_id).await?;
-            if incoming.as_deref() == Some("pending") {
-                // They sent us a request, accept it
-                renzora_models::friend::Friend::accept(&state.db, auth.user_id, target.id).await?;
-                // Notify them
-                let accepter = renzora_models::user::User::find_by_id(&state.db, auth.user_id).await?;
-                crate::notify::notify(
-                    &state, target.id, "friend_accepted",
-                    "Friend request accepted",
-                    &format!("{} accepted your friend request", username),
-                    Some(&format!("/profile/{}", username)),
-                    accepter.as_ref().and_then(|u| u.avatar_url.as_deref()),
-                ).await?;
-                Ok(Json(serde_json::json!({"status": "accepted"})))
-            } else {
-                // We already sent a request, cancel it
-                renzora_models::friend::Friend::remove(&state.db, auth.user_id, target.id).await?;
-                Ok(Json(serde_json::json!({"status": "none"})))
-            }
-        }
-        Some("blocked") => {
-            Err(ApiError::Validation("User is blocked".into()))
-        }
-        _ => {
-            // Send friend request
-            renzora_models::friend::Friend::send_request(&state.db, auth.user_id, target.id).await?;
-            // Notify target
-            let sender = renzora_models::user::User::find_by_id(&state.db, auth.user_id).await?.ok_or(ApiError::NotFound)?;
-            crate::notify::notify(
-                &state, target.id, "friend_request",
-                "Friend request",
-                &format!("{} sent you a friend request", sender.username),
-                Some(&format!("/profile/{}", sender.username)),
-                sender.avatar_url.as_deref(),
-            ).await?;
-            Ok(Json(serde_json::json!({"status": "pending"})))
-        }
-    }
-}
-
-async fn block_user(
-    State(state): State<AppState>,
-    Extension(auth): Extension<AuthUser>,
-    Path(username): Path<String>,
-) -> Result<Json<serde_json::Value>, ApiError> {
-    let target = renzora_models::user::User::find_by_username(&state.db, &username).await?.ok_or(ApiError::NotFound)?;
-    if target.id == auth.user_id {
-        return Err(ApiError::Validation("Cannot block yourself".into()));
-    }
-    renzora_models::friend::Friend::block(&state.db, auth.user_id, target.id).await?;
-    Ok(Json(serde_json::json!({"ok": true})))
-}
-
 // ── Social Connections ──
-
-async fn list_connections(
-    State(state): State<AppState>,
-    Extension(auth): Extension<AuthUser>,
-) -> Result<Json<serde_json::Value>, ApiError> {
-    let conns = renzora_models::social_connection::SocialConnection::list_for_user(&state.db, auth.user_id).await?;
-    Ok(Json(serde_json::json!(conns)))
-}
-
-#[derive(Deserialize)]
-struct AddConnectionBody {
-    platform: String,
-    username: String,
-    url: Option<String>,
-}
-
-async fn add_connection(
-    State(state): State<AppState>,
-    Extension(auth): Extension<AuthUser>,
-    Json(body): Json<AddConnectionBody>,
-) -> Result<Json<serde_json::Value>, ApiError> {
-    let valid = ["discord", "twitch", "steam", "xbox", "playstation", "epic", "kick", "youtube", "twitter", "github"];
-    if !valid.contains(&body.platform.as_str()) {
-        return Err(ApiError::Validation("Invalid platform".into()));
-    }
-    let conn = renzora_models::social_connection::SocialConnection::upsert(
-        &state.db, auth.user_id, &body.platform, &body.username, body.url.as_deref(), None, false
-    ).await?;
-    Ok(Json(serde_json::json!(conn)))
-}
-
-async fn remove_connection(
-    State(state): State<AppState>,
-    Extension(auth): Extension<AuthUser>,
-    Path(platform): Path<String>,
-) -> Result<Json<serde_json::Value>, ApiError> {
-    renzora_models::social_connection::SocialConnection::delete(&state.db, auth.user_id, &platform).await?;
-    Ok(Json(serde_json::json!({"ok": true})))
-}

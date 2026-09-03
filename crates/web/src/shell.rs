@@ -8,7 +8,7 @@ use crate::pages::embed::EmbedPreviewPage;
 /// site URL. Describes Renzora as a SoftwareApplication (a Bevy editor / game
 /// engine), the WebSite (with marketplace search), and the Organization, this
 /// helps search engines understand the entity and enables rich results.
-const JSON_LD: &str = r#"{"@context":"https://schema.org","@graph":[{"@type":"SoftwareApplication","name":"Renzora","alternateName":"Renzora Engine","applicationCategory":"DeveloperApplication","applicationSubCategory":"Game Engine","operatingSystem":"Windows, macOS, Linux, Android, iOS, Web","description":"Renzora is a free, open-source Bevy editor and game engine with a full visual editor, Lua and Rhai scripting, a plugin system, physics and real-time rendering, built in Rust on Bevy.","url":"{SITE}","downloadUrl":"{SITE}/download","softwareVersion":"r1-alpha6","offers":{"@type":"Offer","price":"0","priceCurrency":"USD"},"isAccessibleForFree":true,"license":"https://opensource.org/licenses/MIT","sameAs":["https://github.com/renzora/engine","https://bevy.org/assets/"]},{"@type":"WebSite","name":"Renzora","url":"{SITE}","potentialAction":{"@type":"SearchAction","target":{"@type":"EntryPoint","urlTemplate":"{SITE}/marketplace?q={search_term_string}"},"query-input":"required name=search_term_string"}},{"@type":"Organization","name":"Renzora","url":"{SITE}","logo":"{SITE}/assets/previews/logo.png","sameAs":["https://github.com/renzora/engine"]}]}"#;
+const JSON_LD: &str = r#"{"@context":"https://schema.org","@graph":[{"@type":"SoftwareApplication","name":"Renzora","alternateName":"Renzora Engine","applicationCategory":"DeveloperApplication","applicationSubCategory":"Game Engine","operatingSystem":"Windows, macOS, Linux, Android, iOS, Web","description":"Renzora is a free, open-source Bevy editor and game engine with a full visual editor, Lua and Rhai scripting, a plugin system, physics and real-time rendering, built in Rust on Bevy.","url":"{SITE}","downloadUrl":"{SITE}","softwareVersion":"r1-alpha6","offers":{"@type":"Offer","price":"0","priceCurrency":"USD"},"isAccessibleForFree":true,"license":"https://opensource.org/licenses/MIT","sameAs":["https://github.com/renzora/engine","https://bevy.org/assets/"]},{"@type":"WebSite","name":"Renzora","url":"{SITE}","potentialAction":{"@type":"SearchAction","target":{"@type":"EntryPoint","urlTemplate":"{SITE}/marketplace?q={search_term_string}"},"query-input":"required name=search_term_string"}},{"@type":"Organization","name":"Renzora","url":"{SITE}","logo":"{SITE}/assets/previews/logo.png","sameAs":["https://github.com/renzora/engine"]}]}"#;
 
 /// Speculation Rules (Chromium): make internal navigation feel instant by
 /// resolving the destination *before* the click.
@@ -17,14 +17,14 @@ const JSON_LD: &str = r#"{"@context":"https://schema.org","@graph":[{"@type":"So
 ///     Scoped to read-only routes only.
 ///   • `prefetch` is the universal fallback; where both rules match a URL the
 ///     browser upgrades to prerender. Detail routes that count a view via their
-///     client JS (`/articles/:slug`, `/marketplace/asset/:slug`) are excluded
+///     client JS (`/marketplace/asset/:slug`) are excluded
 ///     from prerender and only prefetched, prefetch fetches the HTML but does
 ///     NOT execute page JS, so a hover can't inflate view counts, while a real
 ///     click still loads from cache (zero network) and counts once.
 /// Links can opt out with `data-no-prefetch`; `target="_blank"` and cross-origin
 /// links are never speculated. Non-Chromium browsers ignore this block and use
 /// the hover-prefetch fallback script instead.
-const SPEC_RULES: &str = r#"{"prerender":[{"where":{"and":[{"href_matches":"/*"},{"not":{"href_matches":"/articles/*"}},{"not":{"href_matches":"/marketplace/asset/*"}},{"not":{"href_matches":"/login"}},{"not":{"href_matches":"/register"}},{"not":{"selector_matches":"[data-no-prefetch]"}},{"not":{"selector_matches":"[target=\"_blank\"]"}}]},"eagerness":"moderate"}],"prefetch":[{"where":{"and":[{"href_matches":"/*"},{"not":{"selector_matches":"[data-no-prefetch]"}},{"not":{"selector_matches":"[target=\"_blank\"]"}}]},"eagerness":"moderate"}]}"#;
+const SPEC_RULES: &str = r#"{"prerender":[{"where":{"and":[{"href_matches":"/*"},{"not":{"href_matches":"/marketplace/asset/*"}},{"not":{"href_matches":"/login"}},{"not":{"href_matches":"/register"}},{"not":{"selector_matches":"[data-no-prefetch]"}},{"not":{"selector_matches":"[target=\"_blank\"]"}}]},"eagerness":"moderate"}],"prefetch":[{"where":{"and":[{"href_matches":"/*"},{"not":{"selector_matches":"[data-no-prefetch]"}},{"not":{"selector_matches":"[target=\"_blank\"]"}}]},"eagerness":"moderate"}]}"#;
 
 /// Extract the `scheme://host[:port]` origin from a URL, or `None` if it has no
 /// scheme (used to turn `S3_PUBLIC_URL` into a `preconnect` target).
@@ -63,7 +63,7 @@ pub fn Shell() -> impl IntoView {
 
     // Marketplace/asset thumbnails come from S3_PUBLIC_URL. When that's a distinct
     // origin, resolve its DNS early. Only a dns-prefetch (not a preconnect): pages
-    // without those images — e.g. the home page — otherwise open an unused TLS
+    // without those images — e.g. the docs pages — otherwise open an unused TLS
     // connection, which PSI flags. Emitted only when cross-origin.
     let asset_hint = origin_of(&std::env::var("S3_PUBLIC_URL").unwrap_or_default())
         .filter(|o| *o != site)

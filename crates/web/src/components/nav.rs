@@ -8,13 +8,7 @@ pub fn Nav() -> impl IntoView {
             // Main menu (mobile only, the desktop menu is in the top header)
             <nav class="lg:hidden mx-3 mt-4 rounded-2xl border border-white/[0.06] bg-gradient-to-br from-white/[0.07] to-white/[0.02] p-2 space-y-0.5 overflow-hidden">
                 <a href="/" class="side-link nav-link" data-path="/">
-                    <i class="ph ph-house text-lg"></i>"Home"
-                </a>
-                <a href="/download" class="side-link nav-link" data-path="/download">
                     <i class="ph ph-download-simple text-lg"></i>"Download Engine"
-                </a>
-                <a href="/community" class="side-link nav-link nav-community" data-path="/community">
-                    <i class="ph ph-users-three text-lg"></i>"Community"
                 </a>
                 <a href="/marketplace" class="side-link nav-link" data-path="/marketplace">
                     <i class="ph ph-storefront text-lg"></i>"Marketplace"
@@ -54,17 +48,9 @@ pub fn Nav() -> impl IntoView {
                     <div class="text-[10px] text-zinc-500"><span id="nav-goal-current" class="text-zinc-300 font-medium">"0"</span>" / "<span id="nav-goal-target">"0"</span>" this month"</div>
                 </a>
 
-                // Friends card (logged in)
-                <div id="nav-friends-card" class="hidden rounded-xl p-3 bg-white/[0.03] border border-white/[0.07]">
-                    <div class="flex items-center justify-between mb-2">
-                        <span class="text-[9px] font-semibold uppercase tracking-[0.16em] text-zinc-400">"Friends "<span id="nav-friends-count" class="normal-case tracking-normal text-emerald-400 font-medium"></span></span>
-                        <a href="/friends" class="text-[10px] text-zinc-500 hover:text-accent transition-colors">"See all"</a>
-                    </div>
-                    <div id="nav-friends-list" class="space-y-0.5"></div>
-                </div>
                 // Sign in / register box (logged out)
                 <div id="nav-side-guest" class="rounded-xl p-3 bg-white/[0.03] border border-white/[0.07]">
-                    <p class="text-[9px] font-semibold uppercase tracking-[0.16em] text-zinc-400">"Join the conversation"</p>
+                    <p class="text-[9px] font-semibold uppercase tracking-[0.16em] text-zinc-400">"Sign in to Renzora"</p>
                     <form class="mt-2 space-y-1.5" onsubmit="return sideLogin(event)">
                         <input type="email" name="email" required placeholder="Email" autocomplete="email" class="w-full px-2.5 py-1.5 bg-black/30 border border-white/[0.08] rounded-lg text-zinc-50 text-xs outline-none focus:border-accent/50 transition-all placeholder:text-zinc-600" />
                         <input type="password" name="password" required placeholder="Password" autocomplete="current-password" class="w-full px-2.5 py-1.5 bg-black/30 border border-white/[0.08] rounded-lg text-zinc-50 text-xs outline-none focus:border-accent/50 transition-all placeholder:text-zinc-600" />
@@ -72,19 +58,6 @@ pub fn Nav() -> impl IntoView {
                         <button type="submit" id="nav-side-login-btn" class="w-full text-xs font-semibold text-white bg-purple-600 hover:bg-purple-500 transition-colors rounded-lg py-1.5">"Sign In"</button>
                     </form>
                     <a href="/register" class="mt-2 block text-center text-[11px] text-zinc-500 hover:text-zinc-300 transition-colors">"New here? "<span class="text-accent font-semibold">"Create an account"</span></a>
-                </div>
-
-                // Renzora Game card (coming soon)
-                <div class="rounded-xl p-3 bg-gradient-to-br from-fuchsia-500/[0.15] to-purple-600/[0.08] border border-white/[0.07]">
-                    <div class="flex items-center justify-between gap-2">
-                        <p class="text-[9px] font-semibold uppercase tracking-[0.16em] text-zinc-400">"Renzora Game"</p>
-                        <span class="text-[9px] font-semibold px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-400 shrink-0">"Coming Soon"</span>
-                    </div>
-                    <div class="flex items-center gap-1.5 mt-1.5">
-                        <i class="ph ph-game-controller text-fuchsia-400 text-sm"></i>
-                        <span class="text-sm font-semibold text-white">"Open-world adventure"</span>
-                    </div>
-                    <a href="/game" class="mt-2.5 block text-center text-xs font-semibold text-white bg-fuchsia-600 hover:bg-fuchsia-500 transition-colors rounded-lg py-1.5">"Join Waiting List"</a>
                 </div>
 
                 // Engine download card
@@ -95,7 +68,7 @@ pub fn Nav() -> impl IntoView {
                         <span class="text-sm font-semibold text-white">"r1-alpha6"</span>
                         <span class="text-[9px] font-semibold px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-400">"Free"</span>
                     </div>
-                    <a href="/download" class="mt-2.5 block text-center text-xs font-semibold text-white bg-purple-600 hover:bg-purple-500 transition-colors rounded-lg py-1.5">"Download"</a>
+                    <a href="/" class="mt-2.5 block text-center text-xs font-semibold text-white bg-purple-600 hover:bg-purple-500 transition-colors rounded-lg py-1.5">"Download"</a>
                 </div>
 
                 // Credits card (logged in)
@@ -153,20 +126,18 @@ pub fn Nav() -> impl IntoView {
                 <div id="global-search-panel" class="hidden absolute left-0 top-full mt-2 w-[420px] max-w-[90vw] bg-[rgba(12,7,21,0.95)] backdrop-blur-2xl border border-white/[0.08] rounded-xl shadow-2xl shadow-black/60 overflow-hidden z-50">
                     <div class="flex items-center gap-2 px-4 py-3 border-b border-white/[0.06]">
                         <i class="ph ph-magnifying-glass text-zinc-500"></i>
-                        <input type="text" id="global-search-input" placeholder="Search assets, users, docs..." oninput="globalSearch(this.value)" class="flex-1 bg-transparent text-sm text-zinc-50 outline-none placeholder:text-zinc-600" />
+                        <input type="text" id="global-search-input" placeholder="Search assets and docs..." oninput="globalSearch(this.value)" class="flex-1 bg-transparent text-sm text-zinc-50 outline-none placeholder:text-zinc-600" />
                         <kbd class="text-[10px] text-zinc-600 border border-white/[0.08] rounded px-1.5 py-0.5">"Esc"</kbd>
                     </div>
                     <div id="global-search-results" class="max-h-[400px] overflow-y-auto">
-                        <div class="px-4 py-8 text-center text-xs text-zinc-600">"Type to search across marketplace, users, and docs."</div>
+                        <div class="px-4 py-8 text-center text-xs text-zinc-600">"Type to search the marketplace and docs."</div>
                     </div>
                 </div>
             </div>
 
             // Main nav (desktop top bar)
             <nav class="hidden lg:flex items-center gap-1 ml-2">
-                <a href="/" class="top-link nav-link" data-path="/"><i class="ph ph-house text-base"></i>"Home"</a>
-                <a href="/download" class="top-link nav-link" data-path="/download"><i class="ph ph-download-simple text-base"></i>"Download Engine"</a>
-                <a href="/community" class="top-link nav-link nav-community" data-path="/community"><i class="ph ph-users-three text-base"></i>"Community"</a>
+                <a href="/" class="top-link nav-link" data-path="/"><i class="ph ph-download-simple text-base"></i>"Download Engine"</a>
                 <a href="/marketplace" class="top-link nav-link" data-path="/marketplace"><i class="ph ph-storefront text-base"></i>"Marketplace"</a>
                 <a href="/docs" class="top-link nav-link" data-path="/docs"><i class="ph ph-book-open text-base"></i>"Docs"</a>
                 <a href="/donate" class="top-link nav-link donate" data-path="/donate"><i class="ph ph-heart text-base"></i>"Donate"</a>
@@ -189,28 +160,6 @@ pub fn Nav() -> impl IntoView {
                     <span id="nav-credits" class="text-sm text-white font-semibold">"0"</span>
                     <span class="text-xs text-amber-400/80 font-medium hidden sm:inline">"credits"</span>
                 </a>
-                // Messages
-                <a href="/messages" class="relative p-2 rounded-lg hover:bg-white/[0.06] transition-colors" title="Messages">
-                    <i class="ph ph-chat-circle-dots text-lg text-zinc-400 hover:text-zinc-200"></i>
-                    <span id="msg-badge" class="hidden absolute top-0 right-0 min-w-[16px] h-4 px-1 bg-accent rounded-full text-[9px] font-bold text-white flex items-center justify-center"></span>
-                </a>
-                // Notifications
-                <div class="relative" id="notif-wrap">
-                    <button onclick="toggleNotifs()" class="text-zinc-400 hover:text-white p-2 rounded-lg hover:bg-white/[0.06] transition-all relative">
-                        <i class="ph ph-bell text-lg"></i>
-                        <span id="notif-badge" class="hidden absolute top-0 right-0 min-w-[16px] h-4 px-1 bg-red-500 rounded-full text-[9px] text-white flex items-center justify-center font-bold"></span>
-                    </button>
-                    <div id="notif-dropdown" class="hidden absolute right-0 top-full mt-2 w-80 max-w-[90vw] bg-[rgba(12,7,21,0.95)] backdrop-blur-2xl border border-white/[0.08] rounded-xl shadow-2xl overflow-hidden z-50">
-                        <div class="flex justify-between items-center px-3 py-2.5 border-b border-white/[0.06]">
-                            <span class="text-xs font-semibold text-zinc-300">"Notifications"</span>
-                            <button onclick="markAllRead()" class="text-xs text-accent hover:text-accent-hover">"Mark all read"</button>
-                        </div>
-                        <div id="notif-list" class="max-h-80 overflow-y-auto">
-                            <p class="text-xs text-zinc-500 p-4 text-center">"No notifications"</p>
-                        </div>
-                        <a href="/notifications" class="block px-3 py-2.5 text-center text-xs text-accent hover:text-accent-hover border-t border-white/[0.06]">"See all notifications"</a>
-                    </div>
-                </div>
                 // User
                 <div class="relative" id="user-dropdown-wrap">
                     <button onclick="toggleDropdown()" id="user-dropdown-btn" class="flex items-center gap-1.5 pl-1 pr-2 py-1 rounded-full bg-white/[0.04] border border-white/[0.06] hover:bg-white/[0.08] transition-all cursor-pointer">
@@ -219,20 +168,11 @@ pub fn Nav() -> impl IntoView {
                         <i class="ph ph-caret-down text-xs text-zinc-500"></i>
                     </button>
                     <div id="user-dropdown" class="hidden absolute right-0 top-full mt-2 w-52 bg-[rgba(12,7,21,0.95)] backdrop-blur-2xl border border-white/[0.08] rounded-xl shadow-2xl overflow-hidden z-50 py-1">
-                        <a id="nav-profile-link" href="/profile" class="flex items-center gap-2.5 px-4 py-2.5 text-sm text-zinc-400 hover:text-white hover:bg-white/[0.06] transition-all">
-                            <i class="ph ph-user text-base"></i>"Profile"
-                        </a>
                         <a href="/library" class="flex items-center gap-2.5 px-4 py-2.5 text-sm text-zinc-400 hover:text-white hover:bg-white/[0.06] transition-all">
                             <i class="ph ph-books text-base"></i>"My Library"
                         </a>
-                        <a href="/friends" class="flex items-center gap-2.5 px-4 py-2.5 text-sm text-zinc-400 hover:text-white hover:bg-white/[0.06] transition-all">
-                            <i class="ph ph-user-plus text-base"></i>"Friends"
-                        </a>
                         <a id="nav-sell-link" href="/marketplace/sell" class="flex items-center gap-2.5 px-4 py-2.5 text-sm text-zinc-400 hover:text-white hover:bg-white/[0.06] transition-all">
                             <i class="ph ph-storefront text-base" id="nav-sell-icon"></i><span id="nav-sell-text">"Sell on Marketplace"</span>
-                        </a>
-                        <a href="/teams" class="flex items-center gap-2.5 px-4 py-2.5 text-sm text-zinc-400 hover:text-white hover:bg-white/[0.06] transition-all">
-                            <i class="ph ph-users-three text-base"></i>"Teams"
                         </a>
                         <a href="/subscription" class="flex items-center gap-2.5 px-4 py-2.5 text-sm text-zinc-400 hover:text-white hover:bg-white/[0.06] transition-all">
                             <i class="ph ph-heart text-base"></i>"Donate to Renzora"
@@ -281,12 +221,8 @@ pub fn Nav() -> impl IntoView {
                         if (username) username.textContent = u.username;
                         const initial = document.getElementById('nav-avatar-initial');
                         if (initial && u.username) initial.textContent = u.username.charAt(0).toUpperCase();
-                        const profileLink = document.getElementById('nav-profile-link');
-                        if (profileLink) profileLink.href = '/profile/' + u.username;
                         if (sideCredits) { sideCredits.classList.remove('hidden'); sideCredits.classList.add('block'); }
                         if (sideGuest) { sideGuest.classList.add('hidden'); }
-                        // Home is the community feed when signed in, so drop the redundant Community nav item.
-                        document.querySelectorAll('.nav-community').forEach(el => { el.style.display = 'none'; });
                     } catch(e) {}
                     // Credits, badges, XP and creator status are loaded together by loadUserSummary().
                 }
@@ -327,49 +263,12 @@ pub fn Nav() -> impl IntoView {
                     document.cookie = `token=${data.access_token};path=/;max-age=2592000;SameSite=Strict`;
                     document.cookie = `refresh_token=${data.refresh_token};path=/;max-age=2592000;SameSite=Strict`;
                     document.cookie = `user=${encodeURIComponent(JSON.stringify(data.user))};path=/;max-age=2592000;SameSite=Strict`;
-                    // Home/community sign-ins land on the feed (/); elsewhere just reload in place.
-                    var _p = window.location.pathname;
-                    if (_p === '/' || _p === '/community' || _p.indexOf('/community/') === 0) { window.location.href = '/'; }
-                    else { window.location.reload(); }
+                    window.location.reload();
                 } catch (error) {
                     err.textContent = error.message; err.classList.remove('hidden');
                     btn.disabled = false; btn.textContent = 'Sign In';
                 }
                 return false;
-            }
-            function toggleNotifs() {
-                const dd = document.getElementById('notif-dropdown');
-                dd.classList.toggle('hidden');
-                if (!dd.classList.contains('hidden')) loadNotifList();
-            }
-            document.addEventListener('click', function(e) {
-                const wrap = document.getElementById('notif-wrap');
-                const dd = document.getElementById('notif-dropdown');
-                if (wrap && dd && !wrap.contains(e.target)) dd.classList.add('hidden');
-            });
-            async function loadNotifList() {
-                const token = getCookie('token');
-                if (!token) return;
-                try {
-                    const res = await fetch('/api/notifications', { headers: { 'Authorization': 'Bearer ' + token } });
-                    if (!res.ok) return;
-                    const data = await res.json();
-                    const el = document.getElementById('notif-list');
-                    if (!data.notifications?.length) { el.innerHTML = '<p class=\"text-xs text-zinc-500 p-4 text-center\">No notifications</p>'; return; }
-                    el.innerHTML = data.notifications.slice(0, 10).map(n => `
-                        <a href="${n.link || '#'}" class="block px-3 py-2.5 hover:bg-white/5 transition-all border-b border-zinc-800/50 ${n.read ? '' : 'bg-accent/5'}">
-                            <p class="text-xs font-medium ${n.read ? 'text-zinc-400' : 'text-zinc-50'}">${n.title}</p>
-                            <p class="text-[11px] text-zinc-500 mt-0.5">${n.body}</p>
-                        </a>
-                    `).join('');
-                } catch(e) {}
-            }
-            async function markAllRead() {
-                const token = getCookie('token');
-                if (!token) return;
-                await fetch('/api/notifications/read-all', { method: 'PUT', headers: { 'Authorization': 'Bearer ' + token } });
-                document.getElementById('notif-badge')?.classList.add('hidden');
-                loadNotifList();
             }
             // WebSocket live updates
             let ws = null;
@@ -381,15 +280,6 @@ pub fn Nav() -> impl IntoView {
                 ws.onmessage = function(e) {
                     try {
                         const msg = JSON.parse(e.data);
-                        if (msg.event === 'notification') {
-                            // Update notification badge
-                            const badge = document.getElementById('notif-badge');
-                            if (badge) {
-                                const cur = parseInt(badge.textContent) || 0;
-                                badge.textContent = cur + 1;
-                                badge.classList.remove('hidden');
-                            }
-                        }
                         if (msg.event === 'credit_update') {
                             // Refetch the balance rather than adding to the displayed
                             // text, the display is locale-formatted ("1,600") and
@@ -408,25 +298,6 @@ pub fn Nav() -> impl IntoView {
                                     if (cs) cs.textContent = bal;
                                 } catch(e) {}
                             })();
-                        }
-                        if (msg.event === 'new_message') {
-                            var msgBadge = document.getElementById('msg-badge');
-                            if (msgBadge) {
-                                var current = parseInt(msgBadge.textContent) || 0;
-                                msgBadge.textContent = current + 1;
-                                msgBadge.classList.remove('hidden');
-                            }
-                            window.dispatchEvent(new CustomEvent('renzora:new_message', { detail: msg.data }));
-                        }
-                        if (msg.event === 'message_edited' || msg.event === 'message_deleted' || msg.event === 'read_receipt') {
-                            window.dispatchEvent(new CustomEvent('renzora:' + msg.event, { detail: msg.data }));
-                        }
-                        if (msg.event === 'new_post') {
-                            // Let the community feed (if open) show its "new posts" pill.
-                            window.dispatchEvent(new CustomEvent('renzora:new_post', { detail: msg.data }));
-                        }
-                        if (msg.event === 'new_comment' || msg.event === 'post_liked') {
-                            window.dispatchEvent(new CustomEvent('renzora:' + msg.event, { detail: msg.data }));
                         }
                     } catch(e) {}
                 };
@@ -498,23 +369,21 @@ pub fn Nav() -> impl IntoView {
                 clearTimeout(gsTimeout);
                 const el = document.getElementById('global-search-results');
                 if (!query || query.trim().length < 2) {
-                    el.innerHTML = '<div class="px-4 py-8 text-center text-xs text-zinc-600">Type to search across marketplace, users, and docs.</div>';
+                    el.innerHTML = '<div class="px-4 py-8 text-center text-xs text-zinc-600">Type to search the marketplace and docs.</div>';
                     return;
                 }
                 gsTimeout = setTimeout(async () => {
                     el.innerHTML = '<div class="px-4 py-6 text-center"><div class="inline-block animate-spin w-4 h-4 border-2 border-zinc-700 border-t-accent rounded-full"></div></div>';
                     const q = encodeURIComponent(query.trim());
-                    const [assetsRes, usersRes, docsRes] = await Promise.all([
+                    const [assetsRes, docsRes] = await Promise.all([
                         fetch('/api/marketplace?q=' + q + '&page=1').then(r => r.ok ? r.json() : { assets: [] }).catch(() => ({ assets: [] })),
-                        fetch('/api/profiles/search?q=' + q).then(r => r.ok ? r.json() : []).catch(() => []),
                         fetch('/api/docs/search?q=' + q).then(r => r.ok ? r.json() : []).catch(() => []),
                     ]);
 
                     const assets = (assetsRes.assets || []).slice(0, 5);
-                    const users = (usersRes || []).slice(0, 5);
                     const docs = (docsRes || []).slice(0, 5);
 
-                    if (!assets.length && !users.length && !docs.length) {
+                    if (!assets.length && !docs.length) {
                         el.innerHTML = '<div class="px-4 py-8 text-center text-xs text-zinc-500">No results found.</div>';
                         return;
                     }
@@ -533,21 +402,6 @@ pub fn Nav() -> impl IntoView {
                                     <div class="text-[11px] text-zinc-600">${a.category} · ${a.price_credits === 0 ? 'Free' : a.price_credits + ' credits'}</div>
                                 </div>
                                 ${a.rating_count > 0 ? `<span class="text-[11px] text-amber-400">${'★'.repeat(Math.round(a.rating_avg))}</span>` : ''}
-                            </a>
-                        `).join('');
-                    }
-
-                    if (users.length) {
-                        html += '<div class="px-4 pt-3 pb-1 border-t border-zinc-800/50"><span class="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">Users</span></div>';
-                        html += users.map(u => `
-                            <a href="/profile/${u.username}" class="flex items-center gap-3 px-4 py-2.5 hover:bg-white/[0.03] transition-all">
-                                <div class="w-8 h-8 rounded-full bg-surface-panel border border-zinc-800/50 flex items-center justify-center shrink-0 overflow-hidden">
-                                    ${u.avatar_url ? `<img src="${u.avatar_url}" class="w-full h-full object-cover" />` : `<i class="ph ph-user text-sm text-zinc-600"></i>`}
-                                </div>
-                                <div class="flex-1 min-w-0">
-                                    <div class="text-sm text-zinc-200">${u.username}</div>
-                                    <div class="text-[11px] text-zinc-600">${u.role}</div>
-                                </div>
                             </a>
                         `).join('');
                     }
@@ -576,7 +430,7 @@ pub fn Nav() -> impl IntoView {
                 }, 250);
             }
 
-            // ── Single nav bootstrap: credits, notifications, messages, XP, creator status ──
+            // ── Single nav bootstrap: credits, XP, creator status ──
             async function loadUserSummary() {
                 const token = getCookie('token');
                 if (!token) return;
@@ -591,20 +445,6 @@ pub fn Nav() -> impl IntoView {
                     if (credits) credits.textContent = bal;
                     const cs = document.getElementById('nav-credits-side');
                     if (cs) cs.textContent = bal;
-
-                    // Notification badge
-                    const nb = document.getElementById('notif-badge');
-                    if (nb && d.notification_count > 0) {
-                        nb.textContent = d.notification_count > 9 ? '9+' : d.notification_count;
-                        nb.classList.remove('hidden');
-                    }
-
-                    // Message badge
-                    const mb = document.getElementById('msg-badge');
-                    if (mb && d.unread_messages > 0) {
-                        mb.textContent = d.unread_messages > 9 ? '9+' : d.unread_messages;
-                        mb.classList.remove('hidden');
-                    }
 
                     // XP bar
                     const xpWrap = document.getElementById('nav-xp-wrap');
@@ -638,7 +478,7 @@ pub fn Nav() -> impl IntoView {
                     }
                 });
                 // Highlight parent for child pages
-                const parents = { '/courses': '/marketplace', '/developers': '/docs', '/articles': '/community' };
+                const parents = { '/developers': '/docs' };
                 for (const [sub, parent] of Object.entries(parents)) {
                     if (path === sub || path.startsWith(sub + '/')) {
                         const parentLink = document.querySelector(`.nav-link[data-path="${parent}"]`);
@@ -650,43 +490,12 @@ pub fn Nav() -> impl IntoView {
             // Set redirect param on sign in link
             const signinLink = document.getElementById('nav-signin-link');
             const _sp = window.location.pathname;
-            // Deep pages carry a redirect back to themselves; home/community sign-ins default to the feed (/).
-            if (signinLink && _sp !== '/login' && _sp !== '/register' && _sp !== '/' && _sp !== '/community' && _sp.indexOf('/community/') !== 0) {
+            // Deep pages carry a redirect back to themselves; the download root does not.
+            if (signinLink && _sp !== '/login' && _sp !== '/register' && _sp !== '/') {
                 signinLink.href = '/login?redirect=' + encodeURIComponent(_sp + window.location.search);
             }
 
-            // ── Sidebar cards: online friends + community goal ──
-            async function loadNavFriends() {
-                const token = getCookie('token');
-                if (!token) return;
-                const card = document.getElementById('nav-friends-card');
-                const list = document.getElementById('nav-friends-list');
-                if (!card || !list) return;
-                try {
-                    const H = { 'Authorization': 'Bearer ' + token };
-                    const [friends, presence] = await Promise.all([
-                        fetch('/api/gameservices/friends', { headers: H }).then(r => r.ok ? r.json() : []).catch(() => []),
-                        fetch('/api/gameservices/friends/presence', { headers: H }).then(r => r.ok ? r.json() : []).catch(() => []),
-                    ]);
-                    if (!Array.isArray(friends) || !friends.length) return;
-                    const online = new Set((presence || []).filter(p => p.online).map(p => p.user_id));
-                    const sorted = friends.slice().sort((a, b) => (online.has(b.user_id) ? 1 : 0) - (online.has(a.user_id) ? 1 : 0));
-                    const onlineCount = friends.filter(f => online.has(f.user_id)).length;
-                    list.innerHTML = sorted.slice(0, 5).map(f => {
-                        const on = online.has(f.user_id);
-                        const av = f.avatar_url
-                            ? `<img src="${f.avatar_url}" class="w-6 h-6 rounded-full object-cover" />`
-                            : `<span class="w-6 h-6 rounded-full bg-gradient-to-br from-accent to-secondary flex items-center justify-center text-white text-[10px] font-bold">${(f.username || '?').charAt(0).toUpperCase()}</span>`;
-                        return `<a href="/profile/${f.username}" class="flex items-center gap-2 px-1 py-1 rounded-md hover:bg-white/[0.04] transition-colors">
-                            <span class="relative shrink-0">${av}<span class="absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full border-2 border-[#0b0617] ${on ? 'bg-emerald-400' : 'bg-zinc-600'}"></span></span>
-                            <span class="text-xs text-zinc-300 truncate flex-1">${f.username}</span>
-                        </a>`;
-                    }).join('');
-                    const cnt = document.getElementById('nav-friends-count');
-                    if (cnt) cnt.textContent = onlineCount > 0 ? '· ' + onlineCount + ' online' : '';
-                    card.classList.remove('hidden');
-                } catch (e) {}
-            }
+            // ── Sidebar card: community goal ──
             async function loadNavGoal() {
                 const card = document.getElementById('nav-goal-card');
                 if (!card) return;
@@ -705,8 +514,7 @@ pub fn Nav() -> impl IntoView {
             }
 
             updateNav();
-            loadUserSummary();  // ONE request: credits, notifications, messages, XP, creator status
-            loadNavFriends();   // online friends card (logged in)
+            loadUserSummary();  // ONE request: credits, XP, creator status
             loadNavGoal();      // community goal card (everyone)
             connectWs();        // Live updates from here on
             "#

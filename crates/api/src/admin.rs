@@ -9,7 +9,6 @@ use axum::{
 use renzora_models::category::Category;
 use renzora_models::dispute::{self, Dispute};
 use renzora_models::user::User;
-use renzora_models::article::Article;
 use renzora_models::tag::Tag;
 use renzora_models::subcategory::Subcategory;
 use serde::{Deserialize, Serialize};
@@ -46,13 +45,6 @@ pub fn router() -> Router<AppState> {
         .route("/docs", post(create_doc))
         .route("/docs/:id", put(update_doc))
         .route("/docs/:id", delete(delete_doc))
-        // Feed channels + post moderation queue (moderators have `view_admin`).
-        .route("/channel-suggestions", get(list_channel_suggestions))
-        .route("/channels/:id/approve", post(approve_channel))
-        .route("/channels/:id", delete(delete_channel))
-        .route("/reported-posts", get(list_reported_posts))
-        .route("/posts/:id/restore", post(restore_post))
-        .route("/posts/:id", delete(admin_delete_post))
         .route("/badges", get(list_badges))
         .route("/badges/:user_id/:badge_slug", post(award_badge))
         // Roles
@@ -105,10 +97,6 @@ pub fn router() -> Router<AppState> {
         .route("/users/:id/assets", get(user_assets))
         .route("/users/:id/purchases", get(user_purchases))
         .route("/users/:id/topups", get(user_topups))
-        // Articles
-        .route("/articles", get(list_admin_articles))
-        .route("/articles/:id/publish", put(toggle_article_publish))
-        .route("/articles/:id", delete(delete_article))
         // Tags
         .route("/tags/pending", get(list_pending_tags))
         .route("/tags/:id/approve", put(approve_tag))
@@ -118,14 +106,6 @@ pub fn router() -> Router<AppState> {
         .route("/subcategories/pending", get(list_pending_subcategories))
         .route("/subcategories/:id/approve", put(approve_subcategory))
         .route("/subcategories/:id", delete(delete_subcategory))
-        // Games
-        .route("/games", get(list_admin_games))
-        .route("/games/:id/publish", put(toggle_game_publish))
-        .route("/games/:id", delete(delete_game))
-        // Courses
-        .route("/courses", get(list_admin_courses))
-        .route("/courses/:id/publish", put(toggle_course_publish))
-        .route("/courses/:id", delete(delete_course))
         // API Tokens (global)
         .route("/tokens", get(list_all_tokens))
         .route("/tokens/:id/suspend", put(suspend_token))
@@ -138,11 +118,6 @@ pub fn router() -> Router<AppState> {
         .route("/app-tokens/:id/suspend", put(suspend_app_token))
         .route("/apps/:id/grants", get(list_app_grants))
         .route("/apps/:id/grants/:user_id", delete(revoke_app_grant))
-        // Teams
-        .route("/teams", get(list_all_teams))
-        .route("/teams/:id", get(team_detail))
-        .route("/teams/:id/members", get(team_members_admin))
-        .route("/teams/:id/edit", put(edit_team))
         // Transactions
         .route("/transactions", get(list_all_transactions))
         .route("/users/:id/credit", post(credit_user))
@@ -522,101 +497,6 @@ async fn delete_doc(
     verify_admin(&state, auth.user_id).await?;
     sqlx::query("DELETE FROM docs WHERE id = $1").bind(id).execute(&state.db).await?;
     Ok(Json(serde_json::json!({"message": "Deleted"})))
-}
-
-// ── Feed channels (moderation) ──
-
-/// Pending channel suggestions (approved = false), oldest first.
-async fn list_channel_suggestions(
-    State(state): State<AppState>,
-    Extension(auth): Extension<AuthUser>,
-) -> Result<Json<serde_json::Value>, ApiError> {
-    verify_admin(&state, auth.user_id).await?;
-    let rows = sqlx::query_as::<_, (Uuid, String, String, String, String, Option<String>)>(
-        "SELECT c.id, c.name, c.slug, c.description, c.icon, u.username \
-         FROM channels c LEFT JOIN users u ON u.id = c.suggested_by \
-         WHERE c.approved = false ORDER BY c.created_at ASC"
-    ).fetch_all(&state.db).await?;
-    let items: Vec<serde_json::Value> = rows.iter().map(|(id, name, slug, desc, icon, by)| serde_json::json!({
-        "id": id, "name": name, "slug": slug, "description": desc, "icon": icon, "suggested_by": by,
-    })).collect();
-    Ok(Json(serde_json::json!(items)))
-}
-
-async fn approve_channel(
-    State(state): State<AppState>,
-    Extension(auth): Extension<AuthUser>,
-    Path(id): Path<Uuid>,
-) -> Result<Json<serde_json::Value>, ApiError> {
-    verify_admin(&state, auth.user_id).await?;
-    let r = sqlx::query("UPDATE channels SET approved = true WHERE id = $1")
-        .bind(id).execute(&state.db).await?;
-    if r.rows_affected() == 0 { return Err(ApiError::NotFound); }
-    Ok(Json(serde_json::json!({"ok": true})))
-}
-
-/// Delete a channel (reject a suggestion, or remove a live one). Posts keep
-/// existing — their `channel_id` is set NULL by the FK.
-async fn delete_channel(
-    State(state): State<AppState>,
-    Extension(auth): Extension<AuthUser>,
-    Path(id): Path<Uuid>,
-) -> Result<Json<serde_json::Value>, ApiError> {
-    verify_admin(&state, auth.user_id).await?;
-    sqlx::query("DELETE FROM channels WHERE id = $1").bind(id).execute(&state.db).await?;
-    Ok(Json(serde_json::json!({"ok": true})))
-}
-
-// ── Post moderation queue ──
-
-/// Hidden posts awaiting review — review-requested first, then most-recently hidden.
-async fn list_reported_posts(
-    State(state): State<AppState>,
-    Extension(auth): Extension<AuthUser>,
-) -> Result<Json<serde_json::Value>, ApiError> {
-    verify_admin(&state, auth.user_id).await?;
-    let rows = sqlx::query_as::<_, (Uuid, Uuid, String, String, i32, bool, time::OffsetDateTime)>(
-        "SELECT p.id, p.user_id, u.username, p.body, p.report_count, p.review_requested, p.created_at \
-         FROM posts p JOIN users u ON u.id = p.user_id \
-         WHERE p.hidden = true ORDER BY p.review_requested DESC, p.hidden_at DESC NULLS LAST LIMIT 100"
-    ).fetch_all(&state.db).await?;
-    use time::format_description::well_known::Rfc3339;
-    let items: Vec<serde_json::Value> = rows.iter().map(|(id, uid, username, body, rc, rr, created)| serde_json::json!({
-        "id": id, "user_id": uid, "username": username, "body": body,
-        "report_count": rc, "review_requested": rr,
-        "created_at": created.format(&Rfc3339).unwrap_or_default(),
-    })).collect();
-    Ok(Json(serde_json::json!(items)))
-}
-
-/// Restore a hidden post: un-hide it and clear its reports.
-async fn restore_post(
-    State(state): State<AppState>,
-    Extension(auth): Extension<AuthUser>,
-    Path(id): Path<Uuid>,
-) -> Result<Json<serde_json::Value>, ApiError> {
-    verify_admin(&state, auth.user_id).await?;
-    sqlx::query("UPDATE posts SET hidden = false, review_requested = false, report_count = 0, hidden_at = NULL WHERE id = $1")
-        .bind(id).execute(&state.db).await?;
-    sqlx::query("DELETE FROM post_reports WHERE post_id = $1").bind(id).execute(&state.db).await?;
-    Ok(Json(serde_json::json!({"ok": true})))
-}
-
-/// Moderator hard-delete of a post (permanently removes its media too).
-async fn admin_delete_post(
-    State(state): State<AppState>,
-    Extension(auth): Extension<AuthUser>,
-    Path(id): Path<Uuid>,
-) -> Result<Json<serde_json::Value>, ApiError> {
-    verify_admin(&state, auth.user_id).await?;
-    if let Some(post) = renzora_models::post::Post::find_by_id(&state.db, id).await? {
-        let media = post.media_urls.clone();
-        sqlx::query("DELETE FROM posts WHERE id = $1").bind(id).execute(&state.db).await?;
-        for url in &media {
-            let _ = crate::marketplace::delete_from_storage(&state, url).await;
-        }
-    }
-    Ok(Json(serde_json::json!({"ok": true})))
 }
 
 // ── Badges ──
@@ -1207,67 +1087,6 @@ async fn verify_admin(state: &AppState, user_id: Uuid) -> Result<(), ApiError> {
 
 // ── Articles ──
 
-async fn list_admin_articles(
-    State(state): State<AppState>,
-    Query(params): Query<std::collections::HashMap<String, String>>,
-) -> Result<Json<serde_json::Value>, ApiError> {
-    let q = params.get("q").cloned().unwrap_or_default();
-    let rows = sqlx::query_as::<_, Article>(
-        r#"
-        SELECT * FROM articles
-        WHERE ($1 = '' OR title ILIKE '%' || $1 || '%')
-        ORDER BY created_at DESC
-        LIMIT 100
-        "#
-    )
-    .bind(&q)
-    .fetch_all(&state.db)
-    .await?;
-
-    // Look up author names
-    let mut articles: Vec<serde_json::Value> = Vec::new();
-    for a in &rows {
-        let author_name = User::find_by_id(&state.db, a.author_id).await
-            .ok().flatten()
-            .map(|u| u.username)
-            .unwrap_or_else(|| "Unknown".to_string());
-        articles.push(serde_json::json!({
-            "id": a.id,
-            "title": a.title,
-            "slug": a.slug,
-            "author_name": author_name,
-            "published": a.published,
-            "tags": a.tags,
-            "likes": a.likes,
-            "views": a.views,
-            "created_at": a.created_at.to_string(),
-        }));
-    }
-
-    Ok(Json(serde_json::json!({ "articles": articles })))
-}
-
-async fn toggle_article_publish(
-    State(state): State<AppState>,
-    Path(id): Path<Uuid>,
-) -> Result<Json<serde_json::Value>, ApiError> {
-    sqlx::query("UPDATE articles SET published = NOT published WHERE id = $1")
-        .bind(id)
-        .execute(&state.db)
-        .await?;
-    Ok(Json(serde_json::json!({ "ok": true })))
-}
-
-async fn delete_article(
-    State(state): State<AppState>,
-    Path(id): Path<Uuid>,
-) -> Result<Json<serde_json::Value>, ApiError> {
-    sqlx::query("DELETE FROM article_comments WHERE article_id = $1").bind(id).execute(&state.db).await?;
-    sqlx::query("DELETE FROM article_likes WHERE article_id = $1").bind(id).execute(&state.db).await?;
-    sqlx::query("DELETE FROM articles WHERE id = $1").bind(id).execute(&state.db).await?;
-    Ok(Json(serde_json::json!({ "ok": true })))
-}
-
 // ── Tags ──
 
 async fn list_pending_tags(
@@ -1341,143 +1160,7 @@ async fn delete_subcategory(
 
 // ── Games ──
 
-#[derive(Serialize)]
-struct AdminGameEntry {
-    id: Uuid,
-    name: String,
-    slug: String,
-    category: String,
-    price_credits: i64,
-    downloads: i64,
-    published: bool,
-    creator_name: String,
-    created_at: String,
-}
-
-async fn list_admin_games(
-    State(state): State<AppState>,
-    Extension(auth): Extension<AuthUser>,
-    Query(params): Query<std::collections::HashMap<String, String>>,
-) -> Result<Json<serde_json::Value>, ApiError> {
-    verify_admin(&state, auth.user_id).await?;
-    let page: i64 = params.get("page").and_then(|p| p.parse().ok()).unwrap_or(1).max(1);
-    let offset = (page - 1) * 50;
-    let q = params.get("q");
-    let published = params.get("published");
-
-    let mut sql = String::from(
-        "SELECT g.id, g.name, g.slug, g.category, g.price_credits, g.downloads, g.published, g.created_at, u.username AS creator_name \
-         FROM games g JOIN users u ON u.id = g.creator_id WHERE 1=1"
-    );
-    if let Some(q) = q {
-        if !q.is_empty() {
-            sql.push_str(&format!(" AND g.name ILIKE '%{}%'", q.replace('\'', "''")));
-        }
-    }
-    if let Some(p) = published {
-        if p == "true" { sql.push_str(" AND g.published = true"); }
-        else if p == "false" { sql.push_str(" AND g.published = false"); }
-    }
-    sql.push_str(&format!(" ORDER BY g.created_at DESC LIMIT 50 OFFSET {}", offset));
-
-    let rows = sqlx::query(&sql).fetch_all(&state.db).await?;
-    let games: Vec<AdminGameEntry> = rows.iter().map(|r| AdminGameEntry {
-        id: r.get("id"), name: r.get("name"), slug: r.get("slug"),
-        category: r.get("category"), price_credits: r.get("price_credits"),
-        downloads: r.get("downloads"), published: r.get("published"),
-        creator_name: r.get("creator_name"),
-        created_at: r.get::<time::OffsetDateTime, _>("created_at").to_string(),
-    }).collect();
-
-    Ok(Json(serde_json::json!({ "games": games })))
-}
-
-async fn toggle_game_publish(
-    State(state): State<AppState>,
-    Extension(auth): Extension<AuthUser>,
-    Path(id): Path<Uuid>,
-) -> Result<Json<serde_json::Value>, ApiError> {
-    verify_admin(&state, auth.user_id).await?;
-    sqlx::query("UPDATE games SET published = NOT published WHERE id = $1")
-        .bind(id).execute(&state.db).await?;
-    Ok(Json(serde_json::json!({ "message": "Toggled" })))
-}
-
-async fn delete_game(
-    State(state): State<AppState>,
-    Extension(auth): Extension<AuthUser>,
-    Path(id): Path<Uuid>,
-) -> Result<Json<serde_json::Value>, ApiError> {
-    verify_admin(&state, auth.user_id).await?;
-    sqlx::query("DELETE FROM game_media WHERE game_id = $1").bind(id).execute(&state.db).await?;
-    sqlx::query("DELETE FROM user_games WHERE game_id = $1").bind(id).execute(&state.db).await?;
-    sqlx::query("DELETE FROM games WHERE id = $1").bind(id).execute(&state.db).await?;
-    Ok(Json(serde_json::json!({ "message": "Game deleted" })))
-}
-
 // ── Courses ──
-
-async fn list_admin_courses(
-    State(state): State<AppState>,
-    Extension(auth): Extension<AuthUser>,
-    Query(params): Query<std::collections::HashMap<String, String>>,
-) -> Result<Json<serde_json::Value>, ApiError> {
-    verify_admin(&state, auth.user_id).await?;
-    let page: i64 = params.get("page").and_then(|p| p.parse().ok()).unwrap_or(1).max(1);
-    let offset = (page - 1) * 50;
-    let q = params.get("q");
-
-    let mut sql = String::from(
-        "SELECT c.id, c.title, c.slug, c.category, c.difficulty, c.price_credits, c.published, c.chapter_count, c.enrolled_count, c.created_at, u.username AS creator_name \
-         FROM courses c JOIN users u ON u.id = c.creator_id WHERE 1=1"
-    );
-    if let Some(q) = q {
-        if !q.is_empty() {
-            sql.push_str(&format!(" AND c.title ILIKE '%{}%'", q.replace('\'', "''")));
-        }
-    }
-    sql.push_str(&format!(" ORDER BY c.created_at DESC LIMIT 50 OFFSET {}", offset));
-
-    let rows = sqlx::query(&sql).fetch_all(&state.db).await?;
-    let courses: Vec<serde_json::Value> = rows.iter().map(|r| serde_json::json!({
-        "id": r.get::<Uuid, _>("id"),
-        "title": r.get::<String, _>("title"),
-        "slug": r.get::<String, _>("slug"),
-        "category": r.get::<String, _>("category"),
-        "difficulty": r.get::<String, _>("difficulty"),
-        "price_credits": r.get::<i64, _>("price_credits"),
-        "published": r.get::<bool, _>("published"),
-        "chapter_count": r.get::<i32, _>("chapter_count"),
-        "enrolled_count": r.get::<i32, _>("enrolled_count"),
-        "creator_name": r.get::<String, _>("creator_name"),
-        "created_at": r.get::<time::OffsetDateTime, _>("created_at").to_string(),
-    })).collect();
-
-    Ok(Json(serde_json::json!({ "courses": courses })))
-}
-
-async fn toggle_course_publish(
-    State(state): State<AppState>,
-    Extension(auth): Extension<AuthUser>,
-    Path(id): Path<Uuid>,
-) -> Result<Json<serde_json::Value>, ApiError> {
-    verify_admin(&state, auth.user_id).await?;
-    sqlx::query("UPDATE courses SET published = NOT published WHERE id = $1")
-        .bind(id).execute(&state.db).await?;
-    Ok(Json(serde_json::json!({ "message": "Toggled" })))
-}
-
-async fn delete_course(
-    State(state): State<AppState>,
-    Extension(auth): Extension<AuthUser>,
-    Path(id): Path<Uuid>,
-) -> Result<Json<serde_json::Value>, ApiError> {
-    verify_admin(&state, auth.user_id).await?;
-    sqlx::query("DELETE FROM course_chapters WHERE course_id = $1").bind(id).execute(&state.db).await?;
-    sqlx::query("DELETE FROM enrollments WHERE course_id = $1").bind(id).execute(&state.db).await?;
-    sqlx::query("DELETE FROM courses WHERE id = $1").bind(id).execute(&state.db).await?;
-    Ok(Json(serde_json::json!({ "message": "Course deleted" })))
-}
 
 // ── User Detail ──
 
@@ -1847,109 +1530,6 @@ async fn revoke_app_grant(
 }
 
 // ── Teams ──
-
-async fn list_all_teams(
-    State(state): State<AppState>,
-    Extension(auth): Extension<AuthUser>,
-    Query(params): Query<PaginatedQuery>,
-) -> Result<Json<serde_json::Value>, ApiError> {
-    verify_admin(&state, auth.user_id).await?;
-    let page = params.page.unwrap_or(1).max(1);
-    let per_page = params.per_page.unwrap_or(50).min(100);
-    let offset = (page - 1) * per_page;
-    let search = params.q.unwrap_or_default();
-    let like = format!("%{}%", search);
-
-    let total: (i64,) = sqlx::query_as("SELECT COUNT(*)::bigint FROM teams t JOIN users u ON u.id = t.owner_id WHERE ($1 = '' OR t.name ILIKE $2 OR u.username ILIKE $2)")
-        .bind(&search).bind(&like).fetch_one(&state.db).await?;
-
-    let rows = sqlx::query(
-        "SELECT t.id, t.name, t.slug, t.owner_id, t.description, t.created_at, u.username as owner_name, (SELECT COUNT(*) FROM team_members WHERE team_id = t.id) as member_count FROM teams t JOIN users u ON u.id = t.owner_id WHERE ($1 = '' OR t.name ILIKE $2 OR u.username ILIKE $2) ORDER BY t.created_at DESC LIMIT $3 OFFSET $4"
-    ).bind(&search).bind(&like).bind(per_page).bind(offset)
-    .fetch_all(&state.db).await?;
-
-    let teams: Vec<serde_json::Value> = rows.iter().map(|r| serde_json::json!({
-        "id": r.get::<Uuid, _>("id"),
-        "name": r.get::<String, _>("name"),
-        "slug": r.get::<String, _>("slug"),
-        "owner_id": r.get::<Uuid, _>("owner_id"),
-        "owner_name": r.get::<String, _>("owner_name"),
-        "description": r.get::<String, _>("description"),
-        "member_count": r.get::<i64, _>("member_count"),
-        "created_at": r.get::<time::OffsetDateTime, _>("created_at").format(&Rfc3339).unwrap_or_default(),
-    })).collect();
-
-    Ok(Json(serde_json::json!({"items": teams, "total": total.0})))
-}
-
-async fn team_detail(
-    State(state): State<AppState>,
-    Extension(auth): Extension<AuthUser>,
-    Path(id): Path<Uuid>,
-) -> Result<Json<serde_json::Value>, ApiError> {
-    verify_admin(&state, auth.user_id).await?;
-    let row = sqlx::query(
-        "SELECT t.*, u.username as owner_name, (SELECT COUNT(*) FROM team_members WHERE team_id = t.id) as member_count, (SELECT COUNT(*) FROM team_library WHERE team_id = t.id) as library_count FROM teams t JOIN users u ON u.id = t.owner_id WHERE t.id = $1"
-    ).bind(id).fetch_optional(&state.db).await?.ok_or(ApiError::NotFound)?;
-
-    Ok(Json(serde_json::json!({
-        "id": row.get::<Uuid, _>("id"),
-        "name": row.get::<String, _>("name"),
-        "slug": row.get::<String, _>("slug"),
-        "owner_id": row.get::<Uuid, _>("owner_id"),
-        "owner_name": row.get::<String, _>("owner_name"),
-        "description": row.get::<String, _>("description"),
-        "member_count": row.get::<i64, _>("member_count"),
-        "library_count": row.get::<i64, _>("library_count"),
-        "created_at": row.get::<time::OffsetDateTime, _>("created_at").format(&Rfc3339).unwrap_or_default(),
-        "updated_at": row.get::<time::OffsetDateTime, _>("updated_at").format(&Rfc3339).unwrap_or_default(),
-    })))
-}
-
-async fn team_members_admin(
-    State(state): State<AppState>,
-    Extension(auth): Extension<AuthUser>,
-    Path(id): Path<Uuid>,
-) -> Result<Json<serde_json::Value>, ApiError> {
-    verify_admin(&state, auth.user_id).await?;
-    let rows = sqlx::query(
-        "SELECT tm.user_id, tm.role, tm.joined_at, u.username, u.email FROM team_members tm JOIN users u ON u.id = tm.user_id WHERE tm.team_id = $1 ORDER BY tm.joined_at"
-    ).bind(id).fetch_all(&state.db).await?;
-
-    let members: Vec<serde_json::Value> = rows.iter().map(|r| serde_json::json!({
-        "user_id": r.get::<Uuid, _>("user_id"),
-        "role": r.get::<String, _>("role"),
-        "username": r.get::<String, _>("username"),
-        "email": r.get::<String, _>("email"),
-        "joined_at": r.get::<time::OffsetDateTime, _>("joined_at").format(&Rfc3339).unwrap_or_default(),
-    })).collect();
-
-    Ok(Json(serde_json::json!(members)))
-}
-
-#[derive(Deserialize)]
-struct EditTeamBody {
-    name: Option<String>,
-    description: Option<String>,
-}
-
-async fn edit_team(
-    State(state): State<AppState>,
-    Extension(auth): Extension<AuthUser>,
-    Path(id): Path<Uuid>,
-    Json(body): Json<EditTeamBody>,
-) -> Result<Json<serde_json::Value>, ApiError> {
-    verify_admin(&state, auth.user_id).await?;
-    if let Some(name) = &body.name {
-        sqlx::query("UPDATE teams SET name = $1, updated_at = NOW() WHERE id = $2")
-            .bind(name).bind(id).execute(&state.db).await?;
-    }
-    if let Some(desc) = &body.description {
-        sqlx::query("UPDATE teams SET description = $1, updated_at = NOW() WHERE id = $2")
-            .bind(desc).bind(id).execute(&state.db).await?;
-    }
-    Ok(Json(serde_json::json!({"ok": true})))
-}
 
 // ── Transactions ──
 
@@ -2446,14 +2026,9 @@ async fn admin_global_search(
         "SELECT id, name, slug FROM assets WHERE name ILIKE $1 OR slug ILIKE $1 LIMIT 5"
     ).bind(&like).fetch_all(&state.db).await?;
 
-    let teams = sqlx::query_as::<_, (Uuid, String, String)>(
-        "SELECT id, name, slug FROM teams WHERE name ILIKE $1 LIMIT 5"
-    ).bind(&like).fetch_all(&state.db).await?;
-
     Ok(Json(serde_json::json!({
         "users": users.iter().map(|r| serde_json::json!({"id": r.0, "username": r.1, "email": r.2, "role": r.3})).collect::<Vec<_>>(),
         "assets": assets.iter().map(|r| serde_json::json!({"id": r.0, "name": r.1, "slug": r.2})).collect::<Vec<_>>(),
-        "teams": teams.iter().map(|r| serde_json::json!({"id": r.0, "name": r.1, "slug": r.2})).collect::<Vec<_>>(),
     })))
 }
 
@@ -2579,8 +2154,6 @@ async fn user_timeline(State(state): State<AppState>, Extension(auth): Extension
     let rows = sqlx::query(
         "SELECT * FROM ( \
             SELECT id, 'transaction' as event_type, type as detail, amount::text as detail2, created_at FROM transactions WHERE user_id = $1 \
-            UNION ALL \
-            SELECT id, 'post' as event_type, LEFT(body, 100) as detail, '' as detail2, created_at FROM posts WHERE user_id = $1 \
             UNION ALL \
             SELECT id, 'login' as event_type, ip_address as detail, COALESCE(country, '') as detail2, created_at FROM login_history WHERE user_id = $1 \
         ) combined ORDER BY created_at DESC LIMIT 100"

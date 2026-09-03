@@ -82,7 +82,6 @@ pub fn DashboardPage() -> impl IntoView {
                     <div class="flex items-center justify-between mb-4">
                         <div class="flex items-center gap-1 p-1 bg-white/[0.02] rounded-lg border border-zinc-800/40">
                             <button id="tab-assets" onclick="switchTab('assets')" class="px-3.5 py-1.5 rounded-md text-xs font-medium bg-white/[0.06] text-white transition-all">"Assets"</button>
-                            <button id="tab-games" onclick="switchTab('games')" class="px-3.5 py-1.5 rounded-md text-xs font-medium text-zinc-500 hover:text-zinc-300 transition-all">"Games"</button>
                             <button id="tab-earnings" onclick="switchTab('earnings')" class="px-3.5 py-1.5 rounded-md text-xs font-medium text-zinc-500 hover:text-zinc-300 transition-all">"Earnings"</button>
                             <button id="tab-progress" onclick="switchTab('progress')" class="px-3.5 py-1.5 rounded-md text-xs font-medium text-zinc-500 hover:text-zinc-300 transition-all">"Seller Level"</button>
                         </div>
@@ -117,24 +116,6 @@ pub fn DashboardPage() -> impl IntoView {
                         </div>
                     </div>
 
-                    // ── Games tab ──
-                    <div id="panel-games" class="hidden">
-                        <div id="games-container"></div>
-                        <div id="games-pagination" class="hidden flex items-center justify-center gap-3 py-4">
-                            <button onclick="dbGoPage('games', dbGamePage - 1)" id="games-prev" class="w-8 h-8 rounded-lg bg-white/[0.03] border border-zinc-800/50 text-zinc-400 hover:text-zinc-200 hover:border-zinc-600 transition-all disabled:opacity-30 disabled:pointer-events-none flex items-center justify-center">
-                                <i class="ph ph-caret-left text-sm"></i>
-                            </button>
-                            <div class="flex items-center gap-2 text-xs text-zinc-500">
-                                "Page "
-                                <input type="number" id="games-page-input" min="1" value="1" onchange="dbGoPage('games', parseInt(this.value)||1)" class="w-12 px-2 py-1 bg-white/[0.03] border border-zinc-800/50 rounded-lg text-zinc-50 text-xs text-center outline-none focus:border-accent/50 transition-all" />
-                                " of "<span id="games-total-pages">"1"</span>
-                            </div>
-                            <button onclick="dbGoPage('games', dbGamePage + 1)" id="games-next" class="w-8 h-8 rounded-lg bg-white/[0.03] border border-zinc-800/50 text-zinc-400 hover:text-zinc-200 hover:border-zinc-600 transition-all disabled:opacity-30 disabled:pointer-events-none flex items-center justify-center">
-                                <i class="ph ph-caret-right text-sm"></i>
-                            </button>
-                        </div>
-                    </div>
-
                     // ── Earnings tab ──
                     <div id="panel-earnings" class="hidden">
                         <div id="earnings-container"></div>
@@ -156,9 +137,7 @@ pub fn DashboardPage() -> impl IntoView {
             const DB_PER_PAGE = 20;
             let dbView = 'list';
             let dbAssetPage = 1;
-            let dbGamePage = 1;
             let allAssets = [];
-            let allGames = [];
             let allEarnings = [];
             let progressLoaded = false;
 
@@ -175,7 +154,7 @@ pub fn DashboardPage() -> impl IntoView {
 
             // ── Tab switching ──
             function switchTab(tab) {
-                ['assets', 'games', 'earnings', 'progress'].forEach(t => {
+                ['assets', 'earnings', 'progress'].forEach(t => {
                     document.getElementById('panel-' + t)?.classList.toggle('hidden', t !== tab);
                     const btn = document.getElementById('tab-' + t);
                     if (!btn) return;
@@ -190,7 +169,6 @@ pub fn DashboardPage() -> impl IntoView {
             function updateItemCount(tab) {
                 const el = document.getElementById('db-item-count');
                 if (tab === 'assets') el.textContent = allAssets.length + ' assets';
-                else if (tab === 'games') el.textContent = allGames.length + ' games';
                 else el.textContent = allEarnings.length + ' transactions';
             }
 
@@ -200,7 +178,6 @@ pub fn DashboardPage() -> impl IntoView {
                 document.getElementById('view-list').className = 'p-1.5 rounded-md transition-all ' + (v === 'list' ? 'text-zinc-300 bg-white/[0.06]' : 'text-zinc-500 hover:text-zinc-300');
                 document.getElementById('view-grid').className = 'p-1.5 rounded-md transition-all ' + (v === 'grid' ? 'text-zinc-300 bg-white/[0.06]' : 'text-zinc-500 hover:text-zinc-300');
                 renderAssets();
-                renderGames();
             }
 
             // ── Counter animation ──
@@ -295,84 +272,6 @@ pub fn DashboardPage() -> impl IntoView {
                 document.getElementById('assets-total-pages').textContent = totalPages;
                 document.getElementById('assets-prev').disabled = dbAssetPage <= 1;
                 document.getElementById('assets-next').disabled = dbAssetPage >= totalPages;
-
-            }
-
-            // ── Game renderers ──
-            function gameListRow(g, i) {
-                const status = g.published
-                    ? '<span class="w-1.5 h-1.5 rounded-full bg-green-400 inline-block"></span><span class="text-green-400">Live</span>'
-                    : '<span class="w-1.5 h-1.5 rounded-full bg-amber-400 inline-block"></span><span class="text-amber-400">Draft</span>';
-                const thumb = g.thumbnail_url
-                    ? `<img src="${g.thumbnail_url}" class="w-full h-full object-cover" />`
-                    : `<i class="ph ph-game-controller text-lg text-zinc-600"></i>`;
-                return `<a href="/games/${g.slug}" class="flex items-center gap-4 px-5 py-3.5 hover:bg-white/[0.02] transition-all group db-row" style="animation-delay:${i * 20}ms">
-                    <div class="w-11 h-11 rounded-lg bg-zinc-900 border border-zinc-800/50 flex items-center justify-center shrink-0 overflow-hidden">${thumb}</div>
-                    <div class="flex-1 min-w-0">
-                        <div class="text-sm font-medium group-hover:text-accent transition-colors truncate">${g.name}</div>
-                        <div class="flex items-center gap-2 mt-0.5 text-[11px] text-zinc-600">
-                            <span>${g.category}</span><span class="text-zinc-800">·</span>
-                            <span>${g.downloads.toLocaleString()} downloads</span>
-                        </div>
-                    </div>
-                    <div class="flex items-center gap-3 shrink-0">
-                        <div class="flex items-center gap-1.5 text-[11px]">${status}</div>
-                        <span class="text-xs text-zinc-400 min-w-[50px] text-right">${g.price_credits === 0 ? 'Free' : g.price_credits.toLocaleString() + ' cr'}</span>
-                    </div>
-                </a>`;
-            }
-
-            function gameGridCard(g, i) {
-                const thumb = g.thumbnail_url
-                    ? `<img src="${g.thumbnail_url}" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />`
-                    : `<div class="w-full h-full flex items-center justify-center"><i class="ph ph-game-controller text-2xl text-zinc-700"></i></div>`;
-                const statusColor = g.published ? 'bg-green-400' : 'bg-amber-400';
-                return `<a href="/games/${g.slug}" class="block group db-row" style="animation-delay:${i * 20}ms">
-                    <div class="bg-white/[0.02] border border-zinc-800/40 rounded-xl overflow-hidden hover:border-accent/20 transition-all">
-                        <div class="aspect-[4/3] bg-zinc-900 relative overflow-hidden">
-                            ${thumb}
-                            <div class="absolute top-2 right-2 w-2 h-2 rounded-full ${statusColor}"></div>
-                        </div>
-                        <div class="p-3">
-                            <div class="text-sm font-medium truncate group-hover:text-accent transition-colors">${g.name}</div>
-                            <div class="flex items-center justify-between mt-1.5 text-[11px] text-zinc-500">
-                                <span>${g.downloads.toLocaleString()} dl</span>
-                                <span class="font-medium ${g.price_credits === 0 ? 'text-emerald-400' : 'text-zinc-400'}">${g.price_credits === 0 ? 'Free' : g.price_credits.toLocaleString() + ' cr'}</span>
-                            </div>
-                        </div>
-                    </div>
-                </a>`;
-            }
-
-            function renderGames() {
-                const container = document.getElementById('games-container');
-                const start = (dbGamePage - 1) * DB_PER_PAGE;
-                const page = allGames.slice(start, start + DB_PER_PAGE);
-                const totalPages = Math.ceil(allGames.length / DB_PER_PAGE);
-
-                if (!page.length) {
-                    container.innerHTML = `<div class="text-center py-16 rounded-xl border border-zinc-800/40 bg-white/[0.01]">
-                        <div class="w-12 h-12 rounded-xl bg-white/[0.03] border border-zinc-800/40 flex items-center justify-center mx-auto mb-3"><i class="ph ph-game-controller text-xl text-zinc-700"></i></div>
-                        <p class="text-zinc-600 text-sm">No games yet</p>
-                        <a href="/marketplace/upload" class="text-accent text-sm mt-1 inline-block hover:underline">Publish your first game <i class="ph ph-arrow-right text-xs"></i></a>
-                    </div>`;
-                    document.getElementById('games-pagination').classList.add('hidden');
-                    return;
-                }
-
-                if (dbView === 'grid') {
-                    container.innerHTML = `<div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">${page.map((g, i) => gameGridCard(g, i)).join('')}</div>`;
-                } else {
-                    container.innerHTML = `<div class="rounded-xl border border-zinc-800/40 bg-white/[0.01] overflow-hidden divide-y divide-zinc-800/30">${page.map((g, i) => gameListRow(g, i)).join('')}</div>`;
-                }
-
-                const pagEl = document.getElementById('games-pagination');
-                if (totalPages <= 1) { pagEl.classList.add('hidden'); return; }
-                pagEl.classList.remove('hidden');
-                document.getElementById('games-page-input').value = dbGamePage;
-                document.getElementById('games-total-pages').textContent = totalPages;
-                document.getElementById('games-prev').disabled = dbGamePage <= 1;
-                document.getElementById('games-next').disabled = dbGamePage >= totalPages;
 
             }
 
@@ -495,15 +394,10 @@ pub fn DashboardPage() -> impl IntoView {
             }
 
             function dbGoPage(type, p) {
-                if (type === 'assets') {
-                    const total = Math.ceil(allAssets.length / DB_PER_PAGE);
-                    dbAssetPage = Math.max(1, Math.min(p, total));
-                    renderAssets();
-                } else {
-                    const total = Math.ceil(allGames.length / DB_PER_PAGE);
-                    dbGamePage = Math.max(1, Math.min(p, total));
-                    renderGames();
-                }
+                if (type !== 'assets') return;
+                const total = Math.ceil(allAssets.length / DB_PER_PAGE);
+                dbAssetPage = Math.max(1, Math.min(p, total));
+                renderAssets();
             }
 
             // ── Init ──
@@ -514,11 +408,10 @@ pub fn DashboardPage() -> impl IntoView {
                 const headers = { 'Authorization': 'Bearer ' + token };
 
                 try {
-                    const [statsRes, earningsRes, assetsRes, gamesRes] = await Promise.all([
+                    const [statsRes, earningsRes, assetsRes] = await Promise.all([
                         fetch('/api/creator/stats', { headers }),
                         fetch('/api/creator/earnings', { headers }),
                         fetch('/api/marketplace/my-assets', { headers }),
-                        fetch('/api/games/my-games', { headers }),
                     ]);
 
                     if (statsRes.ok) {
@@ -533,17 +426,12 @@ pub fn DashboardPage() -> impl IntoView {
                         const data = await assetsRes.json();
                         allAssets = data.assets || [];
                     }
-                    if (gamesRes.ok) {
-                        const data = await gamesRes.json();
-                        allGames = data.games || [];
-                    }
                     if (earningsRes.ok) {
                         const data = await earningsRes.json();
                         allEarnings = data.earnings || [];
                     }
 
                     renderAssets();
-                    renderGames();
                     renderEarnings();
                     updateItemCount('assets');
                 } catch(e) { console.error('Dashboard error:', e); }

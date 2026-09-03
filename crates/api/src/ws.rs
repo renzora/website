@@ -17,7 +17,7 @@ use crate::{jwt, AppState};
 pub struct LiveEvent {
     /// Target user ID (None = broadcast to all).
     pub user_id: Option<Uuid>,
-    /// Event type: "notification", "credit_update", "new_post", "new_thread", etc.
+    /// Event type: "credit_update", "collab_invite", etc.
     pub event: String,
     /// JSON payload.
     pub data: serde_json::Value,

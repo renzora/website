@@ -10,12 +10,9 @@ pub fn SettingsPage() -> impl IntoView {
                 <div class="space-y-1">
                     <a href="#section-profile" class="block px-3 py-2 text-sm text-zinc-400 hover:text-zinc-200 hover:bg-white/5 rounded-lg transition-colors">"Profile"</a>
                     <a href="#section-password" class="block px-3 py-2 text-sm text-zinc-400 hover:text-zinc-200 hover:bg-white/5 rounded-lg transition-colors">"Password"</a>
-                    <a href="#section-social" class="block px-3 py-2 text-sm text-zinc-400 hover:text-zinc-200 hover:bg-white/5 rounded-lg transition-colors">"Social Links"</a>
-                    <a href="#section-privacy" class="block px-3 py-2 text-sm text-zinc-400 hover:text-zinc-200 hover:bg-white/5 rounded-lg transition-colors">"Privacy"</a>
                     <a href="#section-communication" class="block px-3 py-2 text-sm text-zinc-400 hover:text-zinc-200 hover:bg-white/5 rounded-lg transition-colors">"Communication"</a>
                     <a href="#section-payouts" class="block px-3 py-2 text-sm text-zinc-400 hover:text-zinc-200 hover:bg-white/5 rounded-lg transition-colors">"Payouts"</a>
                     <a href="#section-connections" class="block px-3 py-2 text-sm text-zinc-400 hover:text-zinc-200 hover:bg-white/5 rounded-lg transition-colors">"Connected Apps"</a>
-                    <a href="#section-blocked" class="block px-3 py-2 text-sm text-zinc-400 hover:text-zinc-200 hover:bg-white/5 rounded-lg transition-colors">"Blocked Users"</a>
                     <a href="#section-danger" class="block px-3 py-2 text-sm text-zinc-400 hover:text-red-400 hover:bg-red-950/20 rounded-lg transition-colors">"Danger Zone"</a>
                 </div>
             </nav>
@@ -71,34 +68,6 @@ pub fn SettingsPage() -> impl IntoView {
                     </div>
                 </div>
 
-                // Social Links section
-                <div id="section-social" class="bg-surface-card border border-zinc-800 rounded-2xl p-6 mb-8">
-                    <h2 class="text-base font-semibold text-zinc-200 mb-4">"Social Connections"</h2>
-                    <p class="text-xs text-zinc-500 mb-4">"Link your gaming and social accounts. OAuth-verified connections show a checkmark."</p>
-                    <div id="social-connections" class="space-y-3">
-                        <p class="text-sm text-zinc-500">"Loading..."</p>
-                    </div>
-                    <div class="mt-4 pt-4 border-t border-zinc-800">
-                        <h3 class="text-sm text-zinc-300 mb-3">"Add Connection"</h3>
-                        <div class="flex gap-2">
-                            <select id="social-platform" class="bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-zinc-200">
-                                <option value="discord">"Discord"</option>
-                                <option value="twitch">"Twitch"</option>
-                                <option value="steam">"Steam"</option>
-                                <option value="xbox">"Xbox"</option>
-                                <option value="playstation">"PlayStation"</option>
-                                <option value="epic">"Epic Games"</option>
-                                <option value="kick">"Kick"</option>
-                                <option value="youtube">"YouTube"</option>
-                                <option value="twitter">"Twitter/X"</option>
-                                <option value="github">"GitHub"</option>
-                            </select>
-                            <input id="social-username" type="text" class="flex-1 bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-zinc-200 placeholder:text-zinc-600" placeholder="Username or profile URL" />
-                            <button id="add-social-btn" class="px-4 py-2 bg-accent hover:bg-accent-hover text-white text-sm font-medium rounded-lg transition-colors">"Add"</button>
-                        </div>
-                    </div>
-                </div>
-
                 // Payouts section
                 <div id="section-payouts" class="mb-8">
                     <h2 class="text-base font-semibold mb-4 flex items-center gap-2">
@@ -140,61 +109,11 @@ pub fn SettingsPage() -> impl IntoView {
                     <div class="p-6 bg-surface-card border border-zinc-800 rounded-lg space-y-4">
                         <ToggleRow id="pref-marketing" label="Product updates" desc="News about new features and releases." />
                         <ToggleRow id="pref-marketplace" label="Marketplace notifications" desc="When someone purchases or reviews your assets." />
-                        <ToggleRow id="pref-comments" label="Comment notifications" desc="When someone replies to your articles or comments." />
+                        <ToggleRow id="pref-comments" label="Comment notifications" desc="When someone comments on or reviews your assets." />
                         <ToggleRow id="pref-security" label="Security alerts" desc="Sign-in from new devices and password changes." />
                         <button onclick="savePreferences()" class="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-accent text-white hover:bg-accent-hover transition-colors">
                             <i class="ph ph-check text-base"></i>"Save Preferences"
                         </button>
-                    </div>
-                </div>
-
-                // Privacy
-                <div id="section-privacy" class="mb-8">
-                    <h2 class="text-base font-semibold mb-4 flex items-center gap-2">
-                        <i class="ph ph-eye-slash text-lg text-accent"></i>"Privacy"
-                    </h2>
-                    <div class="p-6 bg-surface-card border border-zinc-800 rounded-lg space-y-4">
-                        <div>
-                            <label class="block text-xs text-zinc-500 mb-1.5">"Who can message me"</label>
-                            <select id="privacy-messages" class="w-full px-3 py-2.5 bg-surface border border-zinc-800 rounded-lg text-zinc-50 text-sm outline-none focus:border-accent transition-colors">
-                                <option value="everyone">"Everyone"</option>
-                                <option value="friends">"Friends only"</option>
-                                <option value="nobody">"Nobody"</option>
-                            </select>
-                        </div>
-                        <div>
-                            <label class="block text-xs text-zinc-500 mb-1.5">"Profile visibility"</label>
-                            <select id="privacy-visibility" class="w-full px-3 py-2.5 bg-surface border border-zinc-800 rounded-lg text-zinc-50 text-sm outline-none focus:border-accent transition-colors">
-                                <option value="public">"Public"</option>
-                                <option value="friends_only">"Friends only"</option>
-                            </select>
-                        </div>
-                        <div class="flex items-center justify-between">
-                            <div>
-                                <p class="text-sm text-zinc-50">"Show online status"</p>
-                                <p class="text-xs text-zinc-500">"Let others see when you're online"</p>
-                            </div>
-                            <label class="relative inline-flex items-center cursor-pointer">
-                                <input type="checkbox" id="privacy-online" checked class="sr-only peer" />
-                                <div class="w-9 h-5 bg-zinc-700 rounded-full peer peer-checked:bg-accent transition-colors after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:after:translate-x-4"></div>
-                            </label>
-                        </div>
-                        <button id="save-privacy" class="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-accent text-white hover:bg-accent-hover transition-colors">
-                            <i class="ph ph-check text-base"></i>"Save Privacy Settings"
-                        </button>
-                        <div id="privacy-success" class="hidden text-xs text-green-400 mt-1">"Privacy settings saved"</div>
-                    </div>
-                </div>
-
-                // Blocked Users
-                <div id="section-blocked" class="mb-8">
-                    <h2 class="text-base font-semibold mb-4 flex items-center gap-2">
-                        <i class="ph ph-prohibit text-lg text-accent"></i>"Blocked Users"
-                    </h2>
-                    <div class="p-6 bg-surface-card border border-zinc-800 rounded-lg">
-                        <div id="block-list">
-                            <p class="text-sm text-zinc-500">"Loading..."</p>
-                        </div>
                     </div>
                 </div>
 
@@ -530,126 +449,6 @@ pub fn SettingsPage() -> impl IntoView {
                 history.replaceState({}, '', '/settings');
             }
 
-            // Social connections
-            (async function() {
-                var token = getToken();
-                if (!token) return;
-
-                var platformIcons = {
-                    discord: 'ph-discord-logo', twitch: 'ph-twitch-logo', steam: 'ph-steam-logo',
-                    xbox: 'ph-game-controller', playstation: 'ph-game-controller', epic: 'ph-game-controller',
-                    kick: 'ph-broadcast', youtube: 'ph-youtube-logo', twitter: 'ph-twitter-logo', github: 'ph-github-logo'
-                };
-
-                async function loadConnections() {
-                    var res = await fetch('/api/profiles/connections', { headers: { 'Authorization': 'Bearer ' + token } });
-                    var data = await res.json();
-                    var el = document.getElementById('social-connections');
-                    if (!Array.isArray(data) || data.length === 0) {
-                        el.innerHTML = '<p class="text-sm text-zinc-500">No connections yet</p>';
-                        return;
-                    }
-                    el.innerHTML = data.map(function(c) {
-                        var icon = platformIcons[c.platform] || 'ph-link';
-                        var verified = c.verified ? '<i class="ph ph-seal-check text-accent text-xs ml-1" title="Verified"></i>' : '';
-                        return '<div class="flex items-center justify-between py-2.5 px-3 bg-zinc-900/50 rounded-lg">' +
-                            '<div class="flex items-center gap-3">' +
-                                '<i class="ph ' + icon + ' text-lg text-zinc-400"></i>' +
-                                '<div>' +
-                                    '<span class="text-sm text-zinc-200">' + c.platform_username + verified + '</span>' +
-                                    '<span class="text-xs text-zinc-500 ml-2 capitalize">' + c.platform + '</span>' +
-                                '</div>' +
-                            '</div>' +
-                            '<button onclick="removeSocial(\'' + c.platform + '\')" class="text-xs text-red-400 hover:text-red-300">Remove</button>' +
-                        '</div>';
-                    }).join('');
-                }
-
-                document.getElementById('add-social-btn')?.addEventListener('click', async function() {
-                    var platform = document.getElementById('social-platform').value;
-                    var username = document.getElementById('social-username').value.trim();
-                    if (!username) return;
-                    await fetch('/api/profiles/connections', {
-                        method: 'POST',
-                        headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ platform: platform, username: username })
-                    });
-                    document.getElementById('social-username').value = '';
-                    loadConnections();
-                });
-
-                window.removeSocial = async function(platform) {
-                    await fetch('/api/profiles/connections/' + platform, {
-                        method: 'DELETE', headers: { 'Authorization': 'Bearer ' + token }
-                    });
-                    loadConnections();
-                };
-
-                loadConnections();
-            })();
-
-            // ── Privacy settings ──
-            (async function() {
-                var token = getToken();
-                if (!token) return;
-
-                // Load current settings
-                try {
-                    var res = await fetch('/api/auth/me', { headers: { 'Authorization': 'Bearer ' + token } });
-                    var user = await res.json();
-                    if (user.message_privacy) document.getElementById('privacy-messages').value = user.message_privacy;
-                    if (user.profile_visibility) document.getElementById('privacy-visibility').value = user.profile_visibility;
-                    var onlineEl = document.getElementById('privacy-online');
-                    if (onlineEl && user.online_status_visible !== undefined) onlineEl.checked = user.online_status_visible;
-                } catch(e) {}
-
-                // Save privacy
-                document.getElementById('save-privacy')?.addEventListener('click', async function() {
-                    var res = await fetch('/api/user/privacy', {
-                        method: 'PUT',
-                        headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            message_privacy: document.getElementById('privacy-messages').value,
-                            profile_visibility: document.getElementById('privacy-visibility').value,
-                            online_status_visible: document.getElementById('privacy-online').checked,
-                        })
-                    });
-                    if (res.ok) {
-                        var el = document.getElementById('privacy-success');
-                        if (el) { el.classList.remove('hidden'); setTimeout(function() { el.classList.add('hidden'); }, 3000); }
-                    }
-                });
-
-                // Load block list
-                try {
-                    var bres = await fetch('/api/user/blocked', { headers: { 'Authorization': 'Bearer ' + token } });
-                    var blocked = await bres.json();
-                    var listEl = document.getElementById('block-list');
-                    if (!Array.isArray(blocked) || blocked.length === 0) {
-                        listEl.innerHTML = '<p class="text-sm text-zinc-500">No blocked users</p>';
-                    } else {
-                        listEl.innerHTML = blocked.map(function(b) {
-                            return '<div class="flex items-center justify-between py-2.5 border-b border-zinc-800/50 last:border-0">' +
-                                '<div class="flex items-center gap-3">' +
-                                    '<div class="w-8 h-8 rounded-full bg-zinc-800 flex items-center justify-center text-xs font-bold text-zinc-400">' + (b.username || '?')[0].toUpperCase() + '</div>' +
-                                    '<span class="text-sm text-zinc-300">' + b.username + '</span>' +
-                                '</div>' +
-                                '<button onclick="unblockUser(\'' + b.user_id + '\')" class="text-xs text-accent hover:text-accent-hover">Unblock</button>' +
-                            '</div>';
-                        }).join('');
-                    }
-                } catch(e) {
-                    var listEl = document.getElementById('block-list');
-                    if (listEl) listEl.innerHTML = '<p class="text-sm text-zinc-500">No blocked users</p>';
-                }
-
-                window.unblockUser = async function(userId) {
-                    await fetch('/api/user/blocked/' + userId, {
-                        method: 'DELETE', headers: { 'Authorization': 'Bearer ' + token }
-                    });
-                    window.location.reload();
-                };
-            })();
             "#
         </script>
     }

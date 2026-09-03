@@ -407,7 +407,7 @@ pub fn DonatePage() -> impl IntoView {
             var linkOpen = function(s, cls) {
                 return s.url
                     ? '<a href="' + esc(s.url) + '" target="_blank" rel="noopener nofollow sponsored" class="' + cls + '">'
-                    : '<a href="/profile/' + esc(s.username) + '" class="' + cls + '">';
+                    : '<span class="' + cls + '">';
             };
             var html = '';
             WALL_ORDER.forEach(function(slug) {

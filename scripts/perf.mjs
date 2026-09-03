@@ -14,7 +14,7 @@
 //   node scripts/perf.mjs                       # measure https://renzora.com (PSI)
 //   node scripts/perf.mjs --local               # measure a running local build (localhost:3000)
 //   node scripts/perf.mjs --base https://x.com  # measure another origin
-//   node scripts/perf.mjs --routes /,/download  # only these routes
+//   node scripts/perf.mjs --routes /,/marketplace  # only these routes
 //   node scripts/perf.mjs --compare             # diff the two latest snapshots
 //   PAGESPEED_API_KEY=xxx node scripts/perf.mjs # raise PSI rate limits
 //
@@ -34,7 +34,7 @@ const OUT_DIR = path.join(ROOT, 'perf-results');
 const API = 'https://www.googleapis.com/pagespeedonline/v5/runPagespeed';
 const KEY = process.env.PAGESPEED_API_KEY || '';
 
-const DEFAULT_ROUTES = ['/', '/download', '/marketplace', '/docs', '/community', '/articles'];
+const DEFAULT_ROUTES = ['/', '/marketplace', '/docs'];
 const STRATEGIES = ['mobile', 'desktop'];
 
 // ── args ──

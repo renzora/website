@@ -116,8 +116,8 @@ pub fn LoginPage() -> impl IntoView {
                     const data=await res.json();
                     if(!res.ok) throw new Error(data.error||'Registration failed');
                     setCookies(data);
-                    // New user → go to their profile (fallback: home)
-                    window.location.href = (data.user && data.user.username) ? '/profile/' + data.user.username : '/';
+                    // New user → straight to the marketplace
+                    window.location.href = '/marketplace';
                 }catch(error){err.textContent=error.message;err.classList.remove('hidden');btn.disabled=false;btn.textContent='Create Account';}
                 return false;
             }

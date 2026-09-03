@@ -163,7 +163,7 @@ pub fn AssetDetailPage() -> impl IntoView {
                                     ${r.title ? `<span class="text-base font-semibold ml-2">${r.title}</span>` : ''}
                                 </div>
                                 <div class="flex items-center gap-2 text-xs">
-                                    <a href="/profile/${r.author_name}" class="text-accent hover:text-accent-hover font-medium">${r.author_name}</a>
+                                    <span class="text-accent font-medium">${r.author_name}</span>
                                     <span class="text-zinc-600">${fmtDate(r.created_at)}</span>
                                 </div>
                             </div>
@@ -187,7 +187,7 @@ pub fn AssetDetailPage() -> impl IntoView {
                         <div class="p-4 bg-white/[0.02] border border-zinc-800/50 rounded-xl">
                             <div class="flex justify-between items-start">
                                 <div class="flex items-center gap-2">
-                                    <a href="/profile/${c.author_name}" class="text-sm text-accent hover:text-accent-hover font-medium">${c.author_name}</a>
+                                    <span class="text-sm text-accent font-medium">${c.author_name}</span>
                                     <span class="text-xs text-zinc-600">${fmtDate(c.created_at)}</span>
                                 </div>
                                 ${canDelete ? `<button onclick="deleteComment('${c.id}','${a.id}')" class="text-xs text-red-400/60 hover:text-red-400 transition-colors"><i class="ph ph-trash"></i></button>` : ''}
@@ -300,7 +300,7 @@ pub fn AssetDetailPage() -> impl IntoView {
                                     ${isCreator ? `<a href="/marketplace/asset/${a.slug}/edit" class="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium bg-white/[0.03] border border-zinc-800/50 text-zinc-400 hover:border-zinc-600 hover:text-zinc-200 transition-colors"><i class="ph ph-pencil-simple"></i>Edit</a><button onclick="deleteAsset('${a.id}')" class="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium bg-white/[0.03] border border-red-900/50 text-red-400 hover:border-red-700 hover:text-red-300 hover:bg-red-950/30 transition-colors"><i class="ph ph-trash"></i>Delete</button>` : ''}
                                 </div>
                                 <div class="flex items-center gap-4 mt-3 flex-wrap">
-                                    <a href="/profile/${a.creator.username}" class="flex items-center gap-2 text-sm font-medium text-accent hover:text-accent-hover transition-colors">
+                                    <a href="/shop/${a.creator.username}" class="flex items-center gap-2 text-sm font-medium text-accent hover:text-accent-hover transition-colors">
                                         <div class="w-6 h-6 rounded-full bg-accent/10 flex items-center justify-center"><i class="ph ph-user text-xs text-accent"></i></div>
                                         ${a.creator.username}
                                     </a>
@@ -419,7 +419,7 @@ pub fn AssetDetailPage() -> impl IntoView {
                                 </div>` : ''}
 
                                 <div class="mt-6 pt-6 border-t border-zinc-800/50">
-                                    <a href="/profile/${a.creator.username}" class="flex items-center gap-3 group">
+                                    <a href="/shop/${a.creator.username}" class="flex items-center gap-3 group">
                                         <div class="w-10 h-10 rounded-full bg-accent/10 flex items-center justify-center">
                                             <i class="ph ph-user text-accent"></i>
                                         </div>

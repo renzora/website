@@ -276,18 +276,6 @@ pub async fn process_due_renewals(state: &AppState) {
                 }
                 Ok(false) => {
                     // Not enough credits — fall through to expiry
-                    let _ = crate::notify::notify(
-                        state,
-                        sub.user_id,
-                        "subscription",
-                        "Supporter subscription ended",
-                        &format!(
-                            "Your balance was too low to renew ({} credits/month). Top up and re-subscribe any time.",
-                            sub.monthly_amount
-                        ),
-                        Some("/subscription"),
-                        None,
-                    ).await;
                 }
                 Err(e) => {
                     tracing::error!("Renewal failed for user {}: {e}", sub.user_id);

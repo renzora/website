@@ -1,10 +1,8 @@
 use axum::{
-    extract::{Extension, Path, State},
-    routing::{delete, get, post, put},
+    extract::{Extension, State},
+    routing::{get, post, put},
     Json, Router,
 };
-use renzora_models::message::Message;
-use renzora_models::notification::Notification;
 use renzora_models::user::User;
 use renzora_models::xp;
 use serde::{Deserialize, Serialize};
@@ -17,22 +15,17 @@ pub fn router() -> Router<AppState> {
         .route("/me", get(user_me))
         .route("/summary", get(summary))
         .route("/owned", post(check_owned))
-        .route("/privacy", put(update_privacy))
         .route("/communication", get(get_communication).put(update_communication))
         .route("/signature", put(update_signature))
-        .route("/blocked", get(list_blocked))
-        .route("/blocked/:user_id", delete(unblock_user))
         .layer(axum::middleware::from_fn(middleware::require_auth))
 }
 
-/// Consolidated nav bootstrap — credits, unread notifications & messages,
-/// level/XP and creator status in ONE request (replaces 5 separate calls the
-/// nav used to fire on every page load). Independent lookups run concurrently.
+/// Consolidated nav bootstrap — credits, level/XP and creator status in ONE
+/// request (replaces the separate calls the nav used to fire on every page
+/// load).
 #[derive(Serialize)]
 struct SummaryResponse {
     credit_balance: i64,
-    notification_count: i64,
-    unread_messages: i64,
     level: i32,
     level_progress_percent: f64,
     total_xp: i64,
@@ -43,12 +36,9 @@ async fn summary(
     State(state): State<AppState>,
     Extension(auth): Extension<AuthUser>,
 ) -> Result<Json<SummaryResponse>, ApiError> {
-    let (user, notification_count, unread_messages) = tokio::try_join!(
-        User::find_by_id(&state.db, auth.user_id),
-        Notification::unread_count(&state.db, auth.user_id),
-        Message::total_unread(&state.db, auth.user_id),
-    )?;
-    let user = user.ok_or(ApiError::NotFound)?;
+    let user = User::find_by_id(&state.db, auth.user_id)
+        .await?
+        .ok_or(ApiError::NotFound)?;
 
     let cur = xp::xp_for_level(user.level);
     let next = xp::xp_for_level(user.level + 1);
@@ -61,8 +51,6 @@ async fn summary(
 
     Ok(Json(SummaryResponse {
         credit_balance: user.credit_balance,
-        notification_count,
-        unread_messages,
         level: user.level,
         level_progress_percent,
         total_xp: user.total_xp,
@@ -79,9 +67,7 @@ struct UserMeResponse {
     role: String,
     avatar_url: Option<String>,
     banner_url: Option<String>,
-    message_privacy: String,
     online_status_visible: bool,
-    profile_visibility: String,
     signature: String,
 }
 
@@ -101,9 +87,7 @@ async fn user_me(
         role: user.role,
         avatar_url: user.avatar_url,
         banner_url: user.banner_url,
-        message_privacy: user.message_privacy,
         online_status_visible: user.online_status_visible,
-        profile_visibility: user.profile_visibility,
         signature: user.signature,
     }))
 }
@@ -238,58 +222,4 @@ async fn check_owned(
     Ok(Json(CheckOwnedResponse {
         owned_ids: owned.into_iter().map(|r| r.0).collect(),
     }))
-}
-
-#[derive(Deserialize)]
-struct PrivacyBody {
-    message_privacy: Option<String>,
-    online_status_visible: Option<bool>,
-    profile_visibility: Option<String>,
-}
-
-async fn update_privacy(
-    State(state): State<AppState>,
-    Extension(auth): Extension<AuthUser>,
-    Json(body): Json<PrivacyBody>,
-) -> Result<Json<serde_json::Value>, ApiError> {
-    let user = User::find_by_id(&state.db, auth.user_id).await?.ok_or(ApiError::NotFound)?;
-    let msg_priv = body.message_privacy.as_deref().unwrap_or(&user.message_privacy);
-    let vis = body.profile_visibility.as_deref().unwrap_or(&user.profile_visibility);
-    let online = body.online_status_visible.unwrap_or(user.online_status_visible);
-
-    if !["everyone", "friends", "nobody"].contains(&msg_priv) {
-        return Err(ApiError::Validation("message_privacy must be everyone, friends, or nobody".into()));
-    }
-    if !["public", "friends_only"].contains(&vis) {
-        return Err(ApiError::Validation("profile_visibility must be public or friends_only".into()));
-    }
-
-    User::update_privacy(&state.db, auth.user_id, msg_priv, online, vis).await?;
-    Ok(Json(serde_json::json!({"ok": true})))
-}
-
-async fn list_blocked(
-    State(state): State<AppState>,
-    Extension(auth): Extension<AuthUser>,
-) -> Result<Json<serde_json::Value>, ApiError> {
-    let rows = sqlx::query_as::<_, (Uuid, String, Option<String>)>(
-        "SELECT f.friend_id, u.username, u.avatar_url FROM friends f JOIN users u ON u.id = f.friend_id WHERE f.user_id = $1 AND f.status = 'blocked' ORDER BY f.created_at DESC"
-    ).bind(auth.user_id).fetch_all(&state.db).await?;
-
-    let items: Vec<serde_json::Value> = rows.iter().map(|r| serde_json::json!({
-        "user_id": r.0,
-        "username": r.1,
-        "avatar_url": r.2,
-    })).collect();
-    Ok(Json(serde_json::json!(items)))
-}
-
-async fn unblock_user(
-    State(state): State<AppState>,
-    Extension(auth): Extension<AuthUser>,
-    Path(user_id): Path<Uuid>,
-) -> Result<Json<serde_json::Value>, ApiError> {
-    sqlx::query("DELETE FROM friends WHERE user_id = $1 AND friend_id = $2 AND status = 'blocked'")
-        .bind(auth.user_id).bind(user_id).execute(&state.db).await?;
-    Ok(Json(serde_json::json!({"ok": true})))
 }

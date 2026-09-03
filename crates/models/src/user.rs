@@ -32,9 +32,7 @@ pub struct User {
     pub totp_enforced_by_role: bool,
     pub created_at: OffsetDateTime,
     pub updated_at: OffsetDateTime,
-    pub message_privacy: String,
     pub online_status_visible: bool,
-    pub profile_visibility: String,
     pub signature: String,
     pub last_seen_at: Option<OffsetDateTime>,
     pub total_xp: i64,
@@ -197,13 +195,6 @@ impl User {
             "UPDATE users SET totp_enabled = false, totp_secret = NULL, totp_backup_codes = NULL, totp_enforced_by_role = false, updated_at = NOW() WHERE id = $1"
         )
         .bind(user_id).execute(pool).await?;
-        Ok(())
-    }
-
-    pub async fn update_privacy(pool: &PgPool, user_id: Uuid, message_privacy: &str, online_status_visible: bool, profile_visibility: &str) -> Result<(), sqlx::Error> {
-        sqlx::query("UPDATE users SET message_privacy = $1, online_status_visible = $2, profile_visibility = $3, updated_at = NOW() WHERE id = $4")
-            .bind(message_privacy).bind(online_status_visible).bind(profile_visibility).bind(user_id)
-            .execute(pool).await?;
         Ok(())
     }
 

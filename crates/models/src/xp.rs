@@ -149,11 +149,11 @@ impl SellerTask {
 /// Call this after any XP change or significant action.
 pub async fn check_and_award_badges(pool: &PgPool, user_id: Uuid) -> Result<Vec<String>, sqlx::Error> {
     // Get user stats
-    let user = sqlx::query_as::<_, (i64, i32, i32, i32, i32, i64,)>(
-        "SELECT total_xp, level, seller_level, follower_count, post_count, credit_balance FROM users WHERE id = $1"
+    let user = sqlx::query_as::<_, (i64, i32, i32, i64,)>(
+        "SELECT total_xp, level, seller_level, credit_balance FROM users WHERE id = $1"
     ).bind(user_id).fetch_one(pool).await?;
 
-    let (total_xp, level, seller_level, follower_count, post_count, _balance) = user;
+    let (total_xp, level, seller_level, _balance) = user;
 
     // Get purchase count
     let (purchase_count,): (i64,) = sqlx::query_as("SELECT COUNT(*)::bigint FROM transactions WHERE user_id = $1 AND type = 'purchase'")
@@ -169,10 +169,6 @@ pub async fn check_and_award_badges(pool: &PgPool, user_id: Uuid) -> Result<Vec<
 
     // Get total downloads
     let (total_downloads,): (i64,) = sqlx::query_as("SELECT COALESCE(SUM(downloads),0)::bigint FROM assets WHERE creator_id = $1")
-        .bind(user_id).fetch_one(pool).await?;
-
-    // Get article count
-    let (article_count,): (i64,) = sqlx::query_as("SELECT COUNT(*)::bigint FROM articles WHERE author_id = $1")
         .bind(user_id).fetch_one(pool).await?;
 
     // Get all auto-rule badges
@@ -191,9 +187,6 @@ pub async fn check_and_award_badges(pool: &PgPool, user_id: Uuid) -> Result<Vec<
             "first_upload" => upload_count >= *threshold,
             "sale_count" => sale_count >= *threshold,
             "total_downloads" => total_downloads >= *threshold,
-            "follower_count" => follower_count as i64 >= *threshold,
-            "post_count" => post_count as i64 >= *threshold,
-            "article_count" => article_count >= *threshold,
             _ => false,
         };
 
@@ -203,25 +196,6 @@ pub async fn check_and_award_badges(pool: &PgPool, user_id: Uuid) -> Result<Vec<
                 .bind(user_id).bind(badge_id)
                 .execute(pool).await?;
             if result.rows_affected() > 0 {
-                // Notify the user (row only — picked up by the bell on next
-                // fetch; this crate has no access to the live WS broadcast).
-                let badge_name: Option<(String,)> = sqlx::query_as("SELECT name FROM badges WHERE id = $1")
-                    .bind(badge_id).fetch_optional(pool).await?;
-                let name = badge_name.map(|n| n.0).unwrap_or_else(|| slug.clone());
-                let username: Option<(String,)> = sqlx::query_as("SELECT username FROM users WHERE id = $1")
-                    .bind(user_id).fetch_optional(pool).await?;
-                let link = username.map(|u| format!("/profile/{}", u.0));
-                let _ = sqlx::query(
-                    "INSERT INTO notifications (id, user_id, type, title, body, link) VALUES ($1, $2, 'badge', $3, $4, $5)",
-                )
-                .bind(Uuid::new_v4())
-                .bind(user_id)
-                .bind("New badge earned!")
-                .bind(format!("You earned the {} badge", name))
-                .bind(link)
-                .execute(pool)
-                .await;
-
                 awarded.push(slug.clone());
             }
         }

@@ -164,9 +164,7 @@
             { "slug": "platform-api/marketplace", "title": "Marketplace API" },
             { "slug": "platform-api/game-services", "title": "Game Services API" },
             { "slug": "platform-api/credits", "title": "Credits API" },
-            { "slug": "platform-api/websocket", "title": "WebSocket API" },
-            { "slug": "platform-api/messaging", "title": "Messaging API" },
-            { "slug": "platform-api/feed", "title": "Feed API" }
+            { "slug": "platform-api/websocket", "title": "WebSocket API" }
           ]
         }
       ]

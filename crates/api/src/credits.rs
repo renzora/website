@@ -28,12 +28,7 @@ pub fn router() -> Router<AppState> {
         .route("/withdraw", post(request_withdrawal))
         .route("/withdrawals", get(list_withdrawals))
         .route("/redeem-voucher", post(redeem_voucher))
-        .route("/gift-cards/send", post(send_gift_card))
-        .route("/gift-cards/redeem", post(redeem_gift_card))
-        .route("/gift-cards/sent", get(list_sent_gifts))
-        .route("/gift-cards/received", get(list_received_gifts))
         .route("/donate", post(make_donation))
-        .route("/tip", post(send_tip))
         .route("/donate/sponsor-profile", get(get_sponsor_profile).put(update_sponsor_profile))
         .route("/donate/sponsor-logo", axum::routing::put(upload_sponsor_logo))
         .layer(axum::middleware::from_fn(middleware::require_auth));
@@ -588,17 +583,6 @@ async fn purchase_asset(
         .await?
         .ok_or(ApiError::NotFound)?;
 
-    // Notify the seller about the sale
-    let _ = crate::notify::notify(
-        &state,
-        asset.creator_id,
-        "sale",
-        &format!("{} purchased your asset", user.username),
-        &format!("{} was sold for {} credits", asset.name, asset.price_credits),
-        Some(&format!("/marketplace/asset/{}", asset.slug)),
-        user.avatar_url.as_deref(),
-    ).await;
-
     let msg = if promo_discount > 0 {
         format!(
             "Purchased {} for {} credits (promo: {}% off platform fee)",
@@ -1017,105 +1001,6 @@ async fn redeem_voucher(
 
 // ── Gift Cards ──
 
-#[derive(serde::Deserialize)]
-struct SendGiftBody {
-    recipient_username: Option<String>,
-    amount: i64,
-    message: Option<String>,
-}
-
-async fn send_gift_card(
-    State(state): State<AppState>,
-    Extension(auth): Extension<AuthUser>,
-    Json(body): Json<SendGiftBody>,
-) -> Result<Json<serde_json::Value>, ApiError> {
-    if body.amount < 10 {
-        return Err(ApiError::Validation("Minimum gift is 10 credits".into()));
-    }
-
-    // Check balance
-    let user = User::find_by_id(&state.db, auth.user_id).await?.ok_or(ApiError::NotFound)?;
-    if user.credit_balance < body.amount {
-        return Err(ApiError::Validation("Insufficient credits".into()));
-    }
-
-    // Find recipient if specified
-    let recipient_id = if let Some(ref username) = body.recipient_username {
-        let r = User::find_by_username(&state.db, username).await?.ok_or(ApiError::Validation("User not found".into()))?;
-        Some(r.id)
-    } else {
-        None
-    };
-
-    // Generate code
-    let code = format!("GIFT-{}", &uuid::Uuid::new_v4().to_string()[..8].to_uppercase());
-
-    // Deduct credits from sender
-    sqlx::query("UPDATE users SET credit_balance = credit_balance - $1 WHERE id = $2")
-        .bind(body.amount).bind(auth.user_id).execute(&state.db).await?;
-
-    // Record transaction
-    sqlx::query("INSERT INTO transactions (id, user_id, type, amount, reason) VALUES ($1, $2, 'gift_sent', $3, $4)")
-        .bind(uuid::Uuid::new_v4()).bind(auth.user_id).bind(-body.amount).bind(format!("Gift card: {}", code))
-        .execute(&state.db).await?;
-
-    let gift = renzora_models::gift_card::GiftCard::create(&state.db, auth.user_id, recipient_id, &code, body.amount, body.message.as_deref().unwrap_or("")).await?;
-
-    // If direct recipient, auto-redeem and notify
-    if let Some(rid) = recipient_id {
-        renzora_models::gift_card::GiftCard::redeem(&state.db, gift.id, rid).await?;
-        sqlx::query("UPDATE users SET credit_balance = credit_balance + $1 WHERE id = $2")
-            .bind(body.amount).bind(rid).execute(&state.db).await?;
-        sqlx::query("INSERT INTO transactions (id, user_id, type, amount, reason) VALUES ($1, $2, 'gift_received', $3, $4)")
-            .bind(uuid::Uuid::new_v4()).bind(rid).bind(body.amount).bind(format!("Gift from {}", user.username))
-            .execute(&state.db).await?;
-
-        // Notify recipient
-        crate::notify::notify(&state, rid, "gift",
-            &format!("{} sent you a gift!", user.username),
-            &format!("{} credits", body.amount),
-            Some("/wallet"),
-            user.avatar_url.as_deref(),
-        ).await?;
-        state.ws_broadcast.send_to_user(rid, "credit_update", serde_json::json!({"amount": body.amount}));
-    }
-
-    Ok(Json(serde_json::json!({"code": gift.code, "amount": gift.amount, "auto_redeemed": recipient_id.is_some()})))
-}
-
-async fn redeem_gift_card(
-    State(state): State<AppState>,
-    Extension(auth): Extension<AuthUser>,
-    Json(body): Json<RedeemVoucherBody>,
-) -> Result<Json<serde_json::Value>, ApiError> {
-    let gift = renzora_models::gift_card::GiftCard::find_by_code(&state.db, &body.code).await?.ok_or(ApiError::Validation("Invalid or expired gift card".into()))?;
-
-    renzora_models::gift_card::GiftCard::redeem(&state.db, gift.id, auth.user_id).await?;
-    sqlx::query("UPDATE users SET credit_balance = credit_balance + $1 WHERE id = $2")
-        .bind(gift.amount).bind(auth.user_id).execute(&state.db).await?;
-    sqlx::query("INSERT INTO transactions (id, user_id, type, amount, reason) VALUES ($1, $2, 'gift_received', $3, $4)")
-        .bind(uuid::Uuid::new_v4()).bind(auth.user_id).bind(gift.amount).bind(format!("Gift card: {}", gift.code))
-        .execute(&state.db).await?;
-
-    Ok(Json(serde_json::json!({"ok": true, "amount": gift.amount})))
-}
-
-async fn list_sent_gifts(
-    State(state): State<AppState>,
-    Extension(auth): Extension<AuthUser>,
-) -> Result<Json<serde_json::Value>, ApiError> {
-    let gifts = renzora_models::gift_card::GiftCard::list_sent(&state.db, auth.user_id).await?;
-    Ok(Json(serde_json::json!(gifts)))
-}
-
-async fn list_received_gifts(
-    State(state): State<AppState>,
-    Extension(auth): Extension<AuthUser>,
-) -> Result<Json<serde_json::Value>, ApiError> {
-    let gifts = renzora_models::gift_card::GiftCard::list_received(&state.db, auth.user_id).await?;
-    Ok(Json(serde_json::json!(gifts)))
-}
-
 // ── Donations ──
 
 #[derive(serde::Deserialize)]
@@ -1153,7 +1038,7 @@ async fn make_donation(
     // Check donation badge thresholds
     let total: (i64,) = sqlx::query_as("SELECT COALESCE(SUM(amount), 0)::bigint FROM donations WHERE user_id = $1")
         .bind(auth.user_id).fetch_one(&state.db).await?;
-    // Award badges at thresholds (100, 500, 1000, 5000), notifying on new ones
+    // Award badges at thresholds (100, 500, 1000, 5000)
     let badges = [(100, "donor_bronze"), (500, "donor_silver"), (1000, "donor_gold"), (5000, "donor_platinum")];
     let mut new_badges: Vec<serde_json::Value> = Vec::new();
     for (threshold, badge_slug) in &badges {
@@ -1164,15 +1049,6 @@ async fn make_donation(
                 let name: Option<(String,)> = sqlx::query_as("SELECT name FROM badges WHERE slug = $1")
                     .bind(badge_slug).fetch_optional(&state.db).await?;
                 let badge_name = name.map(|n| n.0).unwrap_or_else(|| badge_slug.to_string());
-                let _ = crate::notify::notify(
-                    &state,
-                    auth.user_id,
-                    "badge",
-                    "New badge earned!",
-                    &format!("You earned the {} badge — thank you for your support!", badge_name),
-                    Some(&format!("/profile/{}", user.username)),
-                    None,
-                ).await;
                 new_badges.push(serde_json::json!({"slug": badge_slug, "name": badge_name}));
             }
         }
@@ -1184,92 +1060,6 @@ async fn make_donation(
         "total_donated": total.0,
         "new_badges": new_badges,
     })))
-}
-
-#[derive(serde::Deserialize)]
-struct TipBody {
-    recipient_id: Uuid,
-    amount: i64,
-    post_id: Option<Uuid>,
-}
-
-/// Tip credits from the authenticated user to another user. Moves credits
-/// between balances atomically and notifies the recipient.
-async fn send_tip(
-    State(state): State<AppState>,
-    Extension(auth): Extension<AuthUser>,
-    Json(body): Json<TipBody>,
-) -> Result<Json<serde_json::Value>, ApiError> {
-    if body.amount < 1 {
-        return Err(ApiError::Validation("Minimum tip is 1 credit".into()));
-    }
-    if body.recipient_id == auth.user_id {
-        return Err(ApiError::Validation("You cannot tip yourself".into()));
-    }
-
-    let sender = User::find_by_id(&state.db, auth.user_id).await?.ok_or(ApiError::NotFound)?;
-    let recipient = User::find_by_id(&state.db, body.recipient_id).await?.ok_or(ApiError::NotFound)?;
-    if sender.credit_balance < body.amount {
-        return Err(ApiError::Validation("Insufficient credits".into()));
-    }
-
-    let mut tx = state.db.begin().await.map_err(|e| ApiError::Internal(e.to_string()))?;
-
-    // Deduct from the sender, guarding against a concurrent overspend.
-    let deducted = sqlx::query(
-        "UPDATE users SET credit_balance = credit_balance - $1 WHERE id = $2 AND credit_balance >= $1",
-    )
-    .bind(body.amount)
-    .bind(auth.user_id)
-    .execute(&mut *tx)
-    .await
-    .map_err(|e| ApiError::Internal(e.to_string()))?;
-    if deducted.rows_affected() == 0 {
-        return Err(ApiError::Validation("Insufficient credits".into()));
-    }
-
-    sqlx::query("UPDATE users SET credit_balance = credit_balance + $1 WHERE id = $2")
-        .bind(body.amount)
-        .bind(body.recipient_id)
-        .execute(&mut *tx)
-        .await
-        .map_err(|e| ApiError::Internal(e.to_string()))?;
-
-    sqlx::query("INSERT INTO transactions (id, user_id, type, amount, reason) VALUES ($1, $2, 'tip', $3, $4)")
-        .bind(Uuid::new_v4())
-        .bind(auth.user_id)
-        .bind(-body.amount)
-        .bind(format!("Tip to @{}", recipient.username))
-        .execute(&mut *tx)
-        .await
-        .map_err(|e| ApiError::Internal(e.to_string()))?;
-    sqlx::query("INSERT INTO transactions (id, user_id, type, amount, reason) VALUES ($1, $2, 'tip', $3, $4)")
-        .bind(Uuid::new_v4())
-        .bind(body.recipient_id)
-        .bind(body.amount)
-        .bind(format!("Tip from @{}", sender.username))
-        .execute(&mut *tx)
-        .await
-        .map_err(|e| ApiError::Internal(e.to_string()))?;
-
-    tx.commit().await.map_err(|e| ApiError::Internal(e.to_string()))?;
-
-    // Notify + live-update the recipient (and refresh the sender's balance).
-    let link = body.post_id.map(|pid| format!("/community/post/{pid}"));
-    let _ = crate::notify::notify(
-        &state,
-        body.recipient_id,
-        "tip",
-        "You received a tip!",
-        &format!("@{} tipped you {} credits", sender.username, body.amount),
-        link.as_deref(),
-        None,
-    )
-    .await;
-    state.ws_broadcast.send_to_user(body.recipient_id, "credit_update", serde_json::json!({"amount": body.amount, "type": "tip"}));
-    state.ws_broadcast.send_to_user(auth.user_id, "credit_update", serde_json::json!({"amount": -body.amount, "type": "tip"}));
-
-    Ok(Json(serde_json::json!({ "ok": true, "amount": body.amount })))
 }
 
 async fn donation_leaderboard(

@@ -156,7 +156,6 @@ async fn main() {
 
     // Leptos SSR handler for frontend pages
     let render = leptos_axum::render_app_to_stream(Shell);
-    let render_home = render.clone();
     let ssr = move |req: Request<Body>| {
         let render = render.clone();
         async move { render(req).await }
@@ -197,45 +196,8 @@ async fn main() {
         .nest_service("/assets", ServeDir::new("assets"))
         // API routes (includes file-based docs)
         .nest("/api", api_router(state).merge(Router::new().nest("/docs", docs_files::router())))
-        // Frontend pages — explicit SSR routes
-        // `/` is the marketing landing for logged-out visitors, and the community
-        // feed for signed-in users, rendered under the bare `/` URL (no redirect).
-        .route("/", get({
-            let db = seo_db.clone();
-            let render_home = render_home.clone();
-            move |req: Request<Body>| {
-                let db = db.clone();
-                let render_home = render_home.clone();
-                async move {
-                    let signed_in = req.headers()
-                        .get(axum::http::header::COOKIE)
-                        .and_then(|c| c.to_str().ok())
-                        .map(|c| c.split(';').any(|kv| {
-                            let kv = kv.trim();
-                            kv.starts_with("token=") && kv.len() > "token=".len()
-                        }))
-                        .unwrap_or(false);
-                    let mut resp = if signed_in {
-                        let (mut parts, body) = req.into_parts();
-                        parts.uri = axum::http::Uri::from_static("/community");
-                        ssr_pages::community_page(db, None, Request::from_parts(parts, body)).await
-                    } else {
-                        render_home(req).await
-                    };
-                    // `/` now depends on the auth cookie (feed vs landing), so it must never be
-                    // cached as a shared/static page, otherwise sign-in/out serves stale content.
-                    let h = resp.headers_mut();
-                    h.insert(
-                        axum::http::header::CACHE_CONTROL,
-                        axum::http::HeaderValue::from_static("private, no-store, max-age=0, must-revalidate"),
-                    );
-                    h.insert(axum::http::header::VARY, axum::http::HeaderValue::from_static("Cookie"));
-                    resp
-                }
-            }
-        }))
-        .route("/download", get(ssr.clone()))
-        .route("/game", get(ssr.clone()))
+        // Frontend pages — explicit SSR routes. `/` is the engine download page.
+        .route("/", get(ssr.clone()))
         .route("/login", get(ssr.clone()))
         .route("/register", get(ssr.clone()))
         .route("/docs", get(ssr.clone()))
@@ -257,74 +219,14 @@ async fn main() {
                 async move { ssr_pages::asset_detail(db, slug, req).await }
             }
         }))
-        .route("/articles/:slug", get({
-            let db = seo_db.clone();
-            move |axum::extract::Path(slug): axum::extract::Path<String>, req: Request<Body>| {
-                let db = db.clone();
-                async move { ssr_pages::article_detail(db, slug, req).await }
-            }
-        }))
-        .route("/courses/:slug", get({
-            let db = seo_db.clone();
-            move |axum::extract::Path(slug): axum::extract::Path<String>, req: Request<Body>| {
-                let db = db.clone();
-                async move { ssr_pages::course_detail(db, slug, req).await }
-            }
-        }))
-        .route("/profile/:username", get({
-            let db = seo_db.clone();
-            move |axum::extract::Path(username): axum::extract::Path<String>, req: Request<Body>| {
-                let db = db.clone();
-                async move { ssr_pages::profile_page(db, username, req).await }
-            }
-        }))
-        .route("/games", get(ssr.clone()))
-        .route("/games/upload", get(ssr.clone()))
-        .route("/games/:slug", get(ssr.clone()))
         .route("/library", get(ssr.clone()))
         .route("/wallet", get(ssr.clone()))
-        .route("/courses", get(ssr.clone()))
-        .route("/courses/create", get(ssr.clone()))
-        .route("/courses/:slug/edit", get(ssr.clone()))
-        .route("/courses/:slug/chapter/:chapter", get(ssr.clone()))
-        .route("/community", get({
-            // SEO: server-render the hub with recent public posts
-            let db = seo_db.clone();
-            move |req: Request<Body>| {
-                let db = db.clone();
-                async move { ssr_pages::community_page(db, None, req).await }
-            }
-        }))
-        .route("/community/channel/:slug", get({
-            // SEO: server-render the channel with its public posts + title
-            let db = seo_db.clone();
-            move |axum::extract::Path(slug): axum::extract::Path<String>, req: Request<Body>| {
-                let db = db.clone();
-                async move { ssr_pages::community_page(db, Some(slug), req).await }
-            }
-        }))
-        .route("/community/post/:id", get({
-            // SEO: server-render the discussion + comments from the DB
-            let db = seo_db.clone();
-            move |axum::extract::Path(id): axum::extract::Path<String>, req: Request<Body>| {
-                let db = db.clone();
-                async move { ssr_pages::post_detail(db, id, req).await }
-            }
-        }))
-        .route("/articles", get(ssr.clone()))
-        .route("/articles/write", get(ssr.clone()))
-        .route("/friends", get(ssr.clone()))
-        .route("/notifications", get(ssr.clone()))
         .route("/shop/:username", get(ssr.clone()))
         .route("/marketplace/asset/:slug/edit", get(ssr.clone()))
         .route("/dashboard", get(ssr.clone()))
         .route("/developers", get(ssr.clone()))
         .route("/subscription", get(ssr.clone()))
-        .route("/teams", get(ssr.clone()))
-        .route("/messages", get(ssr.clone()))
-        .route("/feed", get(ssr.clone()))
         .route("/donate", get(ssr.clone()))
-        .route("/gifts", get(ssr.clone()))
         .route("/terms", get(ssr.clone()))
         .route("/privacy", get(ssr.clone()))
         .route("/settings", get(ssr.clone()))
@@ -418,7 +320,7 @@ fn xml_escape(s: &str) -> String {
 fn robots_txt(site_url: &str) -> Response {
     let base = site_url.trim_end_matches('/');
     let body = format!(
-        "User-agent: *\nAllow: /\n\n# Private / app-only routes\nDisallow: /login\nDisallow: /register\nDisallow: /settings\nDisallow: /wallet\nDisallow: /messages\nDisallow: /notifications\nDisallow: /friends\nDisallow: /dashboard\nDisallow: /gifts\nDisallow: /avatar/\n\nSitemap: {base}/sitemap.xml\n"
+        "User-agent: *\nAllow: /\n\n# Private / app-only routes\nDisallow: /login\nDisallow: /register\nDisallow: /settings\nDisallow: /wallet\nDisallow: /dashboard\n\nSitemap: {base}/sitemap.xml\n"
     );
     Response::builder()
         .header("Content-Type", "text/plain; charset=utf-8")
@@ -462,8 +364,8 @@ fn collect_slugs(v: &serde_json::Value, out: &mut Vec<String>) {
     }
 }
 
-/// `GET /sitemap.xml` — static public routes plus published marketplace assets,
-/// articles and the current docs pages. Absolute URLs use the runtime SITE_URL.
+/// `GET /sitemap.xml` — static public routes plus published marketplace assets
+/// and the current docs pages. Absolute URLs use the runtime SITE_URL.
 async fn sitemap_xml(db: &sqlx::PgPool, site_url: &str) -> Response {
     let base = site_url.trim_end_matches('/').to_string();
     let mut xml = String::with_capacity(16 * 1024);
@@ -472,13 +374,9 @@ async fn sitemap_xml(db: &sqlx::PgPool, site_url: &str) -> Response {
 
     // Static public routes: (path, changefreq, priority)
     let statics: &[(&str, &str, &str)] = &[
-        ("/", "daily", "1.0"),
-        ("/download", "weekly", "0.9"),
+        ("/", "weekly", "1.0"),
         ("/marketplace", "daily", "0.9"),
         ("/docs", "weekly", "0.8"),
-        ("/community", "daily", "0.7"),
-        ("/articles", "weekly", "0.6"),
-        ("/courses", "weekly", "0.6"),
         ("/developers", "monthly", "0.5"),
         ("/donate", "monthly", "0.4"),
         ("/subscription", "monthly", "0.3"),
@@ -499,49 +397,6 @@ async fn sitemap_xml(db: &sqlx::PgPool, site_url: &str) -> Response {
     .unwrap_or_default();
     for (slug, lm) in &assets {
         push_url(&mut xml, &format!("{base}/marketplace/asset/{slug}"), Some(lm), "weekly", "0.6");
-    }
-
-    // Published articles
-    let articles: Vec<(String, String)> = sqlx::query_as(
-        "SELECT slug, to_char(updated_at AT TIME ZONE 'UTC', 'YYYY-MM-DD') \
-         FROM articles WHERE published = true ORDER BY updated_at DESC LIMIT 5000",
-    )
-    .fetch_all(db)
-    .await
-    .unwrap_or_default();
-    for (slug, lm) in &articles {
-        push_url(&mut xml, &format!("{base}/articles/{slug}"), Some(lm), "weekly", "0.5");
-    }
-
-    // Published courses
-    let courses: Vec<(String,)> = sqlx::query_as("SELECT slug FROM courses WHERE published = true")
-        .fetch_all(db)
-        .await
-        .unwrap_or_default();
-    for (slug,) in &courses {
-        push_url(&mut xml, &format!("{base}/courses/{slug}"), None, "weekly", "0.5");
-    }
-
-    // Community channels (public topic pages)
-    let channels: Vec<(String,)> = sqlx::query_as("SELECT slug FROM channels ORDER BY slug")
-        .fetch_all(db)
-        .await
-        .unwrap_or_default();
-    for (slug,) in &channels {
-        push_url(&mut xml, &format!("{base}/community/channel/{slug}"), None, "daily", "0.6");
-    }
-
-    // Public community discussions (permalink pages) — public, non-hidden only
-    let posts: Vec<(uuid::Uuid, String)> = sqlx::query_as(
-        "SELECT id, to_char(created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD') \
-         FROM posts WHERE visibility = 'public' AND hidden = false \
-         ORDER BY created_at DESC LIMIT 10000",
-    )
-    .fetch_all(db)
-    .await
-    .unwrap_or_default();
-    for (id, lm) in &posts {
-        push_url(&mut xml, &format!("{base}/community/post/{id}"), Some(lm), "weekly", "0.5");
     }
 
     // Docs (default version) — read the version config, then its sidebar slugs
