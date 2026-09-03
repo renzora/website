@@ -173,6 +173,11 @@ pub fn Nav() -> impl IntoView {
                         <a href="/settings" class="flex items-center gap-2.5 px-4 py-2.5 text-sm text-zinc-400 hover:text-white hover:bg-white/[0.06] transition-all">
                             <i class="ph ph-gear text-base"></i>"Settings"
                         </a>
+                        // Revealed by updateNav for admins; the page and every
+                        // endpoint behind it re-check server-side regardless.
+                        <a href="/admin" id="nav-admin-link" class="hidden items-center gap-2.5 px-4 py-2.5 text-sm text-accent hover:text-white hover:bg-white/[0.06] transition-all">
+                            <i class="ph ph-shield-check text-base"></i>"Admin"
+                        </a>
                         <div class="border-t border-white/[0.06] my-1"></div>
                         <button onclick="handleLogout()" class="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-red-400 hover:text-red-300 hover:bg-white/[0.06] transition-all cursor-pointer">
                             <i class="ph ph-sign-out text-base"></i>"Sign Out"
@@ -210,6 +215,10 @@ pub fn Nav() -> impl IntoView {
                         if (username) username.textContent = u.username;
                         const initial = document.getElementById('nav-avatar-initial');
                         if (initial && u.username) initial.textContent = u.username.charAt(0).toUpperCase();
+                        if (u.role === 'admin' || u.role === 'moderator') {
+                            const adminLink = document.getElementById('nav-admin-link');
+                            if (adminLink) { adminLink.classList.remove('hidden'); adminLink.classList.add('flex'); }
+                        }
                         if (sideGuest) { sideGuest.classList.add('hidden'); }
                     } catch(e) {}
                     // Credits, badges, XP and creator status are loaded together by loadUserSummary().

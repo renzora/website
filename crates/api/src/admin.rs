@@ -122,6 +122,10 @@ pub fn router() -> Router<AppState> {
         .route("/transactions", get(list_all_transactions))
         .route("/users/:id/credit", post(credit_user))
         // Vouchers
+        // Gift cards
+        .route("/gift-cards", get(list_gift_cards))
+        .route("/gift-cards/:id/void", put(void_gift_card))
+
         .route("/vouchers", get(list_vouchers))
         .route("/vouchers", post(create_voucher))
         .route("/vouchers/:id/toggle", put(toggle_voucher))
@@ -1652,6 +1656,102 @@ struct CreateVoucherBody {
     max_uses: Option<i32>,
     max_uses_per_user: Option<i32>,
     expires_hours: Option<i64>,
+}
+
+// ── Gift cards ──
+
+#[derive(Deserialize)]
+struct GiftCardQuery {
+    q: Option<String>,
+    status: Option<String>,
+    page: Option<i64>,
+}
+
+/// List gift cards with the sender/redeemer usernames resolved, newest first.
+/// `q` matches the code or either username; `status` filters pending/redeemed/void.
+async fn list_gift_cards(
+    State(state): State<AppState>,
+    Extension(auth): Extension<AuthUser>,
+    Query(params): Query<GiftCardQuery>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    verify_admin(&state, auth.user_id).await?;
+    let page = params.page.unwrap_or(1).max(1);
+    let offset = (page - 1) * 50;
+    let q = params.q.filter(|v| !v.trim().is_empty());
+    let status = params.status.filter(|v| !v.trim().is_empty());
+
+    let rows = sqlx::query(
+        "SELECT g.id, g.code, g.amount, g.status, g.message, g.created_at, g.redeemed_at, g.expires_at, \
+                s.username AS sender_name, r.username AS redeemer_name \
+         FROM gift_cards g \
+         JOIN users s ON s.id = g.sender_id \
+         LEFT JOIN users r ON r.id = g.redeemed_by \
+         WHERE ($1::text IS NULL OR g.code ILIKE '%' || $1 || '%' OR s.username ILIKE '%' || $1 || '%' OR r.username ILIKE '%' || $1 || '%') \
+           AND ($2::text IS NULL OR g.status = $2) \
+         ORDER BY g.created_at DESC LIMIT 50 OFFSET $3"
+    )
+    .bind(&q).bind(&status).bind(offset)
+    .fetch_all(&state.db).await?;
+
+    let items: Vec<serde_json::Value> = rows.iter().map(|r| serde_json::json!({
+        "id": r.get::<Uuid, _>("id"),
+        "code": r.get::<String, _>("code"),
+        "amount": r.get::<i64, _>("amount"),
+        "status": r.get::<String, _>("status"),
+        "message": r.get::<String, _>("message"),
+        "sender_name": r.get::<String, _>("sender_name"),
+        "redeemer_name": r.get::<Option<String>, _>("redeemer_name"),
+        "created_at": r.get::<time::OffsetDateTime, _>("created_at").format(&Rfc3339).unwrap_or_default(),
+        "redeemed_at": r.get::<Option<time::OffsetDateTime>, _>("redeemed_at").and_then(|d| d.format(&Rfc3339).ok()),
+        "expires_at": r.get::<Option<time::OffsetDateTime>, _>("expires_at").and_then(|d| d.format(&Rfc3339).ok()),
+    })).collect();
+
+    let total: (i64,) = sqlx::query_as(
+        "SELECT COUNT(*)::bigint FROM gift_cards g \
+         JOIN users s ON s.id = g.sender_id \
+         LEFT JOIN users r ON r.id = g.redeemed_by \
+         WHERE ($1::text IS NULL OR g.code ILIKE '%' || $1 || '%' OR s.username ILIKE '%' || $1 || '%' OR r.username ILIKE '%' || $1 || '%') \
+           AND ($2::text IS NULL OR g.status = $2)"
+    ).bind(&q).bind(&status).fetch_one(&state.db).await?;
+
+    Ok(Json(serde_json::json!({ "items": items, "total": total.0 })))
+}
+
+/// Void an unredeemed gift card and refund its credits to the sender. Refusing
+/// anything already redeemed keeps this from double-spending a card whose value
+/// has landed in someone's balance.
+async fn void_gift_card(
+    State(state): State<AppState>,
+    Extension(auth): Extension<AuthUser>,
+    Path(id): Path<Uuid>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    verify_admin(&state, auth.user_id).await?;
+
+    let card: Option<(Uuid, i64, String)> = sqlx::query_as(
+        "SELECT sender_id, amount, status FROM gift_cards WHERE id = $1"
+    ).bind(id).fetch_optional(&state.db).await?;
+    let (sender_id, amount, status) = card.ok_or(ApiError::NotFound)?;
+
+    if status != "pending" {
+        return Err(ApiError::Validation(format!("Cannot void a {status} gift card")));
+    }
+
+    let mut tx = state.db.begin().await.map_err(|e| ApiError::Internal(e.to_string()))?;
+    sqlx::query("UPDATE gift_cards SET status = 'void' WHERE id = $1 AND status = 'pending'")
+        .bind(id).execute(&mut *tx).await.map_err(|e| ApiError::Internal(e.to_string()))?;
+    sqlx::query("UPDATE users SET credit_balance = credit_balance + $1 WHERE id = $2")
+        .bind(amount).bind(sender_id)
+        .execute(&mut *tx).await.map_err(|e| ApiError::Internal(e.to_string()))?;
+    sqlx::query("INSERT INTO transactions (id, user_id, type, amount, reason, admin_id) VALUES ($1, $2, 'gift_refund', $3, $4, $5)")
+        .bind(Uuid::new_v4()).bind(sender_id).bind(amount)
+        .bind("Gift card voided by admin").bind(auth.user_id)
+        .execute(&mut *tx).await.map_err(|e| ApiError::Internal(e.to_string()))?;
+    tx.commit().await.map_err(|e| ApiError::Internal(e.to_string()))?;
+
+    audit_log(&state.db, auth.user_id, "void_gift_card", "gift_card", Some(id),
+        serde_json::json!({"amount": amount, "refunded_to": sender_id})).await;
+
+    Ok(Json(serde_json::json!({ "ok": true, "refunded": amount })))
 }
 
 async fn list_vouchers(

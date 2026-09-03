@@ -92,7 +92,7 @@ pub fn DownloadPage() -> impl IntoView {
                                 <span class="text-[11px] text-zinc-600 ml-2">"terminal"</span>
                             </div>
                             <div class="p-4 font-mono text-[13px] leading-relaxed space-y-2">
-                                <p style="word-break:break-all">
+                                <p class="break-all">
                                     <span class="text-zinc-600 select-none">"$ "</span>
                                     <span class="text-emerald-400">"git"</span>
                                     <span class="text-zinc-200">" clone https://github.com/renzora/engine.git"</span>
@@ -126,7 +126,7 @@ pub fn DownloadPage() -> impl IntoView {
                     </h3>
                     // Stable / nightly switch
                     <div class="flex items-center gap-1.5 p-1 bg-white/[0.02] rounded-xl border border-zinc-800/40">
-                        <button type="button" id="ch-stable" onclick="dlChannel('stable')" class="px-5 py-2.5 rounded-lg text-sm font-semibold bg-sky-500 text-white transition-all">"Stable"</button>
+                        <button type="button" id="ch-stable" onclick="dlChannel('stable')" class="px-5 py-2.5 rounded-lg text-sm font-semibold bg-blue-600 text-white transition-all">"Stable"</button>
                         <button type="button" id="ch-nightly" onclick="dlChannel('nightly')" class="px-5 py-2.5 rounded-lg text-sm font-semibold text-zinc-400 hover:text-zinc-200 transition-all">"Nightly"</button>
                     </div>
                 </div>
@@ -373,7 +373,7 @@ pub fn DownloadPage() -> impl IntoView {
                 [['ch-stable', !nightly], ['ch-nightly', nightly]].forEach(function(pair) {
                     var btn = document.getElementById(pair[0]);
                     if (!btn) return;
-                    btn.classList.toggle('bg-sky-500', pair[1]);
+                    btn.classList.toggle('bg-blue-600', pair[1]);
                     btn.classList.toggle('text-white', pair[1]);
                     btn.classList.toggle('text-zinc-400', !pair[1]);
                     btn.classList.toggle('hover:text-zinc-200', !pair[1]);

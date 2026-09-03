@@ -215,6 +215,7 @@ async fn main() {
         .route("/shop/:username", get(ssr.clone()))
         .route("/marketplace/asset/:slug/edit", get(ssr.clone()))
         .route("/dashboard", get(ssr.clone()))
+        .route("/admin", get(ssr.clone()))
         .route("/developers", get(ssr.clone()))
         .route("/donate", get(ssr.clone()))
         .route("/terms", get(ssr.clone()))
