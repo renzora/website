@@ -92,7 +92,7 @@ pub fn DownloadPage() -> impl IntoView {
                                 <span class="text-[11px] text-zinc-600 ml-2">"terminal"</span>
                             </div>
                             <div class="p-4 font-mono text-[13px] leading-relaxed space-y-2">
-                                <p class="break-all">
+                                <p style="word-break:break-all">
                                     <span class="text-zinc-600 select-none">"$ "</span>
                                     <span class="text-emerald-400">"git"</span>
                                     <span class="text-zinc-200">" clone https://github.com/renzora/engine.git"</span>
@@ -117,7 +117,7 @@ pub fn DownloadPage() -> impl IntoView {
                 </div>
 
                 // Prebuilt downloads
-                <div id="downloads" class="flex flex-wrap items-end justify-between gap-3 mb-5">
+                <div id="downloads" class="flex flex-wrap items-center justify-between gap-3 mb-3">
                     <h3 class="text-lg font-semibold flex items-center gap-2">
                         <div class="w-7 h-7 rounded-lg bg-accent/10 flex items-center justify-center">
                             <i class="ph ph-download-simple text-sm text-accent"></i>
@@ -125,48 +125,27 @@ pub fn DownloadPage() -> impl IntoView {
                         "Download Engine"
                     </h3>
                     // Stable / nightly switch
-                    <div class="flex items-center gap-1 p-1 bg-white/[0.02] rounded-lg border border-zinc-800/40">
-                        <button type="button" id="ch-stable" onclick="dlChannel('stable')" class="px-3 py-1.5 rounded-md text-xs font-medium bg-white/[0.06] text-white transition-all">"Stable"</button>
-                        <button type="button" id="ch-nightly" onclick="dlChannel('nightly')" class="px-3 py-1.5 rounded-md text-xs font-medium text-zinc-500 hover:text-zinc-300 transition-all">"Nightly"</button>
+                    <div class="flex items-center gap-1.5 p-1 bg-white/[0.02] rounded-xl border border-zinc-800/40">
+                        <button type="button" id="ch-stable" onclick="dlChannel('stable')" class="px-5 py-2.5 rounded-lg text-sm font-semibold bg-sky-500 text-white transition-all">"Stable"</button>
+                        <button type="button" id="ch-nightly" onclick="dlChannel('nightly')" class="px-5 py-2.5 rounded-lg text-sm font-semibold text-zinc-400 hover:text-zinc-200 transition-all">"Nightly"</button>
                     </div>
                 </div>
 
-                // ── Stable channel ──
-                // Static cards, no GitHub API call. After each release, set the
-                // version below and fill each `href` with the asset download URL.
-                <div id="dl-panel-stable">
-                    <p class="text-xs text-zinc-500 mb-4">
-                        "Latest stable release: "
-                        <span class="text-zinc-300">"r1-alpha6"</span>
-                    </p>
-                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        <PlatformCard name="Windows" icon="ph-windows-logo" req="Windows 10+ · x64" href="https://github.com/renzora/engine/releases/download/r1-alpha6/windows-x64.zip" />
-                        <PlatformCard name="macOS" icon="ph-apple-logo" req="macOS 12+ · Apple Silicon" href="https://github.com/renzora/engine/releases/download/r1-alpha6/macos-arm64.zip" />
-                        <PlatformCard name="Linux" icon="ph-linux-logo" req="Linux · ARM64" href="https://github.com/renzora/engine/releases/download/r1-alpha6/linux-arm64.zip" />
-                    </div>
-                </div>
+                <p class="text-xs text-zinc-500 mb-5">
+                    <span id="dl-release-label">"Latest stable release: "</span>
+                    <span id="dl-release-tag" class="text-zinc-300">"r1-alpha6"</span>
+                    <span id="dl-release-note" class="text-zinc-600"></span>
+                </p>
 
-                // ── Nightly channel ──
-                // Nightlies are tagged per-day, so the exact tag can't be baked in
-                // here. Each card ships pointing at the releases list and is upgraded
-                // to a direct asset link once the GitHub API resolves the newest
-                // pre-release; if that call fails the releases link still works.
-                <div id="dl-panel-nightly" class="hidden">
-                    <p class="text-xs text-zinc-500 mb-4">
-                        "Latest nightly: "
-                        <span id="nightly-tag" class="text-zinc-300">"resolving…"</span>
-                        <span class="text-zinc-600">" · built from main, expect breakage"</span>
-                    </p>
-                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                        <NightlyCard name="Windows" icon="ph-windows-logo" req="x64" asset="windows-x64.zip" />
-                        <NightlyCard name="Windows" icon="ph-windows-logo" req="ARM64" asset="windows-arm64.zip" />
-                        <NightlyCard name="macOS" icon="ph-apple-logo" req="Apple Silicon" asset="macos-arm64.zip" />
-                        <NightlyCard name="macOS" icon="ph-apple-logo" req="Intel · x64" asset="macos-x64.zip" />
-                        <NightlyCard name="Linux" icon="ph-linux-logo" req="x64" asset="linux-x64.zip" />
-                        <NightlyCard name="Linux" icon="ph-linux-logo" req="ARM64" asset="linux-arm64.zip" />
-                        <NightlyCard name="Web" icon="ph-globe" req="wasm32" asset="web-wasm32.zip" />
-                        <NightlyCard name="Source" icon="ph-file-zip" req="Engine source" asset="engine-source.zip" />
-                    </div>
+                // One card per platform; the build (editor/runtime, architecture)
+                // is picked from the card's dropdown. Options are server-rendered
+                // for the stable channel so the page works without JS, and swapped
+                // out by `dlRender` when the channel changes.
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <DownloadCard platform="windows" name="Windows" icon="ph-windows-logo" opt_label="Editor · x64" opt_asset="windows-x64.zip" />
+                    <DownloadCard platform="macos" name="macOS" icon="ph-apple-logo" opt_label="Editor · Apple Silicon" opt_asset="macos-arm64.zip" />
+                    <DownloadCard platform="linux" name="Linux" icon="ph-linux-logo" opt_label="Editor · ARM64" opt_asset="linux-arm64.zip" />
+                    <DownloadCard platform="web" name="Web" icon="ph-globe" opt_label="" opt_asset="" />
                 </div>
 
                 <p class="text-xs text-zinc-500 mt-4 text-center">
@@ -298,33 +277,133 @@ pub fn DownloadPage() -> impl IntoView {
             }
             document.addEventListener('keydown', function(e) { if (e.key === 'Escape') dlClose(); });
 
-            // ── Stable / nightly switch ──
+            // ── Download channel + per-platform build picker ──
+            // Which builds each channel ships, per platform: [asset, label].
+            // Stable only publishes three editor builds; the full architecture
+            // matrix and the runtime bundles are nightly-only.
+            var DL_BUILDS = {
+                stable: {
+                    windows: [['windows-x64.zip', 'Editor · x64']],
+                    macos:   [['macos-arm64.zip', 'Editor · Apple Silicon']],
+                    linux:   [['linux-arm64.zip', 'Editor · ARM64']],
+                    web:     []
+                },
+                nightly: {
+                    windows: [
+                        ['windows-x64.zip', 'Editor · x64'],
+                        ['windows-arm64.zip', 'Editor · ARM64'],
+                        ['renzora-runtime-windows-x64.zip', 'Runtime · x64'],
+                        ['renzora-runtime-windows-arm64.zip', 'Runtime · ARM64']
+                    ],
+                    macos: [
+                        ['macos-arm64.zip', 'Editor · Apple Silicon'],
+                        ['macos-x64.zip', 'Editor · Intel x64'],
+                        ['renzora-runtime-macos-arm64.zip', 'Runtime · Apple Silicon'],
+                        ['renzora-runtime-macos-x64.zip', 'Runtime · Intel x64']
+                    ],
+                    linux: [
+                        ['linux-x64.zip', 'Editor · x64'],
+                        ['linux-arm64.zip', 'Editor · ARM64'],
+                        ['renzora-runtime-linux-x64.zip', 'Runtime · x64'],
+                        ['renzora-runtime-linux-arm64.zip', 'Runtime · ARM64']
+                    ],
+                    web: [
+                        ['web-wasm32.zip', 'Editor · wasm32'],
+                        ['renzora-runtime-web-wasm32.zip', 'Runtime · wasm32'],
+                        ['engine-source.zip', 'Engine source']
+                    ]
+                }
+            };
+            var DL_RELEASES = 'https://github.com/renzora/engine/releases';
+            var DL_TAGS = { stable: 'r1-alpha6', nightly: null };
+            var dlChannelName = 'stable';
+
+            function dlAssetUrl(asset) {
+                var tag = DL_TAGS[dlChannelName];
+                if (!tag || !asset) return DL_RELEASES;
+                return DL_RELEASES + '/download/' + tag + '/' + asset;
+            }
+
+            // Keep a card's button in step with its dropdown.
+            function dlPick(sel) {
+                var platform = sel.getAttribute('data-dl-select');
+                var btn = document.querySelector('[data-dl-button="' + platform + '"]');
+                if (btn) btn.href = dlAssetUrl(sel.value);
+            }
+
+            function dlRender() {
+                var builds = DL_BUILDS[dlChannelName] || {};
+                document.querySelectorAll('[data-dl-select]').forEach(function(sel) {
+                    var platform = sel.getAttribute('data-dl-select');
+                    var opts = builds[platform] || [];
+                    var card = document.querySelector('[data-dl-card="' + platform + '"]');
+                    var btn = document.querySelector('[data-dl-button="' + platform + '"]');
+                    var prev = sel.value;
+
+                    sel.innerHTML = '';
+                    if (!opts.length) {
+                        var none = document.createElement('option');
+                        none.value = '';
+                        none.textContent = 'Not in this release';
+                        sel.appendChild(none);
+                        sel.disabled = true;
+                        if (card) card.classList.add('opacity-40');
+                        if (btn) btn.href = DL_RELEASES;
+                        return;
+                    }
+
+                    sel.disabled = false;
+                    if (card) card.classList.remove('opacity-40');
+                    opts.forEach(function(o) {
+                        var el = document.createElement('option');
+                        el.value = o[0];
+                        el.textContent = o[1];
+                        sel.appendChild(el);
+                    });
+                    // Keep the visitor's pick across a channel switch when that
+                    // build exists on the new channel too.
+                    sel.value = opts.some(function(o) { return o[0] === prev; }) ? prev : opts[0][0];
+                    if (btn) btn.href = dlAssetUrl(sel.value);
+                });
+            }
+
             function dlChannel(ch) {
+                dlChannelName = ch;
                 var nightly = ch === 'nightly';
-                document.getElementById('dl-panel-stable').classList.toggle('hidden', nightly);
-                document.getElementById('dl-panel-nightly').classList.toggle('hidden', !nightly);
                 [['ch-stable', !nightly], ['ch-nightly', nightly]].forEach(function(pair) {
                     var btn = document.getElementById(pair[0]);
                     if (!btn) return;
-                    btn.classList.toggle('bg-white/[0.06]', pair[1]);
+                    btn.classList.toggle('bg-sky-500', pair[1]);
                     btn.classList.toggle('text-white', pair[1]);
-                    btn.classList.toggle('text-zinc-500', !pair[1]);
+                    btn.classList.toggle('text-zinc-400', !pair[1]);
+                    btn.classList.toggle('hover:text-zinc-200', !pair[1]);
                 });
-                if (nightly) dlResolveNightly();
+
+                var label = document.getElementById('dl-release-label');
+                var tagEl = document.getElementById('dl-release-tag');
+                var note = document.getElementById('dl-release-note');
+                if (nightly) {
+                    if (label) label.textContent = 'Latest nightly: ';
+                    if (tagEl) tagEl.textContent = DL_TAGS.nightly || 'resolving…';
+                    if (note) note.textContent = ' · built from main, expect breakage';
+                    dlResolveNightly();
+                } else {
+                    if (label) label.textContent = 'Latest stable release: ';
+                    if (tagEl) tagEl.textContent = DL_TAGS.stable;
+                    if (note) note.textContent = '';
+                }
+                dlRender();
             }
 
-            // Point the nightly cards at the newest pre-release. Nightlies are tagged
-            // per-day so the tag can't be baked into the page. Resolved once per tab
-            // and cached; on any failure the cards keep their releases-page href, so
-            // a rate-limited or offline visitor still gets somewhere useful.
-            var nightlyDone = false;
+            // Nightlies are tagged per-day, so the tag can't be baked into the page.
+            // Resolve the newest pre-release once per tab; on any failure the cards
+            // fall back to the releases list, which still gets people somewhere.
+            var nightlyPending = false;
             async function dlResolveNightly() {
-                if (nightlyDone) return;
-                nightlyDone = true;
+                if (DL_TAGS.nightly || nightlyPending) return;
+                nightlyPending = true;
                 var tag = null;
-                try {
-                    tag = sessionStorage.getItem('renzora_nightly_tag');
-                } catch (e) {}
+                try { tag = sessionStorage.getItem('renzora_nightly_tag'); } catch (e) {}
                 if (!tag) {
                     try {
                         var res = await fetch('https://api.github.com/repos/renzora/engine/releases?per_page=20');
@@ -335,17 +414,19 @@ pub fn DownloadPage() -> impl IntoView {
                         tag = latest.tag_name;
                         try { sessionStorage.setItem('renzora_nightly_tag', tag); } catch (e) {}
                     } catch (e) {
-                        var label = document.getElementById('nightly-tag');
-                        if (label) label.textContent = 'see all releases';
-                        nightlyDone = false;  // let a later switch retry
+                        var t = document.getElementById('dl-release-tag');
+                        if (t) t.textContent = 'see all releases';
+                        nightlyPending = false;   // allow a retry on the next switch
                         return;
                     }
                 }
-                var label = document.getElementById('nightly-tag');
-                if (label) label.textContent = tag;
-                document.querySelectorAll('[data-nightly-asset]').forEach(function(a) {
-                    a.href = 'https://github.com/renzora/engine/releases/download/' + tag + '/' + a.getAttribute('data-nightly-asset');
-                });
+                DL_TAGS.nightly = tag;
+                nightlyPending = false;
+                if (dlChannelName === 'nightly') {
+                    var t2 = document.getElementById('dl-release-tag');
+                    if (t2) t2.textContent = tag;
+                    dlRender();
+                }
             }
             "#
         </script>
@@ -491,58 +572,61 @@ pub fn DownloadPage() -> impl IntoView {
     }
 }
 
-/// One nightly asset. Ships pointing at the releases list; `dlResolveNightly`
-/// rewrites `href` to the direct asset URL once it knows the newest tag.
+/// One platform's download card. `opt_label`/`opt_asset` seed the dropdown with
+/// that platform's stable build so the card is usable before (or without) JS;
+/// `dlRender` replaces the options when the channel changes. An empty
+/// `opt_asset` means the platform has no build on the stable channel.
 #[component]
-fn NightlyCard(name: &'static str, icon: &'static str, req: &'static str, asset: &'static str) -> impl IntoView {
-    let icon_class = format!("ph {} text-xl text-zinc-200", icon);
+fn DownloadCard(
+    platform: &'static str,
+    name: &'static str,
+    icon: &'static str,
+    opt_label: &'static str,
+    opt_asset: &'static str,
+) -> impl IntoView {
+    let available = !opt_asset.is_empty();
+    let icon_class = format!("ph {} text-xl {}", icon, if available { "text-zinc-200" } else { "text-zinc-600" });
+    // Dim a platform with no build on the server-rendered (stable) channel, so
+    // the first paint matches what `dlRender` would draw.
+    let card_class = format!(
+        "relative p-5 bg-white/[0.02] border border-zinc-800/50 rounded-xl flex flex-col items-center gap-3 text-center transition-all hover:border-accent/40 hover:bg-white/[0.04]{}",
+        if available { "" } else { " opacity-40" }
+    );
+    let href = if available {
+        format!("https://github.com/renzora/engine/releases/download/r1-alpha6/{opt_asset}")
+    } else {
+        "https://github.com/renzora/engine/releases".to_string()
+    };
     view! {
-        <div class="relative p-4 bg-white/[0.02] border border-zinc-800/50 rounded-xl text-center flex flex-col items-center gap-2 transition-all hover:border-accent/40 hover:bg-white/[0.04]">
-            <div class="w-11 h-11 rounded-xl bg-white/[0.03] border border-zinc-800/30 flex items-center justify-center">
+        <div data-dl-card=platform class=card_class>
+            <div class="w-12 h-12 rounded-2xl bg-white/[0.03] border border-zinc-800/30 flex items-center justify-center">
                 <i class=icon_class></i>
             </div>
-            <h3 class="text-sm font-semibold">{name}</h3>
-            <p class="text-[11px] text-zinc-500">{req}</p>
+            <h3 class="text-base font-semibold">{name}</h3>
+
+            <select
+                data-dl-select=platform
+                disabled=!available
+                onchange="dlPick(this)"
+                class="w-full px-3 py-2 bg-surface border border-zinc-800 rounded-lg text-zinc-50 text-xs outline-none focus:border-accent transition-colors cursor-pointer"
+            >
+                {if available {
+                    view! { <option value=opt_asset>{opt_label}</option> }.into_any()
+                } else {
+                    view! { <option value="">"Not in this release"</option> }.into_any()
+                }}
+            </select>
+
             <a
-                href="https://github.com/renzora/engine/releases"
-                data-nightly-asset=asset
+                data-dl-button=platform
+                href=href
                 target="_blank"
                 rel="noopener noreferrer"
                 onclick="dlPrompt()"
-                class="w-full mt-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium bg-purple-600 text-white hover:bg-purple-500 transition-all"
+                class="w-full inline-flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-lg text-sm font-medium bg-purple-600 text-white hover:bg-purple-500 transition-all"
             >
                 <i class="ph ph-download-simple"></i>"Download"
             </a>
-        </div>
-    }
-}
-
-#[component]
-fn PlatformCard(name: &'static str, icon: &'static str, req: &'static str, href: &'static str) -> impl IntoView {
-    let available = !href.is_empty();
-    let card_class = format!(
-        "relative p-6 bg-white/[0.02] border border-zinc-800/50 rounded-xl text-center flex flex-col items-center gap-3 transition-all {}",
-        if available { "hover:border-accent/40 hover:bg-white/[0.04]" } else { "opacity-40" }
-    );
-    let icon_class = format!("ph {} text-2xl {}", icon, if available { "text-zinc-200" } else { "text-zinc-600" });
-    view! {
-        <div class=card_class>
-            <div class="w-14 h-14 rounded-2xl bg-white/[0.03] border border-zinc-800/30 flex items-center justify-center">
-                <i class=icon_class></i>
-            </div>
-            <h3 class="text-lg font-semibold">{name}</h3>
-            <p class="text-[11px] text-zinc-500">{req}</p>
-            {if available {
-                view! {
-                    <a href=href target="_blank" rel="noopener noreferrer" onclick="dlPrompt()" class="w-full mt-1 inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium bg-purple-600 text-white hover:bg-purple-500 transition-all">
-                        <i class="ph ph-download-simple"></i>"Download"
-                    </a>
-                }.into_any()
-            } else {
-                view! {
-                    <span class="w-full mt-1 inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium bg-zinc-800/50 text-zinc-600 cursor-not-allowed">"Coming soon"</span>
-                }.into_any()
-            }}
         </div>
     }
 }
