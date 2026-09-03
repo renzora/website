@@ -73,19 +73,6 @@ pub fn Nav() -> impl IntoView {
                     <a href="/game" class="mt-2.5 block text-center text-xs font-semibold text-white bg-fuchsia-600 hover:bg-fuchsia-500 transition-colors rounded-lg py-1.5">"Join Waiting List"</a>
                 </div>
 
-                // Renzora Game card (coming soon)
-                <div class="rounded-xl p-3 bg-gradient-to-br from-fuchsia-500/[0.15] to-purple-600/[0.08] border border-white/[0.07]">
-                    <div class="flex items-center justify-between gap-2">
-                        <p class="text-[9px] font-semibold uppercase tracking-[0.16em] text-zinc-400">"Renzora Game"</p>
-                        <span class="text-[9px] font-semibold px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-400 shrink-0">"Coming Soon"</span>
-                    </div>
-                    <div class="flex items-center gap-1.5 mt-1.5">
-                        <i class="ph ph-game-controller text-fuchsia-400 text-sm"></i>
-                        <span class="text-sm font-semibold text-white">"Open-world adventure"</span>
-                    </div>
-                    <a href="/game" class="mt-2.5 block text-center text-xs font-semibold text-white bg-fuchsia-600 hover:bg-fuchsia-500 transition-colors rounded-lg py-1.5">"Join Waiting List"</a>
-                </div>
-
                 // Engine download card
                 <div class="rounded-xl p-3 bg-gradient-to-br from-accent/[0.15] to-secondary/[0.08] border border-white/[0.07]">
                     <p class="text-[9px] font-semibold uppercase tracking-[0.16em] text-zinc-400">"Renzora Engine"</p>
