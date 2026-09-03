@@ -122,6 +122,9 @@ pub fn router() -> Router<AppState> {
         .route("/transactions", get(list_all_transactions))
         .route("/users/:id/credit", post(credit_user))
         // Vouchers
+        // Renzora game waiting list
+        .route("/waitlist", get(list_waitlist))
+
         // Gift cards
         .route("/gift-cards", get(list_gift_cards))
         .route("/gift-cards/:id/void", put(void_gift_card))
@@ -1658,6 +1661,62 @@ struct CreateVoucherBody {
     expires_hours: Option<i64>,
 }
 
+// ── Renzora game waiting list ──
+
+#[derive(Deserialize)]
+struct WaitlistQuery {
+    q: Option<String>,
+    page: Option<i64>,
+}
+
+/// Signups for the upcoming Renzora game (the /game page). Returns the page of
+/// rows plus the overall total and a today/7d/30d breakdown for the header.
+async fn list_waitlist(
+    State(state): State<AppState>,
+    Extension(auth): Extension<AuthUser>,
+    Query(params): Query<WaitlistQuery>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    verify_admin(&state, auth.user_id).await?;
+    let page = params.page.unwrap_or(1).max(1);
+    let offset = (page - 1) * 50;
+    let q = params.q.filter(|v| !v.trim().is_empty());
+
+    let rows = sqlx::query(
+        "SELECT id, email, source, created_at FROM waitlist \
+         WHERE ($1::text IS NULL OR email ILIKE '%' || $1 || '%' OR source ILIKE '%' || $1 || '%') \
+         ORDER BY created_at DESC LIMIT 50 OFFSET $2"
+    )
+    .bind(&q).bind(offset)
+    .fetch_all(&state.db).await?;
+
+    let items: Vec<serde_json::Value> = rows.iter().map(|r| serde_json::json!({
+        "id": r.get::<Uuid, _>("id"),
+        "email": r.get::<String, _>("email"),
+        "source": r.get::<String, _>("source"),
+        "created_at": r.get::<time::OffsetDateTime, _>("created_at").format(&Rfc3339).unwrap_or_default(),
+    })).collect();
+
+    let total: (i64,) = sqlx::query_as(
+        "SELECT COUNT(*)::bigint FROM waitlist \
+         WHERE ($1::text IS NULL OR email ILIKE '%' || $1 || '%' OR source ILIKE '%' || $1 || '%')"
+    ).bind(&q).fetch_one(&state.db).await?;
+
+    let counts: (i64, i64, i64) = sqlx::query_as(
+        "SELECT COUNT(*) FILTER (WHERE created_at >= CURRENT_DATE)::bigint, \
+                COUNT(*) FILTER (WHERE created_at > NOW() - INTERVAL '7 days')::bigint, \
+                COUNT(*) FILTER (WHERE created_at > NOW() - INTERVAL '30 days')::bigint \
+         FROM waitlist"
+    ).fetch_one(&state.db).await?;
+
+    Ok(Json(serde_json::json!({
+        "items": items,
+        "total": total.0,
+        "today": counts.0,
+        "week": counts.1,
+        "month": counts.2,
+    })))
+}
+
 // ── Gift cards ──
 
 #[derive(Deserialize)]
@@ -1896,7 +1955,10 @@ async fn monthly_analytics(
 #[derive(Deserialize)]
 struct TimeseriesQuery {
     metric: String,
-    months: Option<i32>,
+    /// "day", "week" or "month". Anything else is rejected.
+    bucket: Option<String>,
+    /// How far back to look, in days. Defaults to a year.
+    days: Option<i32>,
 }
 
 async fn analytics_timeseries(
@@ -1905,26 +1967,69 @@ async fn analytics_timeseries(
     Query(params): Query<TimeseriesQuery>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     verify_admin(&state, auth.user_id).await?;
-    let months = params.months.unwrap_or(12);
 
-    let query = match params.metric.as_str() {
-        "revenue" => "SELECT date_trunc('month', created_at) as month, COALESCE(SUM(amount),0)::bigint as value FROM transactions WHERE type='topup' AND created_at > NOW() - make_interval(months => $1) GROUP BY month ORDER BY month",
-        "purchases" => "SELECT date_trunc('month', created_at) as month, COALESCE(SUM(ABS(amount)),0)::bigint as value FROM transactions WHERE type='purchase' AND created_at > NOW() - make_interval(months => $1) GROUP BY month ORDER BY month",
-        "commission" => "SELECT date_trunc('month', t.created_at) as month, (COALESCE(SUM(ABS(CASE WHEN t.type='purchase' THEN t.amount ELSE 0 END)),0) - COALESCE(SUM(CASE WHEN t.type='earning' THEN t.amount ELSE 0 END),0))::bigint as value FROM transactions t WHERE t.type IN ('purchase','earning') AND t.created_at > NOW() - make_interval(months => $1) GROUP BY month ORDER BY month",
-        "withdrawals" => "SELECT date_trunc('month', completed_at) as month, COALESCE(SUM(amount_credits),0)::bigint as value FROM withdrawals WHERE status='completed' AND completed_at > NOW() - make_interval(months => $1) GROUP BY month ORDER BY month",
-        "registrations" => "SELECT date_trunc('month', created_at) as month, COUNT(*)::bigint as value FROM users WHERE created_at > NOW() - make_interval(months => $1) GROUP BY month ORDER BY month",
-        "assets_added" => "SELECT date_trunc('month', created_at) as month, COUNT(*)::bigint as value FROM assets WHERE created_at > NOW() - make_interval(months => $1) GROUP BY month ORDER BY month",
-        "downloads" => "SELECT date_trunc('month', created_at) as month, COUNT(*)::bigint as value FROM launcher_downloads WHERE created_at > NOW() - make_interval(months => $1) GROUP BY month ORDER BY month",
+    // Whitelisted, so it is safe to interpolate into date_trunc below; every
+    // other value in the query is a bind parameter.
+    let bucket = match params.bucket.as_deref().unwrap_or("month") {
+        "day" => "day",
+        "week" => "week",
+        "month" => "month",
+        _ => return Err(ApiError::Validation("bucket must be day, week or month".into())),
+    };
+    let days = params.days.unwrap_or(365).clamp(1, 3650);
+
+    // (source table, timestamp column, aggregate, extra predicate)
+    let (table, date_col, agg, filter) = match params.metric.as_str() {
+        "revenue" => ("transactions", "created_at", "COALESCE(SUM(amount),0)::bigint", "AND type = 'topup'"),
+        "purchases" => ("transactions", "created_at", "COALESCE(SUM(ABS(amount)),0)::bigint", "AND type = 'purchase'"),
+        "withdrawals" => ("withdrawals", "completed_at", "COALESCE(SUM(amount_credits),0)::bigint", "AND status = 'completed'"),
+        "registrations" => ("users", "created_at", "COUNT(*)::bigint", ""),
+        "assets_added" => ("assets", "created_at", "COUNT(*)::bigint", ""),
+        "downloads" => ("launcher_downloads", "created_at", "COUNT(*)::bigint", ""),
+        "waitlist" => ("waitlist", "created_at", "COUNT(*)::bigint", ""),
+        "commission" => {
+            // Platform take: purchase volume minus what was paid out to creators.
+            let q = format!(
+                "SELECT date_trunc('{bucket}', created_at) AS bucket, \
+                        (COALESCE(SUM(ABS(CASE WHEN type='purchase' THEN amount ELSE 0 END)),0) \
+                       - COALESCE(SUM(CASE WHEN type='earning' THEN amount ELSE 0 END),0))::bigint AS value \
+                 FROM transactions \
+                 WHERE type IN ('purchase','earning') AND created_at > NOW() - make_interval(days => $1) \
+                 GROUP BY bucket ORDER BY bucket"
+            );
+            return timeseries_rows(&state, &q, days, &params.metric, bucket).await;
+        }
         _ => return Err(ApiError::Validation("Invalid metric".into())),
     };
 
-    let rows = sqlx::query(query).bind(months).fetch_all(&state.db).await?;
-    let data: Vec<serde_json::Value> = rows.iter().map(|r| serde_json::json!({
-        "month": r.get::<time::OffsetDateTime, _>("month").format(&Rfc3339).unwrap_or_default(),
-        "value": r.get::<i64, _>("value"),
-    })).collect();
+    let q = format!(
+        "SELECT date_trunc('{bucket}', {date_col}) AS bucket, {agg} AS value \
+         FROM {table} \
+         WHERE {date_col} > NOW() - make_interval(days => $1) {filter} \
+         GROUP BY bucket ORDER BY bucket"
+    );
+    timeseries_rows(&state, &q, days, &params.metric, bucket).await
+}
 
-    Ok(Json(serde_json::json!({"metric": params.metric, "data": data})))
+/// Run a bucketed analytics query and shape the rows for the charts.
+async fn timeseries_rows(
+    state: &AppState,
+    query: &str,
+    days: i32,
+    metric: &str,
+    bucket: &str,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    let rows = sqlx::query(query).bind(days).fetch_all(&state.db).await?;
+    let data: Vec<serde_json::Value> = rows
+        .iter()
+        .map(|r| {
+            serde_json::json!({
+                "bucket": r.get::<time::OffsetDateTime, _>("bucket").format(&Rfc3339).unwrap_or_default(),
+                "value": r.get::<i64, _>("value"),
+            })
+        })
+        .collect();
+    Ok(Json(serde_json::json!({ "metric": metric, "bucket": bucket, "days": days, "data": data })))
 }
 
 async fn analytics_business(

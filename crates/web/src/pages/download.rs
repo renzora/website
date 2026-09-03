@@ -259,6 +259,28 @@ pub fn DownloadPage() -> impl IntoView {
         // ── Post-download prompt logic ──
         <script>
             r#"
+            // Record the download. Nothing here blocks the click: the link still
+            // navigates to GitHub whether or not this lands, and keepalive lets the
+            // request outlive the page unload.
+            function dlTrack(el) {
+                try {
+                    const asset = el.getAttribute('data-nightly-asset')
+                        || (el.getAttribute('href') || '').split('/').pop() || '';
+                    const platform = /windows/i.test(asset) ? 'windows'
+                        : /macos/i.test(asset) ? 'macos'
+                        : /linux/i.test(asset) ? 'linux'
+                        : /wasm|web/i.test(asset) ? 'web'
+                        : 'unknown';
+                    const tag = DL_TAGS[dlChannelName] || '';
+                    fetch('/api/launcher/download', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ platform: platform, version: tag, source: 'website' }),
+                        keepalive: true
+                    }).catch(function() {});
+                } catch (e) {}
+            }
+
             function dlPrompt() {
                 // Skip the signup prompt for people who are already logged in.
                 if (document.cookie.match(/(^|;)\s*user\s*=/)) return;
@@ -622,7 +644,7 @@ fn DownloadCard(
                 href=href
                 target="_blank"
                 rel="noopener noreferrer"
-                onclick="dlPrompt()"
+                onclick="dlTrack(this);dlPrompt()"
                 class="w-full inline-flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-lg text-sm font-medium bg-purple-600 text-white hover:bg-purple-500 transition-all"
             >
                 <i class="ph ph-download-simple"></i>"Download"
