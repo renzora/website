@@ -1,8 +1,9 @@
 use leptos::prelude::*;
 
-/// Publish an asset. One page, one form — the marketplace only takes assets now,
-/// so there is no content-type choice, and the old six-step wizard's groups are
-/// just headed sections of a single scrolling form.
+/// Publish an asset. One page, one form. Files come first because picking the
+/// file is what the seller actually came to do, and it fills in the download
+/// name for them. Version isn't asked for — every asset starts at 1.0.0 and
+/// moves on through updates.
 #[component]
 pub fn UploadPage() -> impl IntoView {
     view! {
@@ -20,7 +21,6 @@ pub fn UploadPage() -> impl IntoView {
 
                 <div id="upload-form" class="hidden">
 
-                    // Header
                     <div class="mb-8">
                         <a href="/dashboard" class="inline-flex items-center gap-1.5 text-sm text-zinc-500 hover:text-zinc-300 transition-colors mb-4">
                             <i class="ph ph-arrow-left"></i>" Back to Dashboard"
@@ -29,7 +29,6 @@ pub fn UploadPage() -> impl IntoView {
                         <p class="text-zinc-400 text-sm mt-2">"3D models, scripts, audio, textures, plugins and more. Fields marked * are required."</p>
                     </div>
 
-                    // Error / success
                     <div id="wizard-error" class="hidden mb-6 p-4 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-sm flex items-center gap-2">
                         <i class="ph ph-warning-circle text-lg"></i>
                         <span id="wizard-error-text"></span>
@@ -41,54 +40,16 @@ pub fn UploadPage() -> impl IntoView {
 
                     <div class="space-y-6">
 
-                        // ── Basics ──
+                        // ════════════════════════════════════════
+                        // 1. The file itself
+                        // ════════════════════════════════════════
                         <div class="p-6 md:p-8 bg-white/[0.02] border border-zinc-800/50 rounded-2xl space-y-5">
-                            <h2 class="text-base font-semibold flex items-center gap-2">
-                                <i class="ph ph-info text-accent"></i>"Basics"
-                            </h2>
-
                             <div>
-                                <label class="block text-sm text-zinc-400 mb-1.5">"Name" <span class="text-red-400">"*"</span></label>
-                                <input type="text" id="w-name" required maxlength="128" placeholder="My Awesome Creation"
-                                    class="w-full px-4 py-3 bg-white/[0.02] border border-zinc-800/50 rounded-xl text-zinc-50 text-sm outline-none focus:border-accent/50 transition-all" />
+                                <h2 class="text-base font-semibold flex items-center gap-2">
+                                    <i class="ph ph-file-arrow-up text-cyan-400"></i>"Your file"
+                                </h2>
+                                <p class="text-xs text-zinc-600 mt-1">"Start here — everything else describes this file."</p>
                             </div>
-
-                            <div>
-                                <label class="block text-sm text-zinc-400 mb-1.5">"Category" <span class="text-red-400">"*"</span></label>
-                                <select id="w-category" onchange="applyCategoryFields()"
-                                    class="w-full px-4 py-3 bg-white/[0.02] border border-zinc-800/50 rounded-xl text-zinc-50 text-sm outline-none focus:border-accent/50 transition-all">
-                                    <option value="">"Loading categories..."</option>
-                                </select>
-                            </div>
-
-                            <div>
-                                <label class="block text-sm text-zinc-400 mb-1.5">"Description" <span class="text-red-400">"*"</span></label>
-                                <textarea id="w-description" required rows="5" placeholder="Describe what this is, what's included, and how to use it..."
-                                    class="w-full px-4 py-3 bg-white/[0.02] border border-zinc-800/50 rounded-xl text-zinc-50 text-sm outline-none focus:border-accent/50 transition-all resize-y"></textarea>
-                                <p class="text-xs text-zinc-600 mt-1">"Markdown is not supported. Keep it clear and concise."</p>
-                            </div>
-
-                            <div class="grid grid-cols-2 gap-4">
-                                <div>
-                                    <label class="block text-sm text-zinc-400 mb-1.5">"Version"</label>
-                                    <input type="text" id="w-version" value="1.0.0" placeholder="1.0.0"
-                                        class="w-full px-4 py-3 bg-white/[0.02] border border-zinc-800/50 rounded-xl text-zinc-50 text-sm outline-none focus:border-accent/50 transition-all" />
-                                </div>
-                                <div>
-                                    <label class="block text-sm text-zinc-400 mb-1.5">"Price (credits)"</label>
-                                    <input type="number" id="w-price" min="0" value="0" oninput="updatePricePreview()"
-                                        class="w-full px-4 py-3 bg-white/[0.02] border border-zinc-800/50 rounded-xl text-zinc-50 text-sm outline-none focus:border-accent/50 transition-all" />
-                                    <p class="text-xs text-zinc-600 mt-1" id="price-preview">"Free, anyone can download"</p>
-                                    <p class="text-xs text-zinc-600 mt-0.5">"You earn 80% of each sale. 1 credit = $0.10 USD."</p>
-                                </div>
-                            </div>
-                        </div>
-
-                        // ── Files & media ──
-                        <div class="p-6 md:p-8 bg-white/[0.02] border border-zinc-800/50 rounded-2xl space-y-5">
-                            <h2 class="text-base font-semibold flex items-center gap-2">
-                                <i class="ph ph-file-arrow-up text-cyan-400"></i>"Files & Media"
-                            </h2>
 
                             <div>
                                 <label class="block text-sm text-zinc-400 mb-1.5">"File" <span class="text-red-400">"*"</span></label>
@@ -98,8 +59,9 @@ pub fn UploadPage() -> impl IntoView {
                                     <p id="file-drop-label" class="text-sm text-zinc-500">"Drop a file or click to browse"</p>
                                     <p class="text-xs text-zinc-600 mt-2">"Accepted formats vary by category — max 50 MB"</p>
                                     <input type="file" id="w-file" class="hidden" onchange="previewMainFile(this)"
-                                        accept=".zip,.rar,.7z,.lua,.rhai,.wgsl,.glsl,.fbx,.obj,.gltf,.glb,.blend,.png,.jpg,.svg,.hdr,.exr,.mp4,.webm,.mov,.wav,.ogg,.mp3,.flac,.ttf,.otf,.json,.ron" />
+                                        accept=".zip,.rar,.7z,.lua,.rhai,.rs,.wgsl,.glsl,.fbx,.obj,.gltf,.glb,.blend,.png,.jpg,.svg,.hdr,.exr,.mp4,.webm,.mov,.wav,.ogg,.mp3,.flac,.ttf,.otf,.json,.ron" />
                                 </div>
+                                <p id="download-name-hint" class="hidden text-xs text-zinc-600 mt-1.5"></p>
                             </div>
 
                             <div>
@@ -129,68 +91,41 @@ pub fn UploadPage() -> impl IntoView {
                                 <p class="text-xs text-zinc-600 mt-1">"YouTube links are automatically embedded."</p>
                             </div>
 
-                            <div>
+                            // Audio previews only make sense for music.
+                            <div data-show-for-category="music" class="hidden">
                                 <label class="block text-sm text-zinc-400 mb-1.5">"Audio Previews"</label>
                                 <input type="file" id="w-audio" accept="audio/mpeg,audio/wav,audio/ogg,audio/flac,.mp3,.wav,.ogg,.flac" multiple
                                     class="w-full text-sm text-zinc-400 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-sm file:font-medium file:bg-white/[0.05] file:text-zinc-300 hover:file:bg-white/[0.08] file:cursor-pointer file:transition-colors" />
-                                <p class="text-xs text-zinc-600 mt-1">"Upload audio samples. MP3, WAV, OGG, or FLAC."</p>
+                                <p class="text-xs text-zinc-600 mt-1">"Let buyers listen before they buy. MP3, WAV, OGG or FLAC."</p>
                             </div>
                         </div>
 
-                        // ── Details ──
+                        // ════════════════════════════════════════
+                        // 2. What it is
+                        // ════════════════════════════════════════
                         <div class="p-6 md:p-8 bg-white/[0.02] border border-zinc-800/50 rounded-2xl space-y-5">
                             <h2 class="text-base font-semibold flex items-center gap-2">
-                                <i class="ph ph-sliders-horizontal text-accent"></i>"Details"
+                                <i class="ph ph-info text-accent"></i>"Basics"
                             </h2>
 
                             <div>
-                                <label class="block text-sm text-zinc-400 mb-1.5">"Tags"</label>
-                                <div class="relative">
-                                    <div id="tags-pills" class="flex flex-wrap gap-1.5 mb-2"></div>
-                                    <input type="text" id="w-tags-input" placeholder="Type to search tags..." autocomplete="off"
-                                        class="w-full px-4 py-3 bg-white/[0.02] border border-zinc-800/50 rounded-xl text-zinc-50 text-sm outline-none focus:border-accent/50 transition-all" />
-                                    <input type="hidden" id="w-tags" />
-                                    <div id="tags-dropdown" class="hidden absolute left-0 right-0 top-full mt-1 bg-zinc-900 border border-zinc-700 rounded-xl shadow-lg z-50 max-h-48 overflow-y-auto"></div>
-                                </div>
-                                <p class="text-xs text-zinc-600 mt-1">"Add up to 5 tags. Press comma or click a suggestion. New tags are submitted for review."</p>
-                            </div>
-
-                            <div>
-                                <label class="block text-sm text-zinc-400 mb-1.5">"Download Filename"</label>
-                                <input type="text" id="w-download-filename" placeholder="my-asset.zip"
-                                    class="w-full px-4 py-3 bg-white/[0.02] border border-zinc-800/50 rounded-xl text-zinc-50 text-sm outline-none focus:border-accent/50 transition-all" />
-                                <p class="text-xs text-zinc-600 mt-1">"The filename users will see when downloading. Auto-populated from your uploaded file."</p>
-                            </div>
-
-                            <div>
-                                <label class="block text-sm text-zinc-400 mb-1.5">"Supported Engine Versions"</label>
-                                <input type="text" id="w-engine-versions" placeholder="r1-alpha4+"
+                                <label class="block text-sm text-zinc-400 mb-1.5">"Name" <span class="text-red-400">"*"</span></label>
+                                <input type="text" id="w-name" required maxlength="128" placeholder="My Awesome Creation" oninput="updateDownloadNameHint()"
                                     class="w-full px-4 py-3 bg-white/[0.02] border border-zinc-800/50 rounded-xl text-zinc-50 text-sm outline-none focus:border-accent/50 transition-all" />
                             </div>
 
                             <div>
-                                <label class="block text-sm text-zinc-400 mb-1.5">"License"</label>
-                                <select id="w-license" class="w-full px-4 py-3 bg-white/[0.02] border border-zinc-800/50 rounded-xl text-zinc-50 text-sm outline-none focus:border-accent/50 transition-all">
-                                    <option value="standard">"Standard Marketplace License"</option>
-                                    <option value="extended">"Extended License"</option>
-                                    <option value="mit">"MIT"</option>
-                                    <option value="apache2">"Apache 2.0"</option>
-                                    <option value="gpl3">"GPL 3.0"</option>
-                                    <option value="cc0">"CC0 (Public Domain)"</option>
+                                <label class="block text-sm text-zinc-400 mb-1.5">"Category" <span class="text-red-400">"*"</span></label>
+                                <select id="w-category" onchange="applyCategoryFields()"
+                                    class="w-full px-4 py-3 bg-white/[0.02] border border-zinc-800/50 rounded-xl text-zinc-50 text-sm outline-none focus:border-accent/50 transition-all">
+                                    <option value="">"Loading categories..."</option>
                                 </select>
                             </div>
 
-                            <label class="flex items-start gap-3 cursor-pointer select-none">
-                                <input type="checkbox" id="w-ai-generated" class="mt-1 accent-accent w-4 h-4" />
-                                <div>
-                                    <span class="text-sm text-zinc-300">"This asset was created with AI assistance"</span>
-                                    <p class="text-xs text-zinc-600 mt-0.5">"Check this if AI tools were used to generate content in this asset."</p>
-                                </div>
-                            </label>
-
-                            // Category-specific fields, revealed by the category above.
-                            <div data-show-for-category="sfx,music,media" class="hidden space-y-4 p-4 bg-white/[0.01] border border-zinc-800/30 rounded-xl">
-                                <p class="text-xs text-zinc-500 uppercase tracking-wider font-medium">"Audio Details"</p>
+                            // Category-specific fields sit directly under the category
+                            // that reveals them.
+                            <div data-show-for-category="music" class="hidden space-y-4 p-4 bg-white/[0.01] border border-zinc-800/30 rounded-xl">
+                                <p class="text-xs text-zinc-500 uppercase tracking-wider font-medium">"Music Details"</p>
                                 <div class="grid grid-cols-2 gap-4">
                                     <div>
                                         <label class="block text-sm text-zinc-400 mb-1.5">"BPM"</label>
@@ -217,92 +152,78 @@ pub fn UploadPage() -> impl IntoView {
                                 </label>
                             </div>
 
-                            <div data-show-for-category="scripts,plugins,blueprints" class="hidden space-y-4 p-4 bg-white/[0.01] border border-zinc-800/30 rounded-xl">
-                                <p class="text-xs text-zinc-500 uppercase tracking-wider font-medium">"Script Details"</p>
-                                <div>
-                                    <label class="block text-sm text-zinc-400 mb-1.5">"Scripting Language"</label>
-                                    <select id="w-script-lang" class="w-full px-4 py-3 bg-white/[0.02] border border-zinc-800/50 rounded-xl text-zinc-50 text-sm outline-none focus:border-accent/50 transition-all">
-                                        <option value="">"Select..."</option>
-                                        <option value="lua">"Lua"</option>
-                                        <option value="rhai">"Rhai"</option>
-                                        <option value="wgsl">"WGSL (Shader)"</option>
-                                        <option value="blueprint">"Visual Blueprint"</option>
-                                        <option value="other">"Other"</option>
-                                    </select>
-                                </div>
-                                <div>
-                                    <label class="block text-sm text-zinc-400 mb-1.5">"Dependencies"</label>
-                                    <input type="text" id="w-dependencies" placeholder="e.g. physics-plugin, networking-core"
+                            <div data-show-for-category="scripts,plugins,blueprints" class="hidden p-4 bg-white/[0.01] border border-zinc-800/30 rounded-xl">
+                                <label class="block text-sm text-zinc-400 mb-1.5">"Scripting Language"</label>
+                                <select id="w-script-lang" class="w-full px-4 py-3 bg-white/[0.02] border border-zinc-800/50 rounded-xl text-zinc-50 text-sm outline-none focus:border-accent/50 transition-all">
+                                    <option value="">"Select..."</option>
+                                    <option value="rust">"Rust"</option>
+                                    <option value="lua">"Lua"</option>
+                                    <option value="rhai">"Rhai"</option>
+                                    <option value="wgsl">"WGSL (Shader)"</option>
+                                    <option value="blueprint">"Visual Blueprint"</option>
+                                    <option value="other">"Other"</option>
+                                </select>
+                            </div>
+
+                            <div>
+                                <label class="block text-sm text-zinc-400 mb-1.5">"Description" <span class="text-red-400">"*"</span></label>
+                                <textarea id="w-description" required rows="5" placeholder="Describe what this is, what's included, and how to use it..."
+                                    class="w-full px-4 py-3 bg-white/[0.02] border border-zinc-800/50 rounded-xl text-zinc-50 text-sm outline-none focus:border-accent/50 transition-all resize-y"></textarea>
+                                <p class="text-xs text-zinc-600 mt-1">"Markdown is not supported. Keep it clear and concise."</p>
+                            </div>
+
+                            <div>
+                                <label class="block text-sm text-zinc-400 mb-1.5">"Price (credits)"</label>
+                                <input type="number" id="w-price" min="0" value="0" oninput="updatePricePreview()"
+                                    class="w-full px-4 py-3 bg-white/[0.02] border border-zinc-800/50 rounded-xl text-zinc-50 text-sm outline-none focus:border-accent/50 transition-all" />
+                                <p class="text-xs text-zinc-600 mt-1" id="price-preview">"Free, anyone can download"</p>
+                                <p class="text-xs text-zinc-600 mt-0.5">"You earn 80% of each sale. 1 credit = $0.10 USD."</p>
+                            </div>
+
+                            <div>
+                                <label class="block text-sm text-zinc-400 mb-1.5">"Tags"</label>
+                                <div class="relative">
+                                    <div id="tags-pills" class="flex flex-wrap gap-1.5 mb-2"></div>
+                                    <input type="text" id="w-tags-input" placeholder="Type to search tags..." autocomplete="off"
                                         class="w-full px-4 py-3 bg-white/[0.02] border border-zinc-800/50 rounded-xl text-zinc-50 text-sm outline-none focus:border-accent/50 transition-all" />
-                                    <p class="text-xs text-zinc-600 mt-1">"Comma-separated list of required plugins or assets."</p>
+                                    <input type="hidden" id="w-tags" />
+                                    <div id="tags-dropdown" class="hidden absolute left-0 right-0 top-full mt-1 bg-zinc-900 border border-zinc-700 rounded-xl shadow-lg z-50 max-h-48 overflow-y-auto"></div>
                                 </div>
+                                <p class="text-xs text-zinc-600 mt-1">"Add up to 5 tags. Press comma or click a suggestion. New tags are submitted for review."</p>
                             </div>
 
-                            <div data-show-for-category="3d-models,animations,prefabs" class="hidden space-y-4 p-4 bg-white/[0.01] border border-zinc-800/30 rounded-xl">
-                                <p class="text-xs text-zinc-500 uppercase tracking-wider font-medium">"3D Details"</p>
-                                <div class="grid grid-cols-2 gap-4">
-                                    <div>
-                                        <label class="block text-sm text-zinc-400 mb-1.5">"Polygon Count"</label>
-                                        <input type="text" id="w-polycount" placeholder="e.g. 12,500 tris"
-                                            class="w-full px-4 py-3 bg-white/[0.02] border border-zinc-800/50 rounded-xl text-zinc-50 text-sm outline-none focus:border-accent/50 transition-all" />
-                                    </div>
-                                    <div>
-                                        <label class="block text-sm text-zinc-400 mb-1.5">"Texture Resolution"</label>
-                                        <select id="w-texres" class="w-full px-4 py-3 bg-white/[0.02] border border-zinc-800/50 rounded-xl text-zinc-50 text-sm outline-none focus:border-accent/50 transition-all">
-                                            <option value="">"Select..."</option>
-                                            <option value="512">"512x512"</option>
-                                            <option value="1024">"1024x1024"</option>
-                                            <option value="2048">"2048x2048"</option>
-                                            <option value="4096">"4096x4096"</option>
-                                        </select>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div data-show-for-category="2d-art,textures,particles,svg,ui-templates,hdris" class="hidden space-y-4 p-4 bg-white/[0.01] border border-zinc-800/30 rounded-xl">
-                                <p class="text-xs text-zinc-500 uppercase tracking-wider font-medium">"2D / Texture Details"</p>
-                                <div class="grid grid-cols-2 gap-4">
-                                    <div>
-                                        <label class="block text-sm text-zinc-400 mb-1.5">"Resolution"</label>
-                                        <input type="text" id="w-resolution" placeholder="e.g. 1024x1024"
-                                            class="w-full px-4 py-3 bg-white/[0.02] border border-zinc-800/50 rounded-xl text-zinc-50 text-sm outline-none focus:border-accent/50 transition-all" />
-                                    </div>
-                                    <div>
-                                        <label class="block text-sm text-zinc-400 mb-1.5">"Tile-friendly"</label>
-                                        <label class="flex items-center gap-3 cursor-pointer select-none mt-2">
-                                            <input type="checkbox" id="w-tileable" class="accent-accent w-4 h-4" />
-                                            <span class="text-sm text-zinc-300">"Seamlessly tileable"</span>
-                                        </label>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div data-show-for-category="materials,shaders" class="hidden space-y-4 p-4 bg-white/[0.01] border border-zinc-800/30 rounded-xl">
-                                <p class="text-xs text-zinc-500 uppercase tracking-wider font-medium">"Material Details"</p>
+                            <div class="grid grid-cols-2 gap-4">
                                 <div>
-                                    <label class="block text-sm text-zinc-400 mb-1.5">"Render Pipeline"</label>
-                                    <select id="w-pipeline" class="w-full px-4 py-3 bg-white/[0.02] border border-zinc-800/50 rounded-xl text-zinc-50 text-sm outline-none focus:border-accent/50 transition-all">
-                                        <option value="">"Select..."</option>
-                                        <option value="pbr">"PBR (Physically Based)"</option>
-                                        <option value="unlit">"Unlit"</option>
-                                        <option value="toon">"Toon / Cel-Shaded"</option>
-                                        <option value="custom">"Custom WGSL"</option>
+                                    <label class="block text-sm text-zinc-400 mb-1.5">"Minimum Engine Version"</label>
+                                    <select id="w-engine-versions" class="w-full px-4 py-3 bg-white/[0.02] border border-zinc-800/50 rounded-xl text-zinc-50 text-sm outline-none focus:border-accent/50 transition-all">
+                                        <option value="">"Any version"</option>
                                     </select>
                                 </div>
                                 <div>
-                                    <label class="block text-sm text-zinc-400 mb-1.5">"Texture Resolution"</label>
-                                    <select id="w-mat-texres" class="w-full px-4 py-3 bg-white/[0.02] border border-zinc-800/50 rounded-xl text-zinc-50 text-sm outline-none focus:border-accent/50 transition-all">
-                                        <option value="">"Select..."</option>
-                                        <option value="512">"512x512"</option>
-                                        <option value="1024">"1024x1024"</option>
-                                        <option value="2048">"2048x2048"</option>
-                                        <option value="4096">"4096x4096"</option>
+                                    <label class="block text-sm text-zinc-400 mb-1.5">"License"</label>
+                                    <select id="w-license" class="w-full px-4 py-3 bg-white/[0.02] border border-zinc-800/50 rounded-xl text-zinc-50 text-sm outline-none focus:border-accent/50 transition-all">
+                                        <option value="standard">"Standard Marketplace License"</option>
+                                        <option value="extended">"Extended License"</option>
+                                        <option value="mit">"MIT"</option>
+                                        <option value="apache2">"Apache 2.0"</option>
+                                        <option value="gpl3">"GPL 3.0"</option>
+                                        <option value="cc0">"CC0 (Public Domain)"</option>
                                     </select>
                                 </div>
                             </div>
+
+                            <label class="flex items-start gap-3 cursor-pointer select-none">
+                                <input type="checkbox" id="w-ai-generated" class="mt-1 accent-accent w-4 h-4" />
+                                <div>
+                                    <span class="text-sm text-zinc-300">"This asset was created with AI assistance"</span>
+                                    <p class="text-xs text-zinc-600 mt-0.5">"Check this if AI tools were used to generate content in this asset."</p>
+                                </div>
+                            </label>
                         </div>
 
-                        // ── Credit / attribution ──
+                        // ════════════════════════════════════════
+                        // 3. Attribution
+                        // ════════════════════════════════════════
                         <div class="p-6 md:p-8 bg-white/[0.02] border border-zinc-800/50 rounded-2xl space-y-4">
                             <h2 class="text-base font-semibold flex items-center gap-2">
                                 <i class="ph ph-heart text-accent"></i>"Credit / Attribution"
@@ -332,7 +253,7 @@ pub fn UploadPage() -> impl IntoView {
                         <i class="ph ph-rocket-launch text-lg"></i>"Publish"
                     </button>
 
-                    <p class="text-xs text-zinc-600 text-center mt-3">"By publishing, you agree to the Renzora "<a href="/docs/marketplace/publishing" class="text-accent hover:text-accent-hover">"content guidelines"</a>"."</p>
+                    <p class="text-xs text-zinc-600 text-center mt-3">"Published at version 1.0.0. By publishing, you agree to the Renzora "<a href="/docs/marketplace/publishing" class="text-accent hover:text-accent-hover">"content guidelines"</a>"."</p>
                 </div>
             </div>
         </section>
@@ -392,6 +313,48 @@ pub fn UploadPage() -> impl IntoView {
                 const cats = el.dataset.showForCategory.split(',');
                 el.classList.toggle('hidden', !cats.includes(selectedCategory));
             });
+        }
+
+        async function loadEngineVersions() {
+            const sel = document.getElementById('w-engine-versions');
+            try {
+                const res = await fetch('/api/docs/versions');
+                if (!res.ok) return;
+                const d = await res.json();
+                (d.versions || []).forEach(v => {
+                    // Nightlies are never offered as a support target.
+                    if (/nightly/i.test(v.id)) return;
+                    const opt = document.createElement('option');
+                    opt.value = v.id;
+                    opt.textContent = v.label + (v.status === 'current' ? ' (current)' : '');
+                    sel.appendChild(opt);
+                });
+            } catch (e) {}
+        }
+
+        // ──────────────────────────────────────
+        // Download filename, derived from the title
+        // ──────────────────────────────────────
+        function slugify(s) {
+            return s.toLowerCase().trim()
+                .replace(/[^a-z0-9]+/g, '-')
+                .replace(/^-+|-+$/g, '')
+                .slice(0, 64);
+        }
+        // Buyers download "<asset-title>.<ext>" rather than whatever the seller
+        // happened to call the file on disk.
+        function downloadName() {
+            const title = slugify(document.getElementById('w-name').value) || 'asset';
+            const f = document.getElementById('w-file').files[0];
+            const ext = f && f.name.includes('.') ? f.name.slice(f.name.lastIndexOf('.')) : '';
+            return title + ext;
+        }
+        function updateDownloadNameHint() {
+            const hint = document.getElementById('download-name-hint');
+            const f = document.getElementById('w-file').files[0];
+            if (!f) { hint.classList.add('hidden'); return; }
+            hint.textContent = 'Buyers will download: ' + downloadName();
+            hint.classList.remove('hidden');
         }
 
         // ──────────────────────────────────────
@@ -548,8 +511,7 @@ pub fn UploadPage() -> impl IntoView {
                 if (f.size > 50 * 1024 * 1024) {
                     label.innerHTML += ' <span class="text-red-400">— exceeds 50MB limit</span>';
                 }
-                const filenameInput = document.getElementById('w-download-filename');
-                if (filenameInput && !filenameInput.value) filenameInput.value = f.name;
+                updateDownloadNameHint();
             }
         }
 
@@ -598,29 +560,16 @@ pub fn UploadPage() -> impl IntoView {
                 if (el && el.checked) meta[key] = true;
             };
 
-            put('engine_versions', 'w-engine-versions');
+            put('min_engine_version', 'w-engine-versions');
 
             const shown = (cats) => cats.includes(selectedCategory);
-            if (shown(['sfx', 'music', 'media'])) {
+            if (shown(['music'])) {
                 put('bpm', 'w-bpm');
                 put('genre', 'w-genre');
                 putBool('loopable', 'w-loopable');
             }
             if (shown(['scripts', 'plugins', 'blueprints'])) {
                 put('script_language', 'w-script-lang');
-                put('dependencies', 'w-dependencies');
-            }
-            if (shown(['3d-models', 'animations', 'prefabs'])) {
-                put('poly_count', 'w-polycount');
-                put('texture_resolution', 'w-texres');
-            }
-            if (shown(['2d-art', 'textures', 'particles', 'svg', 'ui-templates', 'hdris'])) {
-                put('resolution', 'w-resolution');
-                putBool('tileable', 'w-tileable');
-            }
-            if (shown(['materials', 'shaders'])) {
-                put('render_pipeline', 'w-pipeline');
-                put('texture_resolution', 'w-mat-texres');
             }
             return meta;
         }
@@ -655,7 +604,6 @@ pub fn UploadPage() -> impl IntoView {
             btn.disabled = true;
 
             try {
-                const version = document.getElementById('w-version').value.trim() || '1.0.0';
                 const thumbnail = document.getElementById('w-thumbnail').files[0];
                 const screenshots = document.getElementById('w-screenshots').files;
 
@@ -664,9 +612,9 @@ pub fn UploadPage() -> impl IntoView {
                     description: description,
                     category: category,
                     price_credits: parseInt(document.getElementById('w-price').value) || 0,
-                    version: version,
+                    version: '1.0.0',
                     tags: selectedTags,
-                    download_filename: document.getElementById('w-download-filename').value.trim(),
+                    download_filename: downloadName(),
                     licence: document.getElementById('w-license').value,
                     ai_generated: document.getElementById('w-ai-generated').checked,
                     metadata: collectDetailMetadata()
@@ -744,6 +692,7 @@ pub fn UploadPage() -> impl IntoView {
 
             document.getElementById('upload-form').classList.remove('hidden');
             loadCategories();
+            loadEngineVersions();
         })();
         "##
         </script>
