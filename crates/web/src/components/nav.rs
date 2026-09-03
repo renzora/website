@@ -23,19 +23,6 @@ pub fn Nav() -> impl IntoView {
 
             // Cards, centered in the remaining space
             <div class="flex-1 flex flex-col justify-center px-3 space-y-2">
-                // XP card (logged in)
-                <div id="nav-xp-wrap" class="hidden flex-col rounded-xl p-3 bg-white/[0.03] border border-white/[0.07]">
-                    <div class="flex items-center justify-between mb-2">
-                        <span class="text-[10px] font-semibold uppercase tracking-[0.14em] text-zinc-400">"Level "<span id="nav-level" class="text-accent font-bold">"1"</span></span>
-                        <span id="nav-xp-text" class="text-[10px] text-zinc-500 font-medium">"0 XP"</span>
-                    </div>
-                    <div class="h-3 bg-black/40 border border-white/[0.08] rounded-full overflow-hidden shadow-inner">
-                        <div id="nav-xp-bar" class="h-full bg-gradient-to-r from-accent to-secondary rounded-full transition-all relative" style="width:0%">
-                            <div class="absolute inset-0 bg-[linear-gradient(90deg,transparent_25%,rgba(255,255,255,0.15)_50%,transparent_75%)] bg-[length:200%_100%] animate-[xpShimmer_2s_linear_infinite]"></div>
-                        </div>
-                    </div>
-                </div>
-
                 // Community goal (everyone)
                 <a href="/donate" id="nav-goal-card" class="hidden rounded-xl p-3 bg-gradient-to-br from-accent/[0.12] to-purple-600/[0.06] border border-white/[0.07] hover:border-white/[0.14] transition-colors">
                     <div class="flex items-center justify-between mb-1.5">
@@ -83,16 +70,6 @@ pub fn Nav() -> impl IntoView {
                     </div>
                     <a href="/" class="mt-2.5 block text-center text-xs font-semibold text-white bg-purple-600 hover:bg-purple-500 transition-colors rounded-lg py-1.5">"Download"</a>
                 </div>
-
-                // Credits card (logged in)
-                <a href="/wallet" id="nav-side-credits" class="hidden rounded-xl p-3 bg-white/[0.03] border border-white/[0.07] hover:bg-white/[0.05] transition-colors">
-                    <p class="text-[9px] font-semibold uppercase tracking-[0.16em] text-zinc-500">"Your Credits"</p>
-                    <div class="flex items-center gap-1.5 mt-1.5">
-                        <i class="ph ph-coin text-amber-400 text-base"></i>
-                        <span id="nav-credits-side" class="text-lg font-bold text-white">"0"</span>
-                    </div>
-                    <span class="mt-2.5 block text-center text-xs font-semibold text-white bg-amber-500/90 hover:bg-amber-500 transition-colors rounded-lg py-1.5">"Get more Credits"</span>
-                </a>
             </div>
 
             // Footer — social links + legal, pinned to the bottom
@@ -223,7 +200,6 @@ pub fn Nav() -> impl IntoView {
                 const guest = document.getElementById('nav-guest');
                 const user = document.getElementById('nav-user');
                 const username = document.getElementById('nav-username');
-                const sideCredits = document.getElementById('nav-side-credits');
                 const sideGuest = document.getElementById('nav-side-guest');
                 if (userCookie && guest && user) {
                     try {
@@ -234,7 +210,6 @@ pub fn Nav() -> impl IntoView {
                         if (username) username.textContent = u.username;
                         const initial = document.getElementById('nav-avatar-initial');
                         if (initial && u.username) initial.textContent = u.username.charAt(0).toUpperCase();
-                        if (sideCredits) { sideCredits.classList.remove('hidden'); sideCredits.classList.add('block'); }
                         if (sideGuest) { sideGuest.classList.add('hidden'); }
                     } catch(e) {}
                     // Credits, badges, XP and creator status are loaded together by loadUserSummary().
@@ -307,8 +282,6 @@ pub fn Nav() -> impl IntoView {
                                     const bal = (data.credit_balance ?? 0).toLocaleString();
                                     const credits = document.getElementById('nav-credits');
                                     if (credits) credits.textContent = bal;
-                                    const cs = document.getElementById('nav-credits-side');
-                                    if (cs) cs.textContent = bal;
                                 } catch(e) {}
                             })();
                         }
@@ -452,22 +425,10 @@ pub fn Nav() -> impl IntoView {
                     if (!res.ok) return;
                     const d = await res.json();
 
-                    // Credits (header pill + sidebar card)
+                    // Credits (header pill)
                     const bal = (d.credit_balance ?? 0).toLocaleString();
                     const credits = document.getElementById('nav-credits');
                     if (credits) credits.textContent = bal;
-                    const cs = document.getElementById('nav-credits-side');
-                    if (cs) cs.textContent = bal;
-
-                    // XP bar
-                    const xpWrap = document.getElementById('nav-xp-wrap');
-                    if (xpWrap) { xpWrap.classList.remove('hidden'); xpWrap.classList.add('flex'); }
-                    const lvl = document.getElementById('nav-level');
-                    if (lvl) lvl.textContent = d.level;
-                    const bar = document.getElementById('nav-xp-bar');
-                    if (bar) bar.style.width = (d.level_progress_percent ?? 0).toFixed(0) + '%';
-                    const xpText = document.getElementById('nav-xp-text');
-                    if (xpText) xpText.textContent = (d.total_xp ?? 0).toLocaleString() + ' XP';
 
                     // Swap "Sell on Marketplace" -> "Creator Dashboard" once onboarded
                     if (d.creator_policy_accepted) {
@@ -533,14 +494,6 @@ pub fn Nav() -> impl IntoView {
             "#
         </script>
 
-        <style>
-            r#"
-            @keyframes xpShimmer {
-                0% { background-position: -200% 0; }
-                100% { background-position: 200% 0; }
-            }
-            "#
-        </style>
 
         // Global image lightbox, any <img data-zoom> opens full-size on click (site-wide)
         <script>
