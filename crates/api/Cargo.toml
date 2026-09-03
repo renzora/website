@@ -30,6 +30,8 @@ totp-rs = { workspace = true }
 rand = { workspace = true }
 image = { workspace = true }
 zip = { workspace = true }
+# Parsing an uploaded plugin's Cargo.toml to read its crate name.
+toml = "1"
 
 [dev-dependencies]
 # A WebSocket *client*, so the relay can be tested by driving two real sockets

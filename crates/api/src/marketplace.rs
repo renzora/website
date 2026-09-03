@@ -365,6 +365,33 @@ async fn upload_asset(
         return Err(ApiError::Validation("Asset file is required".into()));
     }
 
+    // A plugin ships as one zip of buildable source: the editor extracts it
+    // straight into `plugins/` and the SDK compiles it there. Check that here
+    // rather than letting a buyer discover it at build time, and record the
+    // crate name the editor needs to name the directory.
+    let mut meta_extra = meta.metadata.clone();
+    if is_plugin_category(&meta.category) {
+        if uploaded_files.len() != 1 {
+            return Err(ApiError::Validation(
+                "A plugin must be a single .zip of its source".into(),
+            ));
+        }
+        let (fname, data) = &uploaded_files[0];
+        if !fname.to_lowercase().ends_with(".zip") {
+            return Err(ApiError::Validation(
+                "A plugin must be uploaded as a .zip of its source".into(),
+            ));
+        }
+        let crate_name = plugin_crate_name(data)?;
+        // The editor reads this to name the folder it extracts into, and it is
+        // the dll stem the loader looks for afterwards.
+        if let Some(obj) = meta_extra.as_object_mut() {
+            obj.insert("crate_name".into(), crate_name.into());
+        } else {
+            meta_extra = serde_json::json!({ "crate_name": crate_name });
+        }
+    }
+
     // ── Create asset ──
 
     // Auto-populate download_filename from the first uploaded file if not explicitly set
@@ -385,7 +412,7 @@ async fn upload_asset(
         &tags,
         &meta.licence,
         meta.ai_generated,
-        meta.metadata.clone(),
+        meta_extra.clone(),
         &download_filename,
         &meta.subcategory,
         &meta.credit_name,
@@ -400,7 +427,10 @@ async fn upload_asset(
     // Determine if this is a single zip that should be extracted
     let should_extract = uploaded_files.len() == 1
         && zip_action == "extract"
-        && uploaded_files[0].0.to_lowercase().ends_with(".zip");
+        && uploaded_files[0].0.to_lowercase().ends_with(".zip")
+        // A plugin's zip is the deliverable, not a container to unpack: the
+        // editor extracts the whole source tree into `plugins/<crate>/`.
+        && !is_plugin_category(&meta.category);
 
     let multi_file;
     if should_extract {
@@ -681,9 +711,35 @@ async fn update_asset_files(
         }
 
         let is_paid = asset.price_credits > 0 && asset.credit_name.is_empty();
+
+        // Same rule as upload: a plugin is one zip of source, kept whole. Its
+        // crate name is re-read here because a rename is a legitimate update
+        // and the editor keys the install directory off it.
+        if is_plugin_category(&asset.category) {
+            if new_files.len() != 1 || !new_files[0].0.to_lowercase().ends_with(".zip") {
+                return Err(ApiError::Validation(
+                    "A plugin must be a single .zip of its source".into(),
+                ));
+            }
+            let crate_name = plugin_crate_name(&new_files[0].1)?;
+            let mut meta = asset.metadata.clone();
+            match meta.as_object_mut() {
+                Some(obj) => {
+                    obj.insert("crate_name".into(), crate_name.into());
+                }
+                None => meta = serde_json::json!({ "crate_name": crate_name }),
+            }
+            sqlx::query("UPDATE assets SET metadata = $1, updated_at = NOW() WHERE id = $2")
+                .bind(&meta)
+                .bind(id)
+                .execute(&state.db)
+                .await?;
+        }
+
         let should_extract = new_files.len() == 1
             && zip_action == "extract"
-            && new_files[0].0.to_lowercase().ends_with(".zip");
+            && new_files[0].0.to_lowercase().ends_with(".zip")
+            && !is_plugin_category(&asset.category);
 
         let entries: Vec<(String, Vec<u8>)> = if should_extract {
             extract_zip_files(&new_files[0].1)?
@@ -1891,6 +1947,77 @@ async fn generate_preview_key(
 }
 
 /// Extract files from a zip archive in memory with safety checks.
+/// Categories whose uploads are buildable plugin source.
+fn is_plugin_category(slug: &str) -> bool {
+    matches!(slug, "plugins" | "plugin")
+}
+
+/// Read the `[package] name` out of a plugin zip's `Cargo.toml`.
+///
+/// Accepts the manifest at the archive root or one directory down, which is the
+/// difference between zipping the crate's contents and zipping its folder —
+/// both are things people do, and neither is wrong.
+fn plugin_crate_name(data: &[u8]) -> Result<String, ApiError> {
+    use std::io::Read;
+
+    let reader = std::io::Cursor::new(data);
+    let mut archive = zip::ZipArchive::new(reader)
+        .map_err(|e| ApiError::Validation(format!("Invalid zip file: {e}")))?;
+
+    let mut manifest: Option<String> = None;
+    for i in 0..archive.len() {
+        let mut f = archive
+            .by_index(i)
+            .map_err(|e| ApiError::Validation(format!("Invalid zip entry: {e}")))?;
+        let name = f.name().to_string();
+        // Depth 0 or 1 only: a Cargo.toml further down belongs to a vendored
+        // dependency or a workspace member, not to the plugin itself.
+        let depth = name.trim_end_matches('/').matches('/').count();
+        if !name.ends_with("Cargo.toml") || depth > 1 {
+            continue;
+        }
+        let mut text = String::new();
+        if f.read_to_string(&mut text).is_err() {
+            return Err(ApiError::Validation("Cargo.toml is not valid UTF-8".into()));
+        }
+        // Prefer the shallowest one.
+        if depth == 0 {
+            manifest = Some(text);
+            break;
+        }
+        manifest.get_or_insert(text);
+    }
+
+    let Some(text) = manifest else {
+        return Err(ApiError::Validation(
+            "Plugin zip has no Cargo.toml at its root — upload the plugin's source, \
+             either the crate folder or its contents"
+                .into(),
+        ));
+    };
+
+    let parsed: toml::Table = text
+        .parse()
+        .map_err(|e| ApiError::Validation(format!("Cargo.toml is not valid TOML: {e}")))?;
+    let name = parsed
+        .get("package")
+        .and_then(|p| p.get("name"))
+        .and_then(|n| n.as_str())
+        .ok_or_else(|| ApiError::Validation("Cargo.toml has no [package] name".into()))?;
+
+    // The name becomes a directory and a dll stem, so keep it to what cargo
+    // itself allows.
+    if name.is_empty()
+        || name.len() > 64
+        || !name.chars().all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-')
+    {
+        return Err(ApiError::Validation(format!(
+            "Invalid crate name '{name}' in Cargo.toml"
+        )));
+    }
+    Ok(name.to_string())
+}
+
 fn extract_zip_files(data: &[u8]) -> Result<Vec<(String, Vec<u8>)>, ApiError> {
     use std::io::Read;
 
@@ -2030,4 +2157,103 @@ pub fn hash_ip(ip: &str) -> String {
     let mut hasher = Sha256::new();
     hasher.update(ip.as_bytes());
     format!("{:x}", hasher.finalize())
+}
+
+#[cfg(test)]
+mod plugin_source_tests {
+    use super::*;
+    use std::io::Write;
+
+    /// Build a zip in memory from `(path, contents)` pairs.
+    fn zip_of(entries: &[(&str, &str)]) -> Vec<u8> {
+        let mut buf = Vec::new();
+        {
+            let mut w = zip::ZipWriter::new(std::io::Cursor::new(&mut buf));
+            for (name, body) in entries {
+                w.start_file::<_, ()>(*name, zip::write::SimpleFileOptions::default())
+                    .unwrap();
+                w.write_all(body.as_bytes()).unwrap();
+            }
+            w.finish().unwrap();
+        }
+        buf
+    }
+
+    const MANIFEST: &str = "[package]\nname = \"renzora_lumen\"\nversion = \"0.1.0\"\n";
+
+    #[test]
+    fn reads_the_crate_name_from_a_root_manifest() {
+        let zip = zip_of(&[("Cargo.toml", MANIFEST), ("src/lib.rs", "")]);
+        assert_eq!(plugin_crate_name(&zip).unwrap(), "renzora_lumen");
+    }
+
+    /// Zipping the crate *folder* rather than its contents is just as common,
+    /// and equally correct.
+    #[test]
+    fn reads_the_crate_name_one_directory_down() {
+        let zip = zip_of(&[
+            ("renzora_lumen/Cargo.toml", MANIFEST),
+            ("renzora_lumen/src/lib.rs", ""),
+        ]);
+        assert_eq!(plugin_crate_name(&zip).unwrap(), "renzora_lumen");
+    }
+
+    /// A manifest deeper than that belongs to a vendored dependency or a
+    /// workspace member, so it must not be mistaken for the plugin's own.
+    #[test]
+    fn ignores_a_manifest_nested_too_deep() {
+        let zip = zip_of(&[("a/b/c/Cargo.toml", MANIFEST), ("a/b/c/src/lib.rs", "")]);
+        assert!(plugin_crate_name(&zip).is_err());
+    }
+
+    /// The root manifest wins over a nested one, whatever order they are in.
+    #[test]
+    fn prefers_the_shallowest_manifest() {
+        let nested = "[package]\nname = \"vendored_dep\"\n";
+        let zip = zip_of(&[("sub/Cargo.toml", nested), ("Cargo.toml", MANIFEST)]);
+        assert_eq!(plugin_crate_name(&zip).unwrap(), "renzora_lumen");
+    }
+
+    #[test]
+    fn rejects_an_archive_with_no_manifest() {
+        let zip = zip_of(&[("readme.txt", "hello"), ("src/lib.rs", "")]);
+        let err = plugin_crate_name(&zip).unwrap_err().to_string();
+        assert!(err.contains("Cargo.toml"), "unhelpful error: {err}");
+    }
+
+    #[test]
+    fn rejects_a_manifest_without_a_package_name() {
+        let zip = zip_of(&[("Cargo.toml", "[workspace]\nmembers = []\n")]);
+        assert!(plugin_crate_name(&zip).is_err());
+    }
+
+    #[test]
+    fn rejects_malformed_toml() {
+        let zip = zip_of(&[("Cargo.toml", "[package\nname =")]);
+        assert!(plugin_crate_name(&zip).is_err());
+    }
+
+    /// The name becomes a directory and a library filename, so anything that
+    /// could escape either is refused.
+    #[test]
+    fn rejects_a_crate_name_that_is_not_a_safe_path_segment() {
+        for bad in ["../evil", "with space", "semi;colon", ""] {
+            let manifest = format!("[package]\nname = \"{bad}\"\n");
+            let zip = zip_of(&[("Cargo.toml", manifest.as_str())]);
+            assert!(plugin_crate_name(&zip).is_err(), "accepted {bad:?}");
+        }
+    }
+
+    #[test]
+    fn rejects_a_zip_that_is_not_a_zip() {
+        assert!(plugin_crate_name(b"not a zip at all").is_err());
+    }
+
+    #[test]
+    fn plugin_categories_are_recognised() {
+        assert!(is_plugin_category("plugins"));
+        assert!(is_plugin_category("plugin"));
+        assert!(!is_plugin_category("scripts"));
+        assert!(!is_plugin_category("materials"));
+    }
 }
