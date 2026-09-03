@@ -152,6 +152,19 @@ pub fn UploadPage() -> impl IntoView {
                                 </label>
                             </div>
 
+                            <div data-show-for-category="plugins" class="hidden p-4 bg-accent/[0.06] border border-accent/20 rounded-xl">
+                                <p class="text-xs font-semibold text-accent flex items-center gap-1.5 mb-2">
+                                    <i class="ph ph-puzzle-piece"></i>"Plugins ship as source"
+                                </p>
+                                <p class="text-xs text-zinc-400 leading-relaxed">
+                                    "Upload a single .zip of your plugin crate — it must contain "
+                                    <code class="text-zinc-300">"Cargo.toml"</code>" and "
+                                    <code class="text-zinc-300">"src/lib.rs"</code>", either at the top level or inside one folder. "
+                                    "Renzora extracts it into the editor's plugins directory and compiles it there against the SDK, "
+                                    "so it keeps working when the engine updates."
+                                </p>
+                            </div>
+
                             <div data-show-for-category="scripts,plugins,blueprints" class="hidden p-4 bg-white/[0.01] border border-zinc-800/30 rounded-xl">
                                 <label class="block text-sm text-zinc-400 mb-1.5">"Scripting Language"</label>
                                 <select id="w-script-lang" class="w-full px-4 py-3 bg-white/[0.02] border border-zinc-800/50 rounded-xl text-zinc-50 text-sm outline-none focus:border-accent/50 transition-all">
