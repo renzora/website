@@ -33,7 +33,7 @@ pub fn DownloadPage() -> impl IntoView {
                         <i class="ph ph-terminal-window text-lg"></i>"Build from source"
                     </a>
                     <a href="#downloads" class="dl-hero-cta inline-flex items-center gap-2 px-6 py-3 rounded-xl text-sm font-semibold bg-white/5 text-zinc-50 border border-zinc-700/50 hover:border-zinc-500 hover:bg-white/10 transition-all backdrop-blur-sm">
-                        <i class="ph ph-download-simple text-lg"></i>"Download prebuilt"
+                        <i class="ph ph-download-simple text-lg"></i>"Download Engine"
                     </a>
                     <a href="https://github.com/renzora/engine" target="_blank" rel="noopener noreferrer" class="dl-hero-cta inline-flex items-center gap-2 px-6 py-3 rounded-xl text-sm font-semibold bg-white/5 text-zinc-50 border border-zinc-700/50 hover:border-zinc-500 hover:bg-white/10 transition-all backdrop-blur-sm">
                         <i class="ph ph-github-logo text-lg"></i>"Source"
@@ -117,25 +117,58 @@ pub fn DownloadPage() -> impl IntoView {
                 </div>
 
                 // Prebuilt downloads
-                <div id="downloads" class="flex flex-wrap items-end justify-between gap-2 mb-5">
+                <div id="downloads" class="flex flex-wrap items-end justify-between gap-3 mb-5">
                     <h3 class="text-lg font-semibold flex items-center gap-2">
                         <div class="w-7 h-7 rounded-lg bg-accent/10 flex items-center justify-center">
                             <i class="ph ph-download-simple text-sm text-accent"></i>
                         </div>
-                        "Or download a prebuilt editor"
+                        "Download Engine"
                     </h3>
-                    <p class="text-xs text-zinc-500">
-                        "Latest release: "
-                        <span id="release-version" class="text-zinc-300">"r1-alpha6"</span>
+                    // Stable / nightly switch
+                    <div class="flex items-center gap-1 p-1 bg-white/[0.02] rounded-lg border border-zinc-800/40">
+                        <button type="button" id="ch-stable" onclick="dlChannel('stable')" class="px-3 py-1.5 rounded-md text-xs font-medium bg-white/[0.06] text-white transition-all">"Stable"</button>
+                        <button type="button" id="ch-nightly" onclick="dlChannel('nightly')" class="px-3 py-1.5 rounded-md text-xs font-medium text-zinc-500 hover:text-zinc-300 transition-all">"Nightly"</button>
+                    </div>
+                </div>
+
+                // ── Stable channel ──
+                // Static cards, no GitHub API call. After each release, set the
+                // version below and fill each `href` with the asset download URL.
+                <div id="dl-panel-stable">
+                    <p class="text-xs text-zinc-500 mb-4">
+                        "Latest stable release: "
+                        <span class="text-zinc-300">"r1-alpha6"</span>
                     </p>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <PlatformCard name="Windows" icon="ph-windows-logo" req="Windows 10+ · x64" href="https://github.com/renzora/engine/releases/download/r1-alpha6/windows-x64.zip" />
+                        <PlatformCard name="macOS" icon="ph-apple-logo" req="macOS 12+ · Apple Silicon" href="https://github.com/renzora/engine/releases/download/r1-alpha6/macos-arm64.zip" />
+                        <PlatformCard name="Linux" icon="ph-linux-logo" req="Linux · ARM64" href="https://github.com/renzora/engine/releases/download/r1-alpha6/linux-arm64.zip" />
+                    </div>
                 </div>
-                <div id="editor-downloads" class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    // Static cards, no GitHub API call. After each release, set the
-                    // version above and fill each `href` with the asset download URL.
-                    <PlatformCard name="Windows" icon="ph-windows-logo" req="Windows 10+, x64" href="https://github.com/renzora/engine/releases/download/r1-alpha6/windows-x64.zip" />
-                    <PlatformCard name="macOS" icon="ph-apple-logo" req="macOS 12+, Apple Silicon" href="https://github.com/renzora/engine/releases/download/r1-alpha6/macos-arm64.zip" />
-                    <PlatformCard name="Linux" icon="ph-linux-logo" req="Linux, ARM64" href="https://github.com/renzora/engine/releases/download/r1-alpha6/linux-arm64.zip" />
+
+                // ── Nightly channel ──
+                // Nightlies are tagged per-day, so the exact tag can't be baked in
+                // here. Each card ships pointing at the releases list and is upgraded
+                // to a direct asset link once the GitHub API resolves the newest
+                // pre-release; if that call fails the releases link still works.
+                <div id="dl-panel-nightly" class="hidden">
+                    <p class="text-xs text-zinc-500 mb-4">
+                        "Latest nightly: "
+                        <span id="nightly-tag" class="text-zinc-300">"resolving…"</span>
+                        <span class="text-zinc-600">" · built from main, expect breakage"</span>
+                    </p>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                        <NightlyCard name="Windows" icon="ph-windows-logo" req="x64" asset="windows-x64.zip" />
+                        <NightlyCard name="Windows" icon="ph-windows-logo" req="ARM64" asset="windows-arm64.zip" />
+                        <NightlyCard name="macOS" icon="ph-apple-logo" req="Apple Silicon" asset="macos-arm64.zip" />
+                        <NightlyCard name="macOS" icon="ph-apple-logo" req="Intel · x64" asset="macos-x64.zip" />
+                        <NightlyCard name="Linux" icon="ph-linux-logo" req="x64" asset="linux-x64.zip" />
+                        <NightlyCard name="Linux" icon="ph-linux-logo" req="ARM64" asset="linux-arm64.zip" />
+                        <NightlyCard name="Web" icon="ph-globe" req="wasm32" asset="web-wasm32.zip" />
+                        <NightlyCard name="Source" icon="ph-file-zip" req="Engine source" asset="engine-source.zip" />
+                    </div>
                 </div>
+
                 <p class="text-xs text-zinc-500 mt-4 text-center">
                     "Each build is the engine binary with the "<code class="text-zinc-300">"renzora_editor"</code>" bundle beside it, just run it to open the editor."
                 </p>
@@ -264,6 +297,56 @@ pub fn DownloadPage() -> impl IntoView {
                 document.body.style.overflow = '';
             }
             document.addEventListener('keydown', function(e) { if (e.key === 'Escape') dlClose(); });
+
+            // ── Stable / nightly switch ──
+            function dlChannel(ch) {
+                var nightly = ch === 'nightly';
+                document.getElementById('dl-panel-stable').classList.toggle('hidden', nightly);
+                document.getElementById('dl-panel-nightly').classList.toggle('hidden', !nightly);
+                [['ch-stable', !nightly], ['ch-nightly', nightly]].forEach(function(pair) {
+                    var btn = document.getElementById(pair[0]);
+                    if (!btn) return;
+                    btn.classList.toggle('bg-white/[0.06]', pair[1]);
+                    btn.classList.toggle('text-white', pair[1]);
+                    btn.classList.toggle('text-zinc-500', !pair[1]);
+                });
+                if (nightly) dlResolveNightly();
+            }
+
+            // Point the nightly cards at the newest pre-release. Nightlies are tagged
+            // per-day so the tag can't be baked into the page. Resolved once per tab
+            // and cached; on any failure the cards keep their releases-page href, so
+            // a rate-limited or offline visitor still gets somewhere useful.
+            var nightlyDone = false;
+            async function dlResolveNightly() {
+                if (nightlyDone) return;
+                nightlyDone = true;
+                var tag = null;
+                try {
+                    tag = sessionStorage.getItem('renzora_nightly_tag');
+                } catch (e) {}
+                if (!tag) {
+                    try {
+                        var res = await fetch('https://api.github.com/repos/renzora/engine/releases?per_page=20');
+                        if (!res.ok) throw new Error('releases lookup failed');
+                        var list = await res.json();
+                        var latest = (list || []).find(function(r) { return r.prerelease && !r.draft; });
+                        if (!latest) throw new Error('no pre-release found');
+                        tag = latest.tag_name;
+                        try { sessionStorage.setItem('renzora_nightly_tag', tag); } catch (e) {}
+                    } catch (e) {
+                        var label = document.getElementById('nightly-tag');
+                        if (label) label.textContent = 'see all releases';
+                        nightlyDone = false;  // let a later switch retry
+                        return;
+                    }
+                }
+                var label = document.getElementById('nightly-tag');
+                if (label) label.textContent = tag;
+                document.querySelectorAll('[data-nightly-asset]').forEach(function(a) {
+                    a.href = 'https://github.com/renzora/engine/releases/download/' + tag + '/' + a.getAttribute('data-nightly-asset');
+                });
+            }
             "#
         </script>
 
@@ -405,6 +488,32 @@ pub fn DownloadPage() -> impl IntoView {
             .icon-orange { color: #f97316; background: rgba(249,115,22,0.1); }
             "#
         </style>
+    }
+}
+
+/// One nightly asset. Ships pointing at the releases list; `dlResolveNightly`
+/// rewrites `href` to the direct asset URL once it knows the newest tag.
+#[component]
+fn NightlyCard(name: &'static str, icon: &'static str, req: &'static str, asset: &'static str) -> impl IntoView {
+    let icon_class = format!("ph {} text-xl text-zinc-200", icon);
+    view! {
+        <div class="relative p-4 bg-white/[0.02] border border-zinc-800/50 rounded-xl text-center flex flex-col items-center gap-2 transition-all hover:border-accent/40 hover:bg-white/[0.04]">
+            <div class="w-11 h-11 rounded-xl bg-white/[0.03] border border-zinc-800/30 flex items-center justify-center">
+                <i class=icon_class></i>
+            </div>
+            <h3 class="text-sm font-semibold">{name}</h3>
+            <p class="text-[11px] text-zinc-500">{req}</p>
+            <a
+                href="https://github.com/renzora/engine/releases"
+                data-nightly-asset=asset
+                target="_blank"
+                rel="noopener noreferrer"
+                onclick="dlPrompt()"
+                class="w-full mt-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium bg-purple-600 text-white hover:bg-purple-500 transition-all"
+            >
+                <i class="ph ph-download-simple"></i>"Download"
+            </a>
+        </div>
     }
 }
 

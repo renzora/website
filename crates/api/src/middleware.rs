@@ -137,7 +137,7 @@ pub async fn require_auth(
             .ok_or(StatusCode::UNAUTHORIZED)?;
 
         if user.role != "admin" {
-            let (count, limit) = renzora_models::subscription::check_and_increment_usage(&db.0, api_token.user_id)
+            let (count, limit) = renzora_models::api_usage::check_and_increment_usage(&db.0, api_token.user_id)
                 .await
                 .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 

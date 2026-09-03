@@ -132,17 +132,6 @@ async fn main() {
         collab_rooms: renzora_api::collab::CollabRooms::new(),
     };
 
-    // Background task: renew or expire Supporter subscriptions whose period
-    // has ended. Runs shortly after boot, then hourly.
-    let renewal_state = state.clone();
-    tokio::spawn(async move {
-        let mut interval = tokio::time::interval(std::time::Duration::from_secs(3600));
-        loop {
-            interval.tick().await;
-            renzora_api::subscriptions::process_due_renewals(&renewal_state).await;
-        }
-    });
-
     // CORS
     let origins: Vec<HeaderValue> = allowed_origins
         .split(',')
@@ -198,6 +187,7 @@ async fn main() {
         .nest("/api", api_router(state).merge(Router::new().nest("/docs", docs_files::router())))
         // Frontend pages — explicit SSR routes. `/` is the engine download page.
         .route("/", get(ssr.clone()))
+        .route("/game", get(ssr.clone()))
         .route("/login", get(ssr.clone()))
         .route("/register", get(ssr.clone()))
         .route("/docs", get(ssr.clone()))
@@ -221,11 +211,11 @@ async fn main() {
         }))
         .route("/library", get(ssr.clone()))
         .route("/wallet", get(ssr.clone()))
+        .route("/gifts", get(ssr.clone()))
         .route("/shop/:username", get(ssr.clone()))
         .route("/marketplace/asset/:slug/edit", get(ssr.clone()))
         .route("/dashboard", get(ssr.clone()))
         .route("/developers", get(ssr.clone()))
-        .route("/subscription", get(ssr.clone()))
         .route("/donate", get(ssr.clone()))
         .route("/terms", get(ssr.clone()))
         .route("/privacy", get(ssr.clone()))
@@ -379,7 +369,6 @@ async fn sitemap_xml(db: &sqlx::PgPool, site_url: &str) -> Response {
         ("/docs", "weekly", "0.8"),
         ("/developers", "monthly", "0.5"),
         ("/donate", "monthly", "0.4"),
-        ("/subscription", "monthly", "0.3"),
         ("/terms", "yearly", "0.2"),
         ("/privacy", "yearly", "0.2"),
     ];

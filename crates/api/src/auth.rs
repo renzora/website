@@ -435,9 +435,6 @@ async fn discord_callback(
     )
     .await?;
 
-    // Assign Discord role if user has an active subscription
-    crate::discord::on_discord_link(&state.db, claims.sub, &discord_user.id).await;
-
     // Redirect back to the site settings page
     Ok(Redirect::to(&format!("{}/settings?discord=linked", state.site_url)))
 }

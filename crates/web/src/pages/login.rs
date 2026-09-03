@@ -16,8 +16,8 @@ pub fn LoginPage() -> impl IntoView {
                 <div id="lobby-benefits" class="hidden mb-6 space-y-2.5 text-left">
                     <div class="flex items-center gap-2.5 text-sm text-zinc-300"><i class="ph ph-storefront text-teal-400 text-base"></i>"Free assets, models and plugins"</div>
                     <div class="flex items-center gap-2.5 text-sm text-zinc-300"><i class="ph ph-upload-simple text-accent text-base"></i>"Publish and sell your creations"</div>
-                    <div class="flex items-center gap-2.5 text-sm text-zinc-300"><i class="ph ph-users-three text-sky-400 text-base"></i>"Teams and collaboration"</div>
-                    <div class="flex items-center gap-2.5 text-sm text-zinc-300"><i class="ph ph-chats-circle text-violet-400 text-base"></i>"Community, help and devlogs"</div>
+                    <div class="flex items-center gap-2.5 text-sm text-zinc-300"><i class="ph ph-books text-sky-400 text-base"></i>"Your library, ready to re-download"</div>
+                    <div class="flex items-center gap-2.5 text-sm text-zinc-300"><i class="ph ph-coin text-violet-400 text-base"></i>"Credits, gift cards and payouts"</div>
                     <div class="flex items-center gap-2.5 text-sm text-zinc-300"><i class="ph ph-trophy text-amber-400 text-base"></i>"Earn XP and level up"</div>
                 </div>
 

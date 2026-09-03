@@ -14,8 +14,8 @@ pub mod marketplace;
 pub mod preview;
 pub mod middleware;
 pub mod profiles;
-pub mod subscriptions;
 pub mod user;
+pub mod waitlist;
 pub mod ws;
 
 use axum::{extract::State, Json, Router};
@@ -45,6 +45,7 @@ pub fn api_router(state: AppState) -> Router {
     Router::new()
         .nest("/auth", auth::router())
         .nest("/marketplace", marketplace::router())
+        .nest("/waitlist", waitlist::router())
         .nest("/gameservices", gameservices::router())
         .nest("/credits", credits::router())
         .nest("/creator", creator::router())
@@ -52,7 +53,6 @@ pub fn api_router(state: AppState) -> Router {
         .nest("/profiles", profiles::router())
         .nest("/admin", admin::router())
         .nest("/api-tokens", api_tokens::router())
-        .nest("/subscriptions", subscriptions::router())
         .nest("/user", user::router())
         .nest("/ws", ws::router())
         .nest("/ws", collab::ws_router())

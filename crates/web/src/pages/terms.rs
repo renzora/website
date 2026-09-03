@@ -38,13 +38,13 @@ pub fn TermsPage() -> impl IntoView {
 
                 <div>
                     <h2 class="text-lg font-semibold text-zinc-200 mb-2">"6. API and Developer Access"</h2>
-                    <p>"API access is subject to rate limits based on your subscription tier. You must not circumvent rate limits, scrape the Platform, or use the API in ways that degrade service for other users. API tokens are confidential and must be stored securely."</p>
+                    <p>"API access is subject to a daily request limit. You must not circumvent rate limits, scrape the Platform, or use the API in ways that degrade service for other users. API tokens are confidential and must be stored securely."</p>
                     <p>"Developer apps must accurately describe their purpose and only request necessary permission scopes."</p>
                 </div>
 
                 <div>
-                    <h2 class="text-lg font-semibold text-zinc-200 mb-2">"7. Subscriptions"</h2>
-                    <p>"Paid subscriptions renew automatically unless cancelled. You may cancel at any time; access continues until the end of the current billing period. Renzora may change subscription pricing with 30 days notice."</p>
+                    <h2 class="text-lg font-semibold text-zinc-200 mb-2">"7. Donations"</h2>
+                    <p>"Donations to Renzora are voluntary and non-refundable. Recurring donations may be cancelled at any time. Donation tiers and their acknowledgements may change at any time."</p>
                 </div>
 
                 <div>

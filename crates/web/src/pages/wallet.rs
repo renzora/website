@@ -39,9 +39,14 @@ pub fn WalletPage() -> impl IntoView {
                 <div id="wallet-main">
 
                 // Header
-                <div class="mb-10">
-                    <h1 class="text-3xl font-bold tracking-tight">"Credits"</h1>
-                    <p class="text-zinc-500 text-sm mt-1">"Purchase credits to buy assets, plugins, and themes from the marketplace."</p>
+                <div class="mb-10 flex flex-wrap items-start justify-between gap-4">
+                    <div>
+                        <h1 class="text-3xl font-bold tracking-tight">"Credits"</h1>
+                        <p class="text-zinc-500 text-sm mt-1">"Purchase credits to buy assets, plugins, and themes from the marketplace."</p>
+                    </div>
+                    <a href="/gifts" class="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-sm font-medium bg-white/[0.04] border border-zinc-800 text-zinc-300 hover:border-accent hover:text-white transition-all shrink-0">
+                        <i class="ph ph-gift text-base"></i>"Gift cards"
+                    </a>
                 </div>
 
                 // Balance + quick stats row

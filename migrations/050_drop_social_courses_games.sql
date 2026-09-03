@@ -1,9 +1,16 @@
 -- Retire the social, course and game-store halves of the site. renzora.com is
 -- now the engine download page plus the asset marketplace, so the feed,
--- profiles, articles, courses, messaging, notifications, teams (and the team
--- library economy built on them), gift cards, the game store and the game
--- waiting list all go. Dropped in FK-dependency order; CASCADE clears the
+-- profiles, articles, courses, messaging, notifications, supporter
+-- subscriptions, teams (and the team library economy built on them) and the
+-- game store all go. Dropped in FK-dependency order; CASCADE clears the
 -- foreign keys that surviving tables hold into these.
+--
+-- Records of money and ownership are kept even where their UI is gone:
+-- `waitlist` (signup emails for the Renzora Studios game at /game),
+-- `gift_cards` (codes people paid credits for), `user_games` (game purchases),
+-- `user_assets` (marketplace ownership), `transactions` and
+-- `users.credit_balance` (never touched). Note `user_games.game_id` becomes a
+-- dangling id once `games` is dropped — the row stays as a purchase record.
 --
 -- Kept on purpose: `friends`, `user_presence`, `leaderboards`,
 -- `player_achievements` and `player_stats` back the game-services SDK that
@@ -37,7 +44,12 @@ DROP TABLE IF EXISTS messages CASCADE;
 DROP TABLE IF EXISTS conversation_participants CASCADE;
 DROP TABLE IF EXISTS conversations CASCADE;
 DROP TABLE IF EXISTS notifications CASCADE;
-DROP TABLE IF EXISTS gift_cards CASCADE;
+
+-- ── Supporter subscriptions ──
+-- `auto_topup` and `api_usage_daily` are kept: automatic credit top-ups are a
+-- marketplace feature, and API tokens now share one flat daily limit.
+DROP TABLE IF EXISTS subscriptions CASCADE;
+DROP TABLE IF EXISTS subscription_plans CASCADE;
 
 -- ── Teams and the team-library / creator-pool economy built on them ──
 DROP TABLE IF EXISTS library_add_log CASCADE;
@@ -54,15 +66,14 @@ DROP TABLE IF EXISTS creator_pool_earnings CASCADE;
 DROP TABLE IF EXISTS creator_pool_contributions CASCADE;
 DROP TABLE IF EXISTS creator_pool CASCADE;
 
--- ── Game store + waiting list ──
+-- ── Game store ──
+-- `user_games` is kept: it records games people paid for.
 DROP TABLE IF EXISTS wishlists CASCADE;
-DROP TABLE IF EXISTS user_games CASCADE;
 DROP TABLE IF EXISTS game_reviews CASCADE;
 DROP TABLE IF EXISTS game_media CASCADE;
 DROP TABLE IF EXISTS game_comments CASCADE;
 DROP TABLE IF EXISTS games CASCADE;
 DROP TABLE IF EXISTS game_categories CASCADE;
-DROP TABLE IF EXISTS waitlist CASCADE;
 
 -- ── User columns that only fed the removed features ──
 -- `online_status_visible` stays: the game-services presence API reads it.

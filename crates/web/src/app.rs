@@ -14,13 +14,14 @@ use crate::pages::{
     docs::{DocsPage, DocArticle},
     donate::DonatePage,
     download::DownloadPage,
+    game::GamePage,
+    gifts::GiftsPage,
     library::LibraryPage,
     login::{LoginPage, RegisterPage},
     marketplace::MarketplacePage,
     sell::SellOnboardingPage,
     shop::ShopPage,
     settings::SettingsPage,
-    subscription::SubscriptionPage,
     upload::UploadPage,
     wallet::WalletPage,
     embed::EmbedPreviewPage,
@@ -51,6 +52,7 @@ pub fn App() -> impl IntoView {
                 <Routes fallback=|| view! { <p class="text-center text-zinc-500 py-20">"Page not found."</p> }>
                     // The download page is the site root.
                     <Route path=path!("/") view=DownloadPage />
+                    <Route path=path!("/game") view=GamePage />
                     <Route path=path!("/login") view=LoginPage />
                     <Route path=path!("/register") view=RegisterPage />
                     <Route path=path!("/docs") view=DocsPage />
@@ -62,10 +64,10 @@ pub fn App() -> impl IntoView {
                     <Route path=path!("/marketplace/asset/:slug") view=AssetDetailPage />
                     <Route path=path!("/library") view=LibraryPage />
                     <Route path=path!("/wallet") view=WalletPage />
+                    <Route path=path!("/gifts") view=GiftsPage />
                     <Route path=path!("/shop/:username") view=ShopPage />
                     <Route path=path!("/dashboard") view=DashboardPage />
                     <Route path=path!("/developers") view=DevelopersPage />
-                    <Route path=path!("/subscription") view=SubscriptionPage />
                     <Route path=path!("/donate") view=DonatePage />
                     <Route path=path!("/terms") view=TermsPage />
                     <Route path=path!("/privacy") view=PrivacyPage />

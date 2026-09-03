@@ -7,9 +7,11 @@ use axum::{
 };
 use hmac::{Hmac, Mac};
 use renzora_common::types::*;
+use renzora_models::auto_topup::AutoTopup;
 use renzora_models::asset::{self, Asset};
 use renzora_models::transaction;
 use renzora_models::user::User;
+use serde::Deserialize;
 use sha2::Sha256;
 use uuid::Uuid;
 
@@ -28,6 +30,11 @@ pub fn router() -> Router<AppState> {
         .route("/withdraw", post(request_withdrawal))
         .route("/withdrawals", get(list_withdrawals))
         .route("/redeem-voucher", post(redeem_voucher))
+        .route("/auto-topup", get(get_auto_topup).put(update_auto_topup))
+        .route("/gift-cards/send", post(send_gift_card))
+        .route("/gift-cards/redeem", post(redeem_gift_card))
+        .route("/gift-cards/sent", get(list_sent_gifts))
+        .route("/gift-cards/received", get(list_received_gifts))
         .route("/donate", post(make_donation))
         .route("/donate/sponsor-profile", get(get_sponsor_profile).put(update_sponsor_profile))
         .route("/donate/sponsor-logo", axum::routing::put(upload_sponsor_logo))
@@ -56,7 +63,7 @@ const TIER_CORP_BRONZE: i64 = 5_000; // $500/mo — large logo
 const TIER_CORP_SILVER: i64 = 10_000; // $1,000/mo
 const TIER_CORP_GOLD: i64 = 25_000;  // $2,500/mo — top billing
 
-/// Tier slug for a monthly subscription amount.
+/// Tier slug for a monthly donation amount.
 fn sponsor_tier(monthly: i64) -> Option<&'static str> {
     match monthly {
         m if m >= TIER_CORP_GOLD => Some("corp_gold"),
@@ -1060,6 +1067,131 @@ async fn make_donation(
         "total_donated": total.0,
         "new_badges": new_badges,
     })))
+}
+
+#[derive(serde::Deserialize)]
+struct SendGiftBody {
+    recipient_username: Option<String>,
+    amount: i64,
+    message: Option<String>,
+}
+
+async fn send_gift_card(
+    State(state): State<AppState>,
+    Extension(auth): Extension<AuthUser>,
+    Json(body): Json<SendGiftBody>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    if body.amount < 10 {
+        return Err(ApiError::Validation("Minimum gift is 10 credits".into()));
+    }
+
+    // Check balance
+    let user = User::find_by_id(&state.db, auth.user_id).await?.ok_or(ApiError::NotFound)?;
+    if user.credit_balance < body.amount {
+        return Err(ApiError::Validation("Insufficient credits".into()));
+    }
+
+    // Find recipient if specified
+    let recipient_id = if let Some(ref username) = body.recipient_username {
+        let r = User::find_by_username(&state.db, username).await?.ok_or(ApiError::Validation("User not found".into()))?;
+        Some(r.id)
+    } else {
+        None
+    };
+
+    // Generate code
+    let code = format!("GIFT-{}", &uuid::Uuid::new_v4().to_string()[..8].to_uppercase());
+
+    // Deduct credits from sender
+    sqlx::query("UPDATE users SET credit_balance = credit_balance - $1 WHERE id = $2")
+        .bind(body.amount).bind(auth.user_id).execute(&state.db).await?;
+
+    // Record transaction
+    sqlx::query("INSERT INTO transactions (id, user_id, type, amount, reason) VALUES ($1, $2, 'gift_sent', $3, $4)")
+        .bind(uuid::Uuid::new_v4()).bind(auth.user_id).bind(-body.amount).bind(format!("Gift card: {}", code))
+        .execute(&state.db).await?;
+
+    let gift = renzora_models::gift_card::GiftCard::create(&state.db, auth.user_id, recipient_id, &code, body.amount, body.message.as_deref().unwrap_or("")).await?;
+
+    // If there is a direct recipient, auto-redeem straight into their balance.
+    if let Some(rid) = recipient_id {
+        renzora_models::gift_card::GiftCard::redeem(&state.db, gift.id, rid).await?;
+        sqlx::query("UPDATE users SET credit_balance = credit_balance + $1 WHERE id = $2")
+            .bind(body.amount).bind(rid).execute(&state.db).await?;
+        sqlx::query("INSERT INTO transactions (id, user_id, type, amount, reason) VALUES ($1, $2, 'gift_received', $3, $4)")
+            .bind(uuid::Uuid::new_v4()).bind(rid).bind(body.amount).bind(format!("Gift from {}", user.username))
+            .execute(&state.db).await?;
+
+        state.ws_broadcast.send_to_user(rid, "credit_update", serde_json::json!({"amount": body.amount}));
+    }
+
+    Ok(Json(serde_json::json!({"code": gift.code, "amount": gift.amount, "auto_redeemed": recipient_id.is_some()})))
+}
+
+async fn redeem_gift_card(
+    State(state): State<AppState>,
+    Extension(auth): Extension<AuthUser>,
+    Json(body): Json<RedeemVoucherBody>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    let gift = renzora_models::gift_card::GiftCard::find_by_code(&state.db, &body.code).await?.ok_or(ApiError::Validation("Invalid or expired gift card".into()))?;
+
+    renzora_models::gift_card::GiftCard::redeem(&state.db, gift.id, auth.user_id).await?;
+    sqlx::query("UPDATE users SET credit_balance = credit_balance + $1 WHERE id = $2")
+        .bind(gift.amount).bind(auth.user_id).execute(&state.db).await?;
+    sqlx::query("INSERT INTO transactions (id, user_id, type, amount, reason) VALUES ($1, $2, 'gift_received', $3, $4)")
+        .bind(uuid::Uuid::new_v4()).bind(auth.user_id).bind(gift.amount).bind(format!("Gift card: {}", gift.code))
+        .execute(&state.db).await?;
+
+    Ok(Json(serde_json::json!({"ok": true, "amount": gift.amount})))
+}
+
+async fn list_sent_gifts(
+    State(state): State<AppState>,
+    Extension(auth): Extension<AuthUser>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    let gifts = renzora_models::gift_card::GiftCard::list_sent(&state.db, auth.user_id).await?;
+    Ok(Json(serde_json::json!(gifts)))
+}
+
+async fn list_received_gifts(
+    State(state): State<AppState>,
+    Extension(auth): Extension<AuthUser>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    let gifts = renzora_models::gift_card::GiftCard::list_received(&state.db, auth.user_id).await?;
+    Ok(Json(serde_json::json!(gifts)))
+}
+
+// ── Automatic credit top-ups ──
+
+async fn get_auto_topup(
+    State(state): State<AppState>,
+    Extension(auth): Extension<AuthUser>,
+) -> Result<Json<Option<AutoTopup>>, ApiError> {
+    let topup = AutoTopup::find(&state.db, auth.user_id).await?;
+    Ok(Json(topup))
+}
+
+#[derive(Deserialize)]
+struct AutoTopupRequest {
+    enabled: bool,
+    threshold_credits: Option<i32>,
+    topup_amount_credits: Option<i32>,
+}
+
+async fn update_auto_topup(
+    State(state): State<AppState>,
+    Extension(auth): Extension<AuthUser>,
+    Json(body): Json<AutoTopupRequest>,
+) -> Result<Json<AutoTopup>, ApiError> {
+    let threshold = body.threshold_credits.unwrap_or(100);
+    let amount = body.topup_amount_credits.unwrap_or(500);
+
+    if threshold < 0 || amount < 50 {
+        return Err(ApiError::Validation("Threshold must be >= 0, amount must be >= 50 credits".into()));
+    }
+
+    let topup = AutoTopup::upsert(&state.db, auth.user_id, body.enabled, threshold, amount).await?;
+    Ok(Json(topup))
 }
 
 async fn donation_leaderboard(

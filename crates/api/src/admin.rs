@@ -1184,11 +1184,6 @@ async fn user_detail(
     let token_count: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM api_tokens WHERE user_id = $1")
         .bind(id).fetch_one(&state.db).await?;
 
-    // Get subscription plan info
-    let plan_row = sqlx::query_as::<_, (String, i32)>(
-        "SELECT sp.name, sp.daily_api_limit FROM subscription_plans sp JOIN subscriptions s ON s.plan_id = sp.id WHERE s.user_id = $1 AND s.status = 'active'"
-    ).bind(id).fetch_optional(&state.db).await.unwrap_or(None);
-
     // Get today's API usage
     let usage_row = sqlx::query_as::<_, (i32,)>(
         "SELECT request_count FROM api_usage_daily WHERE user_id = $1 AND date = CURRENT_DATE"
@@ -1213,8 +1208,7 @@ async fn user_detail(
         "asset_count": asset_count.0,
         "purchase_count": purchase_count.0,
         "token_count": token_count.0,
-        "subscription_plan": plan_row.as_ref().map(|r| &r.0),
-        "daily_api_limit": plan_row.as_ref().map(|r| r.1),
+        "daily_api_limit": renzora_models::api_usage::DAILY_API_LIMIT,
         "api_usage_today": usage_row.map(|r| r.0).unwrap_or(0),
     })))
 }
