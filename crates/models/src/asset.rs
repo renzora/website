@@ -165,6 +165,24 @@ impl Asset {
             "price_asc" => "a.price_credits ASC",
             "price_desc" => "a.price_credits DESC",
             "top_rated" => "CASE WHEN a.rating_count > 0 THEN a.rating_sum::float / a.rating_count ELSE 0 END DESC",
+            // For a shelf that shows a handful of a category rather than its
+            // ranking — the editor's home page. Sorting the whole filtered set
+            // means the sample is drawn from EVERY asset in the category, which
+            // is the point: taking the first ten of `popular` showed the same
+            // ten forever, and shuffling those ten client-side only reordered
+            // the same top slice.
+            //
+            // Deliberately not offered as a browse sort. The ordering is chosen
+            // per request, so `LIMIT/OFFSET` paging over it can repeat or skip
+            // rows — invisible for a shelf that never pages, and broken for a
+            // grid that does. A seeded variant (`setseed`) would page coherently
+            // if that is ever wanted.
+            //
+            // `RANDOM()` sorts the whole result set, which is fine at this
+            // catalogue's size and is already narrowed by the category filter.
+            // If a single category ever reaches tens of thousands of rows this
+            // wants `TABLESAMPLE` or a `random() < k` prefilter instead.
+            "random" => "RANDOM()",
             _ => "a.created_at DESC",
         };
 
