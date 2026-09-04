@@ -848,11 +848,19 @@ async fn download_asset(
         // Primary download URL = first file
         let first = asset_files.first().unwrap();
         let primary_url = generate_presigned_url(&state, &first.file_key).await?;
-        let filename = if !asset.download_filename.is_empty() {
-            asset.download_filename.clone()
-        } else {
-            first.original_filename.clone()
-        };
+        // The file's own name, NOT `asset.download_filename`.
+        //
+        // That column records what the SELLER uploaded, which for a zip the
+        // server then extracted is an archive that no longer exists — the rows
+        // are its contents. Serving the first row's bytes under the archive's
+        // name produced downloads like `banner_ui_02.zip` holding an FBX, which
+        // no extractor can open and which the editor refused to unpack because
+        // the extension said one thing and the bytes another.
+        //
+        // For a genuinely single-file upload the two agree, so nothing changes
+        // there; the legacy branch below still uses the asset-level name,
+        // because without rows it is the only name there is.
+        let filename = first.original_filename.clone();
 
         Ok(Json(DownloadResponse {
             download_url: primary_url,
@@ -996,6 +1004,24 @@ async fn preview_file_proxy(
     let client = reqwest::Client::new();
     let resp = client.get(&fetch_url).send().await
         .map_err(|e| ApiError::Internal(format!("Failed to fetch file: {e}")))?;
+
+    // The upstream's status, checked before its body is handed on.
+    //
+    // Without this the proxy answered 200 with whatever the storage host
+    // returned — and for a missing or unreachable object that is an HTML error
+    // page, served to the caller as if it were the asset. The editor's theme
+    // preview then fed `<!DOCTYPE html>` to a TOML parser and reported a syntax
+    // error at line 1, which describes the symptom and hides the cause: the
+    // client had checked its own response status, and that status was 200.
+    //
+    // A failed fetch is the proxy's failure, not the caller's, so it surfaces as
+    // one rather than as a file the caller cannot read.
+    if !resp.status().is_success() {
+        return Err(ApiError::Internal(format!(
+            "Preview file unavailable: storage returned HTTP {}",
+            resp.status().as_u16()
+        )));
+    }
 
     let content_type = resp.headers()
         .get("content-type")
