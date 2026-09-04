@@ -3,7 +3,7 @@ use axum::{
     routing::{delete, get, post, put},
     Json, Router,
 };
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use sqlx::Row;
 use renzora_common::types::*;
 use renzora_models::asset::{self, Asset};
@@ -54,6 +54,7 @@ pub fn router() -> Router<AppState> {
         .route("/:id/media", get(list_media))
         .route("/:id/asset-files", get(list_asset_files))
         .route("/:id/preview-file", get(preview_file_proxy))
+        .route("/plugin-updates", post(plugin_updates))
         .merge(downloads)
         .merge(protected)
 }
@@ -1947,6 +1948,74 @@ async fn generate_preview_key(
 }
 
 /// Extract files from a zip archive in memory with safety checks.
+#[derive(Deserialize)]
+struct PluginUpdatesRequest {
+    /// Asset ids of the plugins the caller has installed.
+    ids: Vec<Uuid>,
+}
+
+/// What the editor needs to decide whether an installed plugin should update.
+#[derive(Serialize)]
+struct PluginUpdate {
+    id: Uuid,
+    slug: String,
+    name: String,
+    /// The version currently published.
+    version: String,
+    /// Minimum engine release, from the asset's metadata. Empty means "any" —
+    /// the editor treats it that way rather than guessing a floor.
+    min_engine_version: String,
+    /// False once a creator unpublishes: the editor keeps what it has rather
+    /// than offering an update it cannot fetch.
+    published: bool,
+}
+
+/// Latest published version for a set of installed plugins, in one request.
+///
+/// A round trip per plugin would be a burst of requests every time the editor
+/// starts, for something that is almost always "no change". Public: the version
+/// and the engine floor are on the listing already, and an update check should
+/// not require being signed in.
+async fn plugin_updates(
+    State(state): State<AppState>,
+    Json(body): Json<PluginUpdatesRequest>,
+) -> Result<Json<Vec<PluginUpdate>>, ApiError> {
+    if body.ids.is_empty() {
+        return Ok(Json(Vec::new()));
+    }
+    if body.ids.len() > 200 {
+        return Err(ApiError::Validation("Too many ids (max 200)".into()));
+    }
+
+    let rows = sqlx::query(
+        "SELECT id, slug, name, version, published, metadata FROM assets WHERE id = ANY($1)",
+    )
+    .bind(&body.ids)
+    .fetch_all(&state.db)
+    .await?;
+
+    let updates = rows
+        .iter()
+        .map(|r| {
+            let metadata: serde_json::Value = r.get("metadata");
+            let min_engine_version = metadata
+                .get("min_engine_version")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string();
+            PluginUpdate {
+                id: r.get("id"),
+                slug: r.get("slug"),
+                name: r.get("name"),
+                version: r.get("version"),
+                min_engine_version,
+                published: r.get("published"),
+            }
+        })
+        .collect();
+    Ok(Json(updates))
+}
+
 /// Categories whose uploads are buildable plugin source.
 fn is_plugin_category(slug: &str) -> bool {
     matches!(slug, "plugins" | "plugin")
