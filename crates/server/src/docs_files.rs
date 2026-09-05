@@ -59,7 +59,7 @@ fn docs_dir() -> PathBuf {
     PathBuf::from("docs")
 }
 
-/// The default version id from docs/_versions.json (falls back to "r1-alpha5").
+/// The default version id from docs/_versions.json (falls back to "r1-alpha7").
 async fn default_version() -> String {
     let path = docs_dir().join("_versions.json");
     if let Ok(content) = tokio::fs::read_to_string(&path).await {
@@ -69,7 +69,7 @@ async fn default_version() -> String {
             }
         }
     }
-    "r1-alpha5".to_string()
+    "r1-alpha7".to_string()
 }
 
 /// A version id is a single path segment with no separators or traversal.

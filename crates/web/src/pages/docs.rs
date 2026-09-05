@@ -18,7 +18,7 @@ pub fn DocsPage() -> impl IntoView {
         <script>
             r##"
             (async function() {
-                let def = 'r1-alpha6';
+                let def = 'r1-alpha7';
                 try {
                     const res = await fetch('/api/docs/versions');
                     if (res.ok) { const data = await res.json(); if (data && data.default) def = data.default; }
@@ -128,7 +128,7 @@ pub fn DocArticle() -> impl IntoView {
                 // Resolve version; if the first segment isn't a known version (legacy/short link),
                 // redirect to the default version, preserving the rest of the path as the slug.
                 let known = [];
-                let def = 'r1-alpha6';
+                let def = 'r1-alpha7';
                 try {
                     const vres = await fetch('/api/docs/versions');
                     if (vres.ok) { const v = await vres.json(); known = (v.versions || []).map(x => x.id); if (v.default) def = v.default; }
@@ -440,8 +440,8 @@ fn DocsSidebar() -> impl IntoView {
                 const parts = window.location.pathname.split('/').filter(Boolean);
                 try {
                     const vres = await fetch('/api/docs/versions');
-                    docVersions = vres.ok ? await vres.json() : { default: 'r1-alpha6', versions: [] };
-                } catch (e) { docVersions = { default: 'r1-alpha6', versions: [] }; }
+                    docVersions = vres.ok ? await vres.json() : { default: 'r1-alpha7', versions: [] };
+                } catch (e) { docVersions = { default: 'r1-alpha7', versions: [] }; }
                 const known = (docVersions.versions || []).map(v => v.id);
                 currentVersion = (parts[1] && known.includes(parts[1])) ? parts[1] : docVersions.default;
                 renderVersionSelect();

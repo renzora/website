@@ -17,7 +17,7 @@ pub fn DownloadPage() -> impl IntoView {
             <div class="relative z-10 text-center max-w-3xl mx-auto">
                 <div class="dl-hero-badge inline-flex items-center gap-2 px-3 py-1 rounded-full bg-accent/10 border border-accent/20 text-accent text-xs font-medium mb-4 backdrop-blur-sm">
                     <span class="w-1.5 h-1.5 rounded-full bg-accent animate-pulse"></span>
-                    "r1-alpha6 · Early Access"
+                    "r1-alpha7 · Early Access"
                 </div>
 
                 <h1 class="dl-hero-title text-5xl md:text-6xl lg:text-7xl font-extrabold tracking-tight leading-[1.05]">
@@ -133,7 +133,7 @@ pub fn DownloadPage() -> impl IntoView {
 
                 <p class="text-xs text-zinc-500 mb-5">
                     <span id="dl-release-label">"Latest stable release: "</span>
-                    <span id="dl-release-tag" class="text-zinc-300">"r1-alpha6"</span>
+                    <span id="dl-release-tag" class="text-zinc-300">"r1-alpha7"</span>
                     <span id="dl-release-note" class="text-zinc-600"></span>
                 </p>
 
@@ -337,7 +337,7 @@ pub fn DownloadPage() -> impl IntoView {
                 }
             };
             var DL_RELEASES = 'https://github.com/renzora/engine/releases';
-            var DL_TAGS = { stable: 'r1-alpha6', nightly: null };
+            var DL_TAGS = { stable: 'r1-alpha7', nightly: null };
             var dlChannelName = 'stable';
 
             function dlAssetUrl(asset) {
@@ -615,7 +615,7 @@ fn DownloadCard(
         if available { "" } else { " opacity-40" }
     );
     let href = if available {
-        format!("https://github.com/renzora/engine/releases/download/r1-alpha6/{opt_asset}")
+        format!("https://github.com/renzora/engine/releases/download/r1-alpha7/{opt_asset}")
     } else {
         "https://github.com/renzora/engine/releases".to_string()
     };

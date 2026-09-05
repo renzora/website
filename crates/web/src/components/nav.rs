@@ -65,7 +65,7 @@ pub fn Nav() -> impl IntoView {
                     <p class="text-[9px] font-semibold uppercase tracking-[0.16em] text-zinc-400">"Renzora Engine"</p>
                     <div class="flex items-center gap-1.5 mt-1.5">
                         <i class="ph ph-download-simple text-secondary text-sm"></i>
-                        <span class="text-sm font-semibold text-white">"r1-alpha6"</span>
+                        <span class="text-sm font-semibold text-white">"r1-alpha7"</span>
                         <span class="text-[9px] font-semibold px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-400">"Free"</span>
                     </div>
                     <a href="/" class="mt-2.5 block text-center text-xs font-semibold text-white bg-purple-600 hover:bg-purple-500 transition-colors rounded-lg py-1.5">"Download"</a>

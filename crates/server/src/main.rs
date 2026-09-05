@@ -394,7 +394,7 @@ async fn sitemap_xml(db: &sqlx::PgPool, site_url: &str) -> Response {
         .ok()
         .and_then(|s| serde_json::from_str::<serde_json::Value>(&s).ok())
         .and_then(|v| v.get("default").and_then(|d| d.as_str()).map(|s| s.to_string()))
-        .unwrap_or_else(|| "r1-alpha6".to_string());
+        .unwrap_or_else(|| "r1-alpha7".to_string());
     push_url(&mut xml, &format!("{base}/docs/{default_version}"), None, "weekly", "0.7");
     if let Ok(raw) = std::fs::read_to_string(format!("docs/{default_version}/_sidebar.json")) {
         if let Ok(sidebar) = serde_json::from_str::<serde_json::Value>(&raw) {
