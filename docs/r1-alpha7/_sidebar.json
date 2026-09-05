@@ -11,6 +11,7 @@
           "category": "Getting Started",
           "pages": [
             { "slug": "getting-started/installation", "title": "Installation" },
+            { "slug": "getting-started/dashboard", "title": "The Dashboard" },
             { "slug": "getting-started/editor-overview", "title": "Editor Tour" },
             { "slug": "getting-started/first-project", "title": "Your First Project" },
             { "slug": "getting-started/concepts", "title": "Core Concepts" }
@@ -194,7 +195,9 @@
             { "slug": "platform-api/marketplace", "title": "Marketplace API" },
             { "slug": "platform-api/game-services", "title": "Game Services API" },
             { "slug": "platform-api/credits", "title": "Credits API" },
-            { "slug": "platform-api/websocket", "title": "WebSocket API" }
+            { "slug": "platform-api/websocket", "title": "WebSocket API" },
+            { "slug": "platform-api/messaging", "title": "Messaging API" },
+            { "slug": "platform-api/feed", "title": "Feed API" }
           ]
         }
       ]
