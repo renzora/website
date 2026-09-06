@@ -82,7 +82,21 @@ if ! curl -sfL "https://github.com/$REPO/releases/download/$TAG/$ASSET" -o "$STA
     exit 1
 fi
 
-unzip -q "$STAGE/$ASSET" -d "$STAGE/tree"
+# The droplet has no `unzip` — a base Debian cloud image does not ship one, and
+# nothing here had ever needed it: the preview-wasm step above has been failing
+# on exactly this since it was written, silently, because its `|| true` swallowed
+# the error and the committed copy in assets/wasm/ meant nobody noticed. Rather
+# than install a package into the host from a deploy script, fall back to
+# python3's stdlib zipfile, which every Debian/Ubuntu image does ship.
+mkdir -p "$STAGE/tree"
+if command -v unzip >/dev/null 2>&1; then
+    unzip -q "$STAGE/$ASSET" -d "$STAGE/tree"
+elif command -v python3 >/dev/null 2>&1; then
+    python3 -m zipfile -e "$STAGE/$ASSET" "$STAGE/tree"
+else
+    echo "ERROR: need either unzip or python3 to unpack $ASSET" >&2
+    exit 1
+fi
 rm -f "$STAGE/$ASSET"
 
 # The zip carries `renzora-editor.html` and `renzora-runtime.html` but no index,
