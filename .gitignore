@@ -9,3 +9,9 @@ seed_test_data.sql
 
 # Performance snapshots from scripts/perf.mjs (keep a baseline if you want to commit one)
 /perf-results/
+
+# The browser build of the engine, served at /engine. Downloaded from an engine
+# release by scripts/fetch-engine-wasm.sh, never committed: the editor module
+# alone is ~100 MB, against GitHub's 100 MiB per-file hard limit, and it is
+# rebuilt every nightly.
+/engine/

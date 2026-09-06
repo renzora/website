@@ -80,6 +80,15 @@ jobs:
               echo "Warning: Could not fetch preview WASM — skipping"
             fi
 
+            # Fetch the engine's web build for /engine. Best-effort: a droplet
+            # that already has a build keeps serving it, and the engine's own
+            # publish job re-fires this the next time a nightly lands, so a
+            # missed fetch here is self-healing rather than something to hold
+            # a deploy on. Must run before `compose up` — the app bind-mounts
+            # ./engine, and docker would otherwise create it root-owned.
+            ENGINE_REPO='${{ secrets.ENGINE_REPO }}' bash scripts/fetch-engine-wasm.sh \
+              || echo "Warning: engine WASM fetch failed — keeping the build already on disk"
+
             # Log in to GHCR with the run-scoped token (no long-lived secret needed)
             echo '${{ secrets.GITHUB_TOKEN }}' | docker login ghcr.io -u '${{ github.actor }}' --password-stdin
 

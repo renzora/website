@@ -1,0 +1,70 @@
+name: Engine WASM
+
+# Refresh the playable engine build the site serves at /engine.
+#
+# Fired by the engine's own Build Engine workflow, from the `website` job at the
+# end of a successful publish — so every nightly and every release reaches the
+# site the moment it is cut, rather than whenever the website next deploys. The
+# engine sends `repository_dispatch` with `client_payload.tag`; the engine repo
+# holds a fine-grained PAT (`WEBSITE_SYNC_TOKEN`) with Contents write here, which
+# is what the dispatches endpoint requires.
+#
+# The whole job is an SSH into the droplet running `scripts/fetch-engine-wasm.sh`
+# — nothing is built and no image is pushed, because nothing about the website
+# itself changed. See that script for why the wasm is downloaded rather than
+# committed (the editor module is ~100 MB, against GitHub's 100 MiB file limit).
+#
+# `workflow_dispatch` is the manual escape hatch: run it with a tag to pin the
+# site to a specific engine build, or with none to pull the newest release.
+
+on:
+  repository_dispatch:
+    types: [engine-wasm]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Engine release tag (blank = newest, nightlies included)"
+        type: string
+        required: false
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Setup SSH key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.DO_SSH_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H ${{ secrets.DO_HOST }} >> ~/.ssh/known_hosts
+
+      - name: Refresh /engine on the droplet
+        env:
+          # Empty from a manual run with no tag, which the script reads as
+          # "newest release".
+          TAG: ${{ github.event.client_payload.tag || inputs.tag }}
+          CHANNEL: ${{ github.event.client_payload.channel || 'manual' }}
+        run: |
+          set -euo pipefail
+          # The tag is interpolated into the ssh command line below, so it is
+          # checked against the shape a release tag actually has before it gets
+          # there. Only a holder of the engine's WEBSITE_SYNC_TOKEN can send a
+          # payload at all, but "trusted caller" is not a reason to hand an
+          # unvalidated string to a remote shell.
+          if [ -n "$TAG" ] && ! printf '%s' "$TAG" | grep -qE '^[A-Za-z0-9._-]{1,100}$'; then
+            echo "::error::refusing to use tag '$TAG' — expected [A-Za-z0-9._-]"
+            exit 1
+          fi
+          echo "Refreshing /engine to '${TAG:-newest}' ($CHANNEL)"
+          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no \
+              -o ServerAliveInterval=30 -o ServerAliveCountMax=60 \
+              "${{ secrets.DO_USER }}@${{ secrets.DO_HOST }}" \
+              "cd /opt/renzora-website && ENGINE_REPO='${{ secrets.ENGINE_REPO }}' bash scripts/fetch-engine-wasm.sh ${TAG}"
+        timeout-minutes: 15
+
+      - name: Summary
+        run: |
+          echo "### /engine refreshed" >> "$GITHUB_STEP_SUMMARY"
+          echo "- tag: \`${{ github.event.client_payload.tag || inputs.tag || 'newest' }}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- channel: \`${{ github.event.client_payload.channel || 'manual' }}\`" >> "$GITHUB_STEP_SUMMARY"

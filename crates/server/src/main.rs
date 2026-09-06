@@ -183,6 +183,25 @@ async fn main() {
         .nest_service("/uploads", ServeDir::new(&upload_dir))
         // Serve static assets (CSS, JS, images)
         .nest_service("/assets", ServeDir::new("assets"))
+        // The engine itself, running in the browser. `engine/` is a host bind
+        // mount the droplet fills from an engine release
+        // (`scripts/fetch-engine-wasm.sh`, re-run by every nightly and release);
+        // `current` is a symlink to the live build, swapped atomically so a
+        // request never lands on a half-written module. Absent — local dev, a
+        // fresh droplet — this simply 404s.
+        //
+        // `precompressed_*` is not a nicety here. The editor module is ~100 MB,
+        // and both the CompressionLayer below and nginx's `gzip_types` (which
+        // lists `application/wasm`) would otherwise compress it on every single
+        // request, on a two-core VPS. The fetch script writes `.br` and `.gz`
+        // beside each file once; a response that already carries a
+        // Content-Encoding is left alone by both compressors.
+        .nest_service(
+            "/engine",
+            ServeDir::new("engine/current")
+                .precompressed_br()
+                .precompressed_gzip(),
+        )
         // API routes (includes file-based docs)
         .nest("/api", api_router(state).merge(Router::new().nest("/docs", docs_files::router())))
         // Frontend pages — explicit SSR routes. `/` is the engine download page.

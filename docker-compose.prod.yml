@@ -19,6 +19,13 @@ services:
     volumes:
       - uploads:/app/uploads
       - ./assets:/app/assets:ro
+      # The browser build of the engine, served at /engine. Host-mounted rather
+      # than baked into the image because it is ~170 MB that changes every
+      # nightly: scripts/fetch-engine-wasm.sh drops each release in here and
+      # moves the `current` symlink. The mount root never moves, which is why
+      # that script swaps a symlink rather than the directory — replacing the
+      # mounted dir would leave this container pinned to the old inode.
+      - ./engine:/app/engine:ro
     restart: always
 
   db:
