@@ -31,6 +31,8 @@ Export is driven by the editor's `renzora_export` crate (`ExportPlugin`, editor-
 | **Plugins** | Which Runtime-scope distribution plugins to include, and whether they ship as files or are linked into the binary |
 | **Files** | Exactly which project files go into the `.rpak` — see [What goes in the archive](#what-goes-in-the-archive) |
 
+Pressing **Export** asks one question first: *Save the project before exporting?* The build reads what is on disk, not what is open in the editor, so the prompt offers **Save and export** (the recommended action) or **Export without saving**; Escape, the ×, or a click outside it abandons the export. It appears every time rather than only when a scene is dirty — the question is whether what is on disk is what you want built, and a prompt that only sometimes appears is one you learn to click through without reading.
+
 The actual packing runs on a background thread; the modal polls its progress while open.
 
 ## Supported platforms
@@ -680,7 +682,7 @@ starts from what the project says today.
 The web build is **game-runtime only** — there is no WebAssembly editor. It runs on **WebGPU**, and several native-only subsystems compile to no-ops in the browser:
 
 - **Lua does not run** on `wasm32`, so neither do blueprints (they compile to Lua and share its VM). The obstacle is no longer `dlopen`: a lean web export links its C-ABI plugins into the module and the host adopts a linked-in language backend exactly as it would a loaded one. It is `plugins/lua` itself — mlua builds Lua from **C**, and `wasm32-unknown-unknown` has no libc sysroot for that C to compile against. A language backend written in pure Rust would work on the web today. Until one exists, web-targeted logic has to live in Rust. (The `.rhai` backend that used to fill this gap has been removed.)
-- The DAW and the mixer are editor-only. Audio itself needs a browser backend built against WebAudio — the bundled `plugins/audio` is native, because cpal cannot capture on the web. See [Audio backends](../extending/audio-backends.md).
+- The DAW and the mixer are editor-only. Audio itself needs a browser backend built against WebAudio: the bundled `renzora_audio_backend` is native, because cpal cannot capture on the web, and it compiles to a plugin that registers nothing on `wasm32`. See [Audio backends](../extending/audio-backends.md).
 - Networking is a no-op stub (no native UDP), so multiplayer is unavailable on web.
 
 ### Android / iOS

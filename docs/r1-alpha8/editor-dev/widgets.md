@@ -222,6 +222,8 @@ commands.entity(content).add_children(&[item]);
 commands.entity(menu).add_children(&[row]);
 ```
 
+The entity `screen_menu` returns is the scroll *content*, not the card that carries the menu's background, border and corner radius. When you need the card too — to paint a menu on a different surface, say — use `screen_menu_parts(commands, x, y)`, which returns `(content, card)`; `menu_submenu_parts` is the same escape hatch one level down, returning `(row, content, panel)`. The top bar's hamburger dropdown is the one caller of both: it paints itself `window_bg()` so it continues the bar it drops out of, where every other menu keeps the lighter `popup_bg()` that separates it from the panel it covers.
+
 Every row — `menu_item`, `menu_header`, `menu_submenu` — shares one set of metrics (`MENU_ICON`, `MENU_TEXT`, `MENU_PAD_X/Y`, `MENU_GAP` in `popup.rs`): a glyph larger than the label on a thin row, so you pick a row by its icon and a long list still fits on screen. Change them there, not per builder.
 
 Three rules worth knowing when you touch this machinery:
@@ -395,6 +397,10 @@ let m = scroll_area_keyed(commands, content, 260.0, "status-theme-menu"); // cap
 ```
 
 The offset is saved in the `ScrollMemory` resource under that key and restored — once the content is laid out — when an identically-keyed view spawns again. Use one **unique** key per logical list; two unrelated lists sharing a key would fight over the same saved offset.
+
+**Scrubbing a ranged field.** Give a `drag_value` a `DragRange` and it draws a fill bar for the value and maps **its own width to the range**, so one pixel of drag is one pixel of bar and the fill keeps pace with the cursor. The widget's authored `step` still sets the feel of an *unranged* field, where there is no width to map. Holding **Shift** scrubs at a tenth of the rate, in both cases.
+
+**Typing into a numeric field.** Click one and the whole value reads as selected — an accent highlight fills the field, and the first keystroke replaces the number wholesale. Once you've typed, the highlight gives way to a caret. Both the boxed and the **flat** variants show the highlight; a flat field has no border or background of its own to put a focus ring on, so it is the only thing saying the field is live. (Skipping it there is what left the viewport toolbar's snap steps and camera-speed field silently in edit mode.) The value fill of a ranged field stands down while you type — a field being typed into is a text box, not a gauge.
 
 **Wheel over a numeric field.** A `drag_value` (and the markup `drag_value=` kernel) only scrubs its value on **Shift+wheel**. A plain wheel is always handed to the enclosing scroll area, so dragging the panel scrollbar past a field never snags on it and silently changes the number — the panel scroll always wins, and value-scrubbing is an explicit opt-in gesture.
 

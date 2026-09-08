@@ -6,7 +6,7 @@ Let's make something move on screen. In this guide you'll create a project, drop
 
 You can get Renzora two ways: grab a prebuilt build from [renzora.com/download](/download), or install the command-line tool with `cargo install renzora`. Either way, the next step is the same — open the editor. (The [Installation guide](/docs/r1-alpha8/getting-started/installation) has the exact commands for your platform.)
 
-When the editor starts you'll land on the [dashboard](/docs/r1-alpha8/getting-started/dashboard), open on its **Projects** page. Click **New Project** and choose a folder on your computer — the folder's name becomes the project's. That's it — the editor builds the project and opens its starting scene, ready to go.
+When the editor starts you'll land on the [dashboard](/docs/r1-alpha8/getting-started/dashboard), open on its **Projects** page. Click **New Project** and choose a folder on your computer — the folder's name becomes the project's. (**New from Template** beside it starts you from a finished project instead; see the [dashboard](/docs/r1-alpha8/getting-started/dashboard#templates).) That's it — the editor builds the project and opens its starting scene, ready to go.
 
 There is more on the dashboard than projects: a **Plugins** page for fitting the engine out before you open anything, a **Changelog**, and your renzora.com account. None of it is needed for a first project, so walk past it for now — it's all in [The Dashboard](/docs/r1-alpha8/getting-started/dashboard) when you want it.
 
@@ -30,7 +30,7 @@ There's more than one chapter. Finish the first and **Help → Getting Started T
 
 Chapters unlock in order: finishing one opens the next, so you're never staring at seven titles wondering which to open. Finished ones get a green tick.
 
-Progress is tracked **per user**, not per project — it lives in `~/.renzora/editor.toml` alongside your other editor preferences. The walkthrough teaches the editor, so once you've done it (or skipped it) every project you make afterwards opens straight into the editor. To run it again, use **Help → Getting Started Tutorial**.
+Progress is tracked **per user**, not per project — it lives in `~/.renzora/settings.toml` alongside your other editor preferences. The walkthrough teaches the editor, so once you've done it (or skipped it) every project you make afterwards opens straight into the editor. To run it again, use **Help → Getting Started Tutorial**.
 
 **Skip** moves past a single step you can't do right now — no model to import, no marketplace account — without losing the chapter. The **X** in the header closes the tutorial entirely, and counts as "seen" so it won't auto-open again.
 
@@ -41,27 +41,26 @@ A fresh project is just a few files on disk:
 ```text
 my-game/
 ├── project.toml      # your game's settings
-├── scenes/
-│   └── main.ron      # the scene that loads first (empty to start)
-└── plugins/          # optional drop-in plugins
+└── scenes/
+    └── main.bsn      # the scene that loads first (empty to start)
 ```
 
-You'll add more folders as you grow — `assets/` for models, textures, and sounds, and `scripts/` for your `.lua` files. Your starting scene, `scenes/main.ron`, is valid but empty:
+That's the lot. You'll add more folders as you grow — `assets/` for models, textures, and sounds, and `scripts/` for your `.lua` files — and the editor makes them as it needs them. (Plugins are **not** among them: they install beside the engine, not into your game, so a project has no `plugins/` folder.) Your starting scene, `scenes/main.bsn`, is valid but empty:
 
-```ron
-(
-  resources: {},
-  entities: {},
-)
+```text
+// renzora interim bsn v1
 ```
 
-You usually never touch `project.toml` by hand — the editor's Settings panel manages it for you. If you do peek inside, just three keys really matter:
+You usually never touch `project.toml` by hand — the editor's Settings panel manages it for you, and the Assets panel hides it for the same reason. If you do peek inside, just three keys really matter:
 
 ```toml
 name = "My Game"
 version = "0.1.0"
 main_scene = "scenes/main.ron"   # the scene that loads at startup
+created_with = "r1-alpha8"       # the engine version that made this project
 ```
+
+`created_with` is stamped once, when the folder is made, and never rewritten — so it keeps saying which version you started on however many times a newer editor saves the project. It is your own version key, not the engine's: `version` is your game's, and it is yours to bump.
 
 There's a `[window]` section for size and an optional autoload list and more. You can leave all of that alone for now and let the editor's Settings panel manage it.
 

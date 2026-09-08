@@ -87,7 +87,11 @@ Both kinds live in `plugins/`. A native plugin is a **directory**; a C-ABI plugi
 
 ## Building
 
-From a source checkout, `cargo renzora` builds every native plugin under `plugins/` as part of staging. From a downloaded editor, there is nothing to run: the editor compiles a plugin the first time it sees one, and again whenever the engine moves under it.
+The editor compiles a plugin the first time it sees one, and again whenever the engine moves under it. That is the only build path, and it is the same from a source checkout as from a downloaded editor: `cargo renzora` stages the engine and the SDK but deliberately does not touch `plugins/`, which belongs to the editor rather than to this repository (see the note at the top of `xtask/src/main.rs`). Drop a plugin directory in and launch.
+
+That build happens before the editor exists, so it gets a window of its own: the setup window, which carries the same title bar as the splash screen (the mark, the product name, the version, and the window controls), a progress bar, and the build log underneath it. It says which plugin is compiling and what the compiler said, and it closes into the editor on its own when the work is done — a plugin that failed to compile is skipped rather than holding the window open, and is waiting for you in **Settings ▸ Editor ▸ Plugins**. The one thing it stops for is a missing Rust toolchain, which it offers to install.
+
+Closing that window ends the launch. Nothing is lost — the plugins it had not reached are simply still unbuilt, so the next launch opens it again and picks up where it left off — but it does mean × is a way out of a long build, not a way to skip it.
 
 **Do not run `cargo build` in a native plugin directory.** `plugins/` sits outside the engine workspace, so cargo would resolve it a fresh Bevy from crates.io — a different compilation with different `TypeId`s. The result builds cleanly, loads, and corrupts the World. The `bevy` and `renzora` entries in your `Cargo.toml` are there so rust-analyzer can resolve them while you author, and so Bevy's derive macros can read the manifest; the plugin itself is compiled by `rustc` against the SDK, and cargo is never pointed at those entries. (Your *other* dependencies are built by cargo — from a stripped manifest that mentions no Bevy. See [Crates from crates.io](#crates-from-cratesio).)
 
@@ -169,6 +173,24 @@ Three crates, and they are enough for almost anything:
 
 Anything else in the workspace is not reachable. If your plugin needs a type from another `renzora_*` crate, that type belongs in `renzora` — that is the rule the engine's own crates follow.
 
+### Undo works from a plugin
+
+Worth stating because the crate name misleads: `UndoCommand`, `record`, `UndoContext`, `UndoStacks`, `undo_once` and `redo_once` all live in **`renzora::undo`**. `renzora_undo` is a thin crate that re-exports them and owns the stack plugin, so a native plugin implements the trait and records against the same history the rest of the editor uses — Ctrl+Z crosses the plugin boundary without knowing it did.
+
+```rust
+struct MoveThing { entity: Entity, from: Vec3, to: Vec3 }
+
+impl renzora::undo::UndoCommand for MoveThing {
+    fn label(&self) -> &str { "move thing" }
+    fn execute(&mut self, world: &mut World) { set_position(world, self.entity, self.to); }
+    fn undo(&mut self, world: &mut World) { set_position(world, self.entity, self.from); }
+}
+
+renzora::undo::record(world, renzora::undo::UndoContext::Scene, Box::new(cmd));
+```
+
+Record, don't mutate: an edit applied directly is one the user cannot take back, and in an editor that is a bug rather than a shortcut. `undo_once` is there for the case where your own operation has to roll itself back — an op that records a topology change and then lets the user drag the result must undo that record if the drag is cancelled.
+
 ### What "belongs in `renzora`" actually means
 
 The **vocabulary** moves; the **implementation** stays. That distinction is what
@@ -198,6 +220,27 @@ So the test for a candidate is:
 If the answer to the second question is no but a plugin still needs the capability,
 the shape you want is usually a **request type in the contract plus a system in the
 owning crate that services it** — the plugin posts, the subsystem performs.
+
+`renzora::ImportInPlaceQueue` is the smallest complete example of that shape:
+
+```rust
+// Downloaded a model into the project? Ask for a real import.
+fn finish(mut imports: ResMut<renzora::core::ImportInPlaceQueue>) {
+    imports.0.push(folder);
+}
+```
+
+Every model at or under each queued path is converted to a `.glb` with its
+textures extracted into `textures/` and a `.material` written per material, and
+the source is removed. That is the layout the engine loads, and it is the same
+treatment a model dropped into the viewport gets.
+
+It exists because the pipeline cannot move. `renzora_import::run_import_pipeline`
+takes `&mut World`, writes assets and fires events, and drags a converter for
+every model format behind it — an implementation by any measure, so it stays in
+its own crate and a path crosses instead. The failure it prevents is the quiet
+kind: a plugin that writes a glTF into the project and stops has produced a model
+that loads *untextured*, with every file present and the import simply never run.
 
 ### Crates from crates.io
 

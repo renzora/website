@@ -49,7 +49,7 @@ To see how much of that band you're actually using, read the **Height** and **Ra
 
 > The *structural* fields — grid size, chunk size and resolution — are deliberately **not** live inspector fields. A scrubbable field writes on every tick of the drag, and each write respawns every chunk with a fresh trimesh collider, so dragging the grid from 1 to 8 built every size in between. They live in the overlay instead, which stages the edit and applies it once. What's left in the inspector is the set that rebuilds in place, where a live drag is cheap.
 
-A **Layers** section sits below it, editing the *active* paint layer: a layer picker, **Name**, **Material** (`.material` drop), **Height Offset**, **Coverage Threshold**, an **Enabled** toggle (hides that layer's overlay), plus **Add Layer** / **Remove Layer** buttons. It's the same data the Terrain Tools panel's layer list edits.
+A **Layers** section sits below it, editing the *active* paint layer: a layer picker, **Name**, **Material** (`.material` drop), **Tile Size**, **Height Offset**, **Coverage Threshold**, an **Enabled** toggle (hides that layer's overlay), plus **Add Layer** / **Remove Layer** buttons. It's the same data the Terrain Tools panel's layer list edits.
 
 ## The Terrain Settings overlay
 
@@ -279,7 +279,15 @@ Each layer is pure data: a coverage **mask** (one cell per terrain vertex), an o
 
 Layers render as **overlay meshes**: where a layer's mask exceeds its coverage threshold, matching terrain triangles are emitted slightly above the surface (`height_offset`, default `0.02`), following the sculpted heights as you edit. The overlay meshes are derived data — hidden from the hierarchy panel and never saved; the masks on the `Painter` are what persists.
 
-In the **Layers** section: click a row to select the active layer, use **Add Layer** (hidden once 8 layers exist), and drop a **`.material`** asset onto the active layer's drop zone to drive its appearance (albedo / normal / ARM texture paths are extracted from the material graph). The ✕ clears the assignment, reverting the layer to a neutral grey.
+Coverage feathers out through **per-vertex alpha** rather than a hard triangle cutoff, so a brush edge reads as falloff and not as a staircase of grid cells. An overlay is therefore `NotShadowCaster`: it is a decal on ground that already casts its own shadow, and the shadow pass has no alpha blending — it would rasterize the whole mesh, faded rim included, and ring every stroke with a hard-edged dark halo staircased at mask-cell granularity. Overlays still *receive* shadows, so a painted path darkens under a tree.
+
+In the **Layers** section: click a row to select the active layer, use **Add Layer** (hidden once 8 layers exist), and drop a **`.material`** asset onto the active layer's drop zone to drive its appearance. The ✕ clears the assignment, reverting the layer to the placeholder green.
+
+An overlay wears the **whole** material, not an approximation of it. The layer mesh gets a `MaterialRef` and the [material resolver](/docs/r1-alpha8/api/material) compiles it exactly as it would for any other mesh, so a procedural graph — waves, noise, panning UVs, anything animated — renders on the terrain the same as it does on a plane. The overlay does override one thing: it asks for **alpha blending** (`MaterialAlphaOverride`) regardless of what the `.material` declares, because its coverage feathers out through per-vertex alpha at the brush edge and an opaque material would draw that edge as a hard staircase. The material file itself is untouched, and every other mesh using it keeps the transparency it was authored with.
+
+> Overlays used to read the material's JSON and copy whatever albedo / normal / ARM texture paths they found onto a plain `StandardMaterial`. That worked for an imported PBR material and found nothing at all in a procedural one, so painting a water or ocean layer produced a flat white blob.
+
+**Tile Size** is how much ground one repeat of the material covers, in metres — default `2`. Overlay UVs are `world position / tile size`, not `0..1` across the terrain, for three reasons: a material is authored against a `0..1` mesh and a terrain is 64 m or more of it, so stretching one repeat over the whole thing turns a paving material into a handful of enormous slabs; tiling in world units keeps a layer's scale fixed when the terrain is resized; and it stays continuous across chunk seams. Set it to the real-world size of the thing the material depicts. The UVs are baked into the overlay mesh, so changing it rebuilds that mesh rather than the material — and a layer painted before the field existed loads at the default rather than at zero.
 
 Paint strokes, including a stroke that auto-created a layer, undo/redo as single steps alongside sculpt strokes.
 

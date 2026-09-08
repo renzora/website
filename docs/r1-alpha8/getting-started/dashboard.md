@@ -22,11 +22,35 @@ The window opens at about half your screen, centred: the dashboard is a launcher
 The default page, and what the launcher used to be on its own.
 
 - **New Project** — choose a folder; it becomes the project root and takes the folder's name.
+- **New from Template** — opens the [Templates](#templates) page, to start from a finished project instead of an empty one. Hidden in a build without the Marketplace.
 - **Open Project** — pick a `project.toml`.
-- **Recent Projects** — everything you have opened, newest first. Click a row to open it. The **✕** on a row removes it from this list and *does not* touch the folder on disk. A project whose folder has moved or gone is shown greyed out and marked `(missing)`.
-- The search box filters the recents list by name or path.
+- **Recent Projects** — everything you have opened, newest first, as a grid of cards. Click a card to open it. The **✕** in a card's corner removes it from this list and *does not* touch the folder on disk. A project whose folder has moved or gone is shown greyed out and marked `(missing)`.
+- The search box filters the recents by name or path.
+
+Each card shows the last picture the editor took of that project's **main scene** — the same snapshot the asset browser puts on a scene tile, taken from the viewport every time you save. A project you have never saved, or whose main scene has not been open since, keeps a folder glyph instead. The grid takes as many columns as the window is wide enough for.
 
 In the browser build, "New" and "Open" both go through the directory picker, and a recent entry reopens through the folder handle the browser remembers — which asks you to re-grant permission.
+
+## Templates
+
+A **starter template is a project** — not a description of one, and not a library
+entry to instantiate later. The download *is* the finished project, so there is
+no install step and nothing kept on your machine between times: you pick a
+template, you pick a folder, and what lands there is a project. It opens
+straight away, and from that moment it is indistinguishable from one you made
+yourself.
+
+The folder is chosen *after* the template on purpose. The template is the
+interesting decision, and a file dialog is a bad place to still be making it.
+
+Templates come from the Marketplace's **Starter Templates** category, so this
+page is a browse: search, thumbnails, descriptions. Free templates need no
+account; a paid one needs you signed in. **New Project** stays one click away on
+the Projects page, so the empty-project path never waits on the network.
+
+A template brings its own `project.toml`, which becomes your project's — that is
+how one can start you with a resolution, a rendering mode or a mixer bus layout
+already set. Only the project *name* changes, to the folder you chose.
 
 ## Plugins
 
@@ -72,7 +96,7 @@ The list is fetched once per launch. If GitHub cannot be reached, the page says 
 The bottom of the rail is your renzora.com account.
 
 - Signed out, it is a **Sign in** button. It opens the same sign-in window the editor's title bar does, so signing in here signs you in for the session that follows — you do not do it twice.
-- Signed in, it shows your username, with a sign-out control beside it.
+- Signed in, it shows your renzora.com profile picture and username, with a sign-out control beside it. An account with no picture set keeps the initial of your username instead.
 
 You only need an account for paid marketplace listings — and for publishing, which happens in the editor. Free plugins install without one.
 
@@ -81,3 +105,5 @@ If you are running a build with no marketplace in it, the account block is not s
 ## Language
 
 The last row of the rail picks the interface language, from the built-in packs plus any `languages/*.toml` you have added. The choice is saved and is already in effect when the editor opens.
+
+It also takes effect **here**, immediately: the dashboard redraws in the language you picked rather than waiting for the editor. A page registered by a plugin is redrawn with the rest, and its rail label comes from `splash.section.<id>` in the active pack, falling back to whatever English label the page registered.

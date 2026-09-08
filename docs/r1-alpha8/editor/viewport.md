@@ -28,21 +28,27 @@ The camera moves slowly when you're close to something and faster when you're fa
 
 | Key | What it does |
 |-----|--------------|
-| `F` | Focus on the selected object (centers the camera on it) |
+| `F` | Frame the selected object — centres on its bounds, fits it to the view, and looks at it from near its own horizon |
 | `A` | Frame All — fit the whole scene into view |
 | `Home` | Reset the camera to its starting position |
 | `End` | Move the focus point to wherever your cursor is pointing |
 | `[` / `]` | Slow down / speed up the camera |
 
-There's also a small button cluster on the right edge of each viewport — and an **orientation gizmo** in the top-right corner that shows which way the camera is facing. Top to bottom, the cluster is:
+There's also a small button cluster on the right edge of each viewport — and an **orientation gizmo** in the top-right corner that shows which way the camera is facing. Click one of the gizmo's balls to snap the camera to that axis, or drag the gizmo itself to orbit.
 
-- **Home** — one click puts the camera back at its starting position, the same reset as the `Home` key.
-- **Pan** and **Zoom** — press and drag them, dragging **up** on Zoom to move closer.
-- **Grid** — toggles the floor grid, and lights up while it's on. The same switch lives in the toolbar's Display dropdown and in *Settings → Viewport*; this one is here because the grid gets flipped often enough while modelling that a dropdown is two clicks too many.
+The cluster is the four **view controls**, in one group with a translucent rounded background:
 
-While you're dragging Zoom, a **height ruler** slides in on the right: a strip of ticks with a single white number on the centre line — your height, in **metres**. The scale picks itself from how high you are, so it reads the same whether you're a metre off the floor or a kilometre up, and it stops at **0 m**; nothing counts below the ground. The white bar down its right edge is the **zoom range**: the marker rides from the top (fully zoomed out) to the bottom (fully in) so you can see how much room is left before the drag stops moving, and it grows longer the higher you get. It fades out shortly after you let go. (The Scene Icons circle that used to sit down there is gone — that flag already has switches in the toolbar's Gizmos dropdown and in *Settings → Viewport*.)
+- **Reset View** — one click puts the camera back at its starting position, the same reset as the `Home` key. It **leads the group**: it's the way back out of wherever Pan and Zoom have taken you, so it sits at the top where you can hit it without looking.
+- **Pan** and **Zoom** — press and drag, dragging **up** on Zoom to move closer.
+- **Grid** — toggles the floor grid. While the grid is on the button **lights up**: an accent glyph over an accent wash, at about a third the strength of the solid fill Pan and Zoom take while you hold them. The glyph shifts *away* from whatever the panel is — brighter on a dark theme, darker on a light one — so it reads as lit in both. The two say different things — the fill is "you are dragging this right now", and a permanently filled button among four reads as the picked one of four — so the toggle says "on" more quietly, but with enough of both halves to be legible over whatever the scene is showing through the cluster. The same switch lives in the toolbar's Display dropdown and in *Settings → Viewport*; this one is here because the grid gets flipped often enough while modelling that a dropdown is two clicks too many.
 
-Along the **top edge of the viewport** runs its toolbar: the session actions — **Undo**, **Redo**, and **Save** — then the tool buttons (**Select / Move / Rotate / Scale**, the terrain modes **Sculpt / Paint Layers / Paint Foliage** — plus **Make Terrain** whenever the selection is a flat mesh, which [turns that plane into a terrain](terrain.md#making-a-terrain-out-of-a-plane) — mesh **Edit Mode** and **X Symmetry**, and any modes plugins add), the inline **snap steps** for move / rotate / scale (click the icon to toggle that snap, drag or type the number to set its step), the shape / display / gizmos / camera menus, **Play**, and this viewport's own view-angle and World/Local controls, left to right, wrapping onto another line when they need to. The **maximize** button is the exception: it floats hard against the **right edge** of the bar, whatever else is on it. It hides during play mode, all except Play, which becomes Stop and stays where it is.
+The group carries the chrome and the buttons inside it are transparent until you touch one, so four controls cost one piece of furniture over the scene rather than four. All four are 3D-only, so the cluster doesn't show in the 2D view, and it hides entirely in play mode.
+
+> Reset View and Grid spent a while at the foot of the tool shelf, on the argument that a click-once control belongs with every other click-once control rather than in a cluster built around a drag. What the four actually have in common is the camera, not the input gesture — and splitting them put the two you reach for most on the opposite edge of the screen from the camera you were aiming.
+
+While you're dragging Zoom, a **height ruler** slides in at the **bottom left**: a strip of ticks with a single white number on the centre line — your height, in **metres**. The scale picks itself from how high you are, so it reads the same whether you're a metre off the floor or a kilometre up, and it stops at **0 m**; nothing counts below the ground. The white bar down its left edge **fills upwards from the floor** as the camera climbs, so altitude registers at a glance without reading the number. It sits above the statistics readout when that's on, and fades out shortly after you let go. (The Scene Icons circle that used to sit down there is gone — that flag already has switches in the toolbar's Gizmos dropdown and in *Settings → Viewport*.)
+
+Along the **top edge of the viewport** runs its toolbar: the session actions — **Undo**, **Redo**, and **Save** — then the tool buttons (**Select / Move / Rotate / Scale**, the terrain modes **Sculpt / Paint Layers / Paint Foliage** — plus **Make Terrain** whenever the selection is a flat mesh, which [turns that plane into a terrain](terrain.md#making-a-terrain-out-of-a-plane) — mesh **Edit Mode** and **X Symmetry**, and any modes plugins add), the inline **snap steps** for move / rotate / scale (click the icon to toggle that snap, drag or type the number to set its step — fractions are fine, so a quarter-unit move grid is `0.25`; clicking a number selects it, shown by an accent highlight over the field, so you can tell it is taking your typing), the shape / display / gizmos / camera menus (the **Snap** menu's magnet **lights up** while any snap is on, the same accent-glyph-over-a-wash the Grid button uses), **Play**, and this viewport's own view-angle and World/Local controls, left to right, wrapping onto another line when they need to. The **maximize** button is the exception: it floats hard against the **right edge** of the bar, whatever else is on it. It hides during play mode, all except Play, which becomes Stop and stays where it is.
 
 The toolbar holds the buttons that say *what the viewport is set to do*. What each of those opens — the brushes, the select modes, the ops — is on the tool shelf down the left edge, described below. There's no Sculpt Mode button: the **Mode** dropdown beside the 3D/2D/UI selector already lists Scene / Edit / Sculpt, and one control for it is enough.
 
@@ -63,7 +69,9 @@ Down the **left edge of the viewport** sits the **tool shelf**: a two-column pal
 | Terrain — paint | Paint Terrain Layers is active | Paint, Erase, Smooth, Fill |
 | Foliage | Paint Foliage is active | Paint / Erase, then one button per foliage type |
 
-Pick up the terrain sculpt tool in the toolbar and all 17 sculpt brushes are there at once; switch to terrain paint and it swaps to the paint brushes. Enter Edit mode and you get the two draw tools, the select modes, and the ops. The shelf collapses completely when nothing in it applies.
+The shelf holds tools — things that change what your next click in the viewport does. Reset View and Grid are not that, which is why they sit with the camera controls in the cluster on the right instead (see [Moving the camera](#moving-the-camera)).
+
+Pick up the terrain sculpt tool in the toolbar and all 17 sculpt brushes are there at once; switch to terrain paint and it swaps to the paint brushes. Enter Edit mode and you get the two draw tools, the select modes, and the ops. In the 2D view, where none of it applies, the shelf collapses completely.
 
 Every group is an even number of buttons, so none of them ends on a half-empty row — which is why Loop Cut sits with the select modes rather than with the ops (it's modal like they are: it arms and previews, where the four ops fire on click), and why **Generate Terrain** and **Resize Terrain** are on the shelf rather than in the toolbar's terrain row. Neither opens a palette of its own, so up there each was a mode button with nothing under it; here they sit together as the operations that act on the terrain *as a whole* — fill it with procedural mountains, drag its extent out, or type that extent in via **Terrain Size & Resolution**. Like everything else on the shelf, the group appears once a terrain tool is in hand: pick any terrain mode in the toolbar and the whole column comes up together, this group included.
 
@@ -128,20 +136,33 @@ It's the same shape list as the shape-library panel and the hierarchy's **Add En
 ### What a new shape looks like
 
 A shape you've just added has no material of its own yet, so it wears the
-**blockout grid**: rounded tiles with dark grout between them, a heavy black rule
-around every four-by-four section, and a cross marking that section's middle —
-all tinted by the shape's own colour. A default 1-unit cube shows four tiles a
-side, and the section rule lands on its edges.
+**blockout grid**: a flat field ruled into squares by thin bright lines, with a
+bright four-pointed star on every fourth intersection, tinted by the shape's own
+colour. Cells are 25 cm, so a default 1-unit cube shows four a side, and the
+stars land on the metre marks: count stars for the rough measure, cells for the
+exact one.
+
+The lines are *brighter* than the face they rule rather than darker. A greybox
+gets read at a glance for its proportions, and a light rule carries at distance
+and at grazing angles where dark grout closes up into a smear.
+
+Shapes start **white**, all of them, so the only colour in a blockout is colour
+you put there. The tint is per-shape and yours to set from the inspector — for
+colour-coding a route, marking what's walkable, separating one team's half from
+the other's.
 
 It's deliberately flat — a texture, not relief. It gives you a sense of scale to
 judge your greybox against, and nothing more; anything with visible depth to it
 would compete with the shape of the geometry you're actually blocking out.
 
-**Scaling doesn't stretch it.** The tiles stay the same size in world units
-however you scale the object, so a cube pulled out into a wall gets more tiles
-rather than four tall rectangles, and every surface in the scene measures the
-same. (That stops once you assign a material of your own — from then on the UVs
-are yours.)
+**Nothing you do to the shape stretches it.** The tiles stay the same size in
+world units however you scale the object, so a cube pulled out into a wall gets
+more tiles rather than four tall rectangles, and every surface in the scene
+measures the same. The same holds for modeling: extrude a ledge or inset a panel
+in [Edit mode](modeling.md) and the new faces come out tiled to match, because
+the grid is projected onto the geometry from the world rather than carried around
+in the mesh's own texture coordinates. (All of this stops once you assign a
+material of your own — from then on the UVs are yours.)
 
 The grid means *no texture*, so it disappears the moment you assign a
 [material](materials.md). It isn't a file in your project — the engine generates
@@ -225,6 +246,61 @@ The **Display** dropdown carries the rest: mesh, textures, lighting, shadows.
 lighting and shadows and swaps its maps for the [blockout
 grid](#what-a-new-shape-looks-like), so the scene reads as untextured geometry
 rather than as geometry in the dark.
+
+## The shading switch
+
+Four buttons sit centred on the viewport's top edge — the four ways you look at
+a scene while building it. They are a **ladder**: each one adds a single thing to
+the one below it.
+
+| | Adds | What you see |
+|---|---|---|
+| **Wireframe** | topology | Edges only, no mesh fill, on a flat dark background. |
+| **Solid** | form | Neutral clay under [matcap](#matcap) shading, with no materials or scene lighting in the way. This is the modeling view. |
+| **Material** | materials and lighting | Real materials and textures, lit, shadows included — your objects against a flat background. |
+| **Rendered** | the world | Sky, atmosphere and clouds around them. The final look. |
+
+They are **presets**: each one sets the same switches the Display dropdown does,
+so there is nothing extra to keep in sync. Change a toggle by hand and no button
+is lit, because you are no longer in any of the four — click one to get back.
+
+**Only Rendered shows the world environment.** That is the whole of what
+separates it from Material, which is otherwise the same render settings, and it
+is the reason to have both: Material is where you judge materials and lighting
+*without* a sky lighting and colouring everything you are trying to read. Turning
+the world off takes the skybox, the atmosphere (sky **and** its ground) and any
+cloud dome with it, and puts a flat dark background behind your scene. Nothing in
+the scene is edited, so clicking Rendered brings the environment back exactly as
+you left it — and it comes back on its own in play mode, then returns to whatever
+mode you were working in when you stop.
+
+## Visualization modes
+
+The **Display** dropdown's **Visualization** row replaces every material in the
+viewport with one that answers a single question: Normals, Roughness, Metallic,
+Depth, UV Checker, or Matcap. **None** puts the real materials back. They are a
+view, not an edit — nothing is written to your materials and nothing ships.
+
+### Matcap
+
+Pick **Matcap** when you are sculpting or judging a form. Two things about it
+are different from lit shading, and both matter:
+
+- **The lights are fixed to the camera, not to the world.** Under scene
+  lighting, orbiting a model changes its brightness, so half of what appears to
+  move is the light rather than the shape. With the lights on the camera the
+  same curvature reads the same way from every angle, and orbiting tells you
+  only about the form. This is what a matcap is for, and it is why every
+  sculpting tool has one.
+- **Creases are shaded by curvature, not by direction.** Diffuse shading is a
+  function of the surface normal, and a fine wrinkle barely changes the normal —
+  so it stays invisible under any number of lights. Matcap adds a term computed
+  from how fast the normal is *changing*, which is large exactly where the
+  surface folds, and darkens valleys and lifts ridges by it. Fine detail that is
+  simply not visible in the lit view appears.
+
+It is a neutral clay, deliberately: colour and texture hide form, which is the
+last thing you want while deciding whether a shape is right.
 
 ## The floor grid
 
@@ -406,7 +482,7 @@ The small **caret next to the Play button** opens the play-target menu:
 
 **The button says where it will run.** Its label follows the selected target, so you can see the choice without opening the menu: **Play Viewport**, **Play VR**, **Simulate**, and plain **Play** for the runtime window (launching the game in its own window is what a play button ordinarily means). While the game is running it reads **Stop** as usual.
 
-The choice is remembered across sessions (per-user, in `~/.renzora/editor.toml`) and every following Play uses it. The same switch also lives in **Settings → Scripting → External Window**.
+The choice is remembered across sessions (per-user, in `~/.renzora/settings.toml`) and every following Play uses it. The same switch also lives in **Settings → Scripting → External Window**.
 
 A few things to know about the runtime window:
 
