@@ -89,7 +89,10 @@ pub fn AssetDetailPage() -> impl IntoView {
             r##"
             function parseDate(s) {
                 if (!s) return null;
-                const iso = s.replace(/^(\d{4}-\d{2}-\d{2})\s+(\d{2}:\d{2}:\d{2}).*?\s+([+-]\d{2}):(\d{2}).*$/, '$1T$2$3:$4');
+                // The hour can be a single digit (OffsetDateTime's Display
+                // writes "9:02:50", not "09:02:50"), so pad it before parsing.
+                const iso = s.replace(/^(\d{4}-\d{2}-\d{2})\s+(\d{1,2}):(\d{2}):(\d{2}).*?\s+([+-]\d{2}):(\d{2}).*$/,
+                    (_, d, h, mi, sec, oh, om) => `${d}T${h.padStart(2, '0')}:${mi}:${sec}${oh}:${om}`);
                 const d = new Date(iso);
                 return isNaN(d.getTime()) ? null : d;
             }
@@ -297,7 +300,7 @@ pub fn AssetDetailPage() -> impl IntoView {
                             <div class="mt-8">
                                 <div class="flex items-center gap-3">
                                     <h1 class="text-3xl font-bold leading-tight">${a.name}</h1>
-                                    ${isCreator ? `<a href="/marketplace/asset/${a.slug}/edit" class="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium bg-white/[0.03] border border-zinc-800/50 text-zinc-400 hover:border-zinc-600 hover:text-zinc-200 transition-colors"><i class="ph ph-pencil-simple"></i>Edit</a><button onclick="deleteAsset('${a.id}')" class="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium bg-white/[0.03] border border-red-900/50 text-red-400 hover:border-red-700 hover:text-red-300 hover:bg-red-950/30 transition-colors"><i class="ph ph-trash"></i>Delete</button>` : ''}
+                                    ${isCreator ? `<a href="/marketplace/asset/${a.slug}/edit" class="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium bg-white/[0.03] border border-zinc-800/50 text-zinc-400 hover:border-zinc-600 hover:text-zinc-200 transition-colors"><i class="ph ph-pencil-simple"></i>Edit</a><a href="/marketplace/asset/${a.slug}/releases/new" class="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium bg-accent/10 border border-accent/30 text-accent hover:bg-accent/15 transition-colors"><i class="ph ph-rocket-launch"></i>New Release</a><button onclick="deleteAsset('${a.id}')" class="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium bg-white/[0.03] border border-red-900/50 text-red-400 hover:border-red-700 hover:text-red-300 hover:bg-red-950/30 transition-colors"><i class="ph ph-trash"></i>Delete</button>` : ''}
                                 </div>
                                 <div class="flex items-center gap-4 mt-3 flex-wrap">
                                     <a href="/shop/${a.creator.username}" class="flex items-center gap-2 text-sm font-medium text-accent hover:text-accent-hover transition-colors">
@@ -326,6 +329,11 @@ pub fn AssetDetailPage() -> impl IntoView {
                                 <span><i class="ph ph-eye"></i> ${a.views.toLocaleString()} views</span>
                                 <span><i class="ph ph-download-simple"></i> ${a.downloads.toLocaleString()} downloads</span>
                             </div>
+
+                            <!-- Files, README and releases (filled in after render) -->
+                            <div id="asset-tree-section"></div>
+                            <div id="asset-readme-section"></div>
+                            <div id="asset-releases-section"></div>
 
                             <!-- Reviews -->
                             <div class="mt-12" id="reviews">
@@ -463,13 +471,175 @@ pub fn AssetDetailPage() -> impl IntoView {
 
                 // Fetch and render asset files list
                 loadAssetFiles(a.id, a.owned || isCreator || a.price_credits === 0);
+
+                // Repository view: file tree, rendered README, release history
+                loadAssetTree(a);
+                loadAssetReleases(a, isCreator);
             })();
+
+
+            // ── Repository view ───────────────────────────────────────────
+            // The asset page doubles as a repo landing: the root of the file
+            // tree, then the README rendered underneath it, then the release
+            // history. The tree is public; contents are gated by the API.
+
+            function treeEsc(s) {
+                return String(s ?? '').replace(/[&<>"']/g, c =>
+                    ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+            }
+
+            function treeIcon(e) {
+                if (e.kind === 'dir') return 'ph-folder-simple text-accent';
+                if (e.is_doc) return 'ph-book-open text-cyan-400';
+                if (e.mime_type.startsWith('image/')) return 'ph-image text-purple-400';
+                if (e.mime_type.startsWith('audio/')) return 'ph-music-note text-pink-400';
+                if (e.mime_type.startsWith('video/')) return 'ph-video text-pink-400';
+                if (/\.(lua|rhai|rs|js|ts|py|wgsl|glsl|json|toml|ron|ya?ml)$/i.test(e.name))
+                    return 'ph-file-code text-zinc-500';
+                return 'ph-file text-zinc-600';
+            }
+
+            async function loadAssetTree(a) {
+                const treeEl = document.getElementById('asset-tree-section');
+                const readmeEl = document.getElementById('asset-readme-section');
+                if (!treeEl) return;
+
+                const token = document.cookie.match('(^|;)\\s*token\\s*=\\s*([^;]+)')?.pop();
+                const headers = token ? { 'Authorization': 'Bearer ' + token } : {};
+
+                const res = await fetch('/api/marketplace/' + a.id + '/tree', { headers });
+                if (!res.ok) return; // no browsable files (legacy single-URL asset)
+                const tree = await res.json();
+
+                const entries = tree.entries || [];
+                const root = entries.filter(e => !e.path.includes('/'));
+                const fileCount = entries.filter(e => e.kind === 'file').length;
+
+                if (root.length) {
+                    // Only the first handful, with a link through to the full
+                    // browser — the asset page shouldn't become a file manager.
+                    const shown = root.slice(0, 12);
+                    const rows = shown.map(e => `
+                        <a href="/marketplace/asset/${a.slug}/files/${encodeURI(e.path)}" class="flex items-center gap-2.5 px-4 py-2 hover:bg-white/[0.02] transition-colors border-b border-zinc-800/50 last:border-0 group">
+                            <i class="ph ${treeIcon(e)}"></i>
+                            <span class="flex-1 text-sm text-zinc-300 group-hover:text-accent transition-colors truncate">${treeEsc(e.name)}</span>
+                            ${e.is_doc ? '<span class="px-1.5 py-0.5 rounded bg-cyan-500/10 border border-cyan-500/20 text-[10px] text-cyan-400">docs</span>' : ''}
+                            ${(!tree.has_access && e.kind === 'file' && !e.is_doc) ? '<i class="ph ph-lock-simple text-xs text-zinc-600" title="Purchase to view"></i>' : ''}
+                            <span class="text-xs text-zinc-600 tabular-nums w-16 text-right">${e.kind === 'dir' ? '' : fmtFileSize(e.size)}</span>
+                        </a>`).join('');
+
+                    const more = root.length > shown.length
+                        ? `<a href="/marketplace/asset/${a.slug}/files" class="block px-4 py-2 text-xs text-accent hover:underline border-t border-zinc-800/50">${root.length - shown.length} more…</a>`
+                        : '';
+
+                    treeEl.innerHTML = `
+                        <div class="mt-12">
+                            <div class="flex items-center justify-between mb-4">
+                                <h2 class="text-lg font-semibold">Files</h2>
+                                <a href="/marketplace/asset/${a.slug}/files" class="text-xs text-accent hover:underline flex items-center gap-1">
+                                    Browse all ${fileCount} files <i class="ph ph-arrow-right"></i>
+                                </a>
+                            </div>
+                            <div class="border border-zinc-800/50 rounded-2xl overflow-hidden bg-white/[0.01]">
+                                <div class="flex items-center gap-2 px-4 py-2 border-b border-zinc-800/50 bg-white/[0.02]">
+                                    <i class="ph ph-tag text-zinc-600 text-xs"></i>
+                                    <span class="text-[11px] text-zinc-500">v${treeEsc(tree.release.version)} · ${fmtFileSize(tree.release.total_size)}</span>
+                                </div>
+                                ${rows}${more}
+                            </div>
+                        </div>`;
+                }
+
+                if (tree.readme && readmeEl) {
+                    readmeEl.innerHTML = `
+                        <div class="mt-8">
+                            <div class="border border-zinc-800/50 rounded-2xl overflow-hidden bg-white/[0.01]">
+                                <div class="flex items-center gap-2 px-4 py-2.5 border-b border-zinc-800/50 bg-white/[0.02]">
+                                    <i class="ph ph-book-open text-cyan-400"></i>
+                                    <span class="text-xs font-medium text-zinc-300">${treeEsc(tree.readme.path)}</span>
+                                    <span class="flex-1"></span>
+                                    <a href="/marketplace/asset/${a.slug}/files/${encodeURI(tree.readme.path)}" class="text-[11px] text-zinc-500 hover:text-accent transition-colors">Open</a>
+                                </div>
+                                <div class="doc-body px-6 py-6">${tree.readme.html}</div>
+                            </div>
+                        </div>`;
+
+                    // A README image inside a paid asset 403s until you own it;
+                    // show that rather than a broken-image icon.
+                    readmeEl.querySelectorAll('.doc-body img').forEach(img => {
+                        img.addEventListener('error', () => {
+                            const note = document.createElement('span');
+                            note.className = 'inline-flex items-center gap-1.5 px-3 py-2 my-2 rounded-lg bg-white/[0.02] border border-zinc-800/50 text-xs text-zinc-500';
+                            note.innerHTML = '<i class="ph ph-lock-simple"></i>' +
+                                (img.alt ? treeEsc(img.alt) + ' — ' : '') + 'image available after purchase';
+                            img.replaceWith(note);
+                        }, { once: true });
+                    });
+                }
+            }
+
+            async function loadAssetReleases(a, isCreator) {
+                const el = document.getElementById('asset-releases-section');
+                if (!el) return;
+
+                const res = await fetch('/api/marketplace/' + a.id + '/releases');
+                if (!res.ok) return;
+                const releases = await res.json();
+                if (!releases.length) return;
+
+                const canDownload = a.owned || isCreator || a.price_credits === 0;
+
+                const cards = releases.map(r => `
+                    <div class="border border-zinc-800/50 rounded-2xl bg-white/[0.01] p-5">
+                        <div class="flex items-center gap-3 flex-wrap">
+                            <span class="text-base font-semibold text-zinc-100">v${treeEsc(r.version)}</span>
+                            ${r.is_current ? '<span class="px-2 py-0.5 rounded-full bg-green-500/10 border border-green-500/20 text-[10px] text-green-400 font-medium">LATEST</span>' : ''}
+                            <span class="text-xs text-zinc-600">${fmtDate(r.created_at)}</span>
+                            <span class="flex-1"></span>
+                            <a href="/marketplace/asset/${a.slug}/files?release=${encodeURIComponent(r.version)}" class="text-xs text-zinc-500 hover:text-accent transition-colors"><i class="ph ph-folder-open"></i> Files</a>
+                            ${canDownload
+                                ? `<button onclick="downloadRelease('${a.id}','${treeEsc(r.version)}')" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-white/[0.03] border border-zinc-800/50 text-zinc-300 hover:border-zinc-600 hover:text-white transition-colors"><i class="ph ph-download-simple"></i>Download</button>`
+                                : ''}
+                        </div>
+                        <div class="mt-2 text-xs text-zinc-600">${r.file_count} file${r.file_count === 1 ? '' : 's'} · ${fmtFileSize(r.total_size)}</div>
+                        ${r.notes_html ? `<div class="doc-body mt-4 pt-4 border-t border-zinc-800/50 text-sm">${r.notes_html}</div>` : ''}
+                    </div>`).join('');
+
+                el.innerHTML = `
+                    <div class="mt-12" id="releases">
+                        <div class="flex items-center justify-between mb-4">
+                            <h2 class="text-lg font-semibold">Releases <span class="text-zinc-600 font-normal">(${releases.length})</span></h2>
+                            ${isCreator ? `<a href="/marketplace/asset/${a.slug}/releases/new" class="text-xs text-accent hover:underline flex items-center gap-1"><i class="ph ph-plus"></i> New release</a>` : ''}
+                        </div>
+                        <div class="space-y-3">${cards}</div>
+                    </div>`;
+
+                // `?tab=releases` (the link in a new-release notification)
+                // arrives before this section exists, so honour it here.
+                if (new URLSearchParams(window.location.search).get('tab') === 'releases') {
+                    el.scrollIntoView({ behavior: 'smooth' });
+                }
+            }
+
+            // Download a specific version rather than whatever is newest.
+            async function downloadRelease(assetId, version) {
+                const token = document.cookie.match('(^|;)\\s*token\\s*=\\s*([^;]+)')?.pop();
+                if (!token) { window.location.href = '/login'; return; }
+
+                const res = await fetch('/api/marketplace/' + assetId + '/download?release=' + encodeURIComponent(version), {
+                    headers: { 'Authorization': 'Bearer ' + token }
+                });
+                if (!res.ok) { alert('Download failed'); return; }
+                const data = await res.json();
+                window.location.href = data.download_url;
+            }
 
             function fmtFileSize(bytes) {
                 if (!bytes) return '';
                 if (bytes > 1e9) return (bytes / 1e9).toFixed(1) + ' GB';
                 if (bytes > 1e6) return (bytes / 1e6).toFixed(1) + ' MB';
-                return (bytes / 1e3).toFixed(0) + ' KB';
+                if (bytes >= 1e3) return (bytes / 1e3).toFixed(1) + ' KB';
+                return bytes + ' B';
             }
 
             function fileIcon(mime) {

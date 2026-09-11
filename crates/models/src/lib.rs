@@ -5,6 +5,7 @@ pub mod api_usage;
 pub mod auto_topup;
 pub mod asset;
 pub mod asset_file;
+pub mod asset_release;
 pub mod developer_app;
 pub mod friend;
 pub mod leaderboard;

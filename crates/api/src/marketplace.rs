@@ -8,6 +8,7 @@ use sqlx::Row;
 use renzora_common::types::*;
 use renzora_models::asset::{self, Asset};
 use renzora_models::asset_file::AssetFile;
+use renzora_models::asset_release::AssetRelease;
 use renzora_models::category::Category;
 use renzora_models::subcategory::Subcategory;
 use renzora_models::tag::Tag;
@@ -23,6 +24,8 @@ pub fn router() -> Router<AppState> {
         .route("/purchased", get(purchased_assets))
         .route("/:id/update", put(update_asset))
         .route("/:id/files", put(update_asset_files))
+        .route("/:id/releases", post(create_release))
+        .route("/:id/releases/:release_id", put(update_release).delete(delete_release))
         .route("/:id/comments", post(add_comment))
         .route("/comments/:comment_id", delete(delete_comment))
         .route("/:id/reviews", post(submit_review))
@@ -53,6 +56,10 @@ pub fn router() -> Router<AppState> {
         .route("/:id/reviews", get(list_reviews))
         .route("/:id/media", get(list_media))
         .route("/:id/asset-files", get(list_asset_files))
+        .route("/:id/releases", get(list_releases))
+        .route("/:id/tree", get(asset_tree))
+        .route("/:id/file", get(view_file))
+        .route("/:id/raw", get(raw_file))
         .route("/:id/preview-file", get(preview_file_proxy))
         .route("/plugin-updates", post(plugin_updates))
         .merge(downloads)
@@ -423,70 +430,25 @@ async fn upload_asset(
 
     // ── Process files: multi-file or zip extract ──
     let is_paid = meta.price_credits > 0 && meta.credit_name.is_empty();
-    let zip_action = meta.zip_action.as_str();
 
-    // Determine if this is a single zip that should be extracted
-    let should_extract = uploaded_files.len() == 1
-        && zip_action == "extract"
-        && uploaded_files[0].0.to_lowercase().ends_with(".zip")
-        // A plugin's zip is the deliverable, not a container to unpack: the
-        // editor extracts the whole source tree into `plugins/<crate>/`.
-        && !is_plugin_category(&meta.category);
+    // Every asset starts with one release. Files hang off it rather than off
+    // the asset, so a later version can be published without destroying this
+    // one for the people who already bought it.
+    let release = AssetRelease::create_current(&state.db, asset.id, &asset.version, "").await?;
 
-    let multi_file;
-    if should_extract {
-        // Extract zip into individual files
-        let (_, zip_data) = &uploaded_files[0];
-        let extracted = extract_zip_files(zip_data)?;
-        multi_file = extracted.len() > 1;
+    // A plugin's zip is the deliverable, not a container to unpack: the editor
+    // extracts the whole source tree into `plugins/<crate>/` and builds it, so
+    // the bytes have to stay exactly as uploaded. Its contents are still
+    // indexed for browsing — see `store_release_files`.
+    let stored_action = effective_zip_action(&meta.zip_action, &meta.category);
+    let entries = archive_entries(uploaded_files, stored_action)?;
+    let stored = store_release_files(&state, asset.id, release.id, is_paid, entries).await?;
+    let multi_file = stored.multi_file;
 
-        for (i, (entry_name, entry_data)) in extracted.iter().enumerate() {
-            let mime = mime_from_extension(entry_name);
-            let file_key = upload_to_storage_private(
-                &state,
-                &format!("private/assets/{}", asset.id),
-                entry_name,
-                entry_data.clone(),
-            ).await?;
-
-            // Generate preview for paid assets with previewable content
-            let preview_key = if is_paid && preview::is_previewable(&mime) {
-                generate_preview_key(&state, asset.id, entry_name, entry_data, &mime).await.ok()
-            } else {
-                None
-            };
-
-            AssetFile::insert(
-                &state.db, asset.id, &file_key,
-                preview_key.as_deref(), entry_name,
-                entry_data.len() as i64, &mime, i as i32,
-            ).await?;
-        }
-    } else {
-        // Store files as-is (multiple individual files or single zip kept as zip)
-        multi_file = uploaded_files.len() > 1;
-
-        for (i, (filename, data)) in uploaded_files.iter().enumerate() {
-            let mime = mime_from_extension(filename);
-            let file_key = upload_to_storage_private(
-                &state,
-                &format!("private/assets/{}", asset.id),
-                filename,
-                data.clone(),
-            ).await?;
-
-            let preview_key = if is_paid && preview::is_previewable(&mime) {
-                generate_preview_key(&state, asset.id, filename, data, &mime).await.ok()
-            } else {
-                None
-            };
-
-            AssetFile::insert(
-                &state.db, asset.id, &file_key,
-                preview_key.as_deref(), filename,
-                data.len() as i64, &mime, i as i32,
-            ).await?;
-        }
+    // A CHANGELOG.md in the archive seeds the release notes, the same way the
+    // README becomes the asset's documentation.
+    if let Some(notes) = &stored.changelog {
+        let _ = AssetRelease::update_notes(&state.db, release.id, notes).await;
     }
 
     // Set multi_file flag
@@ -610,6 +572,24 @@ async fn update_asset(
         }
     }
 
+    // Editing the version renames the current release rather than letting the
+    // asset and its release drift apart.
+    if let Some(new_version) = body.version.as_deref().map(str::trim).filter(|v| !v.is_empty()) {
+        if new_version != asset.version {
+            if let Some(current) = AssetRelease::find_current(&state.db, id).await? {
+                let clash = AssetRelease::find_by_version(&state.db, id, new_version)
+                    .await?
+                    .is_some_and(|r| r.id != current.id);
+                if clash {
+                    return Err(ApiError::Validation(format!(
+                        "Version '{new_version}' already belongs to another release of this asset"
+                    )));
+                }
+                AssetRelease::update_version(&state.db, current.id, new_version).await?;
+            }
+        }
+    }
+
     Asset::update_metadata(
         &state.db,
         id,
@@ -700,10 +680,20 @@ async fn update_asset_files(
         }
     }
 
-    // If new files were uploaded, replace existing asset_files
+    // New files here *replace the current release in place* — this is the edit
+    // path, for fixing a bad upload. Shipping a new version is a release
+    // (`POST /:id/releases`), which keeps the old files downloadable.
     if !new_files.is_empty() {
-        // Delete old files from storage
-        let old_files = AssetFile::delete_by_asset(&state.db, id).await?;
+        let release = match AssetRelease::find_current(&state.db, id).await? {
+            Some(r) => r,
+            // An asset from before the release system, or one that never got
+            // files, gets its first release now.
+            None => AssetRelease::create_current(&state.db, id, &asset.version, "").await?,
+        };
+
+        // Drop the current release's files (and their storage), leaving every
+        // other release untouched.
+        let old_files = AssetFile::delete_by_release(&state.db, release.id).await?;
         for af in &old_files {
             delete_from_storage_by_key(&state, &af.file_key).await;
             if let Some(pk) = &af.preview_key {
@@ -737,51 +727,9 @@ async fn update_asset_files(
                 .await?;
         }
 
-        let should_extract = new_files.len() == 1
-            && zip_action == "extract"
-            && new_files[0].0.to_lowercase().ends_with(".zip")
-            && !is_plugin_category(&asset.category);
-
-        let entries: Vec<(String, Vec<u8>)> = if should_extract {
-            extract_zip_files(&new_files[0].1)?
-        } else {
-            new_files
-        };
-
-        let multi_file = entries.len() > 1;
-
-        for (i, (filename, data)) in entries.iter().enumerate() {
-            let mime = mime_from_extension(filename);
-            let file_key = upload_to_storage_private(
-                &state,
-                &format!("private/assets/{}", id),
-                filename,
-                data.clone(),
-            ).await?;
-
-            let preview_key = if is_paid && preview::is_previewable(&mime) {
-                generate_preview_key(&state, id, filename, data, &mime).await.ok()
-            } else {
-                None
-            };
-
-            AssetFile::insert(
-                &state.db, id, &file_key,
-                preview_key.as_deref(), filename,
-                data.len() as i64, &mime, i as i32,
-            ).await?;
-        }
-
-        // Update backwards-compat fields
-        let first = AssetFile::list_by_asset(&state.db, id).await?.into_iter().next();
-        if let Some(f) = &first {
-            Asset::update_file_url(&state.db, id, &f.file_key).await?;
-        }
-        sqlx::query("UPDATE assets SET multi_file = $1 WHERE id = $2")
-            .bind(multi_file)
-            .bind(id)
-            .execute(&state.db)
-            .await?;
+        let stored_action = effective_zip_action(&zip_action, &asset.category);
+        let entries = archive_entries(new_files, stored_action)?;
+        store_release_files(&state, id, release.id, is_paid, entries).await?;
     }
 
     let updated = Asset::find_by_id(&state.db, id)
@@ -819,11 +767,14 @@ fn authorize_download(asset: &Asset, auth: &Option<AuthUser>, owns: bool) -> Res
 /// Download an asset. Free published assets need no account; paid ones need
 /// a signed-in owner.
 ///
-/// Returns presigned download URLs for all files.
+/// Returns presigned download URLs for all files. `?release=` picks an older
+/// version — buyers keep access to every release they paid for, not just the
+/// newest one.
 async fn download_asset(
     State(state): State<AppState>,
     Extension(auth): Extension<Option<AuthUser>>,
     Path(id): Path<Uuid>,
+    Query(params): Query<ReleaseQuery>,
 ) -> Result<Json<DownloadResponse>, ApiError> {
     let asset = Asset::find_by_id(&state.db, id)
         .await?
@@ -838,8 +789,15 @@ async fn download_asset(
     // Increment download counter
     Asset::increment_downloads(&state.db, id).await?;
 
-    // Check for multi-file asset
-    let asset_files = AssetFile::list_by_asset(&state.db, id).await?;
+    // Files of the requested release (the current one by default).
+    let release = AssetRelease::resolve(&state.db, id, params.release.as_deref()).await?;
+    let asset_files = match &release {
+        Some(r) => {
+            AssetRelease::increment_downloads(&state.db, r.id).await?;
+            AssetFile::list_by_release(&state.db, r.id).await?
+        }
+        None => AssetFile::list_by_asset(&state.db, id).await?,
+    };
 
     if !asset_files.is_empty() {
         // Multi-file: return presigned URLs for all files
@@ -1759,6 +1717,7 @@ async fn download_all_zip(
     State(state): State<AppState>,
     Extension(auth): Extension<Option<AuthUser>>,
     Path(id): Path<Uuid>,
+    Query(params): Query<ReleaseQuery>,
 ) -> Result<axum::response::Response, ApiError> {
     let asset = Asset::find_by_id(&state.db, id)
         .await?
@@ -1770,7 +1729,11 @@ async fn download_all_zip(
     };
     authorize_download(&asset, &auth, owns)?;
 
-    let files = AssetFile::list_by_asset(&state.db, id).await?;
+    let release = AssetRelease::resolve(&state.db, id, params.release.as_deref()).await?;
+    let files = match &release {
+        Some(r) => AssetFile::list_by_release(&state.db, r.id).await?,
+        None => AssetFile::list_by_asset(&state.db, id).await?,
+    };
     if files.is_empty() {
         return Err(ApiError::NotFound);
     }
@@ -1794,8 +1757,10 @@ async fn download_all_zip(
 
         for file in &files {
             let file_bytes = fetch_file_from_storage(&state, &file.file_key).await?;
+            // Write the archive path, not just the filename, so the download
+            // unpacks with the same structure the creator uploaded.
             zip_writer
-                .start_file(&file.original_filename, options)
+                .start_file(&file.path, options)
                 .map_err(|e| ApiError::Internal(format!("Zip write failed: {e}")))?;
             std::io::Write::write_all(&mut zip_writer, &file_bytes)
                 .map_err(|e| ApiError::Internal(format!("Zip write failed: {e}")))?;
@@ -1808,10 +1773,16 @@ async fn download_all_zip(
 
     Asset::increment_downloads(&state.db, id).await?;
 
-    let filename = if !asset.download_filename.is_empty() {
-        format!("{}.zip", asset.download_filename.trim_end_matches(".zip"))
+    let stem = if !asset.download_filename.is_empty() {
+        asset.download_filename.trim_end_matches(".zip").to_string()
     } else {
-        format!("{}.zip", asset.slug)
+        asset.slug.clone()
+    };
+    // Name an older download after the version in it, so two releases don't
+    // land in the downloads folder with the same name.
+    let filename = match &release {
+        Some(r) if !r.is_current => format!("{stem}-{}.zip", r.version),
+        _ => format!("{stem}.zip"),
     };
 
     Ok(axum::response::Response::builder()
@@ -1973,7 +1944,6 @@ async fn generate_preview_key(
     .await
 }
 
-/// Extract files from a zip archive in memory with safety checks.
 #[derive(Deserialize)]
 struct PluginUpdatesRequest {
     /// Asset ids of the plugins the caller has installed.
@@ -2113,6 +2083,13 @@ fn plugin_crate_name(data: &[u8]) -> Result<String, ApiError> {
     Ok(name.to_string())
 }
 
+/// Extract a zip into `(archive path, bytes)` pairs, **keeping the directory
+/// structure** — that tree is what the marketplace file browser renders and
+/// what lets a `README.md` link to `docs/install.md`.
+///
+/// A single wrapping top-level folder is stripped, because that's what almost
+/// every archive has (`my-plugin-1.2.0/src/...`) and nobody wants to click
+/// through it on every visit.
 fn extract_zip_files(data: &[u8]) -> Result<Vec<(String, Vec<u8>)>, ApiError> {
     use std::io::Read;
 
@@ -2120,10 +2097,10 @@ fn extract_zip_files(data: &[u8]) -> Result<Vec<(String, Vec<u8>)>, ApiError> {
     let mut archive = zip::ZipArchive::new(reader)
         .map_err(|e| ApiError::Validation(format!("Invalid zip file: {e}")))?;
 
-    if archive.len() > 100 {
-        return Err(ApiError::Validation(
-            "Zip contains too many entries (max 100)".into(),
-        ));
+    if archive.len() > MAX_ARCHIVE_ENTRIES {
+        return Err(ApiError::Validation(format!(
+            "Zip contains too many entries (max {MAX_ARCHIVE_ENTRIES})"
+        )));
     }
 
     let mut files = Vec::new();
@@ -2143,27 +2120,28 @@ fn extract_zip_files(data: &[u8]) -> Result<Vec<(String, Vec<u8>)>, ApiError> {
 
         let name = entry.name().to_string();
 
-        // Path traversal check
-        if name.contains("..") || name.starts_with('/') || name.starts_with('\\') {
-            continue;
-        }
-
         // Skip nested zips
         if name.to_lowercase().ends_with(".zip") {
             continue;
         }
 
-        // Skip macOS resource fork files
-        if name.contains("__MACOSX") || name.starts_with('.') {
+        // macOS resource forks and metadata are noise in a file tree.
+        if name.contains("__MACOSX") || name.contains(".DS_Store") {
             continue;
         }
+
+        // Normalise separators and reject anything that tries to climb out of
+        // the archive (`../`), is absolute, or hides in a dotfile directory.
+        let Some(path) = sanitize_archive_path(&name) else {
+            continue;
+        };
 
         // Size check
         let size = entry.size();
         if size > max_single {
             return Err(ApiError::Validation(format!(
                 "File '{}' exceeds 200MB limit",
-                name
+                path
             )));
         }
         total_size += size;
@@ -2176,22 +2154,80 @@ fn extract_zip_files(data: &[u8]) -> Result<Vec<(String, Vec<u8>)>, ApiError> {
         let mut buf = Vec::with_capacity(size as usize);
         entry
             .read_to_end(&mut buf)
-            .map_err(|e| ApiError::Validation(format!("Failed to extract '{}': {e}", name)))?;
+            .map_err(|e| ApiError::Validation(format!("Failed to extract '{}': {e}", path)))?;
 
-        // Use just the filename (strip directory paths from zip)
-        let clean_name = name.rsplit('/').next().unwrap_or(&name).to_string();
-        if clean_name.is_empty() {
-            continue;
-        }
-
-        files.push((clean_name, buf));
+        files.push((path, buf));
     }
 
     if files.is_empty() {
         return Err(ApiError::Validation("Zip contains no extractable files".into()));
     }
 
+    strip_common_root(&mut files);
     Ok(files)
+}
+
+/// Maximum number of entries accepted from one uploaded archive. Generous
+/// enough for a plugin with sources and a `docs/` folder, bounded so a zip
+/// bomb can't fan out into unbounded rows.
+const MAX_ARCHIVE_ENTRIES: usize = 500;
+
+/// Normalise a path out of an archive, or reject it.
+///
+/// Rejects absolute paths, `..` traversal, Windows drive letters and UNC
+/// paths, and dot-directories/dotfiles (`.git/`, `.env`), which are never
+/// content anyone meant to publish.
+pub(crate) fn sanitize_archive_path(raw: &str) -> Option<String> {
+    let normalized = raw.replace('\\', "/");
+
+    // `C:/...` or `//server/share`
+    if normalized.starts_with('/') || normalized.starts_with("//") {
+        return None;
+    }
+    if normalized.len() >= 2 && normalized.as_bytes()[1] == b':' {
+        return None;
+    }
+
+    let mut parts: Vec<&str> = Vec::new();
+    for seg in normalized.split('/') {
+        match seg {
+            "" | "." => continue,
+            ".." => return None,
+            s if s.starts_with('.') => return None,
+            s => parts.push(s),
+        }
+    }
+
+    if parts.is_empty() {
+        return None;
+    }
+    let path = parts.join("/");
+    // Postgres TEXT is unbounded but a path this long is a red flag, and the
+    // tree UI can't render it usefully either.
+    (path.len() <= 1024).then_some(path)
+}
+
+/// If every entry sits under the same top-level directory, drop it.
+pub(crate) fn strip_common_root(files: &mut [(String, Vec<u8>)]) {
+    let Some(first_root) = files
+        .first()
+        .and_then(|(p, _)| p.split_once('/'))
+        .map(|(root, _)| root.to_string())
+    else {
+        return; // a file lives at the root, so there's no wrapper to strip
+    };
+
+    let shared = files
+        .iter()
+        .all(|(p, _)| p.split_once('/').is_some_and(|(root, _)| root == first_root));
+    if !shared {
+        return;
+    }
+
+    let cut = first_root.len() + 1;
+    for (p, _) in files.iter_mut() {
+        *p = p[cut..].to_string();
+    }
 }
 
 /// Derive MIME type from file extension.
@@ -2252,6 +2288,992 @@ pub fn hash_ip(ip: &str) -> String {
     let mut hasher = Sha256::new();
     hasher.update(ip.as_bytes());
     format!("{:x}", hasher.finalize())
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+//  Releases, file tree and README/docs
+//
+//  An asset's uploaded archive is browsable like a repository: the *tree* is
+//  public (filenames, sizes, structure), while file *contents* need ownership
+//  — except documentation, which is the point of publishing it. Markdown and
+//  licence files are readable by anyone, so a README can sell the plugin.
+// ══════════════════════════════════════════════════════════════════════════
+
+/// Text files larger than this are shown truncated rather than in full.
+const MAX_TEXT_VIEW_BYTES: usize = 512 * 1024;
+
+/// Docs are readable without owning the asset: markdown (the documentation
+/// system) and licence files (which buyers need to read *before* buying).
+pub(crate) fn is_public_doc(path: &str) -> bool {
+    let name = path.rsplit('/').next().unwrap_or(path);
+    let lower = name.to_ascii_lowercase();
+    if lower.ends_with(".md") || lower.ends_with(".markdown") {
+        return true;
+    }
+    let stem = lower.split('.').next().unwrap_or(&lower);
+    matches!(stem, "license" | "licence" | "copying" | "notice" | "authors")
+}
+
+/// Is this the archive's README? The rank is its depth, so the one closest to
+/// the root wins when a package vendors READMEs of its own.
+fn readme_rank(path: &str) -> Option<usize> {
+    let name = path.rsplit('/').next().unwrap_or(path).to_ascii_lowercase();
+    let is_readme = matches!(
+        name.as_str(),
+        "readme.md" | "readme.markdown" | "readme" | "readme.txt"
+    );
+    is_readme.then(|| path.matches('/').count())
+}
+
+fn is_changelog(path: &str) -> bool {
+    let name = path.rsplit('/').next().unwrap_or(path).to_ascii_lowercase();
+    matches!(
+        name.as_str(),
+        "changelog.md" | "changelog" | "changelog.txt" | "changes.md" | "history.md"
+    )
+}
+
+/// highlight.js language hint for a source file.
+fn language_for(path: &str) -> Option<&'static str> {
+    let lower = path.to_ascii_lowercase();
+    let name = lower.rsplit('/').next().unwrap_or(&lower);
+    match name {
+        "dockerfile" => return Some("dockerfile"),
+        "makefile" => return Some("makefile"),
+        _ => {}
+    }
+    Some(match name.rsplit('.').next()? {
+        "rs" => "rust",
+        "lua" => "lua",
+        // Rhai is Rust-shaped, and reads far better highlighted as Rust than
+        // as nothing at all.
+        "rhai" => "rust",
+        "wgsl" | "glsl" | "vert" | "frag" => "glsl",
+        "js" | "mjs" | "cjs" => "javascript",
+        "ts" | "tsx" | "jsx" => "typescript",
+        "py" => "python",
+        "sh" | "bash" | "zsh" => "bash",
+        "json" => "json",
+        "toml" | "ron" | "ini" | "cfg" | "conf" => "ini",
+        "yaml" | "yml" => "yaml",
+        "xml" | "svg" | "html" | "htm" => "xml",
+        "css" => "css",
+        "sql" => "sql",
+        "c" | "h" => "c",
+        "cpp" | "cc" | "hpp" => "cpp",
+        "cs" => "csharp",
+        "go" => "go",
+        "java" => "java",
+        "kt" => "kotlin",
+        "rb" => "ruby",
+        "swift" => "swift",
+        "md" | "markdown" => "markdown",
+        "txt" | "log" => "plaintext",
+        _ => return None,
+    })
+}
+
+/// Whether a file's bytes are plain text we can show in the source viewer.
+fn is_text_file(path: &str, mime: &str) -> bool {
+    mime.starts_with("text/") || language_for(path).is_some()
+}
+
+/// How an upload should be stored, given the category.
+///
+/// A plugin is always kept as the single zip it arrived as: the editor
+/// extracts that archive into `plugins/<crate>/` and the SDK builds it, so the
+/// bytes have to survive the round trip untouched. Its contents are still
+/// indexed for the file browser — see `store_release_files`.
+fn effective_zip_action<'a>(requested: &'a str, category: &str) -> &'a str {
+    if is_plugin_category(category) {
+        "keep"
+    } else {
+        requested
+    }
+}
+
+/// Turn a multipart upload into the archive entries to store: either the
+/// unpacked contents of a single zip, or the uploaded files as they came.
+fn archive_entries(
+    uploaded: Vec<(String, Vec<u8>)>,
+    zip_action: &str,
+) -> Result<Vec<(String, Vec<u8>)>, ApiError> {
+    if uploaded.is_empty() {
+        return Ok(Vec::new());
+    }
+    let should_extract = uploaded.len() == 1
+        && zip_action == "extract"
+        && uploaded[0].0.to_lowercase().ends_with(".zip");
+
+    if should_extract {
+        return extract_zip_files(&uploaded[0].1);
+    }
+
+    // Not extracted: each upload is a root-level file. Strip any directory
+    // component the browser sent along with the name.
+    Ok(uploaded
+        .into_iter()
+        .map(|(name, data)| {
+            let clean = name
+                .replace('\\', "/")
+                .rsplit('/')
+                .next()
+                .unwrap_or("file")
+                .to_string();
+            (clean, data)
+        })
+        .filter(|(name, _)| !name.is_empty())
+        .collect())
+}
+
+/// What `store_release_files` found while writing an archive out.
+struct StoredRelease {
+    multi_file: bool,
+    /// Contents of a CHANGELOG in the archive, if there was one.
+    changelog: Option<String>,
+}
+
+/// Write an archive's entries out as the files of `release_id`.
+///
+/// Doc files get their text cached on the row so the README renders from the
+/// database; everything else lives only in object storage.
+async fn store_release_files(
+    state: &AppState,
+    asset_id: Uuid,
+    release_id: Uuid,
+    is_paid: bool,
+    entries: Vec<(String, Vec<u8>)>,
+) -> Result<StoredRelease, ApiError> {
+    let multi_file = entries.len() > 1;
+    let mut changelog = None;
+
+    for (i, (path, data)) in entries.iter().enumerate() {
+        let filename = path.rsplit('/').next().unwrap_or(path);
+        let mime = mime_from_extension(filename);
+
+        let file_key = upload_to_storage_private(
+            state,
+            &format!("private/assets/{asset_id}"),
+            filename,
+            data.clone(),
+        )
+        .await?;
+
+        // Generate preview for paid assets with previewable content
+        let preview_key = if is_paid && preview::is_previewable(&mime) {
+            generate_preview_key(state, asset_id, filename, data, &mime)
+                .await
+                .ok()
+        } else {
+            None
+        };
+
+        // Cache the text of public docs so reading them never touches storage.
+        let text = if is_public_doc(path) && data.len() <= MAX_TEXT_VIEW_BYTES {
+            String::from_utf8(data.clone()).ok()
+        } else {
+            None
+        };
+
+        if changelog.is_none() && is_changelog(path) {
+            changelog = String::from_utf8(data.clone()).ok();
+        }
+
+        AssetFile::insert(
+            &state.db,
+            asset_id,
+            Some(release_id),
+            &file_key,
+            preview_key.as_deref(),
+            filename,
+            path,
+            data.len() as i64,
+            &mime,
+            i as i32,
+            false,
+            text.as_deref(),
+        )
+        .await?;
+
+        // A zip kept whole is still worth reading. Index what's inside it so
+        // the asset gets a file tree and its README renders, without touching
+        // the stored bytes — which for a plugin the editor has to build from.
+        if mime == "application/zip" {
+            index_archive_contents(state, asset_id, release_id, &file_key, data).await;
+        }
+    }
+
+    // Keep the legacy single-file pointer and the multi-file flag in step with
+    // whatever the current release now holds.
+    if let Some(f) = AssetFile::list_by_asset(&state.db, asset_id)
+        .await?
+        .into_iter()
+        .next()
+    {
+        Asset::update_file_url(&state.db, asset_id, &f.file_key).await?;
+    }
+    sqlx::query("UPDATE assets SET multi_file = $1 WHERE id = $2")
+        .bind(multi_file)
+        .bind(asset_id)
+        .execute(&state.db)
+        .await?;
+
+    Ok(StoredRelease {
+        multi_file,
+        changelog,
+    })
+}
+
+/// Index the entries of a stored archive so they can be browsed and their
+/// docs rendered, without unpacking it into separate objects.
+///
+/// Indexed rows carry `archived = true` and point their `file_key` at the
+/// containing zip; `read_archived_bytes` pulls one entry back out. Best
+/// effort — an archive we can't read just doesn't get a tree.
+async fn index_archive_contents(
+    state: &AppState,
+    asset_id: Uuid,
+    release_id: Uuid,
+    container_key: &str,
+    data: &[u8],
+) {
+    let entries = match extract_zip_files(data) {
+        Ok(e) => e,
+        Err(e) => {
+            tracing::debug!("not indexing archive for asset {asset_id}: {e}");
+            return;
+        }
+    };
+
+    for (i, (path, bytes)) in entries.iter().enumerate() {
+        let filename = path.rsplit('/').next().unwrap_or(path);
+        let text = if is_public_doc(path) && bytes.len() <= MAX_TEXT_VIEW_BYTES {
+            String::from_utf8(bytes.clone()).ok()
+        } else {
+            None
+        };
+
+        if let Err(e) = AssetFile::insert(
+            &state.db,
+            asset_id,
+            Some(release_id),
+            container_key,
+            None,
+            filename,
+            path,
+            bytes.len() as i64,
+            &mime_from_extension(filename),
+            i as i32,
+            true,
+            text.as_deref(),
+        )
+        .await
+        {
+            tracing::warn!("could not index {path} for asset {asset_id}: {e}");
+        }
+    }
+}
+
+/// Pull one entry's bytes out of the archive an indexed row lives in.
+async fn read_archived_bytes(state: &AppState, file: &AssetFile) -> Result<Vec<u8>, ApiError> {
+    use std::io::Read;
+
+    let zip_bytes = fetch_file_from_storage(state, &file.file_key).await?;
+    let mut archive = zip::ZipArchive::new(std::io::Cursor::new(zip_bytes))
+        .map_err(|e| ApiError::Internal(format!("Could not open the stored archive: {e}")))?;
+
+    // Entry names are matched through the same normalisation the index used,
+    // so a stripped wrapper directory still resolves.
+    let mut names: Vec<String> = Vec::with_capacity(archive.len());
+    for i in 0..archive.len() {
+        names.push(archive.by_index(i).map(|f| f.name().to_string()).unwrap_or_default());
+    }
+    let mut normalized: Vec<(String, Vec<u8>)> = names
+        .iter()
+        .filter_map(|n| sanitize_archive_path(n).map(|p| (p, Vec::new())))
+        .collect();
+    strip_common_root(&mut normalized);
+
+    let idx = normalized
+        .iter()
+        .position(|(p, _)| *p == file.path)
+        .ok_or(ApiError::NotFound)?;
+    // `normalized` skips entries the sanitiser rejected, so map back by name.
+    let raw_index = names
+        .iter()
+        .enumerate()
+        .filter(|(_, n)| sanitize_archive_path(n).is_some())
+        .nth(idx)
+        .map(|(i, _)| i)
+        .ok_or(ApiError::NotFound)?;
+
+    let mut entry = archive
+        .by_index(raw_index)
+        .map_err(|e| ApiError::Internal(format!("Could not read the archive entry: {e}")))?;
+    let mut buf = Vec::with_capacity(entry.size() as usize);
+    entry
+        .read_to_end(&mut buf)
+        .map_err(|e| ApiError::Internal(format!("Could not extract the archive entry: {e}")))?;
+    Ok(buf)
+}
+
+/// A file's bytes, whether it is a stored object or an entry inside one.
+async fn file_bytes(state: &AppState, file: &AssetFile) -> Result<Vec<u8>, ApiError> {
+    if file.archived {
+        read_archived_bytes(state, file).await
+    } else {
+        fetch_file_from_storage(state, &file.file_key).await
+    }
+}
+
+/// The authenticated user, if the request carries a valid access token. Used
+/// by the public endpoints, which behave differently for owners.
+fn optional_user(
+    headers: &axum::http::HeaderMap,
+    jwt_secret: &crate::middleware::JwtSecret,
+) -> Option<Uuid> {
+    headers
+        .get("authorization")
+        .and_then(|v| v.to_str().ok())
+        .and_then(|h| h.strip_prefix("Bearer "))
+        .and_then(|token| crate::jwt::validate_token(token, &jwt_secret.0).ok())
+        .filter(|c| c.token_type == "access")
+        .map(|c| c.sub)
+}
+
+/// May this user read the asset's file *contents*? Free assets are open, paid
+/// ones need a purchase (the creator always counts as an owner).
+async fn has_file_access(
+    state: &AppState,
+    asset: &Asset,
+    user_id: Option<Uuid>,
+) -> Result<bool, ApiError> {
+    if asset.price_credits == 0 {
+        return Ok(true);
+    }
+    Ok(match user_id {
+        Some(uid) if uid == asset.creator_id => true,
+        Some(uid) => asset::user_owns_asset(&state.db, uid, asset.id).await?,
+        None => false,
+    })
+}
+
+#[derive(Deserialize)]
+pub struct ReleaseQuery {
+    /// A release id or version string. Absent means the current release.
+    pub release: Option<String>,
+}
+
+#[derive(Deserialize)]
+pub struct FileQuery {
+    pub path: String,
+    pub release: Option<String>,
+}
+
+/// A `?release=` suffix that pins generated links to a non-current release.
+fn release_query_for(release: &AssetRelease) -> String {
+    if release.is_current {
+        String::new()
+    } else {
+        format!("?release={}", urlencode_component(&release.version))
+    }
+}
+
+fn urlencode_component(s: &str) -> String {
+    let mut out = String::with_capacity(s.len());
+    for b in s.bytes() {
+        match b {
+            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => {
+                out.push(b as char)
+            }
+            _ => out.push_str(&format!("%{b:02X}")),
+        }
+    }
+    out
+}
+
+fn to_doc_headings(md: &str) -> Vec<DocHeading> {
+    crate::markdown::outline(md)
+        .into_iter()
+        .map(|(level, text, anchor)| DocHeading {
+            level,
+            text,
+            anchor,
+        })
+        .collect()
+}
+
+fn release_info(
+    r: &AssetRelease,
+    ctx: &crate::markdown::MdContext,
+    file_count: i64,
+    total_size: i64,
+) -> ReleaseInfo {
+    ReleaseInfo {
+        id: r.id,
+        version: r.version.clone(),
+        notes: r.notes.clone(),
+        notes_html: if r.notes.trim().is_empty() {
+            String::new()
+        } else {
+            crate::markdown::render(&r.notes, ctx)
+        },
+        is_current: r.is_current,
+        downloads: r.downloads,
+        file_count,
+        total_size,
+        // RFC 3339, so the browser can parse it directly. (`Display` for
+        // OffsetDateTime emits a single-digit hour before 10:00, which
+        // `new Date()` chokes on.)
+        created_at: r
+            .created_at
+            .format(&time::format_description::well_known::Rfc3339)
+            .unwrap_or_else(|_| r.created_at.to_string()),
+    }
+}
+
+/// Read a doc file's text, using the cached copy when there is one and
+/// backfilling it from storage when there isn't.
+async fn doc_text(state: &AppState, file: &AssetFile) -> Option<String> {
+    if let Some(t) = &file.text_content {
+        return Some(t.clone());
+    }
+    if file.file_size as usize > MAX_TEXT_VIEW_BYTES {
+        return None;
+    }
+    let bytes = file_bytes(state, file).await.ok()?;
+    let text = String::from_utf8(bytes).ok()?;
+    // Best effort: a failed backfill just means we fetch again next time.
+    let _ = AssetFile::cache_text(&state.db, file.id, &text).await;
+    Some(text)
+}
+
+/// `GET /api/marketplace/:id/releases` — version history, newest first.
+async fn list_releases(
+    State(state): State<AppState>,
+    Path(id): Path<Uuid>,
+) -> Result<Json<Vec<ReleaseInfo>>, ApiError> {
+    let asset = Asset::find_by_id(&state.db, id)
+        .await?
+        .ok_or(ApiError::NotFound)?;
+    let rows = AssetRelease::list_by_asset(&state.db, id).await?;
+
+    let infos = rows
+        .into_iter()
+        .map(|r| {
+            let release = AssetRelease {
+                id: r.id,
+                asset_id: r.asset_id,
+                version: r.version,
+                notes: r.notes,
+                is_current: r.is_current,
+                downloads: r.downloads,
+                created_at: r.created_at,
+            };
+            let ctx = crate::markdown::MdContext::new(
+                id,
+                &asset.slug,
+                "CHANGELOG.md",
+                &release_query_for(&release),
+            );
+            release_info(&release, &ctx, r.file_count, r.total_size)
+        })
+        .collect();
+
+    Ok(Json(infos))
+}
+
+/// `GET /api/marketplace/:id/tree` — the whole file tree of one release, plus
+/// its rendered README. Public: the structure is browsable by anyone.
+async fn asset_tree(
+    State(state): State<AppState>,
+    Path(id): Path<Uuid>,
+    Query(params): Query<ReleaseQuery>,
+    headers: axum::http::HeaderMap,
+    Extension(jwt_secret): Extension<crate::middleware::JwtSecret>,
+) -> Result<Json<AssetTreeResponse>, ApiError> {
+    let asset = Asset::find_by_id(&state.db, id)
+        .await?
+        .ok_or(ApiError::NotFound)?;
+    let release = AssetRelease::resolve(&state.db, id, params.release.as_deref())
+        .await?
+        .ok_or(ApiError::NotFound)?;
+
+    let user_id = optional_user(&headers, &jwt_secret);
+    let has_access = has_file_access(&state, &asset, user_id).await?;
+
+    let files = AssetFile::list_release_tree(&state.db, release.id).await?;
+    let entries = build_tree(&files);
+
+    // The README nearest the root becomes the asset's front page.
+    let readme_file = files
+        .iter()
+        .filter_map(|f| readme_rank(&f.path).map(|d| (d, f)))
+        .min_by_key(|(d, _)| *d)
+        .map(|(_, f)| f);
+
+    let readme = match readme_file {
+        Some(f) => doc_text(&state, f).await.map(|md| {
+            let ctx = crate::markdown::MdContext::new(
+                id,
+                &asset.slug,
+                &f.path,
+                &release_query_for(&release),
+            );
+            RenderedDoc {
+                path: f.path.clone(),
+                html: crate::markdown::render(&md, &ctx),
+                outline: to_doc_headings(&md),
+            }
+        }),
+        None => None,
+    };
+
+    let file_count = files.len() as i64;
+    let total_size = files.iter().map(|f| f.file_size).sum();
+    let notes_ctx = crate::markdown::MdContext::new(
+        id,
+        &asset.slug,
+        "CHANGELOG.md",
+        &release_query_for(&release),
+    );
+
+    Ok(Json(AssetTreeResponse {
+        release: release_info(&release, &notes_ctx, file_count, total_size),
+        entries,
+        readme,
+        has_access,
+    }))
+}
+
+/// Flatten a release's files into tree nodes: every file, plus a synthesised
+/// directory for each path prefix, sized by what it contains.
+fn build_tree(files: &[AssetFile]) -> Vec<AssetTreeEntry> {
+    use std::collections::BTreeMap;
+
+    let mut dirs: BTreeMap<String, i64> = BTreeMap::new();
+    let mut entries: Vec<AssetTreeEntry> = Vec::with_capacity(files.len());
+
+    for f in files {
+        // Every ancestor directory accumulates this file's size.
+        let segments: Vec<&str> = f.path.split('/').collect();
+        let mut prefix = String::new();
+        for seg in &segments[..segments.len().saturating_sub(1)] {
+            if !prefix.is_empty() {
+                prefix.push('/');
+            }
+            prefix.push_str(seg);
+            *dirs.entry(prefix.clone()).or_insert(0) += f.file_size;
+        }
+
+        entries.push(AssetTreeEntry {
+            id: Some(f.id),
+            path: f.path.clone(),
+            name: segments.last().copied().unwrap_or(f.path.as_str()).to_string(),
+            kind: "file".into(),
+            size: f.file_size,
+            mime_type: f.mime_type.clone(),
+            is_doc: is_public_doc(&f.path),
+        });
+    }
+
+    for (path, size) in dirs {
+        let name = path.rsplit('/').next().unwrap_or(&path).to_string();
+        entries.push(AssetTreeEntry {
+            id: None,
+            path,
+            name,
+            kind: "dir".into(),
+            size,
+            mime_type: "inode/directory".into(),
+            is_doc: false,
+        });
+    }
+
+    // Shallowest first, directories before files, alphabetical within each —
+    // the ordering every file browser uses.
+    entries.sort_by(|a, b| {
+        let depth = |e: &AssetTreeEntry| e.path.matches('/').count();
+        let dirs_first = |e: &AssetTreeEntry| u8::from(e.kind != "dir");
+        depth(a)
+            .cmp(&depth(b))
+            .then_with(|| dirs_first(a).cmp(&dirs_first(b)))
+            .then_with(|| a.name.to_lowercase().cmp(&b.name.to_lowercase()))
+    });
+    entries
+}
+
+/// `GET /api/marketplace/:id/file?path=…` — open one file in the viewer.
+///
+/// Markdown and licence files render for anyone. Everything else needs
+/// ownership, and comes back as `kind: "locked"` when the caller lacks it.
+async fn view_file(
+    State(state): State<AppState>,
+    Path(id): Path<Uuid>,
+    Query(params): Query<FileQuery>,
+    headers: axum::http::HeaderMap,
+    Extension(jwt_secret): Extension<crate::middleware::JwtSecret>,
+) -> Result<Json<AssetFileView>, ApiError> {
+    let asset = Asset::find_by_id(&state.db, id)
+        .await?
+        .ok_or(ApiError::NotFound)?;
+    let release = AssetRelease::resolve(&state.db, id, params.release.as_deref())
+        .await?
+        .ok_or(ApiError::NotFound)?;
+    let file = AssetFile::find_by_path(&state.db, release.id, &params.path)
+        .await?
+        .ok_or(ApiError::NotFound)?;
+
+    let user_id = optional_user(&headers, &jwt_secret);
+    let has_access = has_file_access(&state, &asset, user_id).await?;
+    let name = file
+        .path
+        .rsplit('/')
+        .next()
+        .unwrap_or(&file.path)
+        .to_string();
+
+    let base = AssetFileView {
+        path: file.path.clone(),
+        name,
+        kind: "binary".into(),
+        mime_type: file.mime_type.clone(),
+        size: file.file_size,
+        html: None,
+        content: None,
+        language: language_for(&file.path).map(str::to_string),
+        outline: Vec::new(),
+        download_url: None,
+        truncated: false,
+    };
+
+    // Documentation is public — that's the whole point of shipping a README.
+    if is_public_doc(&file.path) {
+        if let Some(md) = doc_text(&state, &file).await {
+            let ctx = crate::markdown::MdContext::new(
+                id,
+                &asset.slug,
+                &file.path,
+                &release_query_for(&release),
+            );
+            return Ok(Json(AssetFileView {
+                kind: "markdown".into(),
+                outline: to_doc_headings(&md),
+                html: Some(crate::markdown::render(&md, &ctx)),
+                content: Some(md),
+                ..base
+            }));
+        }
+        return Ok(Json(base));
+    }
+
+    if !has_access {
+        return Ok(Json(AssetFileView {
+            kind: "locked".into(),
+            ..base
+        }));
+    }
+
+    if is_text_file(&file.path, &file.mime_type) && (file.file_size as usize) <= MAX_TEXT_VIEW_BYTES
+    {
+        let bytes = file_bytes(&state, &file).await?;
+        let truncated = bytes.len() > MAX_TEXT_VIEW_BYTES;
+        let slice = &bytes[..bytes.len().min(MAX_TEXT_VIEW_BYTES)];
+        if let Ok(text) = String::from_utf8(slice.to_vec()) {
+            return Ok(Json(AssetFileView {
+                kind: "text".into(),
+                content: Some(text),
+                truncated,
+                ..base
+            }));
+        }
+    }
+
+    // An indexed entry has no object of its own to presign, so it is served
+    // through our raw endpoint, which extracts it from the containing archive.
+    let download_url = if file.archived {
+        format!(
+            "/api/marketplace/{}/raw?path={}{}",
+            id,
+            urlencode_component(&file.path),
+            if release.is_current {
+                String::new()
+            } else {
+                format!("&release={}", urlencode_component(&release.version))
+            }
+        )
+    } else {
+        generate_presigned_url(&state, &file.file_key).await?
+    };
+    Ok(Json(AssetFileView {
+        kind: if file.mime_type.starts_with("image/") {
+            "image".into()
+        } else {
+            "binary".into()
+        },
+        download_url: Some(download_url),
+        ..base
+    }))
+}
+
+/// `GET /api/marketplace/:id/raw?path=…` — the file's bytes.
+///
+/// Backs images referenced from a README. Same access rule as the viewer, so
+/// an image inside a paid asset 403s for people who haven't bought it.
+async fn raw_file(
+    State(state): State<AppState>,
+    Path(id): Path<Uuid>,
+    Query(params): Query<FileQuery>,
+    headers: axum::http::HeaderMap,
+    Extension(jwt_secret): Extension<crate::middleware::JwtSecret>,
+) -> Result<axum::response::Response, ApiError> {
+    let asset = Asset::find_by_id(&state.db, id)
+        .await?
+        .ok_or(ApiError::NotFound)?;
+    let release = AssetRelease::resolve(&state.db, id, params.release.as_deref())
+        .await?
+        .ok_or(ApiError::NotFound)?;
+    let file = AssetFile::find_by_path(&state.db, release.id, &params.path)
+        .await?
+        .ok_or(ApiError::NotFound)?;
+
+    if !is_public_doc(&file.path) {
+        let user_id = optional_user(&headers, &jwt_secret);
+        if !has_file_access(&state, &asset, user_id).await? {
+            return Err(ApiError::Unauthorized);
+        }
+    }
+
+    let bytes = file_bytes(&state, &file).await?;
+    // Only images are served as themselves; anything else downloads rather
+    // than rendering, so an uploaded .html can't become a page on our origin.
+    // SVG is included because README logos are usually SVG — the `sandbox`
+    // CSP below puts it in an opaque origin with scripting off, which is what
+    // makes serving user SVG safe.
+    let content_type = if file.mime_type.starts_with("image/") {
+        file.mime_type.clone()
+    } else {
+        "application/octet-stream".to_string()
+    };
+
+    Ok(axum::response::Response::builder()
+        .header("content-type", content_type)
+        // Immutable per release, but access depends on the caller, so this may
+        // only ever be cached privately.
+        .header("cache-control", "private, max-age=3600")
+        .header("x-content-type-options", "nosniff")
+        .header("content-security-policy", "default-src 'none'; sandbox")
+        .body(axum::body::Body::from(bytes))
+        .unwrap())
+}
+
+/// `POST /api/marketplace/:id/releases` — publish a new version (multipart).
+///
+/// The previous release keeps its files, so buyers can still download the
+/// version they were already using.
+async fn create_release(
+    State(state): State<AppState>,
+    Extension(auth): Extension<AuthUser>,
+    Path(id): Path<Uuid>,
+    mut multipart: Multipart,
+) -> Result<Json<ReleaseInfo>, ApiError> {
+    let asset = Asset::find_by_id(&state.db, id)
+        .await?
+        .ok_or(ApiError::NotFound)?;
+    if asset.creator_id != auth.user_id {
+        return Err(ApiError::Unauthorized);
+    }
+
+    let mut meta: Option<CreateReleaseRequest> = None;
+    let mut files: Vec<(String, Vec<u8>)> = Vec::new();
+
+    while let Some(field) = multipart
+        .next_field()
+        .await
+        .map_err(|e| ApiError::Validation(format!("Failed to read multipart field: {e}")))?
+    {
+        match field.name().unwrap_or("") {
+            "metadata" => {
+                let text = field
+                    .text()
+                    .await
+                    .map_err(|e| ApiError::Validation(format!("Failed to read metadata: {e}")))?;
+                meta = Some(
+                    serde_json::from_str(&text)
+                        .map_err(|e| ApiError::Validation(format!("Invalid metadata JSON: {e}")))?,
+                );
+            }
+            "file" => {
+                if files.len() >= 20 {
+                    return Err(ApiError::Validation("Maximum 20 files per release".into()));
+                }
+                let filename = field.file_name().unwrap_or("asset.zip").to_string();
+                let data = field
+                    .bytes()
+                    .await
+                    .map_err(|e| ApiError::Validation(format!("Failed to read file: {e}")))?;
+                if data.len() > 200 * 1024 * 1024 {
+                    return Err(ApiError::Validation("File exceeds 200MB limit".into()));
+                }
+                files.push((filename, data.to_vec()));
+            }
+            _ => {}
+        }
+    }
+
+    let meta = meta.ok_or_else(|| ApiError::Validation("Missing metadata".into()))?;
+    let version = meta.version.trim().to_string();
+    if version.is_empty() || version.len() > 32 {
+        return Err(ApiError::Validation(
+            "Version must be 1-32 characters".into(),
+        ));
+    }
+    if files.is_empty() {
+        return Err(ApiError::Validation(
+            "A release needs at least one file".into(),
+        ));
+    }
+    if AssetRelease::find_by_version(&state.db, id, &version)
+        .await?
+        .is_some()
+    {
+        return Err(ApiError::Validation(format!(
+            "Version '{version}' already exists for this asset"
+        )));
+    }
+
+    // A release has to satisfy the same packaging rules as the original
+    // upload, or an update could break the editor's install for every buyer.
+    if is_plugin_category(&asset.category) {
+        if files.len() != 1 || !files[0].0.to_lowercase().ends_with(".zip") {
+            return Err(ApiError::Validation(
+                "A plugin must be a single .zip of its source".into(),
+            ));
+        }
+        let crate_name = plugin_crate_name(&files[0].1)?;
+        let mut asset_meta = asset.metadata.clone();
+        match asset_meta.as_object_mut() {
+            Some(obj) => {
+                obj.insert("crate_name".into(), crate_name.into());
+            }
+            None => asset_meta = serde_json::json!({ "crate_name": crate_name }),
+        }
+        sqlx::query("UPDATE assets SET metadata = $1 WHERE id = $2")
+            .bind(&asset_meta)
+            .bind(id)
+            .execute(&state.db)
+            .await?;
+    }
+
+    let release = AssetRelease::create_current(&state.db, id, &version, meta.notes.trim()).await?;
+
+    let is_paid = asset.price_credits > 0 && asset.credit_name.is_empty();
+    let stored_action = effective_zip_action(&meta.zip_action, &asset.category);
+    let entries = archive_entries(files, stored_action)?;
+    let stored = store_release_files(&state, id, release.id, is_paid, entries).await?;
+
+    // A CHANGELOG in the archive fills in notes the creator didn't write.
+    let release = match (&stored.changelog, release.notes.trim().is_empty()) {
+        (Some(notes), true) => AssetRelease::update_notes(&state.db, release.id, notes)
+            .await?
+            .unwrap_or(release),
+        _ => release,
+    };
+
+    // The asset's headline version follows its current release.
+    Asset::update_metadata(&state.db, id, None, None, None, Some(&version), None).await?;
+
+    let files = AssetFile::list_release_tree(&state.db, release.id).await?;
+    let ctx = crate::markdown::MdContext::new(
+        id,
+        &asset.slug,
+        "CHANGELOG.md",
+        &release_query_for(&release),
+    );
+    Ok(Json(release_info(
+        &release,
+        &ctx,
+        files.len() as i64,
+        files.iter().map(|f| f.file_size).sum(),
+    )))
+}
+
+/// `PUT /api/marketplace/:id/releases/:release_id` — edit release notes.
+async fn update_release(
+    State(state): State<AppState>,
+    Extension(auth): Extension<AuthUser>,
+    Path((id, release_id)): Path<(Uuid, Uuid)>,
+    Json(body): Json<UpdateReleaseRequest>,
+) -> Result<Json<ReleaseInfo>, ApiError> {
+    let asset = Asset::find_by_id(&state.db, id)
+        .await?
+        .ok_or(ApiError::NotFound)?;
+    if asset.creator_id != auth.user_id {
+        return Err(ApiError::Unauthorized);
+    }
+    let release = AssetRelease::find_by_id(&state.db, release_id)
+        .await?
+        .filter(|r| r.asset_id == id)
+        .ok_or(ApiError::NotFound)?;
+
+    let release = match body.notes {
+        Some(notes) => AssetRelease::update_notes(&state.db, release.id, notes.trim())
+            .await?
+            .unwrap_or(release),
+        None => release,
+    };
+
+    let files = AssetFile::list_release_tree(&state.db, release.id).await?;
+    let ctx = crate::markdown::MdContext::new(
+        id,
+        &asset.slug,
+        "CHANGELOG.md",
+        &release_query_for(&release),
+    );
+    Ok(Json(release_info(
+        &release,
+        &ctx,
+        files.len() as i64,
+        files.iter().map(|f| f.file_size).sum(),
+    )))
+}
+
+/// `DELETE /api/marketplace/:id/releases/:release_id` — remove an old release.
+///
+/// The current release can't be deleted; publish a newer one first. That keeps
+/// every asset that has files having something to download.
+async fn delete_release(
+    State(state): State<AppState>,
+    Extension(auth): Extension<AuthUser>,
+    Path((id, release_id)): Path<(Uuid, Uuid)>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    let asset = Asset::find_by_id(&state.db, id)
+        .await?
+        .ok_or(ApiError::NotFound)?;
+    if asset.creator_id != auth.user_id {
+        return Err(ApiError::Unauthorized);
+    }
+    let release = AssetRelease::find_by_id(&state.db, release_id)
+        .await?
+        .filter(|r| r.asset_id == id)
+        .ok_or(ApiError::NotFound)?;
+
+    if release.is_current {
+        return Err(ApiError::Validation(
+            "Can't delete the current release. Publish a newer version first.".into(),
+        ));
+    }
+
+    let files = AssetFile::delete_by_release(&state.db, release.id).await?;
+    for f in &files {
+        delete_from_storage_by_key(&state, &f.file_key).await;
+        if let Some(pk) = &f.preview_key {
+            let _ = delete_from_storage(&state, pk).await;
+        }
+    }
+    AssetRelease::delete(&state.db, release.id).await?;
+
+    Ok(Json(serde_json::json!({ "deleted": true })))
 }
 
 #[cfg(test)]
@@ -2350,5 +3372,244 @@ mod plugin_source_tests {
         assert!(is_plugin_category("plugin"));
         assert!(!is_plugin_category("scripts"));
         assert!(!is_plugin_category("materials"));
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn file(path: &str, size: i64) -> AssetFile {
+        AssetFile {
+            id: Uuid::new_v4(),
+            asset_id: Uuid::nil(),
+            release_id: None,
+            file_key: "private/assets/x/y".into(),
+            preview_key: None,
+            original_filename: path.rsplit('/').next().unwrap_or(path).into(),
+            path: path.into(),
+            file_size: size,
+            mime_type: mime_from_extension(path),
+            sort_order: 0,
+            archived: false,
+            text_content: None,
+            created_at: time::OffsetDateTime::UNIX_EPOCH,
+        }
+    }
+
+    // ── Archive paths ──────────────────────────────────────────────────────
+
+    #[test]
+    fn archive_paths_keep_their_directories() {
+        assert_eq!(
+            sanitize_archive_path("docs/guide/install.md").as_deref(),
+            Some("docs/guide/install.md")
+        );
+    }
+
+    #[test]
+    fn windows_separators_are_normalised() {
+        assert_eq!(
+            sanitize_archive_path(r"src\plugin\main.lua").as_deref(),
+            Some("src/plugin/main.lua")
+        );
+    }
+
+    #[test]
+    fn traversal_and_absolute_paths_are_rejected() {
+        for bad in [
+            "../../etc/passwd",
+            "a/../../b",
+            "/etc/passwd",
+            "//server/share/x",
+            "C:/Windows/system32/evil.dll",
+            r"..\..\secrets.txt",
+        ] {
+            assert!(
+                sanitize_archive_path(bad).is_none(),
+                "accepted a bad path: {bad}"
+            );
+        }
+    }
+
+    #[test]
+    fn dotfiles_and_dot_directories_are_skipped() {
+        assert!(sanitize_archive_path(".env").is_none());
+        assert!(sanitize_archive_path(".git/config").is_none());
+        assert!(sanitize_archive_path("src/.hidden/key.pem").is_none());
+    }
+
+    #[test]
+    fn redundant_segments_collapse() {
+        assert_eq!(
+            sanitize_archive_path("./docs//install.md").as_deref(),
+            Some("docs/install.md")
+        );
+    }
+
+    #[test]
+    fn a_single_wrapping_folder_is_stripped() {
+        let mut files = vec![
+            ("my-plugin-1.0/README.md".to_string(), vec![]),
+            ("my-plugin-1.0/src/main.lua".to_string(), vec![]),
+        ];
+        strip_common_root(&mut files);
+        assert_eq!(files[0].0, "README.md");
+        assert_eq!(files[1].0, "src/main.lua");
+    }
+
+    #[test]
+    fn differing_roots_are_left_alone() {
+        let mut files = vec![
+            ("src/main.lua".to_string(), vec![]),
+            ("docs/install.md".to_string(), vec![]),
+        ];
+        strip_common_root(&mut files);
+        assert_eq!(files[0].0, "src/main.lua");
+        assert_eq!(files[1].0, "docs/install.md");
+    }
+
+    #[test]
+    fn a_root_level_file_stops_the_strip() {
+        let mut files = vec![
+            ("README.md".to_string(), vec![]),
+            ("my-plugin/src/main.lua".to_string(), vec![]),
+        ];
+        strip_common_root(&mut files);
+        assert_eq!(files[1].0, "my-plugin/src/main.lua");
+    }
+
+    // ── What's public ──────────────────────────────────────────────────────
+
+    #[test]
+    fn markdown_and_licences_are_public_docs() {
+        for p in [
+            "README.md",
+            "docs/install.markdown",
+            "LICENSE",
+            "LICENCE.txt",
+            "COPYING",
+        ] {
+            assert!(is_public_doc(p), "should be public: {p}");
+        }
+    }
+
+    #[test]
+    fn source_and_binaries_are_not_public_docs() {
+        for p in [
+            "src/main.lua",
+            "plugin.wasm",
+            "textures/diffuse.png",
+            "notes.txt",
+        ] {
+            assert!(!is_public_doc(p), "should not be public: {p}");
+        }
+    }
+
+    #[test]
+    fn the_shallowest_readme_wins() {
+        assert_eq!(readme_rank("README.md"), Some(0));
+        assert_eq!(readme_rank("vendor/dep/README.md"), Some(2));
+        assert_eq!(readme_rank("src/main.lua"), None);
+    }
+
+    // ── Tree building ──────────────────────────────────────────────────────
+
+    #[test]
+    fn directories_are_synthesised_from_paths() {
+        let files = vec![
+            file("README.md", 100),
+            file("docs/install.md", 200),
+            file("docs/api/events.md", 300),
+        ];
+        let tree = build_tree(&files);
+
+        let dir = |p: &str| {
+            tree.iter()
+                .find(|e| e.path == p && e.kind == "dir")
+                .unwrap_or_else(|| panic!("no dir {p} in {tree:?}"))
+                .size
+        };
+        // A directory's size is everything beneath it, at any depth.
+        assert_eq!(dir("docs"), 500);
+        assert_eq!(dir("docs/api"), 300);
+    }
+
+    #[test]
+    fn tree_lists_directories_before_files_at_each_depth() {
+        let files = vec![file("a.txt", 1), file("zz/b.txt", 1), file("m.txt", 1)];
+        let tree = build_tree(&files);
+        let top: Vec<&str> = tree
+            .iter()
+            .filter(|e| !e.path.contains('/'))
+            .map(|e| e.name.as_str())
+            .collect();
+        assert_eq!(top, vec!["zz", "a.txt", "m.txt"]);
+    }
+
+    #[test]
+    fn tree_marks_which_entries_are_readable_without_owning() {
+        let files = vec![file("README.md", 10), file("src/main.lua", 20)];
+        let tree = build_tree(&files);
+        let doc = |p: &str| tree.iter().find(|e| e.path == p).unwrap().is_doc;
+        assert!(doc("README.md"));
+        assert!(!doc("src/main.lua"));
+    }
+
+    #[test]
+    fn a_flat_upload_still_produces_a_tree() {
+        let files = vec![file("model.glb", 42)];
+        let tree = build_tree(&files);
+        assert_eq!(tree.len(), 1);
+        assert_eq!(tree[0].kind, "file");
+        assert_eq!(tree[0].name, "model.glb");
+    }
+
+    // ── Upload handling ────────────────────────────────────────────────────
+
+    #[test]
+    fn loose_uploads_are_flattened_to_the_root() {
+        let entries = archive_entries(
+            vec![
+                (r"C:\Users\me\main.lua".to_string(), vec![1]),
+                ("plugin.toml".to_string(), vec![2]),
+            ],
+            "keep",
+        )
+        .unwrap();
+        let names: Vec<&str> = entries.iter().map(|(p, _)| p.as_str()).collect();
+        assert_eq!(names, vec!["main.lua", "plugin.toml"]);
+    }
+
+    #[test]
+    fn changelog_and_readme_are_recognised() {
+        assert!(is_changelog("CHANGELOG.md"));
+        assert!(is_changelog("changes.md"));
+        assert!(!is_changelog("docs/changelog-format.md"));
+    }
+
+    #[test]
+    fn known_extensions_get_a_highlight_language() {
+        assert_eq!(language_for("src/main.lua"), Some("lua"));
+        assert_eq!(language_for("build.rs"), Some("rust"));
+        assert_eq!(language_for("shader.wgsl"), Some("glsl"));
+        assert_eq!(language_for("Dockerfile"), Some("dockerfile"));
+        assert_eq!(language_for("model.glb"), None);
+    }
+
+    #[test]
+    fn only_non_current_releases_pin_a_release_query() {
+        let mut r = AssetRelease {
+            id: Uuid::nil(),
+            asset_id: Uuid::nil(),
+            version: "1.2.0".into(),
+            notes: String::new(),
+            is_current: true,
+            downloads: 0,
+            created_at: time::OffsetDateTime::UNIX_EPOCH,
+        };
+        assert_eq!(release_query_for(&r), "");
+        r.is_current = false;
+        assert_eq!(release_query_for(&r), "?release=1.2.0");
     }
 }

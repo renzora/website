@@ -10,6 +10,8 @@ use crate::pages::{
     admin::AdminPage,
     asset_detail::AssetDetailPage,
     asset_edit::AssetEditPage,
+    asset_files::AssetFilesPage,
+    asset_release::AssetReleasePage,
     dashboard::DashboardPage,
     developers::DevelopersPage,
     docs::{DocsPage, DocArticle},
@@ -62,6 +64,9 @@ pub fn App() -> impl IntoView {
                     <Route path=path!("/marketplace/sell") view=SellOnboardingPage />
                     <Route path=path!("/marketplace/upload") view=UploadPage />
                     <Route path=path!("/marketplace/asset/:slug/edit") view=AssetEditPage />
+                    <Route path=path!("/marketplace/asset/:slug/releases/new") view=AssetReleasePage />
+                    <Route path=path!("/marketplace/asset/:slug/files") view=AssetFilesPage />
+                    <Route path=path!("/marketplace/asset/:slug/files/*path") view=AssetFilesPage />
                     <Route path=path!("/marketplace/asset/:slug") view=AssetDetailPage />
                     <Route path=path!("/library") view=LibraryPage />
                     <Route path=path!("/wallet") view=WalletPage />

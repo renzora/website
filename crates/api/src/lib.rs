@@ -10,6 +10,7 @@ pub mod docs;
 pub mod error;
 pub mod gameservices;
 pub mod jwt;
+pub mod markdown;
 pub mod marketplace;
 pub mod preview;
 pub mod middleware;

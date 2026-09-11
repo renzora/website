@@ -128,6 +128,121 @@ pub struct AssetFileInfo {
     pub download_url: Option<String>,
 }
 
+// ── Releases, file tree and README/docs ──
+
+/// One published version of an asset.
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct ReleaseInfo {
+    pub id: Uuid,
+    pub version: String,
+    /// Release notes as the creator wrote them (markdown).
+    pub notes: String,
+    /// The same notes rendered to sanitised HTML.
+    pub notes_html: String,
+    pub is_current: bool,
+    pub downloads: i64,
+    pub file_count: i64,
+    pub total_size: i64,
+    pub created_at: String,
+}
+
+/// A node in an asset's file tree. Directories are synthesised from the file
+/// paths, so they have no id and their size is the sum of their contents.
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct AssetTreeEntry {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub id: Option<Uuid>,
+    /// Full path inside the archive, e.g. `docs/install.md`.
+    pub path: String,
+    /// Last path segment, e.g. `install.md`.
+    pub name: String,
+    /// `"file"` or `"dir"`.
+    pub kind: String,
+    pub size: i64,
+    pub mime_type: String,
+    /// Readable without owning the asset — markdown docs and licence files.
+    pub is_doc: bool,
+}
+
+/// A heading in a rendered markdown document, for the "on this page" nav.
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct DocHeading {
+    pub level: u8,
+    pub text: String,
+    pub anchor: String,
+}
+
+/// A rendered markdown document from an asset's archive.
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct RenderedDoc {
+    pub path: String,
+    pub html: String,
+    pub outline: Vec<DocHeading>,
+}
+
+/// The whole file tree of one release, plus its README — everything the asset
+/// page needs to draw the repo view in a single request.
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct AssetTreeResponse {
+    pub release: ReleaseInfo,
+    pub entries: Vec<AssetTreeEntry>,
+    /// The README nearest the archive root, already rendered.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub readme: Option<RenderedDoc>,
+    /// Whether the caller may read file *contents*. The tree itself is public.
+    pub has_access: bool,
+}
+
+/// One file, opened in the browser's viewer.
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct AssetFileView {
+    pub path: String,
+    pub name: String,
+    /// `markdown` | `text` | `image` | `binary` | `locked`
+    pub kind: String,
+    pub mime_type: String,
+    pub size: i64,
+    /// Rendered HTML, for `markdown`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub html: Option<String>,
+    /// Source text, for `text`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub content: Option<String>,
+    /// highlight.js language hint, derived from the extension.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub language: Option<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub outline: Vec<DocHeading>,
+    /// Presigned URL, for `binary`/`image` when the caller has access.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub download_url: Option<String>,
+    /// Set when a large text file was cut short.
+    pub truncated: bool,
+}
+
+/// Create a release. Sent as multipart alongside the files, so this is the
+/// JSON `metadata` part rather than the whole body.
+#[derive(Debug, Serialize, Deserialize)]
+pub struct CreateReleaseRequest {
+    pub version: String,
+    #[serde(default)]
+    pub notes: String,
+    /// `"keep"` (store the zip as-is) or `"extract"` (unpack into a tree).
+    #[serde(default = "default_release_zip_action")]
+    pub zip_action: String,
+}
+
+/// Releases default to unpacking the archive, because the file tree and the
+/// README docs only exist once it has been extracted.
+fn default_release_zip_action() -> String {
+    "extract".to_string()
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct UpdateReleaseRequest {
+    pub notes: Option<String>,
+}
+
 #[derive(Debug, Deserialize)]
 pub struct MarketplaceQuery {
     pub q: Option<String>,

@@ -90,6 +90,8 @@ If your category doesn't need any of these, the step shows "No additional detail
 
 > The upload endpoint enforces a hard **200 MB per file** cap, even though some categories advertise a larger recommended size in the table below. For anything bigger, split it across multiple files or trim the package.
 
+**A `.zip` becomes a browsable file tree.** Whether it's unpacked into separate files or kept whole — a plugin's zip is always kept whole, because the editor builds from those exact bytes — its contents are indexed, so buyers can browse the structure and a `README.md` inside it renders as the asset's documentation. See [Releases & Documentation](./releases) for what that gets you, and for which files stay readable without a purchase.
+
 ## Categories
 
 Categories are defined server-side. The current set (with the recommended max size and the file types each accepts):
@@ -141,13 +143,24 @@ Open your asset and choose **Edit** (the `/marketplace/asset/<slug>/edit` route 
 
 - Change the **name, description, version, and price**.
 - Replace the **thumbnail**.
-- Replace the **asset files** — upload several files, or a single `.zip` with a choice to **keep it as a zip** or **extract its contents**. Replacing files swaps out *all* current files. Max 200 MB each.
+- Replace the **asset files** of the *current version* — upload several files, or a single `.zip` with a choice to **keep it as a zip** or **extract its contents**. This swaps out the current release's files in place. Max 200 MB each.
+- Manage **releases** — edit the notes on any version, or delete an old one.
 - Add or remove **gallery media** (screenshots and video URLs).
 - Toggle **Published** on or off — unpublishing hides the asset from the marketplace without deleting it.
 
 > **Category can't be changed** after creation — it's locked in the edit form.
 
-> There is **no version history and no per-version changelog**. An asset carries a single version string and an *Updated* date; uploading new files overwrites the existing download. (This corrects older docs that promised preserved version history.)
+### Editing vs. publishing a release
+
+These are two different actions and it's worth keeping them straight:
+
+| | **Edit** | **New Release** |
+|---|---|---|
+| What it changes | The current version, in place | Adds a new version |
+| Old files | Replaced | Kept and still downloadable |
+| Version number | Unchanged (unless you edit the field) | Set by you |
+
+Use **Edit** to fix a description, a price or a botched upload. Use **New Release** to ship an actual new version — see [Releases & Documentation](./releases).
 
 ## Tracking performance
 
@@ -163,10 +176,12 @@ Your [Dashboard](/dashboard) is where you manage published content. The header s
 - **Use a clean cover image** — 16:9 at 1280×720, showing the asset in a real scene rather than a gray void.
 - **Add screenshots** — up to 10; they populate the gallery on your asset page.
 - **Write an accurate description** — say exactly what's included, the formats, and any dependencies. It's plain text, so keep it scannable.
+- **Ship a README.md in your archive** — it's rendered as your asset's documentation and is readable before anyone buys. For a plugin, this is the single highest-value thing you can add to the package.
 - **Test in a fresh project** before uploading so nothing is missing from the package.
 - **Credit your sources** — if you redistribute someone else's work, attribute them (and remember it publishes free).
 
 ## Related
 
+- [Releases & Documentation](./releases) — the file tree, README-as-docs, and shipping new versions.
 - [Browsing & Installing](./browsing) — how buyers find and install your asset.
 - [Credits System](./credits) — pricing, payouts, promo codes, and refunds.

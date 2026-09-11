@@ -2803,6 +2803,7 @@ dependencies = [
  "hmac",
  "image",
  "jsonwebtoken",
+ "pulldown-cmark",
  "rand 0.8.5",
  "redis",
  "renzora-common",

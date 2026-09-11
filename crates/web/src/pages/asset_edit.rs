@@ -159,7 +159,7 @@ pub fn AssetEditPage() -> impl IntoView {
                             <input type="file" id="edit-file" multiple
                                 onchange="onEditFileChange(this)"
                                 class="w-full text-sm text-zinc-400 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-sm file:font-medium file:bg-white/[0.05] file:text-zinc-300 hover:file:bg-white/[0.08] file:cursor-pointer file:transition-colors" />
-                            <p class="text-xs text-zinc-600 mt-1">Upload new file(s) to replace all current files. Max 200MB each. You can select multiple files or a single .zip.</p>
+                            <p class="text-xs text-zinc-600 mt-1">Replaces the files of the <span class="text-zinc-500">current release (v${a.version})</span> in place. Max 200MB each; upload a .zip to publish a folder tree. To ship a <em>new version</em> and keep this one downloadable, <a href="/marketplace/asset/${a.slug}/releases/new" class="text-accent hover:underline">publish a release</a> instead.</p>
 
                             <div id="edit-zip-options" class="hidden mt-3 p-3 bg-white/[0.02] rounded-xl border border-zinc-800/50">
                                 <p class="text-xs text-zinc-400 mb-2">This is a .zip file. How should it be stored?</p>
@@ -176,6 +176,22 @@ pub fn AssetEditPage() -> impl IntoView {
                             </div>
 
                             <div id="edit-file-list" class="mt-2 space-y-1"></div>
+                        </div>
+                    </div>
+
+                    <!-- Releases -->
+                    <div class="p-6 bg-white/[0.02] border border-zinc-800/50 rounded-2xl space-y-5 mb-8">
+                        <div class="flex items-center justify-between">
+                            <h2 class="text-base font-semibold flex items-center gap-2">
+                                <i class="ph ph-tag text-green-400"></i> Releases
+                            </h2>
+                            <a href="/marketplace/asset/${a.slug}/releases/new" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-accent/10 border border-accent/30 text-accent hover:bg-accent/15 transition-colors">
+                                <i class="ph ph-rocket-launch"></i> New release
+                            </a>
+                        </div>
+                        <p class="text-xs text-zinc-600">Every version keeps its own files, so buyers can still download the one they were using.</p>
+                        <div id="releases-list" class="border border-zinc-800/50 rounded-xl overflow-hidden bg-white/[0.01]">
+                            <p class="text-xs text-zinc-600 px-4 py-3">Loading…</p>
                         </div>
                     </div>
 
@@ -224,7 +240,77 @@ pub fn AssetEditPage() -> impl IntoView {
                 `;
 
                 updateEditPricePreview();
+                loadReleasesList();
             })();
+
+            // ── Releases ──────────────────────────────────────────────────
+
+            function relEsc(s) {
+                return String(s ?? '').replace(/[&<>"']/g, c =>
+                    ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+            }
+
+            async function loadReleasesList() {
+                const el = document.getElementById('releases-list');
+                if (!el || !assetId) return;
+
+                const res = await fetch('/api/marketplace/' + assetId + '/releases');
+                if (!res.ok) { el.innerHTML = '<p class="text-xs text-zinc-600 px-4 py-3">Could not load releases.</p>'; return; }
+                const releases = await res.json();
+                if (!releases.length) {
+                    el.innerHTML = '<p class="text-xs text-zinc-600 px-4 py-3">No releases yet.</p>';
+                    return;
+                }
+
+                el.innerHTML = releases.map(r => `
+                    <div class="px-4 py-3 border-b border-zinc-800/50 last:border-0" data-release="${r.id}">
+                        <div class="flex items-center gap-2.5">
+                            <span class="text-sm font-medium text-zinc-200">v${relEsc(r.version)}</span>
+                            ${r.is_current ? '<span class="px-1.5 py-0.5 rounded bg-green-500/10 border border-green-500/20 text-[10px] text-green-400">current</span>' : ''}
+                            <span class="text-xs text-zinc-600">${r.file_count} files · ${formatFileSize(r.total_size)} · ${r.downloads} downloads</span>
+                            <span class="flex-1"></span>
+                            <button onclick="toggleReleaseNotes('${r.id}')" class="text-xs text-zinc-500 hover:text-accent transition-colors">Notes</button>
+                            ${r.is_current
+                                ? '<span class="text-xs text-zinc-700" title="Publish a newer version before removing this one">Delete</span>'
+                                : `<button onclick="deleteRelease('${r.id}','${relEsc(r.version)}')" class="text-xs text-red-500/80 hover:text-red-400 transition-colors">Delete</button>`}
+                        </div>
+                        <div id="notes-${r.id}" class="hidden mt-3">
+                            <textarea id="notes-input-${r.id}" rows="4" placeholder="Release notes (markdown)"
+                                class="w-full px-3 py-2 bg-white/[0.02] border border-zinc-800/50 rounded-lg text-zinc-50 text-xs outline-none focus:border-accent/50 resize-y font-mono">${relEsc(r.notes)}</textarea>
+                            <button onclick="saveReleaseNotes('${r.id}')" class="mt-2 px-3 py-1.5 rounded-lg text-xs font-medium bg-white/[0.05] text-zinc-300 hover:bg-white/[0.08] transition-colors">Save notes</button>
+                        </div>
+                    </div>`).join('');
+            }
+
+            function toggleReleaseNotes(id) {
+                document.getElementById('notes-' + id)?.classList.toggle('hidden');
+            }
+
+            async function saveReleaseNotes(id) {
+                const token = document.cookie.match('(^|;)\s*token\s*=\s*([^;]+)')?.pop();
+                const notes = document.getElementById('notes-input-' + id)?.value ?? '';
+                const res = await fetch('/api/marketplace/' + assetId + '/releases/' + id, {
+                    method: 'PUT',
+                    headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ notes })
+                });
+                if (res.ok) { showSuccess('Release notes saved.'); loadReleasesList(); }
+                else { showError('Could not save the release notes.'); }
+            }
+
+            async function deleteRelease(id, version) {
+                if (!confirm('Delete v' + version + '? Its files are removed for good, including for people who downloaded it.')) return;
+                const token = document.cookie.match('(^|;)\s*token\s*=\s*([^;]+)')?.pop();
+                const res = await fetch('/api/marketplace/' + assetId + '/releases/' + id, {
+                    method: 'DELETE',
+                    headers: { 'Authorization': 'Bearer ' + token }
+                });
+                if (res.ok) { loadReleasesList(); }
+                else {
+                    const d = await res.json().catch(() => ({}));
+                    showError(d.error || 'Could not delete that release.');
+                }
+            }
 
             function updateEditPricePreview() {
                 const price = parseInt(document.getElementById('edit-price')?.value) || 0;

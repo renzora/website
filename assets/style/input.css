@@ -80,3 +80,20 @@ html, body, * {
 .ql-snow .ql-picker-item { color: #a1a1aa !important; }
 .ql-snow .ql-picker-item:hover { color: #fafafa !important; }
 .ql-editor pre.ql-syntax { background: #0a0a0b; color: #e4e4e7; border-radius: 6px; padding: 0.75rem; }
+
+/* Doc body — tables, rules and task lists (marketplace READMEs use all three) */
+.doc-body table { width: 100%; border-collapse: collapse; margin-bottom: 1.25rem; font-size: 0.8125rem; display: block; overflow-x: auto; }
+.doc-body th, .doc-body td { border: 1px solid #27272a; padding: 0.5rem 0.75rem; text-align: left; }
+.doc-body th { background: #18181b; color: #fafafa; font-weight: 600; }
+.doc-body td { color: #a1a1aa; }
+.doc-body hr { border: 0; border-top: 1px solid #27272a; margin: 2rem 0; }
+.doc-body h4 { font-size: 1rem; font-weight: 600; margin-top: 1.25rem; margin-bottom: 0.5rem; }
+.doc-body ul.contains-task-list { list-style: none; padding-left: 0.25rem; }
+.doc-body input[type="checkbox"] { margin-right: 0.5rem; accent-color: #a855f7; }
+.doc-body h1:first-child, .doc-body h2:first-child { margin-top: 0; }
+
+/* Marketplace file browser — source view */
+.code-view { background: #18181b; border: 1px solid #27272a; border-radius: 12px; overflow: hidden; }
+.code-view pre { margin: 0; padding: 1rem 1rem 1rem 0; overflow-x: auto; }
+.code-view code { font-family: 'Cascadia Code', 'Fira Code', monospace; font-size: 0.8125rem; line-height: 1.6; }
+.code-view .ln { display: inline-block; width: 3.5rem; padding-right: 1rem; text-align: right; color: #52525b; user-select: none; }

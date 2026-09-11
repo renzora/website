@@ -75,6 +75,7 @@
           "pages": [
             { "slug": "marketplace/browsing", "title": "Browsing & Installing" },
             { "slug": "marketplace/publishing", "title": "Publishing Assets" },
+            { "slug": "marketplace/releases", "title": "Releases & Documentation" },
             { "slug": "marketplace/credits", "title": "Credits System" }
           ]
         }
