@@ -2553,18 +2553,16 @@ async fn index_archive_contents(
             None
         };
 
-        if let Err(e) = AssetFile::insert(
+        if let Err(e) = AssetFile::insert_indexed(
             &state.db,
             asset_id,
-            Some(release_id),
+            release_id,
             container_key,
-            None,
             filename,
             path,
             bytes.len() as i64,
             &mime_from_extension(filename),
             i as i32,
-            true,
             text.as_deref(),
         )
         .await
@@ -2572,6 +2570,82 @@ async fn index_archive_contents(
             tracing::warn!("could not index {path} for asset {asset_id}: {e}");
         }
     }
+}
+
+/// Largest archive we'll pull back out of storage just to index it on a read.
+///
+/// Indexing happens once per release and is then cached, but this runs on a
+/// public endpoint, so an unbounded fetch is not something to leave open.
+const MAX_LAZY_INDEX_BYTES: i64 = 64 * 1024 * 1024;
+
+/// Index a release's archive if that hasn't happened yet.
+///
+/// Assets uploaded before the file browser existed have their zip in storage
+/// and nothing indexed — migration 053 could give them a release and a path,
+/// but not reach into object storage to read the archive. So the first person
+/// to open the file browser triggers it, and everyone after that gets the
+/// cached tree. Returns whether anything was indexed.
+///
+/// Best effort throughout: an archive we can't fetch or read just keeps
+/// showing as a single zip, which is what it did before.
+async fn ensure_release_indexed(
+    state: &AppState,
+    asset_id: Uuid,
+    release_id: Uuid,
+    deliverables: &[AssetFile],
+) -> bool {
+    // Only archives are worth indexing, and only once.
+    let Some(zip) = deliverables.iter().find(|f| {
+        f.mime_type == "application/zip" || f.path.to_ascii_lowercase().ends_with(".zip")
+    }) else {
+        return false;
+    };
+    if zip.file_size > MAX_LAZY_INDEX_BYTES {
+        tracing::debug!(
+            "not indexing {} for asset {asset_id}: {} bytes is over the lazy-index limit",
+            zip.path,
+            zip.file_size
+        );
+        return false;
+    }
+    match AssetFile::has_indexed(&state.db, release_id).await {
+        Ok(true) => return false,
+        Ok(false) => {}
+        Err(e) => {
+            tracing::warn!("could not check the index for release {release_id}: {e}");
+            return false;
+        }
+    }
+
+    let bytes = match fetch_file_from_storage(state, &zip.file_key).await {
+        Ok(b) => b,
+        Err(e) => {
+            tracing::warn!("could not fetch {} to index it: {e}", zip.file_key);
+            return false;
+        }
+    };
+    index_archive_contents(state, asset_id, release_id, &zip.file_key, &bytes).await;
+    true
+}
+
+/// Find a browsable file, indexing the release's archive first if a deep link
+/// arrives before anyone has opened the file browser.
+async fn find_browsable_file(
+    state: &AppState,
+    asset_id: Uuid,
+    release_id: Uuid,
+    path: &str,
+) -> Result<AssetFile, ApiError> {
+    if let Some(f) = AssetFile::find_by_path(&state.db, release_id, path).await? {
+        return Ok(f);
+    }
+    let deliverables = AssetFile::list_by_release(&state.db, release_id).await?;
+    if ensure_release_indexed(state, asset_id, release_id, &deliverables).await {
+        if let Some(f) = AssetFile::find_by_path(&state.db, release_id, path).await? {
+            return Ok(f);
+        }
+    }
+    Err(ApiError::NotFound)
 }
 
 /// Pull one entry's bytes out of the archive an indexed row lives in.
@@ -2802,7 +2876,12 @@ async fn asset_tree(
     let user_id = optional_user(&headers, &jwt_secret);
     let has_access = has_file_access(&state, &asset, user_id).await?;
 
-    let files = AssetFile::list_release_tree(&state.db, release.id).await?;
+    let mut files = AssetFile::list_release_tree(&state.db, release.id).await?;
+    // An asset uploaded before the file browser existed has only its zip; index
+    // it now so this view, and every later one, shows the real tree.
+    if ensure_release_indexed(&state, id, release.id, &files).await {
+        files = AssetFile::list_release_tree(&state.db, release.id).await?;
+    }
     let entries = build_tree(&files);
 
     // The README nearest the root becomes the asset's front page.
@@ -2920,9 +2999,7 @@ async fn view_file(
     let release = AssetRelease::resolve(&state.db, id, params.release.as_deref())
         .await?
         .ok_or(ApiError::NotFound)?;
-    let file = AssetFile::find_by_path(&state.db, release.id, &params.path)
-        .await?
-        .ok_or(ApiError::NotFound)?;
+    let file = find_browsable_file(&state, id, release.id, &params.path).await?;
 
     let user_id = optional_user(&headers, &jwt_secret);
     let has_access = has_file_access(&state, &asset, user_id).await?;
@@ -3033,9 +3110,7 @@ async fn raw_file(
     let release = AssetRelease::resolve(&state.db, id, params.release.as_deref())
         .await?
         .ok_or(ApiError::NotFound)?;
-    let file = AssetFile::find_by_path(&state.db, release.id, &params.path)
-        .await?
-        .ok_or(ApiError::NotFound)?;
+    let file = find_browsable_file(&state, id, release.id, &params.path).await?;
 
     if !is_public_doc(&file.path) {
         let user_id = optional_user(&headers, &jwt_secret);

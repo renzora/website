@@ -37,6 +37,8 @@ A few things happen automatically:
 
 Either way you get the file tree and the rendered docs. A kept archive has its contents *indexed* rather than unpacked: browsing reads entries back out of the stored zip, and the download is still the original archive, byte for byte.
 
+Assets uploaded before the file browser existed are indexed the first time someone opens their files, so an older plugin gets its tree and its README without you having to re-upload anything.
+
 ## What's public, and what isn't
 
 This is the rule worth understanding before you package a paid asset:
