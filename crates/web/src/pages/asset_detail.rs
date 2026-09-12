@@ -85,6 +85,9 @@ pub fn AssetDetailPage() -> impl IntoView {
                 })}
             </div>
         </section>
+        // Loaded ahead of the page script, which mounts the chart as soon as the
+        // asset detail has rendered.
+        <script src="/assets/js/stats-chart.js"></script>
         <script>
             r##"
             function parseDate(s) {
@@ -330,6 +333,10 @@ pub fn AssetDetailPage() -> impl IntoView {
                                 <span><i class="ph ph-download-simple"></i> ${a.downloads.toLocaleString()} downloads</span>
                             </div>
 
+                            <!-- Activity over time. Mounted after this HTML lands
+                                 in the DOM, below, since the chart needs the node. -->
+                            <div id="asset-activity" class="relative mt-6 p-4 rounded-xl bg-white/[0.015] border border-zinc-800/40"></div>
+
                             <!-- Files, README and releases (filled in after render) -->
                             <div id="asset-tree-section"></div>
                             <div id="asset-readme-section"></div>
@@ -475,6 +482,14 @@ pub fn AssetDetailPage() -> impl IntoView {
                 // Repository view: file tree, rendered README, release history
                 loadAssetTree(a);
                 loadAssetReleases(a, isCreator);
+
+                // Activity over time. Public, like the totals above it: the same
+                // numbers, told as a history instead of as two running counts.
+                window.renzoraStatsChart?.mount({
+                    el: document.getElementById('asset-activity'),
+                    title: 'Activity',
+                    endpoint: (range) => '/api/marketplace/' + a.id + '/stats?range=' + range,
+                });
             })();
 
 

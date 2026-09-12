@@ -398,11 +398,18 @@ impl Asset {
         Ok((assets, total))
     }
 
+    /// Count one download: the running total on the asset, and today's bucket in
+    /// the daily rollup the marketplace graphs read.
+    ///
+    /// The two are written together here rather than at the call sites, because
+    /// a handler that remembered one and forgot the other would leave a graph
+    /// that quietly disagrees with the number printed above it.
     pub async fn increment_downloads(pool: &PgPool, id: Uuid) -> Result<(), sqlx::Error> {
         sqlx::query("UPDATE assets SET downloads = downloads + 1 WHERE id = $1")
             .bind(id)
             .execute(pool)
             .await?;
+        crate::asset_stats::bump_download(pool, id).await?;
         Ok(())
     }
 
@@ -430,6 +437,9 @@ impl Asset {
                 .bind(id)
                 .execute(pool)
                 .await?;
+            // Only on the counted view, never on one the cooldown swallowed, so
+            // the series sums to the total beside it.
+            crate::asset_stats::bump_view(pool, id).await?;
             Ok(true)
         } else {
             Ok(false)

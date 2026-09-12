@@ -78,6 +78,11 @@ pub fn DashboardPage() -> impl IntoView {
                 // ── Content ──
                 <div id="dashboard-content" class="hidden">
 
+                    // ── Performance: views + downloads over time, across every asset ──
+                    // Above the tabs because it describes all of them; the tabs
+                    // below narrow to one list at a time.
+                    <div id="perf-card" class="relative mb-5 p-4 rounded-xl bg-white/[0.015] border border-zinc-800/40"></div>
+
                     // Toolbar: tabs + view toggle
                     <div class="flex items-center justify-between mb-4">
                         <div class="flex items-center gap-1 p-1 bg-white/[0.02] rounded-lg border border-zinc-800/40">
@@ -131,6 +136,10 @@ pub fn DashboardPage() -> impl IntoView {
                 </div>
             </div>
         </section>
+
+        // Not `defer`: the init script below runs on parse and calls `mount`, so
+        // the chart has to be defined by then. It is small and has no imports.
+        <script src="/assets/js/stats-chart.js"></script>
 
         <script>
             r#"
@@ -406,6 +415,17 @@ pub fn DashboardPage() -> impl IntoView {
                 if (!token) { window.location.href = '/login'; return; }
 
                 const headers = { 'Authorization': 'Bearer ' + token };
+
+                // The performance chart loads on its own rather than inside the
+                // Promise.all below: it has its own range control and its own
+                // refetches, so making the whole dashboard wait on it would delay
+                // the asset list behind a graph nobody has asked a question of yet.
+                window.renzoraStatsChart?.mount({
+                    el: document.getElementById('perf-card'),
+                    title: 'Performance',
+                    headers,
+                    endpoint: (range) => '/api/marketplace/stats?range=' + range,
+                });
 
                 try {
                     const [statsRes, earningsRes, assetsRes] = await Promise.all([

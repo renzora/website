@@ -8,6 +8,7 @@ use sqlx::Row;
 use renzora_common::types::*;
 use renzora_models::asset::{self, Asset};
 use renzora_models::asset_file::AssetFile;
+use renzora_models::asset_stats;
 use renzora_models::asset_release::AssetRelease;
 use renzora_models::category::Category;
 use renzora_models::subcategory::Subcategory;
@@ -36,14 +37,21 @@ pub fn router() -> Router<AppState> {
         .route("/:id/delete", delete(delete_asset))
         .route("/tags/submit", post(submit_tag))
         .route("/subcategories/submit", post(submit_subcategory))
+        // One segment, so it cannot collide with the two-segment `/:id/...`
+        // routes; the per-asset series lives at `/:id/stats`.
+        .route("/stats", get(creator_stats_series))
         .layer(axum::middleware::from_fn(middleware::require_auth));
 
     // Downloads authenticate optionally: a free asset is downloadable by
     // anyone, a paid one still needs a signed-in owner (see `authorize_download`).
+    // The view ping sits here for the same reason: signing in is not required to
+    // look at a listing, but a view by a signed-in user should carry their id.
     let downloads = Router::new()
         .route("/:id/download", get(download_asset))
         .route("/:id/files/:file_id/download", get(download_single_file))
         .route("/:id/download-zip", get(download_all_zip))
+        .route("/:id/install-file", get(install_file))
+        .route("/:id/view", post(record_asset_view))
         .layer(axum::middleware::from_fn(middleware::optional_auth));
 
     Router::new()
@@ -61,6 +69,7 @@ pub fn router() -> Router<AppState> {
         .route("/:id/file", get(view_file))
         .route("/:id/raw", get(raw_file))
         .route("/:id/preview-file", get(preview_file_proxy))
+        .route("/:id/stats", get(asset_stats_series))
         .route("/plugin-updates", post(plugin_updates))
         .merge(downloads)
         .merge(protected)
@@ -924,9 +933,38 @@ async fn delete_asset(
 /// Proxy an asset's file for the live preview (avoids CORS issues with CDN).
 /// For paid assets without ownership, serves the preview (watermarked) version.
 /// For free assets or public files, serves the original.
+///
+/// Counts nothing. Spinning a model in the viewer, auditioning a theme and
+/// opening the embed all land here, and none of them is a download.
 async fn preview_file_proxy(
     State(state): State<AppState>,
     Path(id): Path<Uuid>,
+) -> Result<axum::response::Response, ApiError> {
+    serve_asset_file(state, id, false).await
+}
+
+/// The same bytes, fetched because someone is *installing* a free asset, and
+/// therefore counted.
+///
+/// It exists because the editor installs free assets without signing in: with no
+/// token there is no `/download`, so it pulled the file through the preview proxy
+/// and every one of those installs was invisible. Most plugin installs from the
+/// splash screen take exactly that path, so the gap was not a rounding error.
+///
+/// Unlike the preview, a paid asset is refused outright rather than falling back
+/// to the watermarked copy. A request calling itself an install has no use for a
+/// watermark, and serving one would count a download of something nobody bought.
+async fn install_file(
+    State(state): State<AppState>,
+    Path(id): Path<Uuid>,
+) -> Result<axum::response::Response, ApiError> {
+    serve_asset_file(state, id, true).await
+}
+
+async fn serve_asset_file(
+    state: AppState,
+    id: Uuid,
+    installing: bool,
 ) -> Result<axum::response::Response, ApiError> {
     let asset = Asset::find_by_id(&state.db, id)
         .await?
@@ -937,11 +975,14 @@ async fn preview_file_proxy(
 
     let (fetch_url, content_type_hint) = if let Some(first) = asset_files.first() {
         if asset.price_credits > 0 {
-            // Paid asset: serve preview if available, otherwise deny
-            if let Some(pk) = &first.preview_key {
-                (format!("{}/{}", state.s3_public_url, pk), first.mime_type.clone())
-            } else {
-                return Err(ApiError::Unauthorized);
+            // Paid asset: serve preview if available, otherwise deny. An install
+            // is denied either way and must go through the authenticated
+            // `/download`, which is the only path that checks ownership.
+            match (&first.preview_key, installing) {
+                (Some(pk), false) => {
+                    (format!("{}/{}", state.s3_public_url, pk), first.mime_type.clone())
+                }
+                _ => return Err(ApiError::Unauthorized),
             }
         } else {
             // Free asset: generate a presigned URL to fetch from
@@ -990,11 +1031,81 @@ async fn preview_file_proxy(
     let bytes = resp.bytes().await
         .map_err(|e| ApiError::Internal(format!("Failed to read file: {e}")))?;
 
+    // After the bytes are in hand, not before: a storage failure above is the
+    // proxy's problem, and counting a download the caller never received would
+    // put the error in the creator's statistics instead.
+    if installing {
+        Asset::increment_downloads(&state.db, id).await?;
+    }
+
     Ok(axum::response::Response::builder()
         .header("content-type", content_type)
-        .header("cache-control", "public, max-age=3600")
+        // An install is a one-off fetch of the real file; only the preview is
+        // worth caching for an hour.
+        .header(
+            "cache-control",
+            if installing { "no-store" } else { "public, max-age=3600" },
+        )
         .body(axum::body::Body::from(bytes))
         .unwrap())
+}
+
+/// Record a view of an asset from a client that never loads its web page.
+///
+/// The website counts a view inside `get_asset`, the handler behind
+/// `/detail/:slug`. The editor's marketplace never calls that endpoint: it lists
+/// through `/` and opens an item from the summary it already has, so browsing the
+/// store in the editor registered nothing at all and every view number described
+/// web traffic only.
+///
+/// Deduplicated exactly like a web view, by hashed IP on a 24 hour cooldown, so
+/// the two sources cannot be told apart in the totals and neither can inflate
+/// them by reopening a panel.
+async fn record_asset_view(
+    State(state): State<AppState>,
+    Extension(auth): Extension<Option<AuthUser>>,
+    Path(id): Path<Uuid>,
+    headers: axum::http::HeaderMap,
+    connect_info: axum::extract::ConnectInfo<std::net::SocketAddr>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    // An unpublished asset is visible to its creator while they work on it;
+    // counting those views would have a creator's own editing inflate the
+    // listing's numbers before anyone else has seen it.
+    let asset = Asset::find_by_id(&state.db, id).await?.ok_or(ApiError::NotFound)?;
+    if !asset.published {
+        return Ok(Json(serde_json::json!({ "counted": false })));
+    }
+
+    let ip = client_ip(&headers, &connect_info);
+    let ip_hash = hash_ip(&ip);
+    let counted = Asset::record_view(&state.db, id, &ip_hash, auth.map(|u| u.user_id))
+        .await
+        .unwrap_or(false);
+
+    Ok(Json(serde_json::json!({ "counted": counted })))
+}
+
+/// Views and downloads over time for one asset, for the graph on its listing.
+async fn asset_stats_series(
+    State(state): State<AppState>,
+    Path(id): Path<Uuid>,
+    Query(params): Query<StatsQuery>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    let bucket = asset_stats::Bucket::from_param(params.range.as_deref().unwrap_or("days"));
+    let points = asset_stats::series_for_asset(&state.db, id, bucket).await?;
+    Ok(Json(serde_json::json!({ "points": points })))
+}
+
+/// Views and downloads over time across everything the signed-in creator owns,
+/// for the graph on the dashboard.
+async fn creator_stats_series(
+    State(state): State<AppState>,
+    Extension(auth): Extension<AuthUser>,
+    Query(params): Query<StatsQuery>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    let bucket = asset_stats::Bucket::from_param(params.range.as_deref().unwrap_or("days"));
+    let points = asset_stats::series_for_creator(&state.db, auth.user_id, bucket).await?;
+    Ok(Json(serde_json::json!({ "points": points })))
 }
 
 /// List the authenticated user's uploaded assets.
@@ -1738,9 +1849,16 @@ async fn download_all_zip(
         return Err(ApiError::NotFound);
     }
 
-    // If there's only one file and it's a zip, just redirect to it
+    // If there's only one file and it's a zip, just redirect to it.
+    //
+    // This path used to return before the counter at the end of the function, so
+    // an asset that is a single zip was the one shape of download that counted
+    // nothing at all.
     if files.len() == 1 && files[0].mime_type == "application/zip" {
         let url = generate_presigned_url(&state, &files[0].file_key).await?;
+        if params.counts() {
+            Asset::increment_downloads(&state.db, id).await?;
+        }
         return Ok(axum::response::Response::builder()
             .status(302)
             .header("location", url)
@@ -1771,7 +1889,11 @@ async fn download_all_zip(
             .map_err(|e| ApiError::Internal(format!("Zip finalize failed: {e}")))?;
     }
 
-    Asset::increment_downloads(&state.db, id).await?;
+    // Skipped when the caller already counted this install on `/download`; see
+    // `ReleaseQuery::count`.
+    if params.counts() {
+        Asset::increment_downloads(&state.db, id).await?;
+    }
 
     let stem = if !asset.download_filename.is_empty() {
         asset.download_filename.trim_end_matches(".zip").to_string()
@@ -2736,6 +2858,28 @@ async fn has_file_access(
 pub struct ReleaseQuery {
     /// A release id or version string. Absent means the current release.
     pub release: Option<String>,
+    /// Whether this request should count as a download. Absent means yes, so a
+    /// browser hitting the endpoint directly is counted exactly as before.
+    ///
+    /// It exists for one caller: the editor resolves an asset through `/download`
+    /// and then, when the asset has several files, fetches the lot through
+    /// `/download-zip`. Both increments fired, so every multi-file install was
+    /// counted twice. The resolve is the moment that means "a person installed
+    /// this", so it keeps the count and the zip fetch passes `count=false`.
+    pub count: Option<bool>,
+}
+
+impl ReleaseQuery {
+    fn counts(&self) -> bool {
+        self.count.unwrap_or(true)
+    }
+}
+
+/// The range of a stats series, as the `range` query parameter.
+#[derive(Deserialize)]
+pub struct StatsQuery {
+    /// `days` (default), `weeks` or `months`.
+    pub range: Option<String>,
 }
 
 #[derive(Deserialize)]
