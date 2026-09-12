@@ -50,7 +50,7 @@ pub fn AssetDetailPage() -> impl IntoView {
     let content = ssr.map(|a| {
         let price_label = if a.price_credits == 0 { "Free".to_string() } else { format!("{} credits", a.price_credits) };
         view! {
-            <div class="max-w-[900px] mx-auto pt-2">
+            <div class="max-w-[1440px] mx-auto pt-2">
                 <nav class="text-xs text-zinc-500 mb-3">
                     <a href="/marketplace" class="hover:text-accent">"Marketplace"</a>" / "{a.category.clone()}
                 </nav>
@@ -76,7 +76,7 @@ pub fn AssetDetailPage() -> impl IntoView {
                 <div id="asset-thumb-bg" class="absolute inset-0" style="z-index:0"></div>
                 <div class="absolute inset-0 bg-[#060608]/15" style="z-index:2"></div>
             </div>
-            <div class="max-w-[1100px] mx-auto relative" style="z-index:10" id="asset-detail">
+            <div class="max-w-[1440px] mx-auto relative" style="z-index:10" id="asset-detail">
                 {content}
                 {(!has_ssr).then(|| view! {
                     <div class="text-center py-20">
@@ -333,10 +333,6 @@ pub fn AssetDetailPage() -> impl IntoView {
                                 <span><i class="ph ph-download-simple"></i> ${a.downloads.toLocaleString()} downloads</span>
                             </div>
 
-                            <!-- Activity over time. Mounted after this HTML lands
-                                 in the DOM, below, since the chart needs the node. -->
-                            <div id="asset-activity" class="relative mt-6 p-4 rounded-xl bg-white/[0.015] border border-zinc-800/40"></div>
-
                             <!-- Files, README and releases (filled in after render) -->
                             <div id="asset-tree-section"></div>
                             <div id="asset-readme-section"></div>
@@ -423,6 +419,11 @@ pub fn AssetDetailPage() -> impl IntoView {
                                     <div class="flex justify-between text-sm"><span class="text-zinc-500">Updated</span><span class="text-zinc-300">${fmtDate(a.updated_at)}</span></div>
                                 </div>
 
+                                <!-- Activity over time, directly under the Views and
+                                     Downloads rows it is the history of. Mounted
+                                     once this HTML is in the DOM (see below). -->
+                                <div id="asset-activity" class="relative mt-6 pt-6 border-t border-zinc-800/50"></div>
+
                                 <!-- Rate this asset -->
                                 ${token && !isCreator ? `
                                 <div class="mt-6 pt-6 border-t border-zinc-800/50">
@@ -488,6 +489,7 @@ pub fn AssetDetailPage() -> impl IntoView {
                 window.renzoraStatsChart?.mount({
                     el: document.getElementById('asset-activity'),
                     title: 'Activity',
+                    compact: true,
                     endpoint: (range) => '/api/marketplace/' + a.id + '/stats?range=' + range,
                 });
             })();

@@ -48,6 +48,11 @@ RUN npm install --no-audit --no-fund
 # both class names and ph-* icon tokens, incl. DB-seeded ones)
 COPY tailwind.config.js ./
 COPY assets/style/input.css ./assets/style/input.css
+# Standalone page scripts are scanned for classes too (the stats chart builds its
+# DOM in JS rather than in a .rs template). Without this the glob in
+# tailwind.config.js matches nothing here and the chart ships unstyled, while
+# looking correct in every local build, where the file is simply present.
+COPY assets/js ./assets/js
 # Preview image sources: committed PNG originals + the canonical .webp masters
 # (some hand-cropped, e.g. inspector). optimize:images regenerates the .avif
 # companions and responsive srcset variants from the .webp so the deployed set

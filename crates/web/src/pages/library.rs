@@ -4,7 +4,7 @@ use leptos::prelude::*;
 pub fn LibraryPage() -> impl IntoView {
     view! {
         <section class="py-8 px-6 min-h-[80vh]">
-            <div class="max-w-[1200px] mx-auto">
+            <div class="max-w-[1440px] mx-auto">
                 <div class="flex justify-between items-center mb-8">
                     <div>
                         <h1 class="text-2xl font-bold">"My Library"</h1>

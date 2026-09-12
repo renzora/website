@@ -7,7 +7,12 @@ module.exports = {
   // and JS arrays of full class strings — so the scanner catches them all without
   // a safelist. (A broad safelist previously padded the output with ~200 unused
   // gradient utilities.)
-  content: ['./crates/web/src/**/*.rs'],
+  // `assets/js` is scanned for the same reason: the stats chart builds its DOM in
+  // a standalone script rather than in a .rs template, and without this glob every
+  // utility it names is absent from the bundle and the chart renders unstyled.
+  // The same rule applies there: whole literal tokens only, never a class built by
+  // concatenating a computed value, which the scanner cannot see.
+  content: ['./crates/web/src/**/*.rs', './assets/js/**/*.js'],
   theme: {
     extend: {
       colors: {

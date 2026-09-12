@@ -148,16 +148,21 @@ pub fn Shell() -> impl IntoView {
                     /* Site-wide base font size (bumped from the 16px browser default;
                        rem-based Tailwind sizes scale with it). */
                     html{font-size:17px}
-                    /* ── App shell layout: fixed sidebar + top header ── */
-                    :root{--sidebar-w:248px;--header-h:60px}
-                    .app-main{margin-right:var(--sidebar-w);padding-top:var(--header-h);min-height:100vh}
-                    @media (max-width:1023px){.app-main{margin-right:0}}
-                    #app-sidebar{position:fixed;top:var(--header-h);right:0;bottom:0;width:var(--sidebar-w);z-index:60;display:flex;flex-direction:column;background:#0b0617;border-left:1px solid rgba(255,255,255,0.06)}
-                    #app-header{position:fixed;top:0;left:0;right:0;height:var(--header-h);z-index:62;display:flex;align-items:center;gap:1rem;padding:0 1.25rem;background:rgba(11,6,23,0.78);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);border-bottom:1px solid rgba(255,255,255,0.06)}
-                    @media (max-width:1023px){#app-sidebar{transform:translateX(100%);transition:transform .25s ease}#app-sidebar.open{transform:translateX(0)}#app-header{right:0}}
-                    #sidebar-scrim{position:fixed;inset:0;z-index:59;background:rgba(0,0,0,0.5);backdrop-filter:blur(2px);display:none}
-                    #sidebar-scrim.open{display:block}
-                    @media (min-width:1024px){#sidebar-scrim{display:none!important}#sidebar-burger{display:none}}
+                    /* ── App shell layout: top header, full-width content ──
+                       There was a fixed 248px sidebar on the right holding the
+                       mobile nav and three promo cards. It is gone, so the page
+                       is no longer pushed off-centre by a column of promos, and
+                       the header can align to the same centred measure as the
+                       content beneath it rather than to the window. */
+                    :root{--header-h:60px;--page-w:1600px}
+                    .app-main{padding-top:var(--header-h);min-height:100vh}
+                    #app-header{position:fixed;top:0;left:0;right:0;height:var(--header-h);z-index:62;background:rgba(11,6,23,0.78);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);border-bottom:1px solid rgba(255,255,255,0.06)}
+                    /* The bar spans the window (the blur and border want to);
+                       its contents ride a centred container the width of the
+                       page, so the logo sits over the content's left edge and
+                       the account controls over its right. */
+                    .header-inner{max-width:var(--page-w);height:100%;margin:0 auto;padding:0 1.5rem;display:flex;align-items:center;gap:1rem}
+                    @media (min-width:1024px){#sidebar-burger{display:none}}
                     /* Sidebar nav links */
                     .side-link{position:relative;display:flex;align-items:center;gap:.7rem;padding:.55rem .7rem;border-radius:.6rem;font-size:.9rem;color:#a1a1aa;transition:all .15s}
                     .side-link:hover{color:#f4f4f5;background:rgba(255,255,255,0.05)}

@@ -9,7 +9,7 @@ pub fn DashboardPage() -> impl IntoView {
             <div class="relative overflow-hidden border-b border-zinc-800/40">
                 <div class="absolute inset-0 bg-gradient-to-br from-accent/[0.06] via-transparent to-purple-500/[0.04]"></div>
                 <div class="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[400px] bg-accent/[0.03] rounded-full blur-3xl"></div>
-                <div class="relative max-w-[1300px] mx-auto px-6 pt-10 pb-8">
+                <div class="relative max-w-[1600px] mx-auto px-6 pt-10 pb-8">
                     <div class="flex items-end justify-between">
                         <div class="flex items-center gap-3">
                             <div class="w-10 h-10 rounded-xl bg-accent/10 border border-accent/20 flex items-center justify-center">
@@ -67,7 +67,7 @@ pub fn DashboardPage() -> impl IntoView {
                 </div>
             </div>
 
-            <div class="max-w-[1300px] mx-auto px-6 py-6">
+            <div class="max-w-[1600px] mx-auto px-6 py-6">
 
                 // ── Loading ──
                 <div id="dashboard-loading" class="flex flex-col items-center justify-center py-32">

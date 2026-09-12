@@ -3,97 +3,39 @@ use leptos::prelude::*;
 #[component]
 pub fn Nav() -> impl IntoView {
     view! {
-        // ── Fixed left sidebar ──
-        <aside id="app-sidebar">
-            // Main menu (mobile only, the desktop menu is in the top header)
-            <nav class="lg:hidden mx-3 mt-4 rounded-2xl border border-white/[0.06] bg-gradient-to-br from-white/[0.07] to-white/[0.02] p-2 space-y-0.5 overflow-hidden">
-                <a href="/" class="side-link nav-link" data-path="/">
-                    <i class="ph ph-download-simple text-lg"></i>"Download Engine"
-                </a>
-                <a href="/marketplace" class="side-link nav-link" data-path="/marketplace">
-                    <i class="ph ph-storefront text-lg"></i>"Marketplace"
-                </a>
-                <a href="/docs" class="side-link nav-link" data-path="/docs">
-                    <i class="ph ph-book-open text-lg"></i>"Docs"
-                </a>
-                <a href="/donate" class="side-link nav-link donate" data-path="/donate">
-                    <i class="ph ph-heart text-lg"></i>"Donate"
-                </a>
-            </nav>
-
-            // Cards, centered in the remaining space
-            <div class="flex-1 flex flex-col justify-center px-3 space-y-2">
-                // Community goal (everyone)
-                <a href="/donate" id="nav-goal-card" class="hidden rounded-xl p-3 bg-gradient-to-br from-accent/[0.12] to-purple-600/[0.06] border border-white/[0.07] hover:border-white/[0.14] transition-colors">
-                    <div class="flex items-center justify-between mb-1.5">
-                        <span id="nav-goal-title" class="text-[9px] font-semibold uppercase tracking-[0.16em] text-zinc-400 truncate">"Community Goal"</span>
-                        <span id="nav-goal-percent" class="text-[10px] font-semibold text-accent shrink-0 ml-1">"0%"</span>
-                    </div>
-                    <div class="h-2 bg-black/40 border border-white/[0.08] rounded-full overflow-hidden mb-1.5">
-                        <div id="nav-goal-bar" class="h-full bg-gradient-to-r from-accent to-purple-500 rounded-full transition-all duration-700" style="width:0%"></div>
-                    </div>
-                    <div class="text-[10px] text-zinc-500"><span id="nav-goal-current" class="text-zinc-300 font-medium">"0"</span>" / "<span id="nav-goal-target">"0"</span>" this month"</div>
-                </a>
-
-                // Sign in / register box (logged out)
-                <div id="nav-side-guest" class="rounded-xl p-3 bg-white/[0.03] border border-white/[0.07]">
-                    <p class="text-[9px] font-semibold uppercase tracking-[0.16em] text-zinc-400">"Sign in to Renzora"</p>
-                    <form class="mt-2 space-y-1.5" onsubmit="return sideLogin(event)">
-                        <input type="email" name="email" required placeholder="Email" autocomplete="email" class="w-full px-2.5 py-1.5 bg-black/30 border border-white/[0.08] rounded-lg text-zinc-50 text-xs outline-none focus:border-accent/50 transition-all placeholder:text-zinc-600" />
-                        <input type="password" name="password" required placeholder="Password" autocomplete="current-password" class="w-full px-2.5 py-1.5 bg-black/30 border border-white/[0.08] rounded-lg text-zinc-50 text-xs outline-none focus:border-accent/50 transition-all placeholder:text-zinc-600" />
-                        <p id="nav-side-login-err" class="hidden text-[10px] text-red-400 leading-snug"></p>
-                        <button type="submit" id="nav-side-login-btn" class="w-full text-xs font-semibold text-white bg-purple-600 hover:bg-purple-500 transition-colors rounded-lg py-1.5">"Sign In"</button>
-                    </form>
-                    <a href="/register" class="mt-2 block text-center text-[11px] text-zinc-500 hover:text-zinc-300 transition-colors">"New here? "<span class="text-accent font-semibold">"Create an account"</span></a>
-                </div>
-
-                // Renzora Game card (coming soon)
-                <div class="rounded-xl p-3 bg-gradient-to-br from-fuchsia-500/[0.15] to-purple-600/[0.08] border border-white/[0.07]">
-                    <div class="flex items-center justify-between gap-2">
-                        <p class="text-[9px] font-semibold uppercase tracking-[0.16em] text-zinc-400">"Renzora Game"</p>
-                        <span class="text-[9px] font-semibold px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-400 shrink-0">"Coming Soon"</span>
-                    </div>
-                    <div class="flex items-center gap-1.5 mt-1.5">
-                        <i class="ph ph-game-controller text-fuchsia-400 text-sm"></i>
-                        <span class="text-sm font-semibold text-white">"Open-world adventure"</span>
-                    </div>
-                    <a href="/game" class="mt-2.5 block text-center text-xs font-semibold text-white bg-fuchsia-600 hover:bg-fuchsia-500 transition-colors rounded-lg py-1.5">"Join Waiting List"</a>
-                </div>
-
-                // Engine download card
-                <div class="rounded-xl p-3 bg-gradient-to-br from-accent/[0.15] to-secondary/[0.08] border border-white/[0.07]">
-                    <p class="text-[9px] font-semibold uppercase tracking-[0.16em] text-zinc-400">"Renzora Engine"</p>
-                    <div class="flex items-center gap-1.5 mt-1.5">
-                        <i class="ph ph-download-simple text-secondary text-sm"></i>
-                        <span class="text-sm font-semibold text-white">"r1-alpha7"</span>
-                        <span class="text-[9px] font-semibold px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-400">"Free"</span>
-                    </div>
-                    <a href="/" class="mt-2.5 block text-center text-xs font-semibold text-white bg-purple-600 hover:bg-purple-500 transition-colors rounded-lg py-1.5">"Download"</a>
-                </div>
+        // ── Mobile menu, in the header ──
+        // The site used to carry a fixed right sidebar that held the nav on small
+        // screens along with three promo cards. The sidebar is gone and the page
+        // has its width back; what it owned that nothing else did was this menu,
+        // so it moved into the header as a dropdown under the burger.
+        // `overflow-hidden` because `.side-link.active::before` hangs its marker
+        // 0.7rem to the left of the link, which is outside this panel's padding.
+        <div id="mobile-menu" class="hidden lg:hidden fixed left-3 right-3 z-[61] rounded-2xl border border-white/[0.08] bg-[rgba(12,7,21,0.97)] backdrop-blur-2xl shadow-2xl shadow-black/60 p-2 space-y-0.5 overflow-hidden" style="top:calc(var(--header-h) + 0.5rem)">
+            <a href="/" class="side-link nav-link" data-path="/">
+                <i class="ph ph-download-simple text-lg"></i>"Download Engine"
+            </a>
+            <a href="/marketplace" class="side-link nav-link" data-path="/marketplace">
+                <i class="ph ph-storefront text-lg"></i>"Marketplace"
+            </a>
+            <a href="/docs" class="side-link nav-link" data-path="/docs">
+                <i class="ph ph-book-open text-lg"></i>"Docs"
+            </a>
+            <a href="/donate" class="side-link nav-link donate" data-path="/donate">
+                <i class="ph ph-heart text-lg"></i>"Donate"
+            </a>
+            // Legal lives in the account dropdown on desktop, which a signed-out
+            // visitor does not have. Repeating it here keeps it one tap away on
+            // the screens where the dropdown is hardest to reach anyway.
+            <div class="flex items-center justify-center gap-3 pt-2 mt-1 border-t border-white/[0.06] text-[11px] text-zinc-600">
+                <a href="/privacy" class="hover:text-zinc-300 transition-colors">"Privacy"</a>
+                <a href="/terms" class="hover:text-zinc-300 transition-colors">"Terms"</a>
+                <span>"© 2026 Renzora"</span>
             </div>
-
-            // Footer — social links + legal, pinned to the bottom
-            <footer class="shrink-0 px-3 py-3 space-y-2.5">
-                <div class="flex items-center justify-center gap-1">
-                    <a href="https://youtube.com/@renzoragame" target="_blank" rel="noopener noreferrer" aria-label="YouTube" class="p-2 rounded-lg text-zinc-500 hover:text-white hover:bg-white/[0.06] transition-all"><i class="ph ph-youtube-logo text-lg"></i></a>
-                    <a href="https://github.com/renzora" target="_blank" rel="noopener noreferrer" aria-label="GitHub" class="p-2 rounded-lg text-zinc-500 hover:text-white hover:bg-white/[0.06] transition-all"><i class="ph ph-github-logo text-lg"></i></a>
-                    <a href="https://discord.gg/9UHUGUyDJv" target="_blank" rel="noopener noreferrer" aria-label="Discord" class="p-2 rounded-lg text-zinc-500 hover:text-white hover:bg-white/[0.06] transition-all"><i class="ph ph-discord-logo text-lg"></i></a>
-                </div>
-                <div class="flex flex-wrap items-center justify-center gap-x-1.5 gap-y-1 text-[11px] text-zinc-600">
-                    <a href="/privacy" class="hover:text-zinc-300 transition-colors">"Privacy"</a>
-                    <span class="text-zinc-700">"·"</span>
-                    <a href="/terms" class="hover:text-zinc-300 transition-colors">"Terms"</a>
-                    <span class="text-zinc-700">"·"</span>
-                    <span class="text-zinc-600">"© 2026 Renzora"</span>
-                </div>
-            </footer>
-        </aside>
-
-        // ── Mobile scrim ──
-        <div id="sidebar-scrim" onclick="toggleSidebar()"></div>
+        </div>
 
         // ── Fixed top header ──
         <header id="app-header">
+        <div class="header-inner">
             // Brand
             <a href="/" class="flex items-center gap-2.5 min-w-0 shrink-0 mr-1">
                 <img src="/assets/previews/hazel.webp" alt="Hazel" width="36" height="36" class="w-9 h-9 rounded-lg object-cover shrink-0" />
@@ -103,8 +45,8 @@ pub fn Nav() -> impl IntoView {
                 </div>
             </a>
 
-            // Mobile hamburger (opens the sidebar on small screens)
-            <button id="sidebar-burger" onclick="toggleSidebar()" aria-label="Open navigation menu" class="lg:hidden text-zinc-400 hover:text-white p-1.5 rounded-lg hover:bg-white/[0.06] transition-all">
+            // Mobile hamburger (opens the menu panel above)
+            <button id="sidebar-burger" onclick="toggleMobileMenu()" aria-label="Open navigation menu" class="lg:hidden text-zinc-400 hover:text-white p-1.5 rounded-lg hover:bg-white/[0.06] transition-all">
                 <i class="ph ph-list text-xl"></i>
             </button>
 
@@ -134,6 +76,16 @@ pub fn Nav() -> impl IntoView {
             </nav>
 
             <div class="flex-1"></div>
+
+            // Social links. They used to sit at the foot of the sidebar; with it
+            // gone this is the only site-wide chrome left to hang them off, and
+            // sitting just left of the credits pill keeps them out of the way of
+            // the account controls without burying them in a dropdown.
+            <div class="hidden sm:flex items-center gap-0.5 mr-1">
+                <a href="https://youtube.com/@renzoragame" target="_blank" rel="noopener noreferrer" aria-label="YouTube" class="p-1.5 rounded-lg text-zinc-500 hover:text-white hover:bg-white/[0.06] transition-all"><i class="ph ph-youtube-logo text-lg"></i></a>
+                <a href="https://github.com/renzora" target="_blank" rel="noopener noreferrer" aria-label="GitHub" class="p-1.5 rounded-lg text-zinc-500 hover:text-white hover:bg-white/[0.06] transition-all"><i class="ph ph-github-logo text-lg"></i></a>
+                <a href="https://discord.gg/9UHUGUyDJv" target="_blank" rel="noopener noreferrer" aria-label="Discord" class="p-1.5 rounded-lg text-zinc-500 hover:text-white hover:bg-white/[0.06] transition-all"><i class="ph ph-discord-logo text-lg"></i></a>
+            </div>
 
             // Logged-out
             <div id="nav-guest" class="flex gap-2">
@@ -179,23 +131,39 @@ pub fn Nav() -> impl IntoView {
                             <i class="ph ph-shield-check text-base"></i>"Admin"
                         </a>
                         <div class="border-t border-white/[0.06] my-1"></div>
+                        // Legal, in the small type it deserves. It was in the
+                        // sidebar footer before that went away.
+                        <div class="flex items-center gap-3 px-4 py-2 text-[11px] text-zinc-600">
+                            <a href="/privacy" class="hover:text-zinc-300 transition-colors">"Privacy"</a>
+                            <a href="/terms" class="hover:text-zinc-300 transition-colors">"Terms"</a>
+                            <span class="ml-auto">"© 2026"</span>
+                        </div>
+                        <div class="border-t border-white/[0.06] my-1"></div>
                         <button onclick="handleLogout()" class="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-red-400 hover:text-red-300 hover:bg-white/[0.06] transition-all cursor-pointer">
                             <i class="ph ph-sign-out text-base"></i>"Sign Out"
                         </button>
                     </div>
                 </div>
             </div>
+        </div>
         </header>
 
 
         <script>
             r#"
-            function toggleSidebar() {
-                const sb = document.getElementById('app-sidebar');
-                const scrim = document.getElementById('sidebar-scrim');
-                const open = sb.classList.toggle('open');
-                if (scrim) scrim.classList.toggle('open', open);
+            function toggleMobileMenu() {
+                const m = document.getElementById('mobile-menu');
+                if (m) m.classList.toggle('hidden');
             }
+            // Close on any click outside it, so navigating away or tapping the
+            // page does not leave the panel covering the content.
+            document.addEventListener('click', function(e) {
+                const m = document.getElementById('mobile-menu');
+                const b = document.getElementById('sidebar-burger');
+                if (!m || m.classList.contains('hidden')) return;
+                if (m.contains(e.target) || (b && b.contains(e.target))) return;
+                m.classList.add('hidden');
+            });
             function getCookie(name) {
                 const v = document.cookie.match('(^|;)\\s*' + name + '\\s*=\\s*([^;]+)');
                 return v ? v.pop() : null;
@@ -205,7 +173,6 @@ pub fn Nav() -> impl IntoView {
                 const guest = document.getElementById('nav-guest');
                 const user = document.getElementById('nav-user');
                 const username = document.getElementById('nav-username');
-                const sideGuest = document.getElementById('nav-side-guest');
                 if (userCookie && guest && user) {
                     try {
                         const u = JSON.parse(decodeURIComponent(userCookie));
@@ -219,7 +186,6 @@ pub fn Nav() -> impl IntoView {
                             const adminLink = document.getElementById('nav-admin-link');
                             if (adminLink) { adminLink.classList.remove('hidden'); adminLink.classList.add('flex'); }
                         }
-                        if (sideGuest) { sideGuest.classList.add('hidden'); }
                     } catch(e) {}
                     // Credits, badges, XP and creator status are loaded together by loadUserSummary().
                 }
@@ -241,32 +207,10 @@ pub fn Nav() -> impl IntoView {
                 document.cookie = 'user=;path=/;max-age=0';
                 window.location.href = '/';
             }
-            // Inline sidebar sign-in — mirrors the /login flow, then reloads in place.
-            async function sideLogin(e) {
-                e.preventDefault();
-                const form = e.target;
-                const err = document.getElementById('nav-side-login-err');
-                const btn = document.getElementById('nav-side-login-btn');
-                err.classList.add('hidden');
-                btn.disabled = true; btn.textContent = 'Signing in...';
-                try {
-                    const res = await fetch('/api/auth/login', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ email: form.email.value, password: form.password.value })
-                    });
-                    const data = await res.json();
-                    if (!res.ok) throw new Error(data.error || 'Invalid email or password');
-                    document.cookie = `token=${data.access_token};path=/;max-age=2592000;SameSite=Strict`;
-                    document.cookie = `refresh_token=${data.refresh_token};path=/;max-age=2592000;SameSite=Strict`;
-                    document.cookie = `user=${encodeURIComponent(JSON.stringify(data.user))};path=/;max-age=2592000;SameSite=Strict`;
-                    window.location.reload();
-                } catch (error) {
-                    err.textContent = error.message; err.classList.remove('hidden');
-                    btn.disabled = false; btn.textContent = 'Sign In';
-                }
-                return false;
-            }
+            // (The sidebar's inline sign-in form went with the sidebar. The
+            // header's Sign In button covers the same job, and /login is where
+            // that flow already lives.)
+
             // WebSocket live updates
             let ws = null;
             function connectWs() {
@@ -478,27 +422,13 @@ pub fn Nav() -> impl IntoView {
                 signinLink.href = '/login?redirect=' + encodeURIComponent(_sp + window.location.search);
             }
 
-            // ── Sidebar card: community goal ──
-            async function loadNavGoal() {
-                const card = document.getElementById('nav-goal-card');
-                if (!card) return;
-                try {
-                    const data = await fetch('/api/credits/donate/sponsors').then(r => r.ok ? r.json() : null).catch(() => null);
-                    const goal = data && data.goal;
-                    if (!goal || !goal.enabled) return;
-                    document.getElementById('nav-goal-title').textContent = goal.title || 'Community Goal';
-                    document.getElementById('nav-goal-current').textContent = (goal.current || 0).toLocaleString();
-                    document.getElementById('nav-goal-target').textContent = (goal.target || 0).toLocaleString();
-                    const pct = goal.percent || 0;
-                    document.getElementById('nav-goal-percent').textContent = pct + '%';
-                    card.classList.remove('hidden');
-                    setTimeout(() => { const bar = document.getElementById('nav-goal-bar'); if (bar) bar.style.width = Math.min(100, pct) + '%'; }, 100);
-                } catch (e) {}
-            }
+            // (The community-goal card was a sidebar card and went with it. The
+            // goal itself is still on /donate, which is where someone who cares
+            // about it is heading anyway. That also drops a sponsors request
+            // from every single page load.)
 
             updateNav();
             loadUserSummary();  // ONE request: credits, XP, creator status
-            loadNavGoal();      // community goal card (everyone)
             connectWs();        // Live updates from here on
             "#
         </script>
