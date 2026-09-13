@@ -13,6 +13,12 @@ pub enum ApiError {
     #[error("Validation error: {0}")]
     Validation(String),
 
+    /// Something is already claimed by somebody else. Distinct from a
+    /// validation error: the request was well-formed, it just lost a race or
+    /// asked for a name that was never free.
+    #[error("{0}")]
+    Conflict(String),
+
     #[error("Not found")]
     NotFound,
 
@@ -32,6 +38,7 @@ impl IntoResponse for ApiError {
             ApiError::InvalidCredentials => (StatusCode::UNAUTHORIZED, self.to_string()),
             ApiError::UserAlreadyExists => (StatusCode::CONFLICT, self.to_string()),
             ApiError::Validation(msg) => (StatusCode::BAD_REQUEST, msg.clone()),
+            ApiError::Conflict(msg) => (StatusCode::CONFLICT, msg.clone()),
             ApiError::NotFound => (StatusCode::NOT_FOUND, self.to_string()),
             ApiError::Unauthorized => (StatusCode::UNAUTHORIZED, self.to_string()),
             ApiError::Internal(msg) => (StatusCode::INTERNAL_SERVER_ERROR, msg.clone()),

@@ -85,6 +85,10 @@ pub struct AssetDetail {
     pub id: Uuid,
     pub name: String,
     pub slug: String,
+    /// The listing's claimed handle. Unique marketplace-wide and immutable, so
+    /// a publishing tool can find this exact listing again next time.
+    #[serde(default)]
+    pub marketplace_id: String,
     pub description: String,
     pub category: String,
     pub price_credits: i64,
@@ -267,6 +271,11 @@ pub struct MarketplaceListResponse {
 #[derive(Debug, Deserialize)]
 pub struct UploadAssetRequest {
     pub name: String,
+    /// Claim a handle for this listing. Omitted, the listing takes its generated
+    /// slug — which is what the website and editor forms do, neither having a
+    /// field for it. First come, first served; it cannot be changed afterwards.
+    #[serde(default)]
+    pub marketplace_id: Option<String>,
     pub description: String,
     pub category: String,
     pub price_credits: i64,

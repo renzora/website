@@ -52,6 +52,9 @@ pub fn router() -> Router<AppState> {
         .route("/:id/download-zip", get(download_all_zip))
         .route("/:id/install-file", get(install_file))
         .route("/:id/view", post(record_asset_view))
+        // The handle lookup is here too: anyone may ask whether a handle is
+        // taken, but only a signed-in caller can be told that it is theirs.
+        .route("/by-id/:marketplace_id", get(get_by_marketplace_id))
         .layer(axum::middleware::from_fn(middleware::optional_auth));
 
     Router::new()
@@ -137,6 +140,99 @@ async fn list_categories(
 ) -> Result<Json<Vec<Category>>, ApiError> {
     let cats = Category::list(&state.db).await?;
     Ok(Json(cats))
+}
+
+/// `GET /api/marketplace/by-id/:marketplace_id` — is this handle taken?
+///
+/// The question a publishing tool has to answer before it uploads anything:
+/// free (404), mine (publish a release onto it), or somebody else's (stop, and
+/// say so). Deliberately thin — it reports that a handle is claimed and who by,
+/// not the listing behind it, so that checking a name is not a way to enumerate
+/// unpublished work.
+#[derive(Serialize)]
+struct MarketplaceIdLookup {
+    marketplace_id: String,
+    /// The listing's id, so a tool that owns it can go straight to a release.
+    id: Uuid,
+    name: String,
+    slug: String,
+    version: String,
+    category: String,
+    published: bool,
+    /// Whether the *caller* holds this listing. `false` for anonymous callers.
+    yours: bool,
+}
+
+async fn get_by_marketplace_id(
+    State(state): State<AppState>,
+    Path(marketplace_id): Path<String>,
+    Extension(auth): Extension<Option<AuthUser>>,
+) -> Result<Json<MarketplaceIdLookup>, ApiError> {
+    let asset = Asset::find_by_marketplace_id(&state.db, &marketplace_id)
+        .await?
+        .ok_or(ApiError::NotFound)?;
+
+    Ok(Json(MarketplaceIdLookup {
+        yours: auth.as_ref().is_some_and(|u| u.user_id == asset.creator_id),
+        marketplace_id: asset.marketplace_id,
+        id: asset.id,
+        name: asset.name,
+        slug: asset.slug,
+        version: asset.version,
+        category: asset.category,
+        published: asset.published,
+    }))
+}
+
+/// Turn the unique-index violation into the conflict it actually is.
+///
+/// The check before the insert catches nearly every taken handle; this catches
+/// the two-uploads-at-once case, where the loser would otherwise see a 500 and
+/// a database error about an index it has no way to know about.
+fn claimed_id_conflict(id: Option<&str>) -> impl FnOnce(sqlx::Error) -> ApiError + '_ {
+    move |e| {
+        let unique_violation = e
+            .as_database_error()
+            .is_some_and(|db| db.constraint() == Some("idx_assets_marketplace_id"));
+        match (unique_violation, id) {
+            (true, Some(id)) => ApiError::Conflict(format!(
+                "The marketplace id '{id}' was claimed a moment ago. Ids cannot \
+                 be changed once taken, so pick another one."
+            )),
+            _ => ApiError::Database(e),
+        }
+    }
+}
+
+/// Check a handle a creator is trying to claim.
+///
+/// The shape rules apply only to new claims. Handles backfilled by migration
+/// 056 were taken from existing slugs and are grandfathered as they stand —
+/// one of them is Cyrillic — so validating stored values instead of incoming
+/// ones would make those listings unpublishable.
+fn validate_marketplace_id(id: &str) -> Result<(), ApiError> {
+    if id.is_empty() || id.len() > 64 {
+        return Err(ApiError::Validation(
+            "marketplace_id must be 1-64 characters".into(),
+        ));
+    }
+    if !id
+        .chars()
+        .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-')
+    {
+        return Err(ApiError::Validation(format!(
+            "marketplace_id '{id}' may only contain letters, numbers, '_' and '-'"
+        )));
+    }
+    // It appears in a URL path and reads as an identifier; leading punctuation
+    // makes both worse, and `-` first would collide with flag parsing in any
+    // tool that takes one on a command line.
+    if !id.chars().next().is_some_and(|c| c.is_ascii_alphanumeric()) {
+        return Err(ApiError::Validation(format!(
+            "marketplace_id '{id}' must start with a letter or number"
+        )));
+    }
+    Ok(())
 }
 
 /// Get a single asset by slug.
@@ -418,6 +514,26 @@ async fn upload_asset(
         meta.download_filename.clone()
     };
 
+    // A claimed handle is checked before anything is written. The unique index
+    // is still the authority — two uploads can pass this check at the same
+    // instant — but losing that race is rare and losing it *here* gives the
+    // creator the reason rather than a constraint violation.
+    let marketplace_id = meta
+        .marketplace_id
+        .as_deref()
+        .map(str::trim)
+        .filter(|id| !id.is_empty());
+    if let Some(id) = marketplace_id {
+        validate_marketplace_id(id)?;
+        if Asset::find_by_marketplace_id(&state.db, id).await?.is_some() {
+            return Err(ApiError::Conflict(format!(
+                "The marketplace id '{id}' is already taken. Ids are claimed \
+                 first come, first served and cannot be changed, so pick \
+                 another one."
+            )));
+        }
+    }
+
     let asset = Asset::create_full(
         &state.db,
         auth.user_id,
@@ -434,8 +550,10 @@ async fn upload_asset(
         &meta.subcategory,
         &meta.credit_name,
         &meta.credit_url,
+        marketplace_id,
     )
-    .await?;
+    .await
+    .map_err(claimed_id_conflict(marketplace_id))?;
 
     // ── Process files: multi-file or zip extract ──
     let is_paid = meta.price_credits > 0 && meta.credit_name.is_empty();
@@ -1717,6 +1835,7 @@ fn asset_to_detail(
         id: asset.id,
         name: asset.name.clone(),
         slug: asset.slug.clone(),
+        marketplace_id: asset.marketplace_id.clone(),
         description: asset.description.clone(),
         category: asset.category.clone(),
         price_credits: asset.price_credits,

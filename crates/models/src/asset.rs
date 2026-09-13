@@ -8,6 +8,11 @@ pub struct Asset {
     pub creator_id: Uuid,
     pub name: String,
     pub slug: String,
+    /// The creator's claimed handle for this listing — unique across the whole
+    /// marketplace, chosen on first publish and never changed. `slug` is
+    /// generated and `name` is free text; this is the one identifier a tool can
+    /// be told in advance and match on later.
+    pub marketplace_id: String,
     pub description: String,
     pub category: String,
     pub price_credits: i64,
@@ -63,7 +68,7 @@ impl Asset {
         price_credits: i64,
         version: &str,
     ) -> Result<Self, sqlx::Error> {
-        Self::create_full(pool, creator_id, name, description, category, price_credits, version, &[], "standard", false, serde_json::Value::Object(Default::default()), "", "", "", "").await
+        Self::create_full(pool, creator_id, name, description, category, price_credits, version, &[], "standard", false, serde_json::Value::Object(Default::default()), "", "", "", "", None).await
     }
 
     pub async fn create_full(
@@ -82,9 +87,15 @@ impl Asset {
         subcategory: &str,
         credit_name: &str,
         credit_url: &str,
+        marketplace_id: Option<&str>,
     ) -> Result<Self, sqlx::Error> {
         let id = Uuid::new_v4();
         let slug = slugify(name, id);
+        // An uploader that claims nothing gets its slug, which is unique by
+        // construction. That keeps the website and editor forms working
+        // unchanged — neither has a field for this — while a CLI publish can
+        // claim a real handle.
+        let marketplace_id = marketplace_id.unwrap_or(&slug).to_string();
         let now = OffsetDateTime::now_utc();
 
         // Force free if credited from another creator
@@ -92,8 +103,8 @@ impl Asset {
 
         sqlx::query_as::<_, Asset>(
             r#"
-            INSERT INTO assets (id, creator_id, name, slug, description, category, price_credits, version, tags, licence, ai_generated, metadata, download_filename, subcategory, credit_name, credit_url, created_at, updated_at)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $17)
+            INSERT INTO assets (id, creator_id, name, slug, marketplace_id, description, category, price_credits, version, tags, licence, ai_generated, metadata, download_filename, subcategory, credit_name, credit_url, created_at, updated_at)
+            VALUES ($1, $2, $3, $4, $18, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $17)
             RETURNING *
             "#,
         )
@@ -114,8 +125,21 @@ impl Asset {
         .bind(credit_name)
         .bind(credit_url)
         .bind(now)
+        .bind(&marketplace_id)
         .fetch_one(pool)
         .await
+    }
+
+    /// Look a listing up by its claimed handle, case-insensitively — `Clouds`
+    /// and `clouds` are the same claim, which is what the unique index says too.
+    pub async fn find_by_marketplace_id(
+        pool: &PgPool,
+        marketplace_id: &str,
+    ) -> Result<Option<Self>, sqlx::Error> {
+        sqlx::query_as::<_, Asset>("SELECT * FROM assets WHERE lower(marketplace_id) = lower($1)")
+            .bind(marketplace_id)
+            .fetch_optional(pool)
+            .await
     }
 
     pub async fn find_by_id(pool: &PgPool, id: Uuid) -> Result<Option<Self>, sqlx::Error> {
