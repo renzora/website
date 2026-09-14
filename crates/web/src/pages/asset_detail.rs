@@ -269,7 +269,16 @@ pub fn AssetDetailPage() -> impl IntoView {
                                 <div class="lg:w-[300px] shrink-0">
                             ${(() => {
                                 const cat = (a.category || '').toLowerCase();
-                                const previewable = ['3d models', 'animations', 'materials & shaders', 'textures & hdris', 'particle effects'];
+                                // 3D models are deliberately NOT in this list.
+                                // They show their cover image like everything
+                                // else: a model's uploaded artwork is framed,
+                                // lit and posed by the person who made it, and a
+                                // turntable of the raw mesh on a default light
+                                // rig is a worse picture of the same thing while
+                                // costing a wasm download and a GLB fetch to say
+                                // so. The embed widget still offers the live
+                                // model view for anyone who wants it.
+                                const previewable = ['animations', 'materials & shaders', 'textures & hdris', 'particle effects'];
                                 const hasLivePreview = previewable.some(c => cat.includes(c.split(' ')[0]));
                                 // The container owns the ratio, and caps it.
                                 //
@@ -288,9 +297,11 @@ pub fn AssetDetailPage() -> impl IntoView {
                                 // each other and the box never letterboxes.
                                 if (!hasLivePreview) return '<div class="rounded-2xl overflow-hidden border border-zinc-800/50 bg-zinc-900 relative group/preview aspect-video max-h-[420px] max-w-[746px]" id="main-preview">' + mainPreviewHtml + '</div>' + thumbsHtml;
 
+                                // No 'model' branch: that category returns above,
+                                // so it could only ever be dead code here. The
+                                // mode itself still exists for the embed widget.
                                 let previewMode = 'shader';
-                                if (cat.includes('3d') || cat.includes('model')) previewMode = 'model';
-                                else if (cat.includes('anim')) previewMode = 'animation';
+                                if (cat.includes('anim')) previewMode = 'animation';
                                 else if (cat.includes('material') || cat.includes('shader')) previewMode = 'shader';
                                 else if (cat.includes('texture') || cat.includes('hdri')) previewMode = 'texture';
                                 else if (cat.includes('particle')) previewMode = 'particle';
