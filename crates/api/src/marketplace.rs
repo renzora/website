@@ -2404,12 +2404,17 @@ async fn engine_version_for_storage(
 
 /// The engine releases a plugin may declare itself built for.
 ///
-/// Public and unauthenticated, because three separate things need it and none of
-/// them is a signed-in user action: the `renzora` CLI validates a manifest's
-/// engine version against this before publishing (it has been calling this path
-/// already, which did not exist, so the check passed anything including a typo),
-/// the marketplace's own version dropdown is built from it, and the editor uses
-/// it to label what it is looking at.
+/// Public and unauthenticated, because the things that need it are not signed-in
+/// user actions: the marketplace's own version dropdown, the release editor, and
+/// the `renzora` CLI validating a manifest before it uploads.
+///
+/// This is the list that decides whether a publish is accepted, because
+/// `asset_releases.min_engine_version` is a foreign key into the same table. The
+/// CLI used to validate against `/api/docs/versions` instead, which is a
+/// different question -- which versions have documentation -- and can list one
+/// the marketplace does not have yet. Checking against that alone passes a tag
+/// the upload then rejects, so the CLI prefers this one and keeps the docs list
+/// only as a fallback for a deployment too old to serve this.
 async fn engine_versions(
     State(state): State<AppState>,
 ) -> Result<Json<Vec<EngineVersion>>, ApiError> {
