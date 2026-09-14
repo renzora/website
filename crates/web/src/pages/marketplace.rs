@@ -1,11 +1,80 @@
 use leptos::prelude::*;
-use leptos_meta::{Title, Meta};
+use leptos_meta::{Link, Meta, Title};
+use renzora_common::ssr::AssetSsr;
+
+/// JSON-escape a string for safe embedding in a JSON-LD literal.
+fn json_escape(s: &str) -> String {
+    let mut o = String::with_capacity(s.len() + 2);
+    o.push('"');
+    for c in s.chars() {
+        match c {
+            '"' => o.push_str("\\\""),
+            '\\' => o.push_str("\\\\"),
+            '\n' => o.push_str("\\n"),
+            '\r' => o.push_str("\\r"),
+            '\t' => o.push_str("\\t"),
+            c if (c as u32) < 0x20 => o.push_str(&format!("\\u{:04x}", c as u32)),
+            c => o.push(c),
+        }
+    }
+    o.push('"');
+    o
+}
 
 #[component]
 pub fn MarketplacePage() -> impl IntoView {
+    // This page also answers /marketplace/asset/<slug>, where a listing opens
+    // over the grid. On that path the server puts the asset in context, and the
+    // head has to describe the LISTING rather than the marketplace: a crawler
+    // and a shared link both land here, and neither would otherwise see
+    // anything but the generic browse copy.
+    //
+    // This is what keeps the per-listing SEO after the standalone page went
+    // away. Without it, folding the page into the overlay would quietly have
+    // cost every listing its title, description and structured data.
+    let asset = use_context::<AssetSsr>().filter(|a| a.found);
+    let is_listing = asset.is_some();
+
+    let asset_head = asset.clone().map(|a| {
+        let title = format!("{}, Renzora Marketplace", a.name);
+        let full = a.description.chars().count();
+        let d: String = a.description.chars().take(155).collect();
+        let desc = if full > 155 { format!("{d}…") } else { d };
+        let canonical = format!("https://renzora.com/marketplace/asset/{}", a.slug);
+        let price = if a.price_credits == 0 { "0".to_string() } else { a.price_credits.to_string() };
+        let img = a.thumbnail_url.clone().unwrap_or_default();
+        let ld = format!(
+            "{{\"@context\":\"https://schema.org\",\"@type\":\"Product\",\"name\":{},\"description\":{},\"category\":{},\"image\":{},\"brand\":{{\"@type\":\"Brand\",\"name\":\"Renzora\"}},\"offers\":{{\"@type\":\"Offer\",\"price\":\"{}\",\"priceCurrency\":\"USD\",\"availability\":\"https://schema.org/InStock\",\"url\":{}}}}}",
+            json_escape(&a.name), json_escape(&a.description), json_escape(&a.category), json_escape(&img), price, json_escape(&canonical)
+        );
+        view! {
+            <Title text=title />
+            <Meta name="description" content=desc />
+            <Link rel="canonical" href=canonical />
+            <script type="application/ld+json" inner_html=ld></script>
+        }
+    });
+
+    // Crawlable copy for the listing, since the overlay itself is built by
+    // script. Hidden from sight: the overlay renders the same thing properly a
+    // moment later, and two copies on screen would be worse than none.
+    let asset_body = asset.map(|a| {
+        view! {
+            <div class="sr-only">
+                <h1>{a.name.clone()}</h1>
+                <p>{a.description.clone()}</p>
+                <p>{a.category.clone()}" · by "{a.seller.clone()}" · "{a.downloads}" downloads"</p>
+            </div>
+        }
+    });
+
     view! {
-        <Title text="Renzora Marketplace, Models, Shaders & Scripts for Bevy" />
-        <Meta name="description" content="Browse the Renzora marketplace: ready-made 3D models, shaders, scripts and assets for the Bevy editor. Free and paid packs you can import straight into your Bevy project." />
+        {(!is_listing).then(|| view! {
+            <Title text="Renzora Marketplace, Models, Shaders & Scripts for Bevy" />
+            <Meta name="description" content="Browse the Renzora marketplace: ready-made 3D models, shaders, scripts and assets for the Bevy editor. Free and paid packs you can import straight into your Bevy project." />
+        })}
+        {asset_head}
+        {asset_body}
 
         <section class="min-h-[calc(100vh-3rem)]">
 
@@ -616,16 +685,22 @@ pub fn MarketplacePage() -> impl IntoView {
             });
 
             let quickLookOpen = false;
+            // Whether THIS overlay was opened by a click, which is what decides
+            // how closing it should move history. See closeQuickLook.
+            let quickLookPushed = false;
 
             function openQuickLook(slug, push) {
                 const overlay = document.getElementById('mp-overlay');
                 const root = document.getElementById('mp-overlay-root');
                 if (!overlay || !root || !window.renderAssetDetail) {
-                    // No renderer means no overlay. Fall back to the page rather
-                    // than swallowing the click.
+                    // No renderer means no overlay, and this path has no page of
+                    // its own to fall back to any more. Reload rather than
+                    // swallow the click: the server will serve the grid and the
+                    // listing opens over it.
                     window.location.href = '/marketplace/asset/' + slug;
                     return;
                 }
+                quickLookPushed = !!push;
                 if (push) history.pushState({ quickLook: slug }, '', '/marketplace/asset/' + slug);
 
                 root.innerHTML = '<div class="text-center py-20"><div class="inline-block animate-spin w-6 h-6 border-2 border-zinc-700 border-t-accent rounded-full"></div></div>';
@@ -645,8 +720,16 @@ pub fn MarketplacePage() -> impl IntoView {
                 document.getElementById('mp-overlay-root').innerHTML = '';
                 document.body.style.overflow = '';
                 quickLookOpen = false;
-                // `pop` means history already moved; anything else has to move it.
-                if (!pop) history.back();
+                if (pop) return; // history already moved; nothing to undo.
+
+                // Back only when there is something of ours to go back TO.
+                // Opening from a click pushed an entry, so Back lands on the
+                // grid. Landing straight on a listing URL pushed nothing, and
+                // Back would leave the site entirely: the previous entry belongs
+                // to wherever the link came from. Replace instead, so closing
+                // reliably ends up on the marketplace.
+                if (quickLookPushed) history.back();
+                else history.replaceState({}, '', '/marketplace' + window.location.search);
             }
 
             // Click anywhere off the panel to close.
@@ -678,6 +761,36 @@ pub fn MarketplacePage() -> impl IntoView {
                 if (m) openQuickLook(m[1], false);
                 else closeQuickLook(true);
             });
+
+            // Landing straight on a listing URL. This page answers that path
+            // now, so the grid loads behind and the listing opens over it,
+            // exactly as it would have if you had clicked through. Without this
+            // the URL would show the marketplace and nothing else, which is the
+            // one thing it must not do.
+            //
+            // `false` for push: this URL is already the current entry, and
+            // pushing it again would make Back a no-op.
+            (function () {
+                const m = window.location.pathname.match(/^\/marketplace\/asset\/([^/?#]+)/);
+                if (m) openQuickLook(m[1], false);
+            })();
+
+            // Changing the release from inside the overlay.
+            //
+            // The renderer would otherwise navigate, which throws the grid away
+            // for what is a change of contents within the thing already open.
+            // replaceState rather than push: picking a version is refining what
+            // you are looking at, not a new place, and pushing would make Back
+            // walk every version you tried before reaching the grid.
+            window.quickLookRerender = function (url) {
+                if (!quickLookOpen) return false;
+                history.replaceState({ quickLook: true }, '', url.toString());
+                const root = document.getElementById('mp-overlay-root');
+                const slug = window.location.pathname.split('/').pop();
+                if (!root || !slug) return false;
+                window.renderAssetDetail(slug, root);
+                return true;
+            };
             "##
         </script>
 

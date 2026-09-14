@@ -1,5 +1,4 @@
 pub mod admin;
-pub mod asset_detail;
 pub mod asset_edit;
 pub mod asset_files;
 pub mod asset_release;

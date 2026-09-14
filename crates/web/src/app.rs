@@ -8,7 +8,6 @@ use leptos_router::{
 use crate::components::nav::Nav;
 use crate::pages::{
     admin::AdminPage,
-    asset_detail::AssetDetailPage,
     asset_edit::AssetEditPage,
     asset_files::AssetFilesPage,
     asset_release::AssetReleasePage,
@@ -67,7 +66,16 @@ pub fn App() -> impl IntoView {
                     <Route path=path!("/marketplace/asset/:slug/releases/new") view=AssetReleasePage />
                     <Route path=path!("/marketplace/asset/:slug/files") view=AssetFilesPage />
                     <Route path=path!("/marketplace/asset/:slug/files/*path") view=AssetFilesPage />
-                    <Route path=path!("/marketplace/asset/:slug") view=AssetDetailPage />
+                    // A listing IS the marketplace with one open over it. There
+                    // is no separate listing page: the grid renders, the overlay
+                    // opens from the URL, and closing it leaves you somewhere
+                    // real rather than on a dead end with a Back link.
+                    //
+                    // SEO for this path is unaffected. `ssr_pages::asset_detail`
+                    // still puts the asset in context for it, and MarketplacePage
+                    // renders that asset's title, description, canonical and
+                    // JSON-LD whenever it is there.
+                    <Route path=path!("/marketplace/asset/:slug") view=MarketplacePage />
                     <Route path=path!("/library") view=LibraryPage />
                     <Route path=path!("/wallet") view=WalletPage />
                     <Route path=path!("/gifts") view=GiftsPage />

@@ -63,8 +63,10 @@ html, body, * {
 .doc-body li { margin-bottom: 0.25rem; line-height: 1.8; }
 .doc-body blockquote { border-left: 3px solid #a855f7; padding: 0.75rem 1rem; margin: 1rem 0; background: rgba(168,85,247,0.05); border-radius: 0 8px 8px 0; }
 .doc-body blockquote p { margin-bottom: 0; color: #e4e4e7; }
-.doc-body code { background: #18181b; padding: 0.125rem 0.375rem; border-radius: 3px; font-size: 0.8125rem; font-family: 'Cascadia Code', 'Fira Code', monospace; }
-.doc-body pre { background: #18181b; border: 1px solid #27272a; border-radius: 8px; padding: 1rem; overflow-x: auto; margin-bottom: 1.25rem; }
+/* Same grounds as the source viewer: a README renders on the same page as it,
+   so two different darks for "this is code" would show. */
+.doc-body code { background: rgba(255, 255, 255, 0.07); padding: 0.125rem 0.375rem; border-radius: 3px; font-size: 0.8125rem; font-family: 'Cascadia Code', 'Fira Code', monospace; }
+.doc-body pre { background: #120b1f; border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 8px; padding: 1rem; overflow-x: auto; margin-bottom: 1.25rem; }
 .doc-body pre code { background: none; padding: 0; font-size: 0.8125rem; line-height: 1.6; color: #e4e4e7; }
 .doc-body img { max-width: 100%; border-radius: 8px; border: 1px solid #27272a; margin: 1rem 0; }
 
@@ -101,7 +103,20 @@ html, body, * {
 
    The two must share font, size and line-height exactly or the numbers drift
    out of step with the rows they label. */
-.code-view { background: #18181b; border: 1px solid #27272a; border-radius: 12px; overflow: hidden; }
+/* One ground for the whole block.
+
+   highlight.js's theme paints its own `background: #0d1117` on `.hljs`, so the
+   code sat on GitHub's near-black while the gutter beside it sat on this file's
+   #18181b and the card around them sat on the site's purple-tinted surface:
+   three different darks in one component. The theme is kept for its syntax
+   colours and its background is dropped, so the container owns the ground and
+   the two columns cannot disagree.
+
+   The ground is the site's own surface rather than a neutral zinc, which is what
+   made the block read as pasted in from somewhere else. */
+.code-view .hljs,
+.doc-body pre .hljs { background: transparent; }
+.code-view { background: #120b1f; border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 12px; overflow: hidden; }
 .code-view .code-scroll { display: flex; align-items: stretch; overflow-x: auto; }
 .code-view pre,
 .code-view code {
@@ -121,9 +136,9 @@ html, body, * {
     padding-left: 1rem;
     padding-right: 0.875rem;
     text-align: right;
-    color: #6b6b76;
-    background: #18181b;
-    border-right: 1px solid #27272a;
+    color: #7c7596;
+    background: #120b1f;
+    border-right: 1px solid rgba(255, 255, 255, 0.08);
     user-select: none;
     -webkit-user-select: none;
 }

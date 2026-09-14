@@ -387,17 +387,17 @@
 
                                 ${isCreator ? `
                                 <!-- The owner's tools, under the action rather
-                                     than beside the title. They are things only
-                                     one person can do, so they should not sit in
-                                     the first line everybody reads. Stacked full
-                                     width because the rail is 320px and a row of
-                                     three wrapped every time it was tried. -->
-                                <div class="mt-5 pt-5 border-t border-zinc-800/50 space-y-2">
-                                    <a href="/marketplace/asset/${a.slug}/releases/new" class="w-full px-4 py-2.5 rounded-xl text-sm font-medium bg-accent/15 border border-accent/40 text-accent hover:bg-accent/25 transition-colors flex items-center justify-center gap-2"><i class="ph ph-rocket-launch"></i>New release</a>
-                                    <div class="flex gap-2">
-                                        <a href="/marketplace/asset/${a.slug}/edit" class="flex-1 px-3 py-2 rounded-xl text-sm font-medium bg-white/[0.05] border border-zinc-700/60 text-zinc-200 hover:border-zinc-500 hover:text-white transition-colors flex items-center justify-center gap-2" title="Edit the listing and its releases"><i class="ph ph-pencil-simple"></i>Edit listing</a>
-                                        <button onclick="deleteAsset('${a.id}')" aria-label="Delete this listing" title="Delete this listing" class="px-3 py-2 rounded-xl text-red-400 hover:text-red-300 hover:bg-red-950/30 border border-transparent hover:border-red-900/50 transition-colors"><i class="ph ph-trash"></i></button>
-                                    </div>
+                                     than beside the title: things one person can
+                                     do do not belong in the first line everybody
+                                     reads.
+
+                                     One row. "Edit" rather than "Edit listing"
+                                     is what buys the space for it, and the page
+                                     it opens says what it covers. -->
+                                <div class="mt-5 pt-5 border-t border-zinc-800/50 flex items-center gap-2">
+                                    <a href="/marketplace/asset/${a.slug}/releases/new" class="flex-1 px-3 py-2 rounded-xl text-sm font-medium bg-accent/15 border border-accent/40 text-accent hover:bg-accent/25 transition-colors flex items-center justify-center gap-1.5 whitespace-nowrap"><i class="ph ph-rocket-launch"></i>New release</a>
+                                    <a href="/marketplace/asset/${a.slug}/edit" class="px-3 py-2 rounded-xl text-sm font-medium bg-white/[0.05] border border-zinc-700/60 text-zinc-200 hover:border-zinc-500 hover:text-white transition-colors flex items-center justify-center gap-1.5 whitespace-nowrap" title="Edit the listing and its releases"><i class="ph ph-pencil-simple"></i>Edit</a>
+                                    <button onclick="deleteAsset('${a.id}')" aria-label="Delete this listing" title="Delete this listing" class="px-2.5 py-2 rounded-xl text-red-400 hover:text-red-300 hover:bg-red-950/30 border border-transparent hover:border-red-900/50 transition-colors shrink-0"><i class="ph ph-trash"></i></button>
                                 </div>` : ''}
 
                                 <!--
@@ -536,7 +536,19 @@
                 const token = document.cookie.match('(^|;)\\s*token\\s*=\\s*([^;]+)')?.pop();
                 const headers = token ? { 'Authorization': 'Bearer ' + token } : {};
 
-                const res = await fetch('/api/marketplace/' + a.id + '/tree', { headers });
+                // The tree and the README belong to a RELEASE, not to the
+                // listing. Without this the picker changed the version shown at
+                // the top while the files and the README underneath stayed on
+                // whatever the default release was, which is worse than not
+                // offering the choice: the page claimed to be showing one
+                // version and was showing another's contents.
+                const rel = new URLSearchParams(window.location.search).get('release');
+                const q = rel ? '?release=' + encodeURIComponent(rel) : '';
+                // Carried onto the links out of here too, so following one from
+                // an older release does not silently land on the newest.
+                const fq = rel ? '?release=' + encodeURIComponent(rel) : '';
+
+                const res = await fetch('/api/marketplace/' + a.id + '/tree' + q, { headers });
                 if (!res.ok) return; // no browsable files (legacy single-URL asset)
                 const tree = await res.json();
 
@@ -549,7 +561,7 @@
                     // browser — the asset page shouldn't become a file manager.
                     const shown = root.slice(0, 12);
                     const rows = shown.map(e => `
-                        <a href="/marketplace/asset/${a.slug}/files/${encodeURI(e.path)}" class="flex items-center gap-2.5 px-4 py-2 hover:bg-white/[0.02] transition-colors border-b border-zinc-800/50 last:border-0 group">
+                        <a href="/marketplace/asset/${a.slug}/files/${encodeURI(e.path)}${fq}" class="flex items-center gap-2.5 px-4 py-2 hover:bg-white/[0.02] transition-colors border-b border-zinc-800/50 last:border-0 group">
                             <i class="ph ${treeIcon(e)}"></i>
                             <span class="flex-1 text-sm text-zinc-300 group-hover:text-accent transition-colors truncate">${treeEsc(e.name)}</span>
                             ${e.is_doc ? '<span class="px-1.5 py-0.5 rounded bg-cyan-500/10 border border-cyan-500/20 text-[10px] text-cyan-400">docs</span>' : ''}
@@ -558,14 +570,14 @@
                         </a>`).join('');
 
                     const more = root.length > shown.length
-                        ? `<a href="/marketplace/asset/${a.slug}/files" class="block px-4 py-2 text-xs text-accent hover:underline border-t border-zinc-800/50">${root.length - shown.length} more…</a>`
+                        ? `<a href="/marketplace/asset/${a.slug}/files${fq}" class="block px-4 py-2 text-xs text-accent hover:underline border-t border-zinc-800/50">${root.length - shown.length} more…</a>`
                         : '';
 
                     treeEl.innerHTML = `
                         <div class="mt-12">
                             <div class="flex items-center justify-between mb-4">
                                 <h2 class="text-lg font-semibold">Files</h2>
-                                <a href="/marketplace/asset/${a.slug}/files" class="text-xs text-accent hover:underline flex items-center gap-1">
+                                <a href="/marketplace/asset/${a.slug}/files${fq}" class="text-xs text-accent hover:underline flex items-center gap-1">
                                     Browse all ${fileCount} files <i class="ph ph-arrow-right"></i>
                                 </a>
                             </div>
@@ -587,7 +599,7 @@
                                     <i class="ph ph-book-open text-cyan-400"></i>
                                     <span class="text-xs font-medium text-zinc-300">${treeEsc(tree.readme.path)}</span>
                                     <span class="flex-1"></span>
-                                    <a href="/marketplace/asset/${a.slug}/files/${encodeURI(tree.readme.path)}" class="text-[11px] text-zinc-500 hover:text-accent transition-colors">Open</a>
+                                    <a href="/marketplace/asset/${a.slug}/files/${encodeURI(tree.readme.path)}${fq}" class="text-[11px] text-zinc-500 hover:text-accent transition-colors">Open</a>
                                 </div>
                                 <div class="doc-body px-6 py-6">${tree.readme.html}</div>
                             </div>
@@ -697,6 +709,11 @@
                 const url = new URL(window.location.href);
                 if (version) { url.searchParams.set('release', version); }
                 else { url.searchParams.delete('release'); }
+                // In the overlay a navigation would throw the grid away and land
+                // on a full page load, so the host re-renders in place instead
+                // and returns true to say it handled it. Nothing else offers
+                // that, and a plain page load is the right fallback.
+                if (window.quickLookRerender && window.quickLookRerender(url)) return;
                 window.location.href = url.toString();
             }
 
