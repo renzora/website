@@ -70,6 +70,13 @@ pub fn DevelopersPage() -> impl IntoView {
                     </div>
 
                 `;
+
+                // Inside the IIFE, and after the assignment above, because that
+                // assignment is what creates `#usage-card`. Called at the top
+                // level it ran during script parse, looked the element up before
+                // this had awaited its token fetch, found nothing and returned:
+                // no bar, no error, nothing in the console.
+                loadUsage();
             })();
 
             // ── Today's allowance ──
@@ -125,7 +132,6 @@ pub fn DevelopersPage() -> impl IntoView {
                 `;
                 el.classList.remove('hidden');
             }
-            loadUsage();
 
             // A date the server sent, or nothing. The API now emits RFC 3339,
             // which is what `new Date()` needs; this stays defensive because the
