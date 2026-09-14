@@ -85,6 +85,12 @@ pub fn DevelopersPage() -> impl IntoView {
             // budget rather than getting ten, so this is one bar for the page
             // and not a row on each token.
             async function loadUsage() {
+                // Read the cookie here rather than reaching for the one the IIFE
+                // above holds: that `token` is scoped to the IIFE, so touching
+                // it from a top-level function is a ReferenceError that kills the
+                // call before it does anything. createToken and revokeToken take
+                // their own copy for the same reason.
+                const token = document.cookie.match('(^|;)\\s*token\\s*=\\s*([^;]+)')?.pop();
                 if (!token) return;
                 const el = document.getElementById('usage-card');
                 if (!el) return;
