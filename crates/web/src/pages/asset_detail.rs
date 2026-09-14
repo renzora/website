@@ -303,20 +303,25 @@ pub fn AssetDetailPage() -> impl IntoView {
                             <div class="mt-8">
                                 <div class="flex items-center gap-3">
                                     <h1 class="text-3xl font-bold leading-tight">${a.name}</h1>
-                                    ${isCreator ? `<a href="/marketplace/asset/${a.slug}/edit" class="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium bg-white/[0.03] border border-zinc-800/50 text-zinc-400 hover:border-zinc-600 hover:text-zinc-200 transition-colors"><i class="ph ph-pencil-simple"></i>Edit</a><a href="/marketplace/asset/${a.slug}/releases/new" class="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium bg-accent/10 border border-accent/30 text-accent hover:bg-accent/15 transition-colors"><i class="ph ph-rocket-launch"></i>New Release</a><button onclick="deleteAsset('${a.id}')" class="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium bg-white/[0.03] border border-red-900/50 text-red-400 hover:border-red-700 hover:text-red-300 hover:bg-red-950/30 transition-colors"><i class="ph ph-trash"></i>Delete</button>` : ''}
+                                    ${isCreator ? `<a href="/marketplace/asset/${a.slug}/edit" class="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium bg-white/[0.03] border border-zinc-800/50 text-zinc-400 hover:border-zinc-600 hover:text-zinc-200 transition-colors"><i class="ph ph-pencil-simple"></i>Edit listing &amp; releases</a><a href="/marketplace/asset/${a.slug}/releases/new" class="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium bg-accent/10 border border-accent/30 text-accent hover:bg-accent/15 transition-colors"><i class="ph ph-rocket-launch"></i>New Release</a><button onclick="deleteAsset('${a.id}')" class="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium bg-white/[0.03] border border-red-900/50 text-red-400 hover:border-red-700 hover:text-red-300 hover:bg-red-950/30 transition-colors"><i class="ph ph-trash"></i>Delete</button>` : ''}
                                 </div>
                                 <div class="flex items-center gap-4 mt-3 flex-wrap">
                                     <a href="/shop/${a.creator.username}" class="flex items-center gap-2 text-sm font-medium text-accent hover:text-accent-hover transition-colors">
                                         <div class="w-6 h-6 rounded-full bg-accent/10 flex items-center justify-center"><i class="ph ph-user text-xs text-accent"></i></div>
                                         ${a.creator.username}
                                     </a>
-                                    <span class="text-sm text-zinc-600">·</span>
-                                    <span class="px-2.5 py-1 rounded-full bg-white/[0.03] border border-zinc-800/50 text-xs text-zinc-400">${a.category}</span>
-                                    ${(a.tags || []).map(t => `<span class="px-2 py-0.5 rounded-full bg-accent/10 border border-accent/20 text-[11px] text-accent">${t}</span>`).join('')}
-                                    <span class="text-sm text-zinc-500">v${a.version}</span>
-                                    <span class="text-sm text-zinc-600">·</span>
+                                    <span class="text-sm text-zinc-500">·</span>
+                                    <span class="px-2.5 py-1 rounded-full bg-white/[0.05] border border-zinc-700/60 text-sm text-zinc-200">${a.category}</span>
+                                    <!-- Tags and the category used to be repeated
+                                         here and in the sidebar, at two sizes,
+                                         neither readable. The sidebar keeps them,
+                                         and this line carries what identifies the
+                                         thing you are looking at instead: which
+                                         version, and which engine it runs on. -->
+                                    <span class="px-2.5 py-1 rounded-full bg-white/[0.05] border border-zinc-700/60 text-sm font-medium text-zinc-100">v${a.version}</span>
+                                    <span id="detail-engine-badge"></span>
                                     <span class="text-sm">${starsHtml}</span>
-                                    <span class="text-sm text-zinc-500">${ratingLabel}</span>
+                                    <span class="text-sm text-zinc-400">${ratingLabel}</span>
                                 </div>
                             </div>
 
@@ -411,9 +416,23 @@ pub fn AssetDetailPage() -> impl IntoView {
                                     <div class="flex justify-between text-sm"><span class="text-zinc-500">Views</span><span class="text-zinc-300">${a.views.toLocaleString()}</span></div>
                                     <div class="flex justify-between text-sm"><span class="text-zinc-500">Downloads</span><span class="text-zinc-300">${a.downloads.toLocaleString()}</span></div>
                                     <div class="flex justify-between text-sm"><span class="text-zinc-500">Category</span><span class="text-zinc-300">${a.category}</span></div>
-                                    ${(a.tags || []).length ? `<div class="text-sm"><span class="text-zinc-500 block mb-1.5">Tags</span><div class="flex flex-wrap gap-1">${a.tags.map(t => `<span class="px-2 py-0.5 rounded-full bg-accent/10 border border-accent/20 text-[10px] text-accent">${t}</span>`).join('')}</div></div>` : ''}
+                                    ${(a.tags || []).length ? `<div class="text-sm"><span class="text-zinc-500 block mb-1.5">Tags</span><div class="flex flex-wrap gap-1.5">${a.tags.map(t => `<span class="px-2.5 py-1 rounded-full bg-accent/15 border border-accent/40 text-xs text-accent">${t}</span>`).join('')}</div></div>` : ''}
                                     ${a.credit_name ? `<div class="flex justify-between text-sm"><span class="text-zinc-500">Credit</span><span class="text-zinc-300">${a.credit_url ? `<a href="${a.credit_url}" target="_blank" class="text-accent hover:underline">${a.credit_name}</a>` : a.credit_name}</span></div>` : ''}
-                                    <div class="flex justify-between text-sm"><span class="text-zinc-500">Version</span><span class="text-zinc-300">${a.version}</span></div>
+                                    <!-- A picker, not a label. A listing can carry
+                                         several lines of releases at once, one per
+                                         engine, and the newest overall is not what
+                                         every editor gets; without this there is no
+                                         way to look at any release but the latest. -->
+                                    <div class="text-sm">
+                                        <span class="text-zinc-500 block mb-1.5">Version</span>
+                                        <select id="detail-release-select" onchange="goToRelease(this.value)"
+                                            class="w-full px-3 py-2 bg-white/[0.05] border border-zinc-700/60 rounded-lg text-zinc-100 text-sm outline-none focus:border-accent/50 transition-all">
+                                            <option value="">v${a.version}</option>
+                                        </select>
+                                    </div>
+                                    <div class="flex justify-between text-sm" id="detail-engine-row">
+                                        <span class="text-zinc-500">Engine</span><span class="text-zinc-300">Any</span>
+                                    </div>
                                     <div class="flex justify-between text-sm"><span class="text-zinc-500">Comments</span><span class="text-zinc-300">${commentsData.comments?.length || 0}</span></div>
                                     <div class="flex justify-between text-sm"><span class="text-zinc-500">Published</span><span class="text-zinc-300">${fmtDate(a.created_at)}</span></div>
                                     <div class="flex justify-between text-sm"><span class="text-zinc-500">Updated</span><span class="text-zinc-300">${fmtDate(a.updated_at)}</span></div>
@@ -609,12 +628,12 @@ pub fn AssetDetailPage() -> impl IntoView {
                 const cards = releases.map(r => `
                     <div class="border border-zinc-800/50 rounded-2xl bg-white/[0.01] p-5">
                         <div class="flex items-center gap-3 flex-wrap">
-                            <span class="text-base font-semibold text-zinc-100">v${treeEsc(r.version)}</span>
-                            ${r.is_current ? '<span class="px-2 py-0.5 rounded-full bg-green-500/10 border border-green-500/20 text-[10px] text-green-400 font-medium">LATEST</span>' : ''}
+                            <span class="text-lg font-semibold text-zinc-50">v${treeEsc(r.version)}</span>
+                            ${r.is_current ? '<span class="px-2.5 py-1 rounded-full bg-green-500/15 border border-green-500/40 text-xs text-green-300 font-medium">Latest</span>' : ''}
                             ${r.min_engine_version
-                                ? `<span class="px-2 py-0.5 rounded-full bg-white/[0.04] border border-zinc-700/50 text-[10px] text-zinc-400 font-medium" title="Runs on ${treeEsc(r.min_engine_version)} and newer. Older engines are offered the newest release that still works for them.">${treeEsc(r.min_engine_version)}+</span>`
-                                : ''}
-                            <span class="text-xs text-zinc-600">${fmtDate(r.created_at)}</span>
+                                ? `<span class="px-2.5 py-1 rounded-full bg-cyan-500/15 border border-cyan-500/40 text-xs text-cyan-200 font-medium" title="Runs on ${treeEsc(r.min_engine_version)} and newer. Older engines are offered the newest release that still works for them."><i class="ph ph-engine"></i> ${treeEsc(r.min_engine_version)} and newer</span>`
+                                : '<span class="px-2.5 py-1 rounded-full bg-white/[0.05] border border-zinc-700/60 text-xs text-zinc-300 font-medium">Any engine</span>'}
+                            <span class="text-sm text-zinc-400">${fmtDate(r.created_at)}</span>
                             <span class="flex-1"></span>
                             <a href="/marketplace/asset/${a.slug}/files?release=${encodeURIComponent(r.version)}" class="text-xs text-zinc-500 hover:text-accent transition-colors"><i class="ph ph-folder-open"></i> Files</a>
                             ${canDownload
@@ -634,11 +653,62 @@ pub fn AssetDetailPage() -> impl IntoView {
                         <div class="space-y-3">${cards}</div>
                     </div>`;
 
+                // The sidebar picker and the header badge describe one release,
+                // and both are filled from this same list rather than from a
+                // second request, so they can never disagree with the cards.
+                fillReleasePicker(releases);
+
                 // `?tab=releases` (the link in a new-release notification)
                 // arrives before this section exists, so honour it here.
                 if (new URLSearchParams(window.location.search).get('tab') === 'releases') {
                     el.scrollIntoView({ behavior: 'smooth' });
                 }
+            }
+
+            /// Which release the page is showing, and what engine it needs.
+            function fillReleasePicker(releases) {
+                const selected = new URLSearchParams(window.location.search).get('release') || '';
+                const current = releases.find(r => r.version === selected)
+                    || releases.find(r => r.is_current)
+                    || releases[0];
+
+                const sel = document.getElementById('detail-release-select');
+                if (sel) {
+                    sel.innerHTML = releases.map(r =>
+                        `<option value="${treeEsc(r.version)}"${r === current ? ' selected' : ''}>v${treeEsc(r.version)}${
+                            r.min_engine_version ? ' · ' + treeEsc(r.min_engine_version) + '+' : ' · any engine'
+                        }${r.is_current ? ' · latest' : ''}</option>`).join('');
+                }
+
+                const engine = current?.min_engine_version || '';
+                const row = document.getElementById('detail-engine-row');
+                if (row) {
+                    row.innerHTML = '<span class="text-zinc-500">Engine</span>' +
+                        (engine
+                            ? `<span class="text-cyan-200 font-medium">${treeEsc(engine)} and newer</span>`
+                            : '<span class="text-zinc-300">Any</span>');
+                }
+
+                const badge = document.getElementById('detail-engine-badge');
+                if (badge) {
+                    badge.className = engine
+                        ? 'px-2.5 py-1 rounded-full bg-cyan-500/15 border border-cyan-500/40 text-sm font-medium text-cyan-200'
+                        : 'px-2.5 py-1 rounded-full bg-white/[0.05] border border-zinc-700/60 text-sm text-zinc-300';
+                    badge.textContent = engine ? engine + ' and newer' : 'Any engine';
+                    badge.title = engine
+                        ? 'Runs on ' + engine + ' and newer. Older engines are offered the newest release that still works for them.'
+                        : 'Runs on any engine.';
+                }
+            }
+
+            // Reload at the chosen release. A query parameter rather than
+            // client-side state, so the address bar names what is on screen and
+            // the link can be sent to somebody.
+            function goToRelease(version) {
+                const url = new URL(window.location.href);
+                if (version) { url.searchParams.set('release', version); }
+                else { url.searchParams.delete('release'); }
+                window.location.href = url.toString();
             }
 
             // Download a specific version rather than whatever is newest.

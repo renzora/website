@@ -133,16 +133,45 @@ pub fn Shell() -> impl IntoView {
                 </script>
 
                 <style>
-                    "body{background:radial-gradient(1200px 620px at 15% -8%,rgba(168,85,247,0.12),transparent 60%),radial-gradient(1000px 520px at 100% 0%,rgba(34,211,238,0.07),transparent 55%),#09040f;background-attachment:fixed;min-height:100vh}
-                    html,body{scrollbar-width:thin;scrollbar-color:#241633 #09040f}
-                    *{scrollbar-width:thin;scrollbar-color:#241633 #09040f}
+                    "body{background:radial-gradient(1200px 620px at 15% -8%,rgba(168,85,247,0.14),transparent 60%),radial-gradient(1000px 520px at 100% 0%,rgba(34,211,238,0.08),transparent 55%),#15102a;background-attachment:fixed;min-height:100vh}
+
+                    /* ── The muted text ramp ──────────────────────────────────
+                       Tailwind's zinc 500-700 are picked for a white page. On a
+                       near-black one they land around 2-3:1 against the
+                       background, under the 4.5:1 body text needs, which is
+                       where secondary text stops being quiet and starts being
+                       unreadable.
+
+                       Remapped here once rather than at the call sites: there
+                       are about 490 of them and they are not 490 mistakes, they
+                       are one ramp set too dark. A page asking for
+                       `text-zinc-500` is asking for 'quieter than body text',
+                       and that intent still holds; only the value it resolves
+                       to moves.
+
+                       This block loads after main.css, so it wins on source
+                       order at equal specificity. */
+                    .text-zinc-500{color:#a8a8b3}
+                    .text-zinc-600{color:#94949f}
+                    .text-zinc-700{color:#7c7c87}
+
+                    /* Card surfaces and hairlines, lifted for the same reason:
+                       a 2% white fill on #09040f was invisible, and the panels
+                       it draws were only findable by their contents. */
+                    .bg-white\\/\\[0\\.01\\]{background-color:rgba(255,255,255,0.03)}
+                    .bg-white\\/\\[0\\.02\\]{background-color:rgba(255,255,255,0.05)}
+                    .bg-white\\/\\[0\\.03\\]{background-color:rgba(255,255,255,0.06)}
+                    .border-zinc-800\\/50{border-color:rgba(113,113,122,0.35)}
+
+                    html,body{scrollbar-width:thin;scrollbar-color:#3a2d55 #15102a}
+                    *{scrollbar-width:thin;scrollbar-color:#3a2d55 #15102a}
                     ::-webkit-scrollbar{width:8px!important;height:8px!important}
-                    ::-webkit-scrollbar-track{background:#09040f!important}
-                    ::-webkit-scrollbar-thumb{background:#241633!important;border-radius:4px!important}
-                    ::-webkit-scrollbar-thumb:hover{background:#33234a!important}
-                    ::-webkit-scrollbar-corner{background:#09040f!important}
-                    select,select option{background-color:#160d26!important;color:#fafafa!important}
-                    select option:checked{background-color:#241633!important}
+                    ::-webkit-scrollbar-track{background:#15102a!important}
+                    ::-webkit-scrollbar-thumb{background:#3a2d55!important;border-radius:4px!important}
+                    ::-webkit-scrollbar-thumb:hover{background:#4c3c6e!important}
+                    ::-webkit-scrollbar-corner{background:#15102a!important}
+                    select,select option{background-color:#241a3d!important;color:#fafafa!important}
+                    select option:checked{background-color:#33254f!important}
                     select{-webkit-appearance:none;-moz-appearance:none;appearance:none;background-image:url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2371717a' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E\");background-repeat:no-repeat;background-position:right 8px center;padding-right:28px}
 
                     /* Site-wide base font size (bumped from the 16px browser default;

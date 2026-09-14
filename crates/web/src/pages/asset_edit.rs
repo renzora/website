@@ -75,8 +75,8 @@ pub fn AssetEditPage() -> impl IntoView {
                         <a href="/marketplace/asset/${a.slug}" class="inline-flex items-center gap-1.5 text-sm text-zinc-500 hover:text-zinc-300 transition-colors mb-4">
                             <i class="ph ph-arrow-left"></i> Back to Asset
                         </a>
-                        <h1 class="text-3xl font-bold">Edit Asset</h1>
-                        <p class="text-zinc-400 text-sm mt-2">Update your asset's details, files, and media.</p>
+                        <h1 class="text-3xl font-bold">Editing <span class="text-accent">${relEsc(a.name)}</span></h1>
+                        <p class="text-zinc-300 text-sm mt-2">The listing: its description, price, artwork and gallery, plus the engine each published release targets. Files and version numbers come from publishing a release.</p>
                     </div>
 
                     <div id="edit-error" class="hidden mb-6 p-4 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-sm flex items-center gap-2">
@@ -110,8 +110,9 @@ pub fn AssetEditPage() -> impl IntoView {
                                 <p class="text-xs text-zinc-600 mt-1">Category cannot be changed after creation.</p>
                             </div>
                             <div>
-                                <label class="block text-sm text-zinc-400 mb-1.5">Version</label>
-                                <input type="text" id="edit-version" value="${a.version}" class="w-full px-4 py-3 bg-white/[0.02] border border-zinc-800/50 rounded-xl text-zinc-50 text-sm outline-none focus:border-accent/50 transition-all" />
+                                <label class="block text-sm text-zinc-400 mb-1.5">Current version</label>
+                                <div class="w-full px-4 py-3 bg-white/[0.02] border border-zinc-800/50 rounded-xl text-zinc-300 text-sm">${a.version}</div>
+                                <p class="text-xs text-zinc-500 mt-1">Set by publishing a release, not here. Typing a version would rename the listing without any release matching it.</p>
                             </div>
                         </div>
                     </div>
@@ -146,38 +147,16 @@ pub fn AssetEditPage() -> impl IntoView {
                         </div>
                     </div>
 
-                    <!-- Asset Files -->
-                    <div class="p-6 bg-white/[0.02] border border-zinc-800/50 rounded-2xl space-y-5 mb-8">
-                        <h2 class="text-base font-semibold flex items-center gap-2">
-                            <i class="ph ph-file-arrow-up text-cyan-400"></i> Asset Files
-                        </h2>
-                        <div>
-                            <p class="text-sm text-zinc-400 mb-2">${a.files && a.files.length ? '<i class="ph ph-check-circle text-green-400"></i> ' + a.files.length + ' file(s) uploaded' : a.file_url ? '<i class="ph ph-check-circle text-green-400"></i> File uploaded' : '<i class="ph ph-warning text-amber-400"></i> No file uploaded'}</p>
-
-                            ${a.files && a.files.length ? '<div class="mb-3 space-y-1.5" id="current-files">' + a.files.map(f => '<div class="flex items-center gap-2 text-xs text-zinc-400 px-3 py-2 bg-white/[0.02] rounded-lg"><i class="ph ph-file text-zinc-600"></i><span class="flex-1 truncate">' + f.original_filename + '</span><span class="text-zinc-600">' + formatFileSize(f.file_size) + '</span></div>').join('') + '</div>' : ''}
-
-                            <input type="file" id="edit-file" multiple
-                                onchange="onEditFileChange(this)"
-                                class="w-full text-sm text-zinc-400 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-sm file:font-medium file:bg-white/[0.05] file:text-zinc-300 hover:file:bg-white/[0.08] file:cursor-pointer file:transition-colors" />
-                            <p class="text-xs text-zinc-600 mt-1">Replaces the files of the <span class="text-zinc-500">current release (v${a.version})</span> in place. Max 200MB each; upload a .zip to publish a folder tree. To ship a <em>new version</em> and keep this one downloadable, <a href="/marketplace/asset/${a.slug}/releases/new" class="text-accent hover:underline">publish a release</a> instead.</p>
-
-                            <div id="edit-zip-options" class="hidden mt-3 p-3 bg-white/[0.02] rounded-xl border border-zinc-800/50">
-                                <p class="text-xs text-zinc-400 mb-2">This is a .zip file. How should it be stored?</p>
-                                <div class="flex gap-3">
-                                    <label class="flex items-center gap-2 cursor-pointer">
-                                        <input type="radio" name="zip_action" value="keep" checked class="accent-accent" />
-                                        <span class="text-xs text-zinc-300">Keep as zip</span>
-                                    </label>
-                                    <label class="flex items-center gap-2 cursor-pointer">
-                                        <input type="radio" name="zip_action" value="extract" class="accent-accent" />
-                                        <span class="text-xs text-zinc-300">Extract contents</span>
-                                    </label>
-                                </div>
-                            </div>
-
-                            <div id="edit-file-list" class="mt-2 space-y-1"></div>
-                        </div>
-                    </div>
+                    <!--
+                        No file replacement here. Swapping a published release's
+                        files in place makes the version a lie: everyone who
+                        downloaded v1.0.0 has different bytes from everyone who
+                        downloads it after, under the same number, and nothing
+                        records that it happened. It also went round the
+                        publishing tool, which is the thing that checks the
+                        manifest, the engine version and the ordering. Shipping
+                        changed files is publishing a release.
+                    -->
 
                     <!-- Releases -->
                     <div class="p-6 bg-white/[0.02] border border-zinc-800/50 rounded-2xl space-y-5 mb-8">
@@ -189,9 +168,9 @@ pub fn AssetEditPage() -> impl IntoView {
                                 <i class="ph ph-rocket-launch"></i> New release
                             </a>
                         </div>
-                        <p class="text-xs text-zinc-600">Every version keeps its own files, so buyers can still download the one they were using.</p>
-                        <div id="releases-list" class="border border-zinc-800/50 rounded-xl overflow-hidden bg-white/[0.01]">
-                            <p class="text-xs text-zinc-600 px-4 py-3">Loading…</p>
+                        <p class="text-sm text-zinc-400">Every version keeps its own files, so people can still download the one they were using. Each release states the oldest engine it runs on, and an editor is offered the newest release it can actually run.</p>
+                        <div id="releases-list" class="space-y-3">
+                            <p class="text-sm text-zinc-400 px-1 py-3">Loading...</p>
                         </div>
                     </div>
 
@@ -250,40 +229,105 @@ pub fn AssetEditPage() -> impl IntoView {
                     ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
             }
 
+            // Engine versions, newest first. Loaded once and reused by every
+            // release row's dropdown.
+            let EDIT_ENGINES = [];
+
+            // "Any engine" is first and is what an unset value means. It is not
+            // a placeholder: a release with no floor is offered to everybody,
+            // and that is the honest default rather than a floor invented for
+            // releases that never declared one.
+            function engineOptions(selected) {
+                return ['<option value="">Any engine</option>'].concat(
+                    EDIT_ENGINES.map(e =>
+                        `<option value="${relEsc(e.version)}"${e.version === selected ? ' selected' : ''}>${relEsc(e.version)} and newer</option>`)
+                ).join('');
+            }
+
             async function loadReleasesList() {
                 const el = document.getElementById('releases-list');
                 if (!el || !assetId) return;
 
+                if (!EDIT_ENGINES.length) {
+                    // Not fatal. Without it the dropdown still offers "Any
+                    // engine", which is a valid answer for every release.
+                    const eRes = await fetch('/api/marketplace/engine-versions');
+                    EDIT_ENGINES = eRes.ok ? await eRes.json() : [];
+                }
+
                 const res = await fetch('/api/marketplace/' + assetId + '/releases');
-                if (!res.ok) { el.innerHTML = '<p class="text-xs text-zinc-600 px-4 py-3">Could not load releases.</p>'; return; }
+                if (!res.ok) { el.innerHTML = '<p class="text-sm text-zinc-400 px-1 py-3">Could not load releases.</p>'; return; }
                 const releases = await res.json();
                 if (!releases.length) {
-                    el.innerHTML = '<p class="text-xs text-zinc-600 px-4 py-3">No releases yet.</p>';
+                    el.innerHTML = '<p class="text-sm text-zinc-400 px-1 py-3">No releases yet.</p>';
                     return;
                 }
 
                 el.innerHTML = releases.map(r => `
-                    <div class="px-4 py-3 border-b border-zinc-800/50 last:border-0" data-release="${r.id}">
-                        <div class="flex items-center gap-2.5">
-                            <span class="text-sm font-medium text-zinc-200">v${relEsc(r.version)}</span>
-                            ${r.is_current ? '<span class="px-1.5 py-0.5 rounded bg-green-500/10 border border-green-500/20 text-[10px] text-green-400">current</span>' : ''}
-                            <span class="text-xs text-zinc-600">${r.file_count} files · ${formatFileSize(r.total_size)} · ${r.downloads} downloads</span>
+                    <div class="p-4 bg-white/[0.02] border border-zinc-800/50 rounded-xl" data-release="${r.id}">
+                        <div class="flex items-center gap-3 flex-wrap mb-3">
+                            <span class="text-base font-semibold text-zinc-100">v${relEsc(r.version)}</span>
+                            ${r.is_current ? '<span class="px-2 py-0.5 rounded-full bg-green-500/15 border border-green-500/40 text-xs font-medium text-green-300">Latest</span>' : ''}
+                            <span class="text-sm text-zinc-400">${r.file_count} files &middot; ${formatFileSize(r.total_size)} &middot; ${r.downloads} downloads</span>
                             <span class="flex-1"></span>
-                            <button onclick="toggleReleaseNotes('${r.id}')" class="text-xs text-zinc-500 hover:text-accent transition-colors">Notes</button>
                             ${r.is_current
-                                ? '<span class="text-xs text-zinc-700" title="Publish a newer version before removing this one">Delete</span>'
-                                : `<button onclick="deleteRelease('${r.id}','${relEsc(r.version)}')" class="text-xs text-red-500/80 hover:text-red-400 transition-colors">Delete</button>`}
+                                ? '<span class="text-sm text-zinc-500" title="Publish a newer version before removing this one">Delete</span>'
+                                : `<button onclick="deleteRelease('${r.id}','${relEsc(r.version)}')" class="text-sm text-red-400 hover:text-red-300 transition-colors">Delete</button>`}
                         </div>
-                        <div id="notes-${r.id}" class="hidden mt-3">
-                            <textarea id="notes-input-${r.id}" rows="4" placeholder="Release notes (markdown)"
-                                class="w-full px-3 py-2 bg-white/[0.02] border border-zinc-800/50 rounded-lg text-zinc-50 text-xs outline-none focus:border-accent/50 resize-y font-mono">${relEsc(r.notes)}</textarea>
-                            <button onclick="saveReleaseNotes('${r.id}')" class="mt-2 px-3 py-1.5 rounded-lg text-xs font-medium bg-white/[0.05] text-zinc-300 hover:bg-white/[0.08] transition-colors">Save notes</button>
+                        <div class="grid sm:grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-sm text-zinc-300 mb-1.5">Built for</label>
+                                <select id="eng-${r.id}" data-previous="${relEsc(r.min_engine_version || '')}"
+                                    onchange="saveReleaseEngine('${r.id}', this)"
+                                    class="w-full px-3 py-2.5 bg-white/[0.03] border border-zinc-800/50 rounded-lg text-zinc-100 text-sm outline-none focus:border-accent/50 transition-all">${engineOptions(r.min_engine_version || '')}</select>
+                                <p class="text-xs text-zinc-500 mt-1">Saves as soon as you change it.</p>
+                            </div>
+                            <div>
+                                <label class="block text-sm text-zinc-300 mb-1.5">Release notes</label>
+                                <textarea id="notes-input-${r.id}" rows="3" placeholder="Markdown"
+                                    class="w-full px-3 py-2 bg-white/[0.03] border border-zinc-800/50 rounded-lg text-zinc-100 text-sm outline-none focus:border-accent/50 resize-y font-mono">${relEsc(r.notes)}</textarea>
+                                <button onclick="saveReleaseNotes('${r.id}')" class="mt-2 px-3 py-1.5 rounded-lg text-sm font-medium bg-white/[0.06] text-zinc-200 hover:bg-white/[0.1] transition-colors">Save notes</button>
+                            </div>
                         </div>
                     </div>`).join('');
             }
 
-            function toggleReleaseNotes(id) {
-                document.getElementById('notes-' + id)?.classList.toggle('hidden');
+            // Retarget one release at a different engine, without republishing.
+            //
+            // The engine a release needs is a claim about code that already
+            // shipped, and the usual way it turns out to be wrong is somebody
+            // installing it and watching it fail to load. A republish would
+            // spend a version number on a metadata fix.
+            //
+            // Only this release moves. Correcting an old one must not disturb
+            // what anybody on a newer engine resolves, which is the whole point
+            // of the value living on the release.
+            async function saveReleaseEngine(id, sel) {
+                const token = document.cookie.match('(^|;)\\s*token\\s*=\\s*([^;]+)')?.pop();
+                const previous = sel.dataset.previous ?? '';
+                sel.disabled = true;
+                try {
+                    const res = await fetch('/api/marketplace/' + assetId + '/releases/' + id, {
+                        method: 'PUT',
+                        headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ min_engine_version: sel.value })
+                    });
+                    if (!res.ok) {
+                        const d = await res.json().catch(() => ({}));
+                        throw new Error(d.error || 'Could not change the engine for this release');
+                    }
+                    sel.dataset.previous = sel.value;
+                    showSuccess(sel.value
+                        ? 'This release now targets ' + sel.value + ' and newer.'
+                        : 'This release now runs on any engine.');
+                } catch (e) {
+                    // Put the control back to what the server still holds, so it
+                    // never shows a value that was not saved.
+                    sel.value = previous;
+                    showError(e.message);
+                } finally {
+                    sel.disabled = false;
+                }
             }
 
             async function saveReleaseNotes(id) {
@@ -332,32 +376,6 @@ pub fn AssetEditPage() -> impl IntoView {
                 return (bytes / 1e3).toFixed(0) + ' KB';
             }
 
-            function onEditFileChange(input) {
-                const files = input.files;
-                const zipOpts = document.getElementById('edit-zip-options');
-                const fileList = document.getElementById('edit-file-list');
-
-                // Show zip options if single .zip file
-                if (files.length === 1 && files[0].name.toLowerCase().endsWith('.zip')) {
-                    zipOpts.classList.remove('hidden');
-                } else {
-                    zipOpts.classList.add('hidden');
-                }
-
-                // Show file list
-                if (files.length > 0) {
-                    fileList.innerHTML = Array.from(files).map(f =>
-                        `<div class="flex items-center gap-2 text-xs text-zinc-400 px-3 py-2 bg-white/[0.02] rounded-lg">
-                            <i class="ph ph-file text-zinc-600"></i>
-                            <span class="flex-1 truncate">${f.name}</span>
-                            <span class="text-zinc-600">${formatFileSize(f.size)}</span>
-                        </div>`
-                    ).join('');
-                } else {
-                    fileList.innerHTML = '';
-                }
-            }
-
             function previewEditThumb(input) {
                 const el = document.getElementById('edit-thumb-preview');
                 if (input.files[0]) {
@@ -395,7 +413,9 @@ pub fn AssetEditPage() -> impl IntoView {
                         name: document.getElementById('edit-name').value,
                         description: document.getElementById('edit-description').value,
                         price_credits: parseInt(document.getElementById('edit-price').value) || 0,
-                        version: document.getElementById('edit-version').value,
+                        // No `version`. It mirrors the current release and is
+                        // only moved by publishing one; sending it from here
+                        // could name a version no release has.
                         published: document.getElementById('edit-published').checked,
                     };
 
@@ -409,20 +429,14 @@ pub fn AssetEditPage() -> impl IntoView {
                         throw new Error(d.error || 'Failed to save');
                     }
 
-                    // 2. Upload new file(s) and/or thumbnail if selected
+                    // 2. Thumbnail only. Release files are never replaced from
+                    // here: swapping a published version's bytes in place makes
+                    // the version number a lie and goes round the publishing
+                    // tool that checks the manifest and the engine version.
                     const thumbFile = document.getElementById('edit-thumbnail')?.files[0];
-                    const newFiles = document.getElementById('edit-file')?.files;
-                    if ((newFiles && newFiles.length > 0) || thumbFile) {
+                    if (thumbFile) {
                         const fd = new FormData();
-                        if (newFiles) {
-                            for (let i = 0; i < newFiles.length; i++) {
-                                fd.append('file', newFiles[i], newFiles[i].name);
-                            }
-                            // Send zip_action if applicable
-                            const zipAction = document.querySelector('input[name="zip_action"]:checked');
-                            if (zipAction) fd.append('zip_action', zipAction.value);
-                        }
-                        if (thumbFile) fd.append('thumbnail', thumbFile);
+                        fd.append('thumbnail', thumbFile);
                         const fRes = await fetch('/api/marketplace/' + assetId + '/files', {
                             method: 'PUT',
                             headers: { 'Authorization': 'Bearer ' + token },
@@ -430,7 +444,7 @@ pub fn AssetEditPage() -> impl IntoView {
                         });
                         if (!fRes.ok) {
                             const d = await fRes.json().catch(() => ({}));
-                            throw new Error(d.error || 'Failed to upload files');
+                            throw new Error(d.error || 'Failed to upload the thumbnail');
                         }
                     }
 

@@ -63,6 +63,14 @@ pub fn MarketplacePage() -> impl IntoView {
                             <i class="ph ph-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500"></i>
                             <input type="text" id="mp-search" placeholder="Search assets..." oninput="loadAssets()" class="w-full pl-9 pr-4 py-2.5 bg-white/[0.03] border border-zinc-800/50 rounded-xl text-zinc-50 text-sm outline-none focus:border-teal-500/50 focus:bg-white/[0.05] transition-all" />
                         </div>
+                        // In the top bar rather than inside the Filters panel.
+                        // Which engine you are on decides what is installable at
+                        // all, so it is not the same kind of question as a price
+                        // range, and a collapsed panel meant nobody found it.
+                        <select id="mp-engine" onchange="setEngineFilter(this.value)" title="Show only what this engine version can run"
+                                class="px-3 py-2.5 bg-white/[0.03] border border-zinc-800/50 rounded-xl text-zinc-50 text-sm focus:border-teal-500/50 transition-all shrink-0">
+                            <option value="">"All engine versions"</option>
+                        </select>
                         <select id="mp-sort" onchange="loadAssets()" class="px-3 py-2.5 bg-white/[0.03] border border-zinc-800/50 rounded-xl text-zinc-50 text-sm focus:border-teal-500/50 transition-all shrink-0">
                             <option value="newest">"Newest"</option>
                             <option value="popular">"Most Popular"</option>
@@ -130,12 +138,6 @@ pub fn MarketplacePage() -> impl IntoView {
                             // rather than defaulting to the newest: browsing the
                             // website is not browsing from an engine, and
                             // guessing one would silently hide listings.
-                            <div>
-                                <label class="text-[10px] text-zinc-500 uppercase tracking-wider font-medium mb-1.5 block">"Engine Version"</label>
-                                <select id="adv-engine" class="w-full px-2.5 py-1.5 bg-white/[0.03] border border-zinc-800/50 rounded-lg text-zinc-50 text-xs focus:border-teal-500/50 transition-all">
-                                    <option value="">"Any"</option>
-                                </select>
-                            </div>
                         </div>
                         <div class="flex items-center gap-3 mt-3">
                             <button onclick="applyAdvancedFilter()" class="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-xs font-medium bg-teal-500 text-white hover:bg-teal-400 transition-all">
@@ -213,10 +215,10 @@ pub fn MarketplacePage() -> impl IntoView {
                 const engRes = await fetch('/api/marketplace/engine-versions');
                 if (engRes.ok) {
                     const engines = await engRes.json();
-                    const sel = document.getElementById('adv-engine');
+                    const sel = document.getElementById('mp-engine');
                     if (sel) {
-                        sel.innerHTML = '<option value="">Any</option>' + engines.map(e =>
-                            `<option value="${e.version}">${e.version}</option>`).join('');
+                        sel.innerHTML = '<option value="">All engine versions</option>' + engines.map(e =>
+                            `<option value="${e.version}"${e.version === advEngine ? ' selected' : ''}>${e.version}</option>`).join('');
                     }
                 }
 
@@ -285,6 +287,14 @@ pub fn MarketplacePage() -> impl IntoView {
             let advTag = '';
             let advEngine = '';
 
+            // Its own setter rather than part of Apply: this one lives in the top
+            // bar and takes effect on change, like sort does.
+            function setEngineFilter(v) {
+                advEngine = v || '';
+                currentPage = 1;
+                loadAssets();
+            }
+
             function toggleAdvancedFilter() {
                 const panel = document.getElementById('adv-filter-panel');
                 const btn = document.getElementById('adv-filter-btn');
@@ -303,7 +313,6 @@ pub fn MarketplacePage() -> impl IntoView {
 
                 advMaxPrice = maxPrice ? parseInt(maxPrice) : null;
                 advTag = tag || '';
-                advEngine = document.getElementById('adv-engine')?.value || '';
                 currentMinRating = parseInt(minRating) || 0;
 
                 // Sync sidebar rating buttons
@@ -327,10 +336,8 @@ pub fn MarketplacePage() -> impl IntoView {
                 document.getElementById('adv-min-rating').value = '0';
                 document.getElementById('adv-licence').value = '';
                 document.getElementById('adv-tag').value = '';
-                document.getElementById('adv-engine').value = '';
                 advMaxPrice = null;
                 advTag = '';
-                advEngine = '';
                 currentMinRating = 0;
                 currentPrice = 'all';
                 currentPage = 1;
