@@ -189,15 +189,15 @@ pub fn MarketplacePage() -> impl IntoView {
         // reload of all three. Hidden until something opens it, and empty until
         // then too: the renderer fills `#mp-overlay-root`.
         <div id="mp-overlay" class="hidden fixed inset-0 z-[70]" role="dialog" aria-modal="true" aria-label="Asset details">
-            <div id="mp-overlay-scrim" class="absolute inset-0 bg-black/70 backdrop-blur-sm"></div>
+            <div class="absolute inset-0 bg-black/70 backdrop-blur-sm"></div>
+            // The scroll container covers the whole viewport, scrim included, so
+            // a click on "the outside" lands here and never on the scrim. That
+            // is why closing is handled on this element and decided by what the
+            // click was NOT inside, rather than by a listener on the backdrop.
             <div class="absolute inset-0 overflow-y-auto mp-scroll" id="mp-overlay-scroll">
                 <div class="min-h-full px-4 py-6 sm:px-6 sm:py-10">
-                    <div class="relative max-w-[1440px] mx-auto rounded-2xl border border-zinc-800/60 bg-surface shadow-2xl shadow-black/60">
-                        <button onclick="closeQuickLook()" aria-label="Close"
-                            class="sticky top-3 float-right mr-3 z-10 w-9 h-9 rounded-lg bg-black/60 hover:bg-black/80 border border-zinc-700/60 text-zinc-300 hover:text-white flex items-center justify-center transition-colors">
-                            <i class="ph ph-x"></i>
-                        </button>
-                        <div class="px-4 sm:px-6 pb-8 pt-4" id="mp-overlay-root"></div>
+                    <div id="mp-overlay-panel" class="relative max-w-5xl mx-auto rounded-2xl border border-zinc-800/60 bg-surface shadow-2xl shadow-black/60">
+                        <div class="px-4 sm:px-6 py-6" id="mp-overlay-root"></div>
                     </div>
                 </div>
             </div>
@@ -542,10 +542,20 @@ pub fn MarketplacePage() -> impl IntoView {
                 let timer = null;
                 const LIMIT = 30;
 
+                // The slug, but only for a link to the LISTING itself.
+                //
+                // /marketplace/asset/<slug> is the listing; /files, /edit and
+                // /releases/new underneath it are their own pages. Matching on
+                // the prefix alone swallowed those too and asked the API for a
+                // listing called "vibrance/files", which answered 404 and left
+                // the overlay reading "Asset not found". Anything with a further
+                // path segment navigates normally.
                 function slugFrom(a) {
-                    const m = a && a.getAttribute('href') || '';
-                    const parts = m.split('/marketplace/asset/');
-                    return parts.length === 2 ? parts[1].split(/[?#]/)[0] : null;
+                    const href = (a && a.getAttribute('href')) || '';
+                    const parts = href.split('/marketplace/asset/');
+                    if (parts.length !== 2) return null;
+                    const rest = parts[1].split(/[?#]/)[0];
+                    return (rest && !rest.includes('/')) ? rest : null;
                 }
 
                 function warmUp(slug) {
@@ -639,7 +649,24 @@ pub fn MarketplacePage() -> impl IntoView {
                 if (!pop) history.back();
             }
 
-            document.getElementById('mp-overlay-scrim')?.addEventListener('click', () => closeQuickLook());
+            // Click anywhere off the panel to close.
+            //
+            // Both the press and the release have to land outside it. Selecting
+            // text in the listing and releasing past its edge is a drag, not a
+            // dismissal, and closing on the release alone would throw the page
+            // away mid-selection.
+            (function () {
+                const scroll = document.getElementById('mp-overlay-scroll');
+                if (!scroll) return;
+                let pressedOutside = false;
+                const outside = t => !(t.closest && t.closest('#mp-overlay-panel'));
+                scroll.addEventListener('mousedown', e => { pressedOutside = outside(e.target); });
+                scroll.addEventListener('click', e => {
+                    if (pressedOutside && outside(e.target)) closeQuickLook();
+                    pressedOutside = false;
+                });
+            })();
+
             document.addEventListener('keydown', e => {
                 if (e.key === 'Escape' && quickLookOpen) closeQuickLook();
             });
