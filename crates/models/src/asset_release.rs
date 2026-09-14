@@ -14,6 +14,14 @@ pub struct AssetRelease {
     pub is_current: bool,
     pub downloads: i64,
     pub created_at: OffsetDateTime,
+    /// Oldest engine this release runs on. `None` means any.
+    ///
+    /// On the release, not the listing, because a listing outlives the engine
+    /// versions it was built for: r1-alpha7 users must keep being offered the
+    /// r1-alpha7 release after an r1-alpha8 one exists. There is deliberately no
+    /// maximum -- the ceiling is implied by the next release that declares a
+    /// higher engine version, so it cannot go stale.
+    pub min_engine_version: Option<String>,
 }
 
 /// A release plus the rolled-up size of its files, for listings.
@@ -26,6 +34,9 @@ pub struct AssetReleaseWithStats {
     pub is_current: bool,
     pub downloads: i64,
     pub created_at: OffsetDateTime,
+    /// Carried through so a release list can label each row with the engine it
+    /// was built for, which is the whole point of the value being per-release.
+    pub min_engine_version: Option<String>,
     /// Counts describe the *browsable* set — the entries indexed inside a
     /// stored archive when there are any, otherwise the deliverables. That is
     /// what the file tree shows, so it is what a release listing should say.
@@ -33,7 +44,15 @@ pub struct AssetReleaseWithStats {
     pub total_size: i64,
 }
 
-const COLS: &str = "id, asset_id, version, notes, is_current, downloads, created_at";
+const COLS: &str =
+    "id, asset_id, version, notes, is_current, downloads, created_at, min_engine_version";
+
+/// The same columns, qualified.
+///
+/// Needed by any query that joins `engine_versions`, which has its own `version`
+/// column: the bare list above is ambiguous there, and the failure is a runtime
+/// error rather than a compile one, because these queries are built as strings.
+const COLS_R: &str = "r.id, r.asset_id, r.version, r.notes, r.is_current, r.downloads,                       r.created_at, r.min_engine_version";
 
 impl AssetRelease {
     /// Newest first, with file counts and total size attached.
@@ -43,6 +62,7 @@ impl AssetRelease {
     ) -> Result<Vec<AssetReleaseWithStats>, sqlx::Error> {
         sqlx::query_as::<_, AssetReleaseWithStats>(
             "SELECT r.id, r.asset_id, r.version, r.notes, r.is_current, r.downloads, r.created_at,
+                    r.min_engine_version,
                     CASE WHEN COUNT(f.id) FILTER (WHERE f.archived) > 0
                          THEN COUNT(f.id) FILTER (WHERE f.archived)
                          ELSE COUNT(f.id) FILTER (WHERE NOT f.archived)
@@ -76,6 +96,55 @@ impl AssetRelease {
             .bind(id)
             .fetch_optional(pool)
             .await
+    }
+
+    /// The release an engine on `engine_version` should be offered: the newest
+    /// one built for an engine no newer than it.
+    ///
+    /// This replaces "the current release" everywhere a specific engine is
+    /// asking. `is_current` is one boolean per listing, so it can only ever
+    /// describe the newest release overall, which is precisely the assumption
+    /// that cut r1-alpha7 users off from the r1-alpha7 release still sitting in
+    /// this table.
+    ///
+    /// Two details carry the whole behaviour.
+    ///
+    /// **Ordered by version, never by date.** A fix published to the r1-alpha7
+    /// line today is newer in time and older in version than last month's
+    /// r1-alpha8 release. `ORDER BY created_at` would hand r1-alpha8 users the
+    /// r1-alpha7 code, which is the failure this exists to prevent. `semver_key`
+    /// (migration 057) also compares `1.0.10` against `1.0.11` as numbers, which
+    /// a string compare gets backwards.
+    ///
+    /// **Ordered by the engine's `ordinal`, never by its name**, because
+    /// `r1-alpha10` sorts below `r1-alpha7` as text.
+    ///
+    /// `None` is an answer, not an error: a listing whose every release needs a
+    /// newer engine has nothing to offer this caller yet, and the caller should
+    /// say so rather than fall back to something that will not run.
+    ///
+    /// A release with no `min_engine_version` is offered to everyone. That is
+    /// the honest reading of "nobody has said otherwise", and it is what cargo
+    /// and npm do rather than freezing a catalogue on every toolchain release.
+    pub async fn resolve_for_engine(
+        pool: &PgPool,
+        asset_id: Uuid,
+        engine_version: &str,
+    ) -> Result<Option<Self>, sqlx::Error> {
+        sqlx::query_as::<_, Self>(&format!(
+            "SELECT {COLS_R} FROM asset_releases r
+             LEFT JOIN engine_versions ev ON ev.version = r.min_engine_version
+             WHERE r.asset_id = $1
+               AND (r.min_engine_version IS NULL
+                    OR ev.ordinal <= (SELECT ordinal FROM engine_versions
+                                      WHERE version = $2))
+             ORDER BY semver_key(r.version) DESC
+             LIMIT 1"
+        ))
+        .bind(asset_id)
+        .bind(engine_version)
+        .fetch_optional(pool)
+        .await
     }
 
     pub async fn find_by_version(
@@ -115,11 +184,20 @@ impl AssetRelease {
     /// Create a release and make it the current one, demoting the previous
     /// current release in the same transaction (the partial unique index only
     /// allows one, so the demotion has to land first).
+    /// `min_engine_version` is `None` for "any engine", and unknown values are
+    /// rejected by the foreign key rather than stored: a typo in a manifest
+    /// should fail the publish, not create a release nothing can ever resolve.
+    ///
+    /// `is_current` still marks the newest release overall, and is now only good
+    /// for display. Which release a given engine is offered is
+    /// [`resolve_for_engine`](Self::resolve_for_engine), because "current"
+    /// stopped being one value the day compatibility moved onto the release.
     pub async fn create_current(
         pool: &PgPool,
         asset_id: Uuid,
         version: &str,
         notes: &str,
+        min_engine_version: Option<&str>,
     ) -> Result<Self, sqlx::Error> {
         let mut tx = pool.begin().await?;
 
@@ -129,13 +207,14 @@ impl AssetRelease {
             .await?;
 
         let release = sqlx::query_as::<_, Self>(&format!(
-            "INSERT INTO asset_releases (asset_id, version, notes, is_current)
-             VALUES ($1, $2, $3, true)
+            "INSERT INTO asset_releases (asset_id, version, notes, is_current, min_engine_version)
+             VALUES ($1, $2, $3, true, $4)
              RETURNING {COLS}"
         ))
         .bind(asset_id)
         .bind(version)
         .bind(notes)
+        .bind(min_engine_version)
         .fetch_one(&mut *tx)
         .await?;
 

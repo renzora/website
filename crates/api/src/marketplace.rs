@@ -561,7 +561,7 @@ async fn upload_asset(
     // Every asset starts with one release. Files hang off it rather than off
     // the asset, so a later version can be published without destroying this
     // one for the people who already bought it.
-    let release = AssetRelease::create_current(&state.db, asset.id, &asset.version, "").await?;
+    let release = AssetRelease::create_current(&state.db, asset.id, &asset.version, "", None).await?;
 
     // A plugin's zip is the deliverable, not a container to unpack: the editor
     // extracts the whole source tree into `plugins/<crate>/` and builds it, so
@@ -815,7 +815,7 @@ async fn update_asset_files(
             Some(r) => r,
             // An asset from before the release system, or one that never got
             // files, gets its first release now.
-            None => AssetRelease::create_current(&state.db, id, &asset.version, "").await?,
+            None => AssetRelease::create_current(&state.db, id, &asset.version, "", None).await?,
         };
 
         // Drop the current release's files (and their storage), leaving every
@@ -3106,6 +3106,7 @@ async fn list_releases(
                 is_current: r.is_current,
                 downloads: r.downloads,
                 created_at: r.created_at,
+                min_engine_version: r.min_engine_version,
             };
             let ctx = crate::markdown::MdContext::new(
                 id,
@@ -3503,7 +3504,26 @@ async fn create_release(
             .await?;
     }
 
-    let release = AssetRelease::create_current(&state.db, id, &version, meta.notes.trim()).await?;
+    // Stamp the engine floor onto THIS release rather than leaving it only on
+    // the listing. The listing's copy can describe one release, so it always
+    // described the newest, which is what cut older-engine users off from the
+    // releases that still worked for them. `None` for a listing that has never
+    // stated one, which the resolver reads as "any engine".
+    let release_engine = asset
+        .metadata
+        .get("min_engine_version")
+        .and_then(|v| v.as_str())
+        .map(str::trim)
+        .filter(|v| !v.is_empty())
+        .map(str::to_string);
+    let release = AssetRelease::create_current(
+        &state.db,
+        id,
+        &version,
+        meta.notes.trim(),
+        release_engine.as_deref(),
+    )
+    .await?;
 
     let is_paid = asset.price_credits > 0 && asset.credit_name.is_empty();
     let stored_action = effective_zip_action(&meta.zip_action, &asset.category);
