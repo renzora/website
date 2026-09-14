@@ -260,8 +260,13 @@ pub fn AssetDetailPage() -> impl IntoView {
                               <div class="flex flex-col lg:flex-row gap-6">
                                 <!-- Cover column. Fixed on desktop so the text
                                      beside it gets a predictable measure; full
-                                     width on mobile, where the two stack. -->
-                                <div class="lg:w-[440px] shrink-0">
+                                     width on mobile, where the two stack.
+                                     Deliberately modest: this is the listing's
+                                     identifying mark, not its content. The
+                                     screenshots that ARE content have a gallery,
+                                     and a plugin's real documentation is the
+                                     README rendered below. -->
+                                <div class="lg:w-[300px] shrink-0">
                             ${(() => {
                                 const cat = (a.category || '').toLowerCase();
                                 const previewable = ['3d models', 'animations', 'materials & shaders', 'textures & hdris', 'particle effects'];
@@ -276,7 +281,7 @@ pub fn AssetDetailPage() -> impl IntoView {
                                 // yet tall enough to crowd anything out, and stops
                                 // it growing past a header on wide ones.
                                 // The cover fills its column, and the column is
-                                // what sizes it: 440px on desktop, 247 tall at
+                                // what sizes it: 300px on desktop, 169 tall at
                                 // 16:9. The caps only bind on mobile, where the
                                 // two columns stack and this one goes full
                                 // width; 746 is 420 at 16:9, so they agree with
@@ -329,18 +334,20 @@ pub fn AssetDetailPage() -> impl IntoView {
 
                                 <!-- Identity column -->
                                 <div class="flex-1 min-w-0">
-                            <!-- Title + meta -->
-                            <div>
-                                <div class="flex items-center gap-3 flex-wrap">
-                                    <h1 class="text-3xl font-bold leading-tight">${a.name}</h1>
-                                    ${isCreator ? `<a href="/marketplace/asset/${a.slug}/edit" class="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium bg-white/[0.03] border border-zinc-800/50 text-zinc-400 hover:border-zinc-600 hover:text-zinc-200 transition-colors"><i class="ph ph-pencil-simple"></i>Edit listing &amp; releases</a><a href="/marketplace/asset/${a.slug}/releases/new" class="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium bg-accent/10 border border-accent/30 text-accent hover:bg-accent/15 transition-colors"><i class="ph ph-rocket-launch"></i>New Release</a><button onclick="deleteAsset('${a.id}')" class="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium bg-white/[0.03] border border-red-900/50 text-red-400 hover:border-red-700 hover:text-red-300 hover:bg-red-950/30 transition-colors"><i class="ph ph-trash"></i>Delete</button>` : ''}
-                                </div>
-                                <div class="flex items-center gap-4 mt-3 flex-wrap">
+                            <!-- Identity. The name owns this line by itself: the
+                                 owner's controls used to sit inline beside it,
+                                 which put three buttons between the title and
+                                 everything describing it, and pushed the rating
+                                 onto a line of its own. They are a toolbar, and
+                                 they are at the foot of the card now. -->
+                            <div class="flex flex-col h-full">
+                                <h1 class="text-2xl font-bold leading-tight">${a.name}</h1>
+
+                                <div class="flex items-center gap-x-3 gap-y-2 mt-3 flex-wrap">
                                     <a href="/shop/${a.creator.username}" class="flex items-center gap-2 text-sm font-medium text-accent hover:text-accent-hover transition-colors">
                                         <div class="w-6 h-6 rounded-full bg-accent/10 flex items-center justify-center"><i class="ph ph-user text-xs text-accent"></i></div>
                                         ${a.creator.username}
                                     </a>
-                                    <span class="text-sm text-zinc-500">·</span>
                                     <span class="px-2.5 py-1 rounded-full bg-white/[0.05] border border-zinc-700/60 text-sm text-zinc-200">${a.category}</span>
                                     <!-- Tags and the category used to be repeated
                                          here and in the sidebar, at two sizes,
@@ -350,22 +357,38 @@ pub fn AssetDetailPage() -> impl IntoView {
                                          version, and which engine it runs on. -->
                                     <span class="px-2.5 py-1 rounded-full bg-white/[0.05] border border-zinc-700/60 text-sm font-medium text-zinc-100">v${a.version}</span>
                                     <span id="detail-engine-badge"></span>
-                                    <span class="text-sm">${starsHtml}</span>
-                                    <span class="text-sm text-zinc-400">${ratingLabel}</span>
+                                    <!-- Stars and their count are one thing, so
+                                         they wrap as one rather than leaving a
+                                         stray "(0)" on the next line. -->
+                                    <span class="inline-flex items-center gap-1.5 whitespace-nowrap text-sm">${starsHtml}<span class="text-zinc-400">${ratingLabel}</span></span>
                                 </div>
-                            </div>
 
-                            <!-- Description -->
-                            <div class="mt-5">
-                                <h2 class="text-base font-semibold mb-2">About this asset</h2>
-                                <p class="text-base text-zinc-300 leading-relaxed whitespace-pre-wrap">${a.description}</p>
-                            </div>
+                                <!--
+                                    No description here. Every plugin ships a
+                                    README, which is rendered further down this
+                                    same page, and the description is the first
+                                    line of it reworded: the reader met the same
+                                    sentence twice before reaching anything new.
+                                    The field is untouched and still edited on the
+                                    listing page, because it is what the editor's
+                                    in-app browser and search have to go on, where
+                                    there is no room to render a README.
+                                -->
 
-                            <div class="mt-5 flex items-center gap-4 flex-wrap text-sm text-zinc-400">
-                                <span><i class="ph ph-calendar-blank"></i> Published ${fmtDate(a.created_at)}</span>
-                                <span><i class="ph ph-clock-clockwise"></i> Updated ${fmtDate(a.updated_at)}</span>
-                                <span><i class="ph ph-eye"></i> ${a.views.toLocaleString()} views</span>
-                                <span><i class="ph ph-download-simple"></i> ${a.downloads.toLocaleString()} downloads</span>
+                                <div class="mt-4 flex items-center gap-x-4 gap-y-2 flex-wrap text-sm text-zinc-400">
+                                    <span><i class="ph ph-calendar-blank"></i> Published ${fmtDate(a.created_at)}</span>
+                                    <span><i class="ph ph-clock-clockwise"></i> Updated ${fmtDate(a.updated_at)}</span>
+                                    <span><i class="ph ph-eye"></i> ${a.views.toLocaleString()} views</span>
+                                    <span><i class="ph ph-download-simple"></i> ${a.downloads.toLocaleString()} downloads</span>
+                                </div>
+
+                                ${isCreator ? `
+                                <div class="mt-auto pt-4 flex items-center gap-2 flex-wrap">
+                                    <a href="/marketplace/asset/${a.slug}/edit" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium bg-white/[0.05] border border-zinc-700/60 text-zinc-200 hover:border-zinc-500 hover:text-white transition-colors"><i class="ph ph-pencil-simple"></i>Edit listing &amp; releases</a>
+                                    <a href="/marketplace/asset/${a.slug}/releases/new" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium bg-accent/15 border border-accent/40 text-accent hover:bg-accent/25 transition-colors"><i class="ph ph-rocket-launch"></i>New release</a>
+                                    <span class="flex-1"></span>
+                                    <button onclick="deleteAsset('${a.id}')" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium text-red-400 hover:text-red-300 hover:bg-red-950/30 transition-colors" title="Delete this listing"><i class="ph ph-trash"></i>Delete</button>
+                                </div>` : ''}
                             </div>
                                 </div>
                               </div>
