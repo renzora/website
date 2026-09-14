@@ -319,7 +319,14 @@ pub fn MarketplacePage() -> impl IntoView {
 
                 const catRes = await fetch('/api/marketplace/categories');
                 const dbCats = catRes.ok ? await catRes.json() : [];
-                const categories = [{slug: 'all', name: 'All', icon: 'ph-squares-four'}, ...dbCats.map(c => ({slug: c.slug, name: c.name, icon: c.icon}))];
+                // Every row gets an icon, including the categories the database
+                // has none for. Without the fallback those rendered an empty
+                // <i>, which collapses to nothing: Shaders, Media, SVGs &
+                // Vectors and UI Templates lost their indent and sat a glyph's
+                // width left of everything above them. It reads as a broken list
+                // rather than a missing icon.
+                const categories = [{slug: 'all', name: 'All', icon: 'ph-squares-four'},
+                    ...dbCats.map(c => ({slug: c.slug, name: c.name, icon: c.icon || 'ph-folder-simple'}))];
 
                 // Sidebar categories
                 const sideEl = document.getElementById('mp-sidebar-cats');
@@ -523,34 +530,38 @@ pub fn MarketplacePage() -> impl IntoView {
                         const thumb = a.thumbnail_url
                             ? `<img src="${a.thumbnail_url}" class="w-full h-full object-cover" loading="lazy" />`
                             : `<i class="ph ph-package text-lg text-zinc-600"></i>`;
-                        const tagsHtml = (a.tags || []).slice(0, 3).map(t => `<span class="inline-block px-1.5 py-0.5 rounded text-[10px] bg-white/[0.05] text-zinc-500">${t}</span>`).join('');
                         return `<a href="/marketplace/asset/${a.slug}" class="flex items-center gap-4 px-5 py-3 hover:bg-white/[0.02] transition-all group" style="animation: mpFadeIn 0.2s ease both; animation-delay:${i * 10}ms">
                             <div class="w-12 h-12 rounded-lg bg-zinc-900 border border-zinc-800/50 flex items-center justify-center shrink-0 overflow-hidden">${thumb}</div>
                             <div class="flex-1 min-w-0">
-                                <div class="text-sm font-medium group-hover:text-teal-400 transition-colors truncate">${a.name}</div>
-                                <div class="flex items-center gap-2 mt-0.5 text-[11px] text-zinc-500">
-                                    <span>${a.creator_name}</span><span class="text-zinc-800">·</span>
-                                    <span>${a.category}</span><span class="text-zinc-800">·</span>
-                                    <span>${a.downloads.toLocaleString()} dl</span>
-                                    ${starsHtml ? `<span class="text-zinc-800">·</span>${starsHtml}` : ''}
+                                <div class="text-sm font-semibold text-zinc-100 group-hover:text-teal-400 transition-colors truncate">${a.name}</div>
+                                <div class="flex items-center gap-2 mt-0.5 text-xs text-zinc-400">
+                                    <span class="text-zinc-300">${a.category}</span><span class="text-zinc-600">·</span>
+                                    <span>${a.creator_name}</span><span class="text-zinc-600">·</span>
+                                    <span>${a.downloads.toLocaleString()} downloads</span>
+                                    ${starsHtml ? `<span class="text-zinc-600">·</span>${starsHtml}` : ''}
                                 </div>
                             </div>
-                            <div class="flex items-center gap-3 shrink-0">
-                                ${tagsHtml ? `<div class="hidden md:flex items-center gap-1">${tagsHtml}</div>` : ''}
-                                <span class="text-xs font-semibold ${a.price_credits === 0 ? 'text-emerald-400' : 'text-zinc-300'} min-w-[50px] text-right">${priceLabel}</span>
-                            </div>
+                            <span class="text-sm font-semibold ${a.price_credits === 0 ? 'text-emerald-400' : 'text-zinc-100'} min-w-[60px] text-right shrink-0">${priceLabel}</span>
                         </a>`;
                     }).join('');
                 } else {
                     el.className = 'grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3';
                     el.innerHTML = assets.map((a, i) => {
-                        const fullStars = a.rating_count > 0 ? Math.round(a.rating_avg) : 0;
-                        const starsHtml = `<span class="text-amber-400 text-sm">${'★'.repeat(fullStars)}</span><span class="text-zinc-700 text-sm">${'☆'.repeat(5 - fullStars)}</span><span class="text-[11px] text-zinc-500 ml-1">(${a.rating_count})</span>`;
                         const priceLabel = a.price_credits === 0 ? 'Free' : a.price_credits.toLocaleString() + ' credits';
-                        const avatarHtml = a.creator_avatar_url
-                            ? `<img src="${a.creator_avatar_url}" class="w-5 h-5 rounded-full object-cover" />`
-                            : `<div class="w-5 h-5 rounded-full bg-zinc-800 flex items-center justify-center"><i class="ph ph-user text-[9px] text-zinc-500"></i></div>`;
-                        const tagsHtml = (a.tags || []).slice(0, 2).map(t => `<span class="inline-block px-1.5 py-0.5 rounded text-[10px] bg-white/[0.05] text-zinc-500 shrink-0">${t}</span>`).join('');
+
+                        // Stars only once somebody has rated it.
+                        //
+                        // Five empty outlines and a "(0)" appeared on every card
+                        // in a catalogue where almost nothing is rated: a whole
+                        // row saying the same nothing about everything, in the
+                        // most eye-catching shape on the card. Where there is no
+                        // rating, downloads are the honest signal, and unlike the
+                        // stars they actually differ between listings.
+                        const rated = a.rating_count > 0;
+                        const full = rated ? Math.round(a.rating_avg) : 0;
+                        const signalHtml = rated
+                            ? `<span class="inline-flex items-baseline gap-1 text-xs whitespace-nowrap"><span class="text-amber-400 text-sm">${'★'.repeat(full)}</span><span class="text-zinc-600 text-sm">${'☆'.repeat(5 - full)}</span><span class="text-zinc-400 ml-0.5">${a.rating_avg.toFixed(1)}</span><span class="text-zinc-500">(${a.rating_count})</span></span>`
+                            : `<span class="text-xs text-zinc-400 whitespace-nowrap">${a.downloads.toLocaleString()} download${a.downloads === 1 ? '' : 's'}</span>`;
                         return `
                         <a href="/marketplace/asset/${a.slug}" class="block group" style="animation: mpFadeIn 0.25s ease both; animation-delay: ${i * 15}ms">
                             <div class="bg-white/[0.02] border border-zinc-800/40 rounded-xl overflow-hidden hover:border-teal-500/20 transition-all duration-200 hover:shadow-[0_0_20px_rgba(20,184,166,0.05)]">
@@ -559,19 +570,28 @@ pub fn MarketplacePage() -> impl IntoView {
                                         ? `<img src="${a.thumbnail_url}" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 ease-out" loading="lazy" />`
                                         : `<div class="w-full h-full flex items-center justify-center"><i class="ph ph-package text-3xl text-zinc-800"></i></div>`}
                                 </div>
-                                <div class="p-3">
-                                    <h3 class="text-sm font-medium text-zinc-200 group-hover:text-white truncate">${a.name}</h3>
-                                    <div class="flex items-center gap-1.5 mt-2">
-                                        ${avatarHtml}
-                                        <span class="text-xs text-zinc-300 truncate">${a.creator_name}</span>
+                                <!-- Three lines, not five. The name leads at a
+                                     size worth reading, the category classifies
+                                     it, and the bottom row pairs the one number
+                                     that varies with the price.
+
+                                     The tag row is gone. It read "post-processing
+                                     shader plugins" on card after card, which
+                                     told you nothing about any of them, and its
+                                     last chip was the CATEGORY dressed as a tag,
+                                     so the one genuinely useful classifier was
+                                     hidden among the noise. Tags still filter
+                                     from the Filters panel, which is where they
+                                     earn their keep. -->
+                                <div class="p-3.5">
+                                    <h3 class="text-base font-semibold text-zinc-100 group-hover:text-white truncate leading-snug">${a.name}</h3>
+                                    <div class="mt-1 text-xs truncate">
+                                        <span class="text-zinc-300">${a.category}</span>
+                                        <span class="text-zinc-600 mx-1">·</span><span class="text-zinc-400">${a.creator_name}</span>
                                     </div>
-                                    <div class="flex items-center justify-between mt-2">
-                                        <div class="flex items-center">${starsHtml}</div>
-                                        <span class="text-xs font-semibold ${a.price_credits === 0 ? 'text-emerald-400' : 'text-zinc-300'} shrink-0">${priceLabel}</span>
-                                    </div>
-                                    <div class="flex items-center gap-1.5 mt-2 flex-wrap">
-                                        ${tagsHtml}
-                                        <span class="inline-block px-1.5 py-0.5 rounded text-[10px] bg-white/[0.05] text-zinc-500 shrink-0">${a.category}</span>
+                                    <div class="flex items-center justify-between gap-2 mt-2.5">
+                                        ${signalHtml}
+                                        <span class="text-sm font-semibold ${a.price_credits === 0 ? 'text-emerald-400' : 'text-zinc-100'} shrink-0">${priceLabel}</span>
                                     </div>
                                 </div>
                             </div>

@@ -57,6 +57,12 @@ function walk(dir, exts) {
 }
 walk(path.join(ROOT, 'crates'), ['.rs']);
 walk(path.join(ROOT, 'migrations'), ['.sql']);
+// Standalone scripts build markup too. The asset-detail renderer moved out of a
+// Rust file into assets/js, and every icon only it used -- the audio player's
+// play and pause, the file-type glyphs, the external-link mark -- would silently
+// have left the subset with it. Nothing fails when that happens: the class still
+// resolves and the font simply has no glyph, so the icon renders as nothing.
+walk(path.join(ROOT, 'assets/js'), ['.js']);
 
 // 3. Keep only icons that exist in Phosphor, per weight
 const regIcons = [...regularUsed].filter((n) => map[n]).sort();
