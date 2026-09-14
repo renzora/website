@@ -191,8 +191,15 @@
                                      identifying mark, not its content. The
                                      screenshots that ARE content have a gallery,
                                      and a plugin's real documentation is the
-                                     README rendered below. -->
-                                <div class="lg:w-[300px] shrink-0">
+                                     README rendered below.
+
+                                     240 rather than 300 because this card also
+                                     renders inside the marketplace overlay,
+                                     which is 1024 wide: a fixed 300 there left
+                                     the text about 330 to live in, which is
+                                     under what the owner's toolbar needs and is
+                                     why it wrapped onto two rows. -->
+                                <div class="lg:w-[240px] shrink-0">
                             ${(() => {
                                 const cat = (a.category || '').toLowerCase();
                                 // 3D models are deliberately NOT in this list.
@@ -313,23 +320,36 @@
                                 <!-- Which release you are looking at. A control,
                                      so it is here rather than in the fact table:
                                      it changes the page. -->
-                                <div class="mt-4 flex items-end gap-3 flex-wrap">
-                                    <div class="min-w-[220px]">
-                                        <label for="detail-release-select" class="block text-xs uppercase tracking-wider text-zinc-500 mb-1.5">Version</label>
-                                        <select id="detail-release-select" onchange="goToRelease(this.value)"
-                                            class="w-full px-3 py-2 bg-white/[0.05] border border-zinc-700/60 rounded-lg text-zinc-100 text-sm outline-none focus:border-accent/50 transition-all">
-                                            <option value="">v${a.version}</option>
-                                        </select>
-                                    </div>
-                                    <span id="detail-engine-badge" class="mb-1.5"></span>
+                                <!-- Select and badge on one row: they answer the
+                                     same question (which release, and what it
+                                     needs), and stacking them cost three lines
+                                     of height in a column that has none spare.
+                                     The select sizes to its content rather than
+                                     holding a 220px floor it cannot afford. -->
+                                <div class="mt-4 flex items-center gap-2 flex-wrap">
+                                    <label for="detail-release-select" class="sr-only">Version</label>
+                                    <!-- max-w-full because a select is as wide as
+                                         its longest option, and these read
+                                         "v1.0.11 · r1-alpha7+ · latest". Without
+                                         the cap one long version string pushes
+                                         the card wider than its column. -->
+                                    <select id="detail-release-select" onchange="goToRelease(this.value)"
+                                        class="max-w-full px-3 py-1.5 bg-white/[0.05] border border-zinc-700/60 rounded-lg text-zinc-100 text-sm outline-none focus:border-accent/50 transition-all">
+                                        <option value="">v${a.version}</option>
+                                    </select>
+                                    <span id="detail-engine-badge"></span>
                                 </div>
 
                                 ${isCreator ? `
+                                <!-- "Edit listing" rather than "Edit listing &
+                                     releases": the longer label was most of the
+                                     reason this row could not fit on one line,
+                                     and the page it opens says what it covers. -->
                                 <div class="mt-auto pt-4 flex items-center gap-2 flex-wrap">
-                                    <a href="/marketplace/asset/${a.slug}/edit" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium bg-white/[0.05] border border-zinc-700/60 text-zinc-200 hover:border-zinc-500 hover:text-white transition-colors"><i class="ph ph-pencil-simple"></i>Edit listing &amp; releases</a>
+                                    <a href="/marketplace/asset/${a.slug}/edit" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium bg-white/[0.05] border border-zinc-700/60 text-zinc-200 hover:border-zinc-500 hover:text-white transition-colors" title="Edit the listing and its releases"><i class="ph ph-pencil-simple"></i>Edit listing</a>
                                     <a href="/marketplace/asset/${a.slug}/releases/new" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium bg-accent/15 border border-accent/40 text-accent hover:bg-accent/25 transition-colors"><i class="ph ph-rocket-launch"></i>New release</a>
                                     <span class="flex-1"></span>
-                                    <button onclick="deleteAsset('${a.id}')" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium text-red-400 hover:text-red-300 hover:bg-red-950/30 transition-colors" title="Delete this listing"><i class="ph ph-trash"></i>Delete</button>
+                                    <button onclick="deleteAsset('${a.id}')" aria-label="Delete this listing" title="Delete this listing" class="inline-flex items-center justify-center w-8 h-8 rounded-lg text-red-400 hover:text-red-300 hover:bg-red-950/30 transition-colors"><i class="ph ph-trash"></i></button>
                                 </div>` : ''}
                             </div>
                                 </div>
