@@ -172,48 +172,30 @@
                         <i class="ph ph-arrow-left"></i> Back to Marketplace
                     </a>
 
-                    <!-- Gallery + Sidebar -->
+                    <!-- Preview + Sidebar.
+                         The preview is the left column's content, at whatever
+                         size the column gives it, and everything that says what
+                         the listing IS lives in the right-hand rail beside it.
+
+                         This replaces a header card that sat above the file
+                         tree, holding a shrunken cover next to the name. That
+                         card kept reading as out of place for a reason worth
+                         writing down: the panel around it was a bordered box,
+                         the card was a second bordered box inside it, and the
+                         cover was a third inside that. Three rounds of the same
+                         chrome, wrapping a picture too small to be worth it.
+
+                         A listing is one image and one column of facts. Nothing
+                         in that needs a box of its own. -->
                     <div class="flex flex-col lg:flex-row gap-8">
                         <div class="flex-1 min-w-0">
-                            <!-- Header card.
-                                 The cover used to sit above the name, so the
-                                 artwork and the thing it is artwork OF were never
-                                 on screen together: you saw a picture, scrolled,
-                                 and then found out what it was. Side by side they
-                                 read as one object, and the fold stops being a
-                                 decision about which half you get. -->
-                            <div class="p-5 bg-white/[0.02] border border-zinc-800/50 rounded-2xl">
-                              <div class="flex flex-col lg:flex-row gap-6">
-                                <!-- Cover column. Fixed on desktop so the text
-                                     beside it gets a predictable measure; full
-                                     width on mobile, where the two stack.
-                                     Deliberately modest: this is the listing's
-                                     identifying mark, not its content. The
-                                     screenshots that ARE content have a gallery,
-                                     and a plugin's real documentation is the
-                                     README rendered below.
-
-                                     240 rather than 300 because this card also
-                                     renders inside the marketplace overlay,
-                                     which is 1024 wide: a fixed 300 there left
-                                     the text about 330 to live in, which is
-                                     under what the owner's toolbar needs and is
-                                     why it wrapped onto two rows.
-
-                                     A full-width base, not only the lg width. A
-                                     width that exists at one breakpoint alone
-                                     means any moment the rule is missing -- a
-                                     stale stylesheet mid-deploy, a viewport
-                                     nobody planned for -- leaves this sized by
-                                     its contents, and shrink-0 then refuses to
-                                     hand the space back. That is not graceful
-                                     degradation, it is a blowout that crushes
-                                     the column beside it.
-
-                                     (No backticks in this comment: it sits
-                                     inside a template literal, and one would
-                                     end the string.) -->
-                                <div class="w-full lg:w-[240px] shrink-0">
+                                <!-- Full width. The earlier cap existed because
+                                     the name and the buttons sat underneath, so
+                                     a tall image pushed them off the first
+                                     screen. They are beside it now, so height
+                                     costs nothing and the artwork can be the
+                                     size it deserves. -->
+                                <div class="w-full">
                             ${(() => {
                                 const cat = (a.category || '').toLowerCase();
                                 // 3D models are deliberately NOT in this list.
@@ -231,18 +213,11 @@
                                 //
                                 // 16:9 across a full-width column is about 600px
                                 // tall on a desktop, which put the asset's name,
-                                // its buttons and its description below the fold:
-                                // the first screen was one picture. The cap keeps
-                                // the ratio on narrow screens, where 16:9 is not
-                                // yet tall enough to crowd anything out, and stops
-                                // it growing past a header on wide ones.
-                                // The cover fills its column, and the column is
-                                // what sizes it: 300px on desktop, 169 tall at
-                                // 16:9. The caps only bind on mobile, where the
-                                // two columns stack and this one goes full
-                                // width; 746 is 420 at 16:9, so they agree with
-                                // each other and the box never letterboxes.
-                                if (!hasLivePreview) return '<div class="rounded-2xl overflow-hidden border border-zinc-800/50 bg-zinc-900 relative group/preview aspect-video max-h-[420px] max-w-full" id="main-preview">' + mainPreviewHtml + '</div>' + thumbsHtml;
+                                // 16:9 of whatever the column is, with no cap.
+                                // The cap was there to stop the image pushing
+                                // the name and buttons below the fold, and they
+                                // no longer sit underneath it.
+                                if (!hasLivePreview) return '<div class="rounded-2xl overflow-hidden border border-zinc-800/50 bg-zinc-900 relative group/preview aspect-video w-full" id="main-preview">' + mainPreviewHtml + '</div>' + thumbsHtml;
 
                                 // No 'model' branch: that category returns above,
                                 // so it could only ever be dead code here. The
@@ -276,7 +251,7 @@
                                             meshBtns +
                                         '</div>' +
                                     '</div>' +
-                                    '<div class="rounded-2xl overflow-hidden border border-zinc-800/50 bg-[#0f0f13] relative max-h-[420px] max-w-full" style="aspect-ratio:16/9" id="preview-container">' +
+                                    '<div class="rounded-2xl overflow-hidden border border-zinc-800/50 bg-[#0f0f13] relative w-full" style="aspect-ratio:16/9" id="preview-container">' +
                                         '<canvas id="preview-canvas" class="w-full h-full" style="pointer-events:none"></canvas>' +
                                         '<div id="preview-loading" class="absolute inset-0 flex items-center justify-center bg-[#0f0f13]">' +
                                             '<div class="text-center">' +
@@ -290,85 +265,23 @@
                             })()}
                                 </div>
 
-                                <!-- Identity column -->
-                                <div class="flex-1 min-w-0">
                             <!--
-                                THE SPLIT between this card and the sidebar.
+                                The name, the author and the release picker used
+                                to sit here beside the cover. They are in the rail
+                                now, above the download, because that is where
+                                somebody looking at the picture is already
+                                looking when they want to know what it is and
+                                whether to take it.
 
-                                Every fact used to appear in both, because each
-                                was designed on its own. The rule now is that a
-                                fact lives wherever it is USED, and appears once.
-
-                                Here: which thing this is, and what you can do to
-                                it if you own it. Identity and controls.
-
-                                Sidebar: the action (Download) and the reference
-                                table nobody reads top to bottom but everybody
-                                scans -- counts, category, tags, dates.
-
-                                So the version PICKER is here, because choosing a
-                                release changes what the page is showing and that
-                                is not a statistic; the view and download counts
-                                are there, because they are.
+                                The description stays out of the page body. Every
+                                plugin ships a README, rendered further down, and
+                                the description is its first line reworded: the
+                                reader met the same sentence twice before reaching
+                                anything new. The field is untouched and still
+                                edited on the listing page, because it is what the
+                                editor's in-app browser and search have to go on,
+                                and it is still the page's meta description.
                             -->
-                            <div class="flex flex-col h-full">
-                                <h1 class="text-2xl font-bold leading-tight">${a.name}</h1>
-
-                                <a href="/shop/${a.creator.username}" class="inline-flex items-center gap-2 mt-2 text-sm font-medium text-accent hover:text-accent-hover transition-colors w-fit">
-                                    <div class="w-6 h-6 rounded-full bg-accent/10 flex items-center justify-center"><i class="ph ph-user text-xs text-accent"></i></div>
-                                    ${a.creator.username}
-                                </a>
-
-                                <!--
-                                    No description here. Every plugin ships a
-                                    README, which is rendered further down this
-                                    same page, and the description is the first
-                                    line of it reworded: the reader met the same
-                                    sentence twice before reaching anything new.
-                                    The field is untouched and still edited on the
-                                    listing page, because it is what the editor's
-                                    in-app browser and search have to go on, where
-                                    there is no room to render a README.
-                                -->
-
-                                <!-- Which release you are looking at. A control,
-                                     so it is here rather than in the fact table:
-                                     it changes the page. -->
-                                <!-- Select and badge on one row: they answer the
-                                     same question (which release, and what it
-                                     needs), and stacking them cost three lines
-                                     of height in a column that has none spare.
-                                     The select sizes to its content rather than
-                                     holding a 220px floor it cannot afford. -->
-                                <div class="mt-4 flex items-center gap-2 flex-wrap">
-                                    <label for="detail-release-select" class="sr-only">Version</label>
-                                    <!-- max-w-full because a select is as wide as
-                                         its longest option, and these read
-                                         "v1.0.11 · r1-alpha7+ · latest". Without
-                                         the cap one long version string pushes
-                                         the card wider than its column. -->
-                                    <select id="detail-release-select" onchange="goToRelease(this.value)"
-                                        class="max-w-full px-3 py-1.5 bg-white/[0.05] border border-zinc-700/60 rounded-lg text-zinc-100 text-sm outline-none focus:border-accent/50 transition-all">
-                                        <option value="">v${a.version}</option>
-                                    </select>
-                                    <span id="detail-engine-badge"></span>
-                                </div>
-
-                                ${isCreator ? `
-                                <!-- "Edit listing" rather than "Edit listing &
-                                     releases": the longer label was most of the
-                                     reason this row could not fit on one line,
-                                     and the page it opens says what it covers. -->
-                                <div class="mt-auto pt-4 flex items-center gap-2 flex-wrap">
-                                    <a href="/marketplace/asset/${a.slug}/edit" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium bg-white/[0.05] border border-zinc-700/60 text-zinc-200 hover:border-zinc-500 hover:text-white transition-colors" title="Edit the listing and its releases"><i class="ph ph-pencil-simple"></i>Edit listing</a>
-                                    <a href="/marketplace/asset/${a.slug}/releases/new" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium bg-accent/15 border border-accent/40 text-accent hover:bg-accent/25 transition-colors"><i class="ph ph-rocket-launch"></i>New release</a>
-                                    <span class="flex-1"></span>
-                                    <button onclick="deleteAsset('${a.id}')" aria-label="Delete this listing" title="Delete this listing" class="inline-flex items-center justify-center w-8 h-8 rounded-lg text-red-400 hover:text-red-300 hover:bg-red-950/30 transition-colors"><i class="ph ph-trash"></i></button>
-                                </div>` : ''}
-                            </div>
-                                </div>
-                              </div>
-                            </div>
 
                             <!-- Files, README and releases (filled in after render) -->
                             <div id="asset-tree-section"></div>
@@ -420,6 +333,36 @@
                         <div class="w-full lg:w-80 shrink-0">
                             <div class="bg-white/[0.02] border border-zinc-800/50 rounded-2xl p-6 sticky top-20">
 
+                                <!-- Identity, at the top of the rail and above
+                                     the action. Reading order is the point: what
+                                     is this, who made it, which release am I
+                                     looking at, do I want it. -->
+                                <a href="/shop/${a.creator.username}" class="inline-flex items-center gap-2 text-sm font-medium text-accent hover:text-accent-hover transition-colors">
+                                    <div class="w-6 h-6 rounded-full bg-accent/10 flex items-center justify-center shrink-0"><i class="ph ph-user text-xs text-accent"></i></div>
+                                    <span class="truncate">${a.creator.username}</span>
+                                </a>
+
+                                <h1 class="mt-2 text-2xl font-bold leading-tight break-words">${a.name}</h1>
+
+                                <!-- Which release, and what it needs. A control,
+                                     so it sits with the identity rather than in
+                                     the fact table below: changing it changes
+                                     what the whole page is showing.
+
+                                     max-w-full because a select is as wide as its
+                                     longest option, and these read
+                                     "v1.0.11 - r1-alpha7+ - latest". -->
+                                <div class="mt-3 flex items-center gap-2 flex-wrap">
+                                    <label for="detail-release-select" class="sr-only">Version</label>
+                                    <select id="detail-release-select" onchange="goToRelease(this.value)"
+                                        class="max-w-full px-3 py-1.5 bg-white/[0.05] border border-zinc-700/60 rounded-lg text-zinc-100 text-sm outline-none focus:border-accent/50 transition-all">
+                                        <option value="">v${a.version}</option>
+                                    </select>
+                                    <span id="detail-engine-badge"></span>
+                                </div>
+
+                                <div class="mt-5 pt-5 border-t border-zinc-800/50"></div>
+
                                 ${(isCreator || a.owned || a.price_credits === 0) ? `
                                     <button onclick="downloadAsset('${a.id}')" class="w-full mt-4 px-4 py-3 rounded-xl text-sm font-semibold bg-green-600 text-white hover:bg-green-500 transition-all hover:shadow-[0_0_20px_rgba(22,163,74,0.2)] flex items-center justify-center gap-2"><i class="ph ph-download-simple text-lg"></i>Download</button>
                                     ${isCreator ? `
@@ -442,6 +385,21 @@
                                 <!-- Asset Files List -->
                                 <div id="asset-files-list" class="mt-4"></div>
 
+                                ${isCreator ? `
+                                <!-- The owner's tools, under the action rather
+                                     than beside the title. They are things only
+                                     one person can do, so they should not sit in
+                                     the first line everybody reads. Stacked full
+                                     width because the rail is 320px and a row of
+                                     three wrapped every time it was tried. -->
+                                <div class="mt-5 pt-5 border-t border-zinc-800/50 space-y-2">
+                                    <a href="/marketplace/asset/${a.slug}/releases/new" class="w-full px-4 py-2.5 rounded-xl text-sm font-medium bg-accent/15 border border-accent/40 text-accent hover:bg-accent/25 transition-colors flex items-center justify-center gap-2"><i class="ph ph-rocket-launch"></i>New release</a>
+                                    <div class="flex gap-2">
+                                        <a href="/marketplace/asset/${a.slug}/edit" class="flex-1 px-3 py-2 rounded-xl text-sm font-medium bg-white/[0.05] border border-zinc-700/60 text-zinc-200 hover:border-zinc-500 hover:text-white transition-colors flex items-center justify-center gap-2" title="Edit the listing and its releases"><i class="ph ph-pencil-simple"></i>Edit listing</a>
+                                        <button onclick="deleteAsset('${a.id}')" aria-label="Delete this listing" title="Delete this listing" class="px-3 py-2 rounded-xl text-red-400 hover:text-red-300 hover:bg-red-950/30 border border-transparent hover:border-red-900/50 transition-colors"><i class="ph ph-trash"></i></button>
+                                    </div>
+                                </div>` : ''}
+
                                 <!--
                                     The fact table. Nobody reads it top to bottom,
                                     everybody scans it for one row, so it is
@@ -452,8 +410,7 @@
                                     Version and Engine are NOT here. Choosing a
                                     release changes what the page shows, which
                                     makes it a control rather than a fact, and it
-                                    lives in the header card with the identity it
-                                    determines.
+                                    lives with the identity it determines, above.
                                 -->
                                 <div class="mt-6 pt-6 border-t border-zinc-800/50 space-y-3">
                                     <div class="flex justify-between text-sm"><span class="text-zinc-500">Rating</span><span>${starsHtml} <span class="text-zinc-500">(${ratingCount})</span></span></div>
