@@ -8,6 +8,7 @@ pub mod asset_file;
 pub mod asset_stats;
 pub mod asset_release;
 pub mod developer_app;
+pub mod engine_version;
 pub mod friend;
 pub mod leaderboard;
 pub mod player_stats;

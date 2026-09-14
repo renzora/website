@@ -5,12 +5,14 @@ use axum::{
 };
 use serde::{Deserialize, Serialize};
 use sqlx::Row;
+use std::collections::HashMap;
 use renzora_common::types::*;
 use renzora_models::asset::{self, Asset};
 use renzora_models::asset_file::AssetFile;
 use renzora_models::asset_stats;
 use renzora_models::asset_release::AssetRelease;
 use renzora_models::category::Category;
+use renzora_models::engine_version::EngineVersion;
 use renzora_models::subcategory::Subcategory;
 use renzora_models::tag::Tag;
 use renzora_models::user::User;
@@ -74,6 +76,7 @@ pub fn router() -> Router<AppState> {
         .route("/:id/preview-file", get(preview_file_proxy))
         .route("/:id/stats", get(asset_stats_series))
         .route("/plugin-updates", post(plugin_updates))
+        .route("/engine-versions", get(engine_versions))
         .merge(downloads)
         .merge(protected)
 }
@@ -2189,6 +2192,13 @@ async fn generate_preview_key(
 struct PluginUpdatesRequest {
     /// Asset ids of the plugins the caller has installed.
     ids: Vec<Uuid>,
+    /// The engine asking, as `renzora::version::display()` reports it. Absent
+    /// means an editor built before releases carried an engine version, and it
+    /// is answered the way it always was: newest release, no ceiling. Nothing
+    /// else is safe, because the one thing we must not do is guess a version on
+    /// a client's behalf and then hand it an update that will not load.
+    #[serde(default)]
+    engine_version: Option<String>,
 }
 
 /// What the editor needs to decide whether an installed plugin should update.
@@ -2197,22 +2207,44 @@ struct PluginUpdate {
     id: Uuid,
     slug: String,
     name: String,
-    /// The version currently published.
+    /// The newest version this caller's engine can actually run.
     version: String,
-    /// Minimum engine release, from the asset's metadata. Empty means "any" —
-    /// the editor treats it that way rather than guessing a floor.
+    /// The engine that version was built for. Empty means "any".
     min_engine_version: String,
+    /// The newest version that exists, for any engine. Equal to `version` in the
+    /// ordinary case; higher when a newer release needs a newer engine.
+    ///
+    /// Sent so the editor can say "2.0.0 is out, and it needs r1-alpha8" rather
+    /// than silently showing no update and leaving someone to wonder whether the
+    /// plugin was abandoned. Knowing an upgrade is worth something is the reason
+    /// anybody upgrades.
+    latest_version: String,
+    /// What [`latest_version`](Self::latest_version) requires. Empty means "any",
+    /// in which case it is by definition also the resolved version.
+    latest_min_engine_version: String,
     /// False once a creator unpublishes: the editor keeps what it has rather
     /// than offering an update it cannot fetch.
     published: bool,
 }
 
-/// Latest published version for a set of installed plugins, in one request.
+/// The release each installed plugin should be on, for one engine, in one
+/// request.
 ///
 /// A round trip per plugin would be a burst of requests every time the editor
-/// starts, for something that is almost always "no change". Public: the version
-/// and the engine floor are on the listing already, and an update check should
-/// not require being signed in.
+/// starts, for something that is almost always "no change". Public: an update
+/// check should not require being signed in.
+///
+/// This used to answer with the listing's own `version` column and the engine
+/// floor out of `assets.metadata`, which is one value per listing and could
+/// therefore only ever describe the newest release. Publishing an r1-alpha8
+/// release moved the whole listing to r1-alpha8, and r1-alpha7 users were
+/// offered an update that could not load, while the r1-alpha7 release that would
+/// have worked sat in `asset_releases` with nothing able to hand it to them.
+/// Compatibility is per release now, so the answer is per engine.
+///
+/// A listing with no release this engine can run is omitted entirely rather than
+/// reported as having no update: from the editor's side those are the same thing
+/// (keep what you have), and saying it once keeps the response small.
 async fn plugin_updates(
     State(state): State<AppState>,
     Json(body): Json<PluginUpdatesRequest>,
@@ -2224,33 +2256,81 @@ async fn plugin_updates(
         return Err(ApiError::Validation("Too many ids (max 200)".into()));
     }
 
-    let rows = sqlx::query(
-        "SELECT id, slug, name, version, published, metadata FROM assets WHERE id = ANY($1)",
-    )
-    .bind(&body.ids)
-    .fetch_all(&state.db)
-    .await?;
+    // An unknown version is treated as no ceiling, not as a ceiling of zero. A
+    // caller running something we have never heard of is running something
+    // NEWER than we have heard of far more often than it is a typo, and the
+    // failure modes are not comparable: offering a release that turns out not to
+    // load is a bad install, while offering nothing looks like every plugin in
+    // the marketplace was abandoned.
+    let max_ordinal = match &body.engine_version {
+        Some(v) => {
+            let normalized = EngineVersion::normalize(v);
+            EngineVersion::ordinal_of(&state.db, normalized)
+                .await?
+                .unwrap_or(i32::MAX)
+        }
+        None => i32::MAX,
+    };
+
+    let rows =
+        sqlx::query("SELECT id, slug, name, published FROM assets WHERE id = ANY($1)")
+            .bind(&body.ids)
+            .fetch_all(&state.db)
+            .await?;
+
+    let resolved = AssetRelease::resolve_many_for_engine(&state.db, &body.ids, max_ordinal).await?;
+    // The second pass is skipped when the first already had no ceiling: it would
+    // be the same query with the same bind, and the answers are the same rows.
+    let latest = if max_ordinal == i32::MAX {
+        resolved.clone()
+    } else {
+        AssetRelease::resolve_many_for_engine(&state.db, &body.ids, i32::MAX).await?
+    };
+
+    let by_asset: HashMap<Uuid, &AssetRelease> =
+        resolved.iter().map(|r| (r.asset_id, r)).collect();
+    let latest_by_asset: HashMap<Uuid, &AssetRelease> =
+        latest.iter().map(|r| (r.asset_id, r)).collect();
 
     let updates = rows
         .iter()
-        .map(|r| {
-            let metadata: serde_json::Value = r.get("metadata");
-            let min_engine_version = metadata
-                .get("min_engine_version")
-                .and_then(|v| v.as_str())
-                .unwrap_or("")
-                .to_string();
-            PluginUpdate {
-                id: r.get("id"),
+        .filter_map(|r| {
+            let id: Uuid = r.get("id");
+            let release = by_asset.get(&id)?;
+            // Falls back to the resolved release rather than skipping the row:
+            // an engine with no ceiling resolves both from the same list, so the
+            // two can only differ when there is genuinely something newer.
+            let newest = latest_by_asset.get(&id).copied().unwrap_or(release);
+            Some(PluginUpdate {
+                id,
                 slug: r.get("slug"),
                 name: r.get("name"),
-                version: r.get("version"),
-                min_engine_version,
+                version: release.version.clone(),
+                min_engine_version: release.min_engine_version.clone().unwrap_or_default(),
+                latest_version: newest.version.clone(),
+                latest_min_engine_version: newest
+                    .min_engine_version
+                    .clone()
+                    .unwrap_or_default(),
                 published: r.get("published"),
-            }
+            })
         })
         .collect();
     Ok(Json(updates))
+}
+
+/// The engine releases a plugin may declare itself built for.
+///
+/// Public and unauthenticated, because three separate things need it and none of
+/// them is a signed-in user action: the `renzora` CLI validates a manifest's
+/// engine version against this before publishing (it has been calling this path
+/// already, which did not exist, so the check passed anything including a typo),
+/// the marketplace's own version dropdown is built from it, and the editor uses
+/// it to label what it is looking at.
+async fn engine_versions(
+    State(state): State<AppState>,
+) -> Result<Json<Vec<EngineVersion>>, ApiError> {
+    Ok(Json(EngineVersion::list(&state.db).await?))
 }
 
 /// Categories whose uploads are buildable plugin source.
@@ -3513,9 +3593,31 @@ async fn create_release(
         .metadata
         .get("min_engine_version")
         .and_then(|v| v.as_str())
-        .map(str::trim)
+        // Normalized before it is stored, not just before it is checked: the
+        // column is a foreign key, so validating `r1-alpha8 (dev)` by the
+        // r1-alpha8 it means and then storing the whole string would pass the
+        // check and fail the insert.
+        .map(EngineVersion::normalize)
         .filter(|v| !v.is_empty())
         .map(str::to_string);
+    // Checked here rather than left to the foreign key, which would reject it as
+    // a 500 with a constraint name in it. A manifest that names an engine we do
+    // not know is a typo often enough that the answer has to say which ones
+    // exist; a release stamped with an unknown version could never be resolved
+    // by anybody, so it must not be created either way.
+    if let Some(v) = &release_engine {
+        if EngineVersion::ordinal_of(&state.db, v).await?.is_none() {
+            let known: Vec<String> = EngineVersion::list(&state.db)
+                .await?
+                .into_iter()
+                .map(|e| e.version)
+                .collect();
+            return Err(ApiError::Validation(format!(
+                "Unknown engine version \"{v}\". Known versions: {}",
+                known.join(", ")
+            )));
+        }
+    }
     let release = AssetRelease::create_current(
         &state.db,
         id,

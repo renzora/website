@@ -52,7 +52,8 @@ const COLS: &str =
 /// Needed by any query that joins `engine_versions`, which has its own `version`
 /// column: the bare list above is ambiguous there, and the failure is a runtime
 /// error rather than a compile one, because these queries are built as strings.
-const COLS_R: &str = "r.id, r.asset_id, r.version, r.notes, r.is_current, r.downloads,                       r.created_at, r.min_engine_version";
+const COLS_R: &str = "r.id, r.asset_id, r.version, r.notes, r.is_current, r.downloads, \
+                      r.created_at, r.min_engine_version";
 
 impl AssetRelease {
     /// Newest first, with file counts and total size attached.
@@ -144,6 +145,45 @@ impl AssetRelease {
         .bind(asset_id)
         .bind(engine_version)
         .fetch_optional(pool)
+        .await
+    }
+
+    /// [`resolve_for_engine`](Self::resolve_for_engine) for many listings at
+    /// once, which is what an update check is.
+    ///
+    /// The editor asks about every installed plugin on startup, so this must not
+    /// be a query per plugin: at 200 ids that is 200 round trips for something
+    /// that is almost always "no change".
+    ///
+    /// `max_ordinal` is the caller's engine position, and passing [`i32::MAX`]
+    /// means "no ceiling" -- the newest release of each listing regardless of
+    /// engine. That is deliberately the same code path rather than a second
+    /// query with the filter removed, because an update check needs both answers
+    /// (what you can have, and what exists) and they must be produced the same
+    /// way or they can disagree about ordering.
+    ///
+    /// A listing with nothing to offer is absent from the result rather than
+    /// present with a null, so a caller iterates what it got instead of
+    /// filtering what it did not.
+    pub async fn resolve_many_for_engine(
+        pool: &PgPool,
+        asset_ids: &[Uuid],
+        max_ordinal: i32,
+    ) -> Result<Vec<Self>, sqlx::Error> {
+        if asset_ids.is_empty() {
+            return Ok(Vec::new());
+        }
+        sqlx::query_as::<_, Self>(&format!(
+            "SELECT DISTINCT ON (r.asset_id) {COLS_R}
+             FROM asset_releases r
+             LEFT JOIN engine_versions ev ON ev.version = r.min_engine_version
+             WHERE r.asset_id = ANY($1)
+               AND (r.min_engine_version IS NULL OR ev.ordinal <= $2)
+             ORDER BY r.asset_id, semver_key(r.version) DESC"
+        ))
+        .bind(asset_ids)
+        .bind(max_ordinal)
+        .fetch_all(pool)
         .await
     }
 
