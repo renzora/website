@@ -37,105 +37,6 @@ pub fn DevelopersPage() -> impl IntoView {
                 }
 
                 el.innerHTML = `
-                    <!-- API Overview -->
-                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-10">
-                        <div class="p-5 bg-white/[0.02] border border-zinc-800/50 rounded-xl">
-                            <div class="w-10 h-10 rounded-lg bg-accent/10 flex items-center justify-center mb-3">
-                                <i class="ph ph-game-controller text-accent text-lg"></i>
-                            </div>
-                            <h3 class="font-semibold mb-1">Game Services</h3>
-                            <p class="text-sm text-zinc-500">Achievements, leaderboards, player stats, and friends for your game.</p>
-                        </div>
-                        <div class="p-5 bg-white/[0.02] border border-zinc-800/50 rounded-xl">
-                            <div class="w-10 h-10 rounded-lg bg-accent/10 flex items-center justify-center mb-3">
-                                <i class="ph ph-shield-check text-accent text-lg"></i>
-                            </div>
-                            <h3 class="font-semibold mb-1">Scoped Access</h3>
-                            <p class="text-sm text-zinc-500">Users grant your app specific permissions. No scope, no access.</p>
-                        </div>
-                        <div class="p-5 bg-white/[0.02] border border-zinc-800/50 rounded-xl">
-                            <div class="w-10 h-10 rounded-lg bg-accent/10 flex items-center justify-center mb-3">
-                                <i class="ph ph-brackets-curly text-accent text-lg"></i>
-                            </div>
-                            <h3 class="font-semibold mb-1">REST API</h3>
-                            <p class="text-sm text-zinc-500">Marketplace API, game services, and multipart uploads.</p>
-                        </div>
-                    </div>
-
-                    <!-- Developer Apps Section -->
-                    <div class="mb-10">
-                        <div class="flex items-center justify-between mb-4">
-                            <h2 class="text-xl font-semibold">My Apps</h2>
-                            ${token ? '<button onclick="document.getElementById(\\\'register-app-form\\\').classList.toggle(\\\'hidden\\\')" class="px-4 py-2 rounded-lg text-sm font-medium bg-accent text-white hover:bg-accent-hover transition-all">Register New App</button>' : ''}
-                        </div>
-                        ${!token ? '<p class="text-sm text-zinc-500"><a href="/login" class="text-accent hover:text-accent-hover">Sign in</a> to register developer apps.</p>' : `
-                            <div id="app-list" class="space-y-2"></div>
-                            <div id="register-app-form" class="hidden mt-4 p-5 bg-zinc-900/50 border border-zinc-800 rounded-xl">
-                                <h3 class="text-sm font-semibold text-zinc-200 mb-3">Register New App</h3>
-                                <div class="space-y-3">
-                                    <div>
-                                        <label class="text-xs text-zinc-400 block mb-1">App Name</label>
-                                        <input id="app-name" type="text" class="w-full px-4 py-2 bg-zinc-900 border border-zinc-700 rounded-lg text-sm text-zinc-200 placeholder:text-zinc-600" placeholder="My Game" />
-                                    </div>
-                                    <div>
-                                        <label class="text-xs text-zinc-400 block mb-1">Description</label>
-                                        <textarea id="app-desc" class="w-full px-4 py-2 bg-zinc-900 border border-zinc-700 rounded-lg text-sm text-zinc-200 placeholder:text-zinc-600 resize-none" rows="2" placeholder="What does your app do?"></textarea>
-                                    </div>
-                                    <div>
-                                        <label class="text-xs text-zinc-400 block mb-1">Website URL (optional)</label>
-                                        <input id="app-url" type="url" class="w-full px-4 py-2 bg-zinc-900 border border-zinc-700 rounded-lg text-sm text-zinc-200 placeholder:text-zinc-600" placeholder="https://mygame.com" />
-                                    </div>
-                                    <div>
-                                        <label class="text-xs text-zinc-400 block mb-1">Redirect URI (optional, for OAuth)</label>
-                                        <input id="app-redirect" type="url" class="w-full px-4 py-2 bg-zinc-900 border border-zinc-700 rounded-lg text-sm text-zinc-200 placeholder:text-zinc-600" placeholder="https://mygame.com/callback" />
-                                    </div>
-                                    <div class="flex gap-2">
-                                        <button id="submit-app-btn" onclick="registerApp()" class="px-4 py-2 bg-accent hover:bg-accent-hover text-white text-sm font-medium rounded-lg transition-colors">Register App</button>
-                                        <button onclick="document.getElementById('register-app-form').classList.add('hidden')" class="px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-sm font-medium rounded-lg transition-colors">Cancel</button>
-                                    </div>
-                                    <div id="app-register-error" class="hidden text-xs text-red-400"></div>
-                                </div>
-                            </div>
-                        `}
-                    </div>
-
-                    <!-- Scopes Reference -->
-                    <div class="mb-10">
-                        <h2 class="text-xl font-semibold mb-4">Permission Scopes</h2>
-                        <p class="text-sm text-zinc-500 mb-3">When creating an app token, specify exactly which scopes it needs. Users must grant each scope before your app can use it.</p>
-                        <div class="bg-white/[0.02] border border-zinc-800/50 rounded-xl overflow-hidden">
-                            <table class="w-full text-sm">
-                                <thead><tr class="border-b border-zinc-800/50">
-                                    <th class="text-left px-4 py-3 text-zinc-500 font-medium">Scope</th>
-                                    <th class="text-left px-4 py-3 text-zinc-500 font-medium">Description</th>
-                                </tr></thead>
-                                <tbody>
-                                    <tr class="border-b border-zinc-800/30"><td class="px-4 py-2.5 text-zinc-200 font-mono text-xs">profile:read</td><td class="px-4 py-2.5 text-zinc-400">Read username and avatar</td></tr>
-                                    <tr class="border-b border-zinc-800/30"><td class="px-4 py-2.5 text-zinc-200 font-mono text-xs">friends:read</td><td class="px-4 py-2.5 text-zinc-400">Read player's friend list</td></tr>
-                                    <tr class="border-b border-zinc-800/30"><td class="px-4 py-2.5 text-zinc-200 font-mono text-xs">friends:write</td><td class="px-4 py-2.5 text-zinc-400">Send and accept friend requests</td></tr>
-                                    <tr class="border-b border-zinc-800/30"><td class="px-4 py-2.5 text-zinc-200 font-mono text-xs">achievements:read</td><td class="px-4 py-2.5 text-zinc-400">Read player achievements</td></tr>
-                                    <tr class="border-b border-zinc-800/30"><td class="px-4 py-2.5 text-zinc-200 font-mono text-xs">achievements:write</td><td class="px-4 py-2.5 text-zinc-400">Unlock achievements for players</td></tr>
-                                    <tr class="border-b border-zinc-800/30"><td class="px-4 py-2.5 text-zinc-200 font-mono text-xs">stats:read</td><td class="px-4 py-2.5 text-zinc-400">Read player stats (play time, kills, etc.)</td></tr>
-                                    <tr class="border-b border-zinc-800/30"><td class="px-4 py-2.5 text-zinc-200 font-mono text-xs">stats:write</td><td class="px-4 py-2.5 text-zinc-400">Update player stats</td></tr>
-                                    <tr class="border-b border-zinc-800/30"><td class="px-4 py-2.5 text-zinc-200 font-mono text-xs">leaderboards:read</td><td class="px-4 py-2.5 text-zinc-400">Read leaderboard scores</td></tr>
-                                    <tr class="border-b border-zinc-800/30"><td class="px-4 py-2.5 text-zinc-200 font-mono text-xs">leaderboards:write</td><td class="px-4 py-2.5 text-zinc-400">Submit leaderboard scores</td></tr>
-                                    <tr><td class="px-4 py-2.5 text-zinc-200 font-mono text-xs">inventory:read</td><td class="px-4 py-2.5 text-zinc-400">Read purchased assets and games</td></tr>
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-
-                    <!-- API Reference Link -->
-                    <div class="mb-10">
-                        <div class="flex items-center justify-between mb-4">
-                            <h2 class="text-xl font-semibold">API Reference</h2>
-                        </div>
-                        <p class="text-sm text-zinc-400 mb-4">Full API documentation with examples, authentication guides, and SDK references.</p>
-                        <a href="/docs/platform-api/authentication" class="inline-flex items-center gap-2 px-6 py-3 bg-accent hover:bg-accent-hover text-white text-sm font-medium rounded-xl transition-colors">
-                            <i class="ph ph-book-open"></i> View API Documentation
-                        </a>
-                    </div>
-
                     <!-- API Tokens Section -->
                     <div class="mb-10">
                         <div class="flex items-center justify-between mb-4">
@@ -144,6 +45,12 @@ pub fn DevelopersPage() -> impl IntoView {
                         </div>
 
                         ${!token ? '<p class="text-sm text-zinc-500"><a href="/login" class="text-accent hover:text-accent-hover">Sign in</a> to manage API tokens.</p>' : `
+                            <!-- Today's allowance. Filled by loadUsage(); until
+                                 then it says nothing rather than showing a bar
+                                 at zero, which would read as "no requests left"
+                                 and is the one wrong answer to give here. -->
+                            <div id="usage-card" class="hidden mb-5 p-5 bg-white/[0.02] border border-zinc-800/50 rounded-xl"></div>
+
                             <div id="token-list" class="space-y-2">
                                 ${tokens.length === 0 ? '<p class="text-sm text-zinc-500">No API tokens yet. Create one to get started.</p>' :
                                     tokens.map(t => tokenRow(t)).join('')}
@@ -165,104 +72,84 @@ pub fn DevelopersPage() -> impl IntoView {
                 `;
             })();
 
-            // ── App management ──
-            async function loadApps() {
+            // ── Today's allowance ──
+            //
+            // Counted per account, not per token: ten tokens share one daily
+            // budget rather than getting ten, so this is one bar for the page
+            // and not a row on each token.
+            async function loadUsage() {
                 if (!token) return;
+                const el = document.getElementById('usage-card');
+                if (!el) return;
+                let u;
                 try {
-                    const res = await fetch('/api/gameservices/apps', { headers: { 'Authorization': 'Bearer ' + token } });
+                    const res = await fetch('/api/api-tokens/usage', { headers: { 'Authorization': 'Bearer ' + token } });
                     if (!res.ok) return;
-                    const apps = await res.json();
-                    const el = document.getElementById('app-list');
-                    if (!el) return;
-                    if (apps.length === 0) { el.innerHTML = '<p class="text-sm text-zinc-500">No apps registered. Create one to get started with Game Services.</p>'; return; }
-                    el.innerHTML = apps.map(a => `
-                        <div class="p-4 bg-white/[0.02] border border-zinc-800/50 rounded-xl">
-                            <div class="flex items-center justify-between mb-2">
-                                <div class="flex items-center gap-3">
-                                    <div class="w-10 h-10 rounded-lg bg-accent/10 flex items-center justify-center"><i class="ph ph-game-controller text-accent"></i></div>
-                                    <div>
-                                        <div class="font-medium">${a.name}</div>
-                                        <div class="text-xs text-zinc-500">Client ID: <code class="text-zinc-400">${a.client_id}</code></div>
-                                    </div>
-                                </div>
-                                <div class="flex items-center gap-2">
-                                    <button onclick="manageAppTokens('${a.id}', '${a.name}')" class="px-3 py-1.5 rounded-lg text-xs text-accent hover:bg-accent/10 border border-transparent hover:border-accent/20 transition-all">Tokens</button>
-                                    <button onclick="deleteApp('${a.id}', this)" class="px-3 py-1.5 rounded-lg text-xs text-red-400 hover:bg-red-950/30 border border-transparent hover:border-red-900/50 transition-all">Delete</button>
-                                </div>
+                    u = await res.json();
+                } catch(e) { return; }
+
+                // A rejected request still increments the count, so `used` can
+                // pass `limit`. The bar is clamped and `remaining` comes from
+                // the server already floored, but the NUMBERS are printed as
+                // they are: someone over the line should see how far over.
+                const pct = u.limit > 0 ? Math.min(100, Math.round((u.used / u.limit) * 100)) : 0;
+                const spent = u.remaining === 0;
+                const low = !spent && u.remaining <= u.limit * 0.1;
+                const barColour = spent ? 'bg-red-500' : low ? 'bg-amber-400' : 'bg-accent';
+                const numColour = spent ? 'text-red-300' : low ? 'text-amber-300' : 'text-zinc-100';
+
+                const resets = new Date(u.resets_at);
+                const resetLabel = isNaN(resets) ? '' : resets.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+
+                el.className = 'mb-5 p-5 bg-white/[0.02] border border-zinc-800/50 rounded-xl';
+                el.innerHTML = `
+                    <div class="flex items-baseline justify-between gap-3 flex-wrap mb-3">
+                        <div>
+                            <div class="text-sm text-zinc-400">Requests remaining today</div>
+                            <div class="mt-1 flex items-baseline gap-2">
+                                <span class="text-3xl font-bold ${numColour}">${u.remaining.toLocaleString()}</span>
+                                <span class="text-sm text-zinc-400">of ${u.limit.toLocaleString()}</span>
                             </div>
-                            ${a.description ? '<p class="text-xs text-zinc-500 ml-13">' + a.description + '</p>' : ''}
                         </div>
-                    `).join('');
-                } catch(e) {}
+                        <div class="text-sm text-zinc-400 text-right">
+                            <div>${u.used.toLocaleString()} used</div>
+                            ${resetLabel ? '<div class="text-zinc-500">Resets at ' + resetLabel + '</div>' : ''}
+                        </div>
+                    </div>
+                    <div class="h-2.5 w-full rounded-full bg-white/[0.08] overflow-hidden" role="progressbar"
+                         aria-valuenow="${u.used}" aria-valuemin="0" aria-valuemax="${u.limit}"
+                         aria-label="API requests used today">
+                        <div class="h-full ${barColour} rounded-full transition-all" style="width:${pct}%"></div>
+                    </div>
+                    ${spent ? '<p class="mt-3 text-sm text-red-300">The daily limit is spent. Requests are rejected until it resets.</p>' : ''}
+                `;
+                el.classList.remove('hidden');
             }
-            loadApps();
+            loadUsage();
 
-            async function registerApp() {
-                var name = document.getElementById('app-name').value.trim();
-                var desc = document.getElementById('app-desc').value.trim();
-                var url = document.getElementById('app-url').value.trim();
-                var redirect = document.getElementById('app-redirect').value.trim();
-                var errorEl = document.getElementById('app-register-error');
-                errorEl.classList.add('hidden');
-
-                if (!name) { errorEl.textContent = 'App name is required'; errorEl.classList.remove('hidden'); return; }
-
-                var res = await fetch('/api/gameservices/apps', {
-                    method: 'POST',
-                    headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ name: name, description: desc, website_url: url, redirect_uri: redirect })
-                });
-                var data = await res.json();
-                if (data.client_id) {
-                    document.getElementById('register-app-form').classList.add('hidden');
-                    alert('App registered!\\n\\nClient ID: ' + data.client_id + '\\nClient Secret: ' + data.client_secret + '\\n\\nSave the secret, it will not be shown again.');
-                    window.location.reload();
-                } else {
-                    errorEl.textContent = data.error || data.message || 'Failed to register app';
-                    errorEl.classList.remove('hidden');
-                }
-            }
-
-            async function deleteApp(id, btn) {
-                if (!confirm('Delete this app? All tokens, achievements, and leaderboards will be removed.')) return;
-                const res = await fetch('/api/gameservices/apps/' + id, { method: 'DELETE', headers: { 'Authorization': 'Bearer ' + token } });
-                if (res.ok) { loadApps(); } else { alert('Failed to delete app'); }
-            }
-
-            async function manageAppTokens(appId, appName) {
-                try {
-                    const res = await fetch('/api/gameservices/apps/' + appId + '/tokens', { headers: { 'Authorization': 'Bearer ' + token } });
-                    const tokens = await res.json();
-                    const scopeList = ['profile:read','friends:read','friends:write','achievements:read','achievements:write','stats:read','stats:write','leaderboards:read','leaderboards:write','inventory:read'];
-                    let msg = 'Tokens for ' + appName + ':\\n\\n';
-                    if (tokens.length === 0) msg += '(no tokens)\\n';
-                    else tokens.forEach(t => { msg += t.name + ' (' + t.prefix + '...),' + t.scopes.join(', ') + '\\n'; });
-                    msg += '\\nCreate a new token? Enter a name (or Cancel):';
-                    const tokenName = prompt(msg);
-                    if (!tokenName) return;
-                    const scopeInput = prompt('Enter scopes (comma separated):\\n' + scopeList.join(', '));
-                    if (!scopeInput) return;
-                    const scopes = scopeInput.split(',').map(s => s.trim()).filter(Boolean);
-                    const createRes = await fetch('/api/gameservices/apps/' + appId + '/tokens', {
-                        method: 'POST',
-                        headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ name: tokenName, scopes })
-                    });
-                    const data = await createRes.json();
-                    if (!createRes.ok) { alert(data.error || 'Failed to create token'); return; }
-                    alert('Token created!\\n\\n' + data.token + '\\n\\nScopes: ' + data.scopes.join(', ') + '\\n\\nSave this, it will not be shown again.');
-                } catch(e) { alert('Error: ' + e.message); }
+            // A date the server sent, or nothing. The API now emits RFC 3339,
+            // which is what `new Date()` needs; this stays defensive because the
+            // failure mode is a row reading "Last used Invalid Date", and a
+            // missing date is better than a wrong one.
+            function tokenDate(v) {
+                if (!v) return null;
+                const d = new Date(v);
+                return isNaN(d) ? null : d.toLocaleDateString();
             }
 
             function tokenRow(t) {
+                const created = tokenDate(t.created_at);
+                const used = tokenDate(t.last_used_at);
+                const expires = tokenDate(t.expires_at);
                 return '<div class="flex items-center justify-between p-3 bg-white/[0.02] border border-zinc-800/50 rounded-lg">' +
                     '<div class="flex items-center gap-3">' +
                         '<div class="w-8 h-8 rounded-lg bg-accent/10 flex items-center justify-center"><i class="ph ph-key text-accent text-sm"></i></div>' +
                         '<div>' +
                             '<div class="text-sm font-medium">' + t.name + '</div>' +
-                            '<div class="text-xs text-zinc-600">' + t.prefix + '... · Created ' + new Date(t.created_at).toLocaleDateString() +
-                            (t.last_used_at ? ' · Last used ' + new Date(t.last_used_at).toLocaleDateString() : ' · Never used') +
-                            (t.expires_at ? ' · Expires ' + new Date(t.expires_at).toLocaleDateString() : '') + '</div>' +
+                            '<div class="text-xs text-zinc-400">' + t.prefix + '...' +
+                            (created ? ' · Created ' + created : '') +
+                            (used ? ' · Last used ' + used : ' · Never used') +
+                            (expires ? ' · Expires ' + expires : '') + '</div>' +
                         '</div>' +
                     '</div>' +
                     '<button onclick="revokeToken(\'' + t.id + '\', this)" class="px-3 py-1.5 rounded-lg text-xs text-red-400 hover:bg-red-950/30 hover:text-red-300 border border-transparent hover:border-red-900/50 transition-all">Revoke</button>' +

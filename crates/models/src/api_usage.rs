@@ -8,6 +8,25 @@ use uuid::Uuid;
 /// allowance.
 pub const DAILY_API_LIMIT: i32 = 500;
 
+/// Today's request count for a user, without touching it.
+///
+/// Separate from [`check_and_increment_usage`] because reading the number to
+/// show somebody must not spend one of their requests: the obvious shortcut of
+/// reusing the incrementing call would make opening the page the thing that
+/// consumes the allowance it is reporting.
+///
+/// No row means no requests today. The row is only created by the first call.
+pub async fn usage_today(db: &PgPool, user_id: Uuid) -> Result<(i32, i32), sqlx::Error> {
+    let row: Option<(i32,)> = sqlx::query_as(
+        "SELECT request_count FROM api_usage_daily WHERE user_id = $1 AND date = CURRENT_DATE",
+    )
+    .bind(user_id)
+    .fetch_optional(db)
+    .await?;
+
+    Ok((row.map(|r| r.0).unwrap_or(0), DAILY_API_LIMIT))
+}
+
 /// Increment and check daily API usage. Returns (current_count, limit).
 pub async fn check_and_increment_usage(db: &PgPool, user_id: Uuid) -> Result<(i32, i32), sqlx::Error> {
     let limit = DAILY_API_LIMIT;

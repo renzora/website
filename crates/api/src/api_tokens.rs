@@ -4,6 +4,7 @@ use axum::{
     Json, Router,
 };
 use serde::{Deserialize, Serialize};
+use time::OffsetDateTime;
 use uuid::Uuid;
 
 use renzora_models::api_token::ApiToken;
@@ -14,6 +15,9 @@ pub fn router() -> Router<AppState> {
     Router::new()
         .route("/", get(list_tokens))
         .route("/", post(create_token))
+        // Before `/:id` in source order for readability only: the two cannot
+        // collide, since that one is DELETE and this is GET.
+        .route("/usage", get(token_usage))
         .route("/:id", delete(revoke_token))
         .layer(axum::middleware::from_fn(middleware::require_auth))
 }
@@ -46,6 +50,17 @@ struct TokenListItem {
     last_used_at: Option<String>,
     expires_at: Option<String>,
     created_at: String,
+}
+
+/// A timestamp the browser can actually parse.
+///
+/// `Display` for `OffsetDateTime` emits `2026-09-13 9:42:49.0 +00:00:00`, and
+/// `new Date()` rejects it: the hour has no leading zero before 10:00 and the
+/// offset carries seconds. Every field here went out that way, which is why the
+/// token list showed "Invalid Date" against Last used.
+fn rfc3339(t: OffsetDateTime) -> String {
+    t.format(&time::format_description::well_known::Rfc3339)
+        .unwrap_or_else(|_| t.to_string())
 }
 
 /// Generate a random API token with the "rz_" prefix.
@@ -99,8 +114,8 @@ async fn create_token(
         token: raw_token,
         prefix: token.prefix,
         scopes: token.scopes,
-        expires_at: token.expires_at.map(|t| t.to_string()),
-        created_at: token.created_at.to_string(),
+        expires_at: token.expires_at.map(rfc3339),
+        created_at: rfc3339(token.created_at),
     }))
 }
 
@@ -118,12 +133,52 @@ async fn list_tokens(
                 name: t.name,
                 prefix: t.prefix,
                 scopes: t.scopes,
-                last_used_at: t.last_used_at.map(|t| t.to_string()),
-                expires_at: t.expires_at.map(|t| t.to_string()),
-                created_at: t.created_at.to_string(),
+                last_used_at: t.last_used_at.map(rfc3339),
+                expires_at: t.expires_at.map(rfc3339),
+                created_at: rfc3339(t.created_at),
             })
             .collect(),
     ))
+}
+
+/// What today's allowance looks like for the signed-in developer.
+#[derive(Debug, Serialize)]
+struct TokenUsage {
+    /// Requests made today, across every token this user holds.
+    used: i32,
+    /// Requests allowed per day.
+    limit: i32,
+    /// `limit - used`, floored at zero. Sent rather than left to the caller
+    /// because a request that is rejected still increments the count, so `used`
+    /// can legitimately exceed `limit` and a naive subtraction goes negative.
+    remaining: i32,
+    /// When the count goes back to zero, as RFC 3339. The window is a UTC
+    /// calendar day (`CURRENT_DATE`), so this is the next UTC midnight and not
+    /// a rolling 24 hours from first use.
+    resets_at: String,
+}
+
+/// Today's API usage. Counted per user, not per token: the limit is on the
+/// account, so ten tokens share one allowance rather than getting ten.
+async fn token_usage(
+    State(state): State<AppState>,
+    Extension(auth): Extension<AuthUser>,
+) -> Result<Json<TokenUsage>, ApiError> {
+    let (used, limit) = renzora_models::api_usage::usage_today(&state.db, auth.user_id).await?;
+
+    let resets_at = OffsetDateTime::now_utc()
+        .date()
+        .next_day()
+        .unwrap_or_else(|| OffsetDateTime::now_utc().date())
+        .midnight()
+        .assume_utc();
+
+    Ok(Json(TokenUsage {
+        used,
+        limit,
+        remaining: (limit - used).max(0),
+        resets_at: rfc3339(resets_at),
+    }))
 }
 
 async fn revoke_token(
