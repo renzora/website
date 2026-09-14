@@ -611,6 +611,9 @@ pub fn AssetDetailPage() -> impl IntoView {
                         <div class="flex items-center gap-3 flex-wrap">
                             <span class="text-base font-semibold text-zinc-100">v${treeEsc(r.version)}</span>
                             ${r.is_current ? '<span class="px-2 py-0.5 rounded-full bg-green-500/10 border border-green-500/20 text-[10px] text-green-400 font-medium">LATEST</span>' : ''}
+                            ${r.min_engine_version
+                                ? `<span class="px-2 py-0.5 rounded-full bg-white/[0.04] border border-zinc-700/50 text-[10px] text-zinc-400 font-medium" title="Runs on ${treeEsc(r.min_engine_version)} and newer. Older engines are offered the newest release that still works for them.">${treeEsc(r.min_engine_version)}+</span>`
+                                : ''}
                             <span class="text-xs text-zinc-600">${fmtDate(r.created_at)}</span>
                             <span class="flex-1"></span>
                             <a href="/marketplace/asset/${a.slug}/files?release=${encodeURIComponent(r.version)}" class="text-xs text-zinc-500 hover:text-accent transition-colors"><i class="ph ph-folder-open"></i> Files</a>

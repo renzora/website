@@ -125,6 +125,17 @@ pub fn MarketplacePage() -> impl IntoView {
                                 <label class="text-[10px] text-zinc-500 uppercase tracking-wider font-medium mb-1.5 block">"Tag"</label>
                                 <input type="text" id="adv-tag" placeholder="e.g. low-poly" class="w-full px-2.5 py-1.5 bg-white/[0.03] border border-zinc-800/50 rounded-lg text-zinc-50 text-xs outline-none focus:border-teal-500/50 transition-all" />
                             </div>
+                            // Populated from /api/marketplace/engine-versions, so
+                            // this is empty until that resolves. Left as "Any"
+                            // rather than defaulting to the newest: browsing the
+                            // website is not browsing from an engine, and
+                            // guessing one would silently hide listings.
+                            <div>
+                                <label class="text-[10px] text-zinc-500 uppercase tracking-wider font-medium mb-1.5 block">"Engine Version"</label>
+                                <select id="adv-engine" class="w-full px-2.5 py-1.5 bg-white/[0.03] border border-zinc-800/50 rounded-lg text-zinc-50 text-xs focus:border-teal-500/50 transition-all">
+                                    <option value="">"Any"</option>
+                                </select>
+                            </div>
                         </div>
                         <div class="flex items-center gap-3 mt-3">
                             <button onclick="applyAdvancedFilter()" class="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-xs font-medium bg-teal-500 text-white hover:bg-teal-400 transition-all">
@@ -196,6 +207,19 @@ pub fn MarketplacePage() -> impl IntoView {
                 const pubBtn = document.getElementById('publish-btn-hero');
                 if (pubBtn && token) { pubBtn.classList.remove('hidden'); }
 
+                // The engine filter is additive, so a failure here leaves the
+                // select on "Any" and the grid unfiltered rather than breaking
+                // browsing.
+                const engRes = await fetch('/api/marketplace/engine-versions');
+                if (engRes.ok) {
+                    const engines = await engRes.json();
+                    const sel = document.getElementById('adv-engine');
+                    if (sel) {
+                        sel.innerHTML = '<option value="">Any</option>' + engines.map(e =>
+                            `<option value="${e.version}">${e.version}</option>`).join('');
+                    }
+                }
+
                 const catRes = await fetch('/api/marketplace/categories');
                 const dbCats = catRes.ok ? await catRes.json() : [];
                 const categories = [{slug: 'all', name: 'All', icon: 'ph-squares-four'}, ...dbCats.map(c => ({slug: c.slug, name: c.name, icon: c.icon}))];
@@ -259,6 +283,7 @@ pub fn MarketplacePage() -> impl IntoView {
             // ── Advanced filter ──
             let advMaxPrice = null;
             let advTag = '';
+            let advEngine = '';
 
             function toggleAdvancedFilter() {
                 const panel = document.getElementById('adv-filter-panel');
@@ -278,6 +303,7 @@ pub fn MarketplacePage() -> impl IntoView {
 
                 advMaxPrice = maxPrice ? parseInt(maxPrice) : null;
                 advTag = tag || '';
+                advEngine = document.getElementById('adv-engine')?.value || '';
                 currentMinRating = parseInt(minRating) || 0;
 
                 // Sync sidebar rating buttons
@@ -301,8 +327,10 @@ pub fn MarketplacePage() -> impl IntoView {
                 document.getElementById('adv-min-rating').value = '0';
                 document.getElementById('adv-licence').value = '';
                 document.getElementById('adv-tag').value = '';
+                document.getElementById('adv-engine').value = '';
                 advMaxPrice = null;
                 advTag = '';
+                advEngine = '';
                 currentMinRating = 0;
                 currentPrice = 'all';
                 currentPage = 1;
@@ -327,6 +355,10 @@ pub fn MarketplacePage() -> impl IntoView {
                 if (currentMinRating > 0) url += '&min_rating=' + currentMinRating;
                 if (advMaxPrice !== null) url += '&max_price=' + advMaxPrice;
                 if (advTag) url += '&tag=' + encodeURIComponent(advTag);
+                // Filters the grid AND relabels each card with the version that
+                // engine would actually get, which is not always the newest one
+                // published.
+                if (advEngine) url += '&engine=' + encodeURIComponent(advEngine);
 
                 const res = await fetch(url);
                 const data = await res.json();

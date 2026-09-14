@@ -164,7 +164,10 @@ impl Asset {
         page: i64,
         per_page: i64,
     ) -> Result<(Vec<AssetWithCreator>, i64), sqlx::Error> {
-        Self::list_published_filtered(pool, query, category, None, None, sort, page, per_page, None, None, None).await
+        Self::list_published_filtered(
+            pool, query, category, None, None, sort, page, per_page, None, None, None, None,
+        )
+        .await
     }
 
     pub async fn list_published_filtered(
@@ -179,6 +182,7 @@ impl Asset {
         free_only: Option<bool>,
         min_rating: Option<i32>,
         max_price: Option<i64>,
+        engine_ordinal: Option<i32>,
     ) -> Result<(Vec<AssetWithCreator>, i64), sqlx::Error> {
         let offset = (page - 1) * per_page;
 
@@ -217,10 +221,30 @@ impl Asset {
         let assets = sqlx::query_as::<_, AssetWithCreator>(&format!(
             r#"
             SELECT a.id, a.name, a.slug, a.description, a.category, a.price_credits,
-                   a.thumbnail_url, a.version, a.downloads, a.views, u.username AS creator_name,
+                   a.thumbnail_url,
+                   -- The version THIS engine would get, not the listing's own.
+                   -- A card saying 2.0.0 that installs 1.0.11 is worse than no
+                   -- filter at all. With no engine asking, the listing's column
+                   -- is left exactly as it was rather than quietly replaced.
+                   CASE WHEN $10::int IS NULL THEN a.version
+                        ELSE COALESCE(rel.version, a.version) END AS version,
+                   a.downloads, a.views, u.username AS creator_name,
                    u.avatar_url AS creator_avatar_url, a.rating_sum, a.rating_count, a.tags
             FROM assets a
             JOIN users u ON u.id = a.creator_id
+            -- The one release this engine resolves, if any. A lateral rather
+            -- than a second query because it has to do double duty: it supplies
+            -- the version shown AND, by coming back empty, says the listing has
+            -- nothing this engine can run.
+            LEFT JOIN LATERAL (
+                SELECT r.version
+                FROM asset_releases r
+                LEFT JOIN engine_versions ev ON ev.version = r.min_engine_version
+                WHERE r.asset_id = a.id
+                  AND (r.min_engine_version IS NULL OR ev.ordinal <= $10::int)
+                ORDER BY semver_key(r.version) DESC
+                LIMIT 1
+            ) rel ON $10::int IS NOT NULL
             WHERE a.published = true
               AND ($1::text IS NULL OR a.name ILIKE '%' || $1 || '%' OR a.description ILIKE '%' || $1 || '%' OR $1 = ANY(a.tags))
               AND ($2::text IS NULL OR $2 = 'all' OR a.category = $2)
@@ -229,6 +253,13 @@ impl Asset {
               AND ($7::bigint = -1 OR a.price_credits <= $7)
               AND ($8::text IS NULL OR a.subcategory = $8)
               AND ($9::text IS NULL OR $9 = ANY(a.tags))
+              -- Hide a listing only when we positively know it has nothing for
+              -- this engine. An asset with no releases at all is not evidence of
+              -- incompatibility, it is an asset that predates releases, and
+              -- whole categories of them (materials, themes) are in that state.
+              AND ($10::int IS NULL
+                   OR rel.version IS NOT NULL
+                   OR NOT EXISTS (SELECT 1 FROM asset_releases r2 WHERE r2.asset_id = a.id))
             ORDER BY {order_clause}
             LIMIT $3 OFFSET $4
             "#,
@@ -242,6 +273,7 @@ impl Asset {
         .bind(max_p)
         .bind(subcategory)
         .bind(tag)
+        .bind(engine_ordinal)
         .fetch_all(pool)
         .await?;
 
@@ -257,6 +289,15 @@ impl Asset {
               AND ($5::bigint = -1 OR a.price_credits <= $5)
               AND ($6::text IS NULL OR a.subcategory = $6)
               AND ($7::text IS NULL OR $7 = ANY(a.tags))
+              -- Must match the page query's filter exactly, or the pager counts
+              -- rows the grid never shows and offers a last page that is empty.
+              AND ($8::int IS NULL
+                   OR EXISTS (
+                       SELECT 1 FROM asset_releases r
+                       LEFT JOIN engine_versions ev ON ev.version = r.min_engine_version
+                       WHERE r.asset_id = a.id
+                         AND (r.min_engine_version IS NULL OR ev.ordinal <= $8::int))
+                   OR NOT EXISTS (SELECT 1 FROM asset_releases r2 WHERE r2.asset_id = a.id))
             "#,
         )
         .bind(query)
@@ -266,6 +307,7 @@ impl Asset {
         .bind(max_p)
         .bind(subcategory)
         .bind(tag)
+        .bind(engine_ordinal)
         .fetch_one(pool)
         .await?;
 

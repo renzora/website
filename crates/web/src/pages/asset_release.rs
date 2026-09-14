@@ -19,6 +19,7 @@ pub fn AssetReleasePage() -> impl IntoView {
             r##"
             let RA = null;        // asset detail
             let RELEASES = [];
+            let ENGINES = [];     // engine versions, newest first
 
             const resc = s => String(s ?? '').replace(/[&<>"']/g, c =>
                 ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -33,6 +34,21 @@ pub fn AssetReleasePage() -> impl IntoView {
                 if (bytes >= 1e6) return (bytes / 1e6).toFixed(1) + ' MB';
                 if (bytes >= 1e3) return (bytes / 1e3).toFixed(1) + ' KB';
                 return bytes + ' B';
+            }
+
+            // "Any engine" is first and is the default, because that is what an
+            // unset value means and picking a floor nobody asked for would hide
+            // the release from everyone below it.
+            const ENG_SELECT_SM = 'px-2.5 py-1.5 rounded-lg text-xs';
+            const ENG_SELECT_LG = 'w-full px-4 py-3 rounded-xl text-sm';
+
+            function engineSelect(id, selected, attrs, size) {
+                const opts = ['<option value="">Any engine</option>'].concat(
+                    ENGINES.map(e =>
+                        `<option value="${resc(e.version)}"${e.version === selected ? ' selected' : ''}>${resc(e.version)} and newer</option>`)
+                ).join('');
+                return `<select id="${id}" ${attrs || ''}
+                    class="${size || ENG_SELECT_SM} bg-white/[0.02] border border-zinc-800/50 text-zinc-300 outline-none focus:border-accent/50 transition-all">${opts}</select>`;
             }
 
             // Suggest the next patch version, so the common case is one click.
@@ -73,12 +89,19 @@ pub fn AssetReleasePage() -> impl IntoView {
                 const rRes = await fetch('/api/marketplace/' + RA.id + '/releases');
                 RELEASES = rRes.ok ? await rRes.json() : [];
 
+                // Not fatal if it fails. The selector degrades to "Any engine"
+                // and a release published without one is offered to everybody,
+                // which is exactly what happened before the field existed.
+                const eRes = await fetch('/api/marketplace/engine-versions');
+                ENGINES = eRes.ok ? await eRes.json() : [];
+
                 const history = RELEASES.length ? RELEASES.map(r => `
                     <div class="flex items-center gap-3 px-4 py-2.5 border-b border-zinc-800/50 last:border-0">
                         <span class="text-sm font-medium text-zinc-300">v${resc(r.version)}</span>
                         ${r.is_current ? '<span class="px-1.5 py-0.5 rounded bg-green-500/10 border border-green-500/20 text-[10px] text-green-400">current</span>' : ''}
                         <span class="flex-1"></span>
-                        <span class="text-xs text-zinc-600">${r.file_count} files · ${rFmtSize(r.total_size)}</span>
+                        ${engineSelect('hist-eng-' + r.id, r.min_engine_version, `data-previous="${resc(r.min_engine_version || '')}" onchange="saveReleaseEngine('${r.id}', this)"`)}
+                        <span class="text-xs text-zinc-600 w-28 text-right">${r.file_count} files · ${rFmtSize(r.total_size)}</span>
                     </div>`).join('') : '<p class="text-xs text-zinc-600 px-4 py-3">No releases yet.</p>';
 
                 root.innerHTML = `
@@ -106,6 +129,11 @@ pub fn AssetReleasePage() -> impl IntoView {
                                 <label class="block text-sm text-zinc-400 mb-1.5">Current version</label>
                                 <div class="px-4 py-3 bg-white/[0.01] border border-zinc-800/50 rounded-xl text-zinc-500 text-sm">${resc(RA.version)}</div>
                             </div>
+                        </div>
+                        <div>
+                            <label class="block text-sm text-zinc-400 mb-1.5">Built for</label>
+                            ${engineSelect('rel-engine', (RA.metadata || {}).min_engine_version || '', '', ENG_SELECT_LG)}
+                            <p class="text-xs text-zinc-600 mt-1.5">The oldest engine this version runs on. People on older engines keep being offered your last release that worked for them, so dropping an old engine here never strands them.</p>
                         </div>
                     </div>
 
@@ -173,6 +201,43 @@ pub fn AssetReleasePage() -> impl IntoView {
                     </div>`).join('');
             };
 
+            // Retarget one past release, without republishing it.
+            //
+            // Worth being able to do: the engine a release needs is a claim
+            // about code that already shipped, and the way it is usually found
+            // to be wrong is somebody installing it and watching it fail to
+            // load. A republish would spend a version number on a metadata fix
+            // and leave the wrong claim live until it happened.
+            //
+            // Only this release moves. Correcting an old one must not disturb
+            // what anybody on a newer engine resolves, which is the whole reason
+            // the value sits on the release instead of the listing.
+            window.saveReleaseEngine = async function(releaseId, sel) {
+                const t = rToken();
+                if (!t || !RA) return;
+                const previous = sel.dataset.previous ?? '';
+                sel.disabled = true;
+                try {
+                    const res = await fetch('/api/marketplace/' + RA.id + '/releases/' + releaseId, {
+                        method: 'PUT',
+                        headers: { 'Authorization': 'Bearer ' + t, 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ min_engine_version: sel.value })
+                    });
+                    if (!res.ok) {
+                        const d = await res.json().catch(() => ({}));
+                        throw new Error(d.error || 'Could not change the engine for this release');
+                    }
+                    sel.dataset.previous = sel.value;
+                } catch (e) {
+                    // Put the control back to what the server still holds, so it
+                    // never shows a value that was not saved.
+                    sel.value = previous;
+                    relError(e.message);
+                } finally {
+                    sel.disabled = false;
+                }
+            };
+
             function relError(msg) {
                 const el = document.getElementById('rel-error');
                 document.getElementById('rel-error-text').textContent = msg;
@@ -200,6 +265,7 @@ pub fn AssetReleasePage() -> impl IntoView {
                         version,
                         notes: document.getElementById('rel-notes').value,
                         zip_action: zip ? zip.value : 'extract',
+                        min_engine_version: document.getElementById('rel-engine').value,
                     }));
                     for (let i = 0; i < files.length; i++) fd.append('file', files[i], files[i].name);
 

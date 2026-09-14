@@ -116,6 +116,13 @@ pub struct AssetDetail {
     /// Individual files within this asset (populated for multi-file assets).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub files: Vec<AssetFileInfo>,
+    /// For a `?engine=` request: the version that engine actually resolves,
+    /// which is not always the newest one published. Empty when no engine was
+    /// named, and also empty when one was named and has nothing to run, which
+    /// the page must say out loud rather than fall back to `version`: offering a
+    /// download that cannot load is the failure this whole field exists to stop.
+    #[serde(default)]
+    pub resolved_version: String,
 }
 
 /// Information about an individual file within a multi-file asset.
@@ -148,6 +155,15 @@ pub struct ReleaseInfo {
     pub file_count: i64,
     pub total_size: i64,
     pub created_at: String,
+    /// The oldest engine this release runs on. Empty means any.
+    ///
+    /// Per release rather than per listing, because a listing outlives the
+    /// engine versions it was built for: an r1-alpha7 release stays the right
+    /// answer for r1-alpha7 users long after an r1-alpha8 one exists. There is
+    /// no maximum, because the next release declaring a higher engine is the
+    /// ceiling, and one that is implied can never go stale.
+    #[serde(default)]
+    pub min_engine_version: String,
 }
 
 /// A node in an asset's file tree. Directories are synthesised from the file
@@ -234,6 +250,15 @@ pub struct CreateReleaseRequest {
     /// `"keep"` (store the zip as-is) or `"extract"` (unpack into a tree).
     #[serde(default = "default_release_zip_action")]
     pub zip_action: String,
+    /// The oldest engine THIS release runs on. Empty or absent falls back to
+    /// whatever the listing last declared, which is what a publishing tool that
+    /// has not been taught about the field will send.
+    ///
+    /// Stated per release because it is a fact about the code in this upload,
+    /// not about the listing: the r1-alpha7 release goes on being right for
+    /// r1-alpha7 users after an r1-alpha8 one is published beside it.
+    #[serde(default)]
+    pub min_engine_version: String,
 }
 
 /// Releases default to unpacking the archive, because the file tree and the
@@ -245,6 +270,25 @@ fn default_release_zip_action() -> String {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct UpdateReleaseRequest {
     pub notes: Option<String>,
+    /// Retarget this release at a different engine. `None` leaves it alone; an
+    /// empty string clears it back to "any engine".
+    ///
+    /// Editable after the fact on purpose. The engine a release needs is a
+    /// claim about code that already shipped, and the usual way it is discovered
+    /// to be wrong is somebody installing the release and finding it will not
+    /// load. Forcing a republish to correct that would burn a version number on
+    /// a metadata fix and leave the wrong claim live in the meantime.
+    #[serde(default)]
+    pub min_engine_version: Option<String>,
+}
+
+/// `GET /api/marketplace/detail/:slug`.
+#[derive(Debug, Default, Deserialize)]
+pub struct AssetDetailQuery {
+    /// Report which release this engine would actually get. Absent leaves
+    /// `resolved_version` empty, meaning "nobody asked" rather than "nothing
+    /// available".
+    pub engine: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -258,6 +302,11 @@ pub struct MarketplaceQuery {
     pub free: Option<bool>,
     pub min_rating: Option<i32>,
     pub max_price: Option<i64>,
+    /// Show only what this engine can run, and label each result with the
+    /// version it would get. Absent means no filtering, which is what the
+    /// website does until somebody picks a version from the dropdown; the editor
+    /// always sends its own.
+    pub engine: Option<String>,
 }
 
 #[derive(Debug, Serialize)]

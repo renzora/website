@@ -90,6 +90,12 @@ async fn list_assets(
     let per_page: i64 = 100;
     let sort = params.sort.as_deref().unwrap_or("newest");
 
+    // An unrecognised version filters nothing, the same as not asking. It is far
+    // more likely to be an engine newer than this deployment knows about than a
+    // typo, and showing an empty marketplace to someone running a fresh build is
+    // the worse of the two mistakes by some distance.
+    let engine_ordinal = engine_ordinal_of(&state.db, params.engine.as_deref()).await?;
+
     let (assets, total) = Asset::list_published_filtered(
         &state.db,
         params.q.as_deref(),
@@ -102,6 +108,7 @@ async fn list_assets(
         params.free,
         params.min_rating,
         params.max_price,
+        engine_ordinal,
     )
     .await?;
 
@@ -242,6 +249,7 @@ fn validate_marketplace_id(id: &str) -> Result<(), ApiError> {
 async fn get_asset(
     State(state): State<AppState>,
     Path(slug): Path<String>,
+    Query(params): Query<AssetDetailQuery>,
     headers: axum::http::HeaderMap,
     connect_info: axum::extract::ConnectInfo<std::net::SocketAddr>,
     Extension(jwt_secret): Extension<crate::middleware::JwtSecret>,
@@ -275,6 +283,28 @@ async fn get_asset(
     };
 
     let mut detail = asset_to_detail(&asset, &creator, owned);
+
+    // Left empty when no engine asked, which is how the page tells "nobody said"
+    // apart from "asked, and there is nothing for you". Those read the same on
+    // the wire but must not read the same on the page.
+    if let Some(engine) = params.engine.as_deref().filter(|e| !e.trim().is_empty()) {
+        let ordinal = engine_ordinal_of(&state.db, Some(engine))
+            .await?
+            .unwrap_or(i32::MAX);
+        detail.resolved_version =
+            match AssetRelease::resolve_for_engine_by_ordinal(&state.db, asset.id, ordinal).await? {
+                Some(r) => r.version,
+                // A listing with no releases at all predates the release
+                // mechanism, and its own version column is the only answer that
+                // exists for it. Reporting "nothing for your engine" there would
+                // be a lie about whole categories (materials, themes) rather
+                // than a statement about compatibility.
+                None if AssetRelease::count_for_asset(&state.db, asset.id).await? == 0 => {
+                    asset.version.clone()
+                }
+                None => String::new(),
+            };
+    }
 
     // Populate file list with preview/download URLs based on ownership
     let asset_files = AssetFile::list_by_asset(&state.db, asset.id).await?;
@@ -1872,6 +1902,9 @@ fn asset_to_detail(
         updated_at: asset.updated_at.to_string(),
         owned,
         files: vec![],
+        // Filled in by the handler when an engine asked; there is nothing to
+        // resolve against here.
+        resolved_version: String::new(),
     }
 }
 
@@ -2262,15 +2295,9 @@ async fn plugin_updates(
     // failure modes are not comparable: offering a release that turns out not to
     // load is a bad install, while offering nothing looks like every plugin in
     // the marketplace was abandoned.
-    let max_ordinal = match &body.engine_version {
-        Some(v) => {
-            let normalized = EngineVersion::normalize(v);
-            EngineVersion::ordinal_of(&state.db, normalized)
-                .await?
-                .unwrap_or(i32::MAX)
-        }
-        None => i32::MAX,
-    };
+    let max_ordinal = engine_ordinal_of(&state.db, body.engine_version.as_deref())
+        .await?
+        .unwrap_or(i32::MAX);
 
     let rows =
         sqlx::query("SELECT id, slug, name, published FROM assets WHERE id = ANY($1)")
@@ -2317,6 +2344,62 @@ async fn plugin_updates(
         })
         .collect();
     Ok(Json(updates))
+}
+
+/// Where a caller's reported engine sits in the ordering, for filtering.
+///
+/// `None` means "do not filter", and it is the answer to both "no version was
+/// given" and "that version is not one we know". Those are deliberately the same
+/// answer: a caller running something unrecognised is running something NEWER
+/// than this deployment has heard of far more often than it is a typo, and the
+/// two failures are not comparable. Filtering too little shows somebody a plugin
+/// that turns out not to load; filtering too much shows them an empty
+/// marketplace and reads as every plugin in it having been abandoned at once.
+///
+/// A typo is caught where there is a person to tell: publishing, and the release
+/// editor, both of which reject an unknown version by name.
+async fn engine_ordinal_of(
+    db: &sqlx::PgPool,
+    reported: Option<&str>,
+) -> Result<Option<i32>, ApiError> {
+    let Some(v) = reported.map(EngineVersion::normalize).filter(|v| !v.is_empty()) else {
+        return Ok(None);
+    };
+    Ok(EngineVersion::ordinal_of(db, v).await?)
+}
+
+/// Normalize an engine version for storage, rejecting one we do not know.
+///
+/// `None` and the empty string both mean "any engine", which is a legitimate
+/// answer and not a missing one: most listings predate the field entirely.
+///
+/// Normalizing before storing rather than only before checking matters, because
+/// the column is a foreign key. `r1-alpha8 (dev)` and `r1-alpha8-nightly-06sep26`
+/// both mean r1-alpha8 for compatibility purposes, so validating what they mean
+/// and then storing what they said would pass the check and fail the insert.
+///
+/// Checked here rather than left to the foreign key, which surfaces as a 500
+/// with a constraint name in it. A manifest naming an engine we have never heard
+/// of is a typo often enough that the answer has to list the real ones.
+async fn engine_version_for_storage(
+    db: &sqlx::PgPool,
+    raw: Option<&str>,
+) -> Result<Option<String>, ApiError> {
+    let Some(v) = raw.map(EngineVersion::normalize).filter(|v| !v.is_empty()) else {
+        return Ok(None);
+    };
+    if EngineVersion::ordinal_of(db, v).await?.is_none() {
+        let known: Vec<String> = EngineVersion::list(db)
+            .await?
+            .into_iter()
+            .map(|e| e.version)
+            .collect();
+        return Err(ApiError::Validation(format!(
+            "Unknown engine version \"{v}\". Known versions: {}",
+            known.join(", ")
+        )));
+    }
+    Ok(Some(v.to_string()))
 }
 
 /// The engine releases a plugin may declare itself built for.
@@ -3146,6 +3229,7 @@ fn release_info(
             .created_at
             .format(&time::format_description::well_known::Rfc3339)
             .unwrap_or_else(|_| r.created_at.to_string()),
+        min_engine_version: r.min_engine_version.clone().unwrap_or_default(),
     }
 }
 
@@ -3589,35 +3673,19 @@ async fn create_release(
     // described the newest, which is what cut older-engine users off from the
     // releases that still worked for them. `None` for a listing that has never
     // stated one, which the resolver reads as "any engine".
-    let release_engine = asset
-        .metadata
-        .get("min_engine_version")
-        .and_then(|v| v.as_str())
-        // Normalized before it is stored, not just before it is checked: the
-        // column is a foreign key, so validating `r1-alpha8 (dev)` by the
-        // r1-alpha8 it means and then storing the whole string would pass the
-        // check and fail the insert.
-        .map(EngineVersion::normalize)
+    // What this upload says, or failing that what the listing last declared. The
+    // fallback is what keeps a publishing tool that predates the field working:
+    // it sends nothing, and the release inherits the listing's claim exactly as
+    // it did when the claim lived only on the listing.
+    let declared = Some(meta.min_engine_version.trim())
         .filter(|v| !v.is_empty())
-        .map(str::to_string);
-    // Checked here rather than left to the foreign key, which would reject it as
-    // a 500 with a constraint name in it. A manifest that names an engine we do
-    // not know is a typo often enough that the answer has to say which ones
-    // exist; a release stamped with an unknown version could never be resolved
-    // by anybody, so it must not be created either way.
-    if let Some(v) = &release_engine {
-        if EngineVersion::ordinal_of(&state.db, v).await?.is_none() {
-            let known: Vec<String> = EngineVersion::list(&state.db)
-                .await?
-                .into_iter()
-                .map(|e| e.version)
-                .collect();
-            return Err(ApiError::Validation(format!(
-                "Unknown engine version \"{v}\". Known versions: {}",
-                known.join(", ")
-            )));
-        }
-    }
+        .or_else(|| {
+            asset
+                .metadata
+                .get("min_engine_version")
+                .and_then(|v| v.as_str())
+        });
+    let release_engine = engine_version_for_storage(&state.db, declared).await?;
     let release = AssetRelease::create_current(
         &state.db,
         id,
@@ -3680,6 +3748,19 @@ async fn update_release(
         Some(notes) => AssetRelease::update_notes(&state.db, release.id, notes.trim())
             .await?
             .unwrap_or(release),
+        None => release,
+    };
+
+    // Retargeting one release does not touch the others, which is the point of
+    // the value living here: correcting r1-alpha7 on an old release must not
+    // disturb what an r1-alpha8 user resolves.
+    let release = match &body.min_engine_version {
+        Some(raw) => {
+            let stored = engine_version_for_storage(&state.db, Some(raw)).await?;
+            AssetRelease::update_engine_version(&state.db, release.id, stored.as_deref())
+                .await?
+                .unwrap_or(release)
+        }
         None => release,
     };
 

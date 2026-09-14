@@ -187,6 +187,25 @@ impl AssetRelease {
         .await
     }
 
+    /// [`resolve_many_for_engine`](Self::resolve_many_for_engine) for one
+    /// listing, when the caller has already turned an engine version into its
+    /// position in the ordering.
+    ///
+    /// Separate from [`resolve_for_engine`](Self::resolve_for_engine) because a
+    /// caller that knows the ordinal has usually decided what an *unknown*
+    /// version means, and that decision differs by endpoint: an update check
+    /// reads it as "no ceiling", while publishing rejects it outright.
+    pub async fn resolve_for_engine_by_ordinal(
+        pool: &PgPool,
+        asset_id: Uuid,
+        max_ordinal: i32,
+    ) -> Result<Option<Self>, sqlx::Error> {
+        Ok(Self::resolve_many_for_engine(pool, &[asset_id], max_ordinal)
+            .await?
+            .into_iter()
+            .next())
+    }
+
     pub async fn find_by_version(
         pool: &PgPool,
         asset_id: Uuid,
@@ -274,6 +293,30 @@ impl AssetRelease {
         ))
         .bind(id)
         .bind(version)
+        .fetch_optional(pool)
+        .await
+    }
+
+    /// Retarget a release at a different engine, or at none (`None` = any).
+    ///
+    /// Corrigible after publishing because the value is a claim about code that
+    /// already shipped, and the usual way it is found to be wrong is somebody
+    /// installing the release and watching it fail to load. Making that a
+    /// republish would spend a version number on a metadata fix and leave the
+    /// wrong claim live until it happened.
+    ///
+    /// Unknown values are rejected by the foreign key, so a typo cannot create a
+    /// release that nothing is able to resolve.
+    pub async fn update_engine_version(
+        pool: &PgPool,
+        id: Uuid,
+        min_engine_version: Option<&str>,
+    ) -> Result<Option<Self>, sqlx::Error> {
+        sqlx::query_as::<_, Self>(&format!(
+            "UPDATE asset_releases SET min_engine_version = $2 WHERE id = $1 RETURNING {COLS}"
+        ))
+        .bind(id)
+        .bind(min_engine_version)
         .fetch_optional(pool)
         .await
     }
