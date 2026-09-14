@@ -263,7 +263,13 @@ pub fn AssetDetailPage() -> impl IntoView {
                                 // the ratio on narrow screens, where 16:9 is not
                                 // yet tall enough to crowd anything out, and stops
                                 // it growing past a header on wide ones.
-                                if (!hasLivePreview) return '<div class="rounded-2xl overflow-hidden border border-zinc-800/50 bg-zinc-900 relative group/preview aspect-video max-h-[420px]" id="main-preview">' + mainPreviewHtml + '</div>' + thumbsHtml;
+                                // `max-w` rather than a full-width box, so the
+                                // cover sits at its natural size on the left
+                                // instead of stretching to whatever the column
+                                // happens to be. 746px is 420 at 16:9, so the
+                                // two caps agree and the box never letterboxes
+                                // itself.
+                                if (!hasLivePreview) return '<div class="rounded-2xl overflow-hidden border border-zinc-800/50 bg-zinc-900 relative group/preview aspect-video max-h-[420px] max-w-[746px]" id="main-preview">' + mainPreviewHtml + '</div>' + thumbsHtml;
 
                                 let previewMode = 'shader';
                                 if (cat.includes('3d') || cat.includes('model')) previewMode = 'model';
@@ -295,7 +301,7 @@ pub fn AssetDetailPage() -> impl IntoView {
                                             meshBtns +
                                         '</div>' +
                                     '</div>' +
-                                    '<div class="rounded-2xl overflow-hidden border border-zinc-800/50 bg-[#0f0f13] relative max-h-[420px]" style="aspect-ratio:16/9" id="preview-container">' +
+                                    '<div class="rounded-2xl overflow-hidden border border-zinc-800/50 bg-[#0f0f13] relative max-h-[420px] max-w-[746px]" style="aspect-ratio:16/9" id="preview-container">' +
                                         '<canvas id="preview-canvas" class="w-full h-full" style="pointer-events:none"></canvas>' +
                                         '<div id="preview-loading" class="absolute inset-0 flex items-center justify-center bg-[#0f0f13]">' +
                                             '<div class="text-center">' +
@@ -1067,7 +1073,10 @@ pub fn AssetDetailPage() -> impl IntoView {
                             </div>
                         </div>`;
                 }
-                return `<div class="relative group/preview w-full h-full"><img src="${item.url}" class="w-full h-full object-cover cursor-pointer" onclick="openAssetLightbox(activeGalleryIndex)" /><button onclick="openAssetLightbox(activeGalleryIndex)" class="absolute top-3 right-3 w-8 h-8 rounded-lg bg-black/50 hover:bg-black/70 flex items-center justify-center text-white/70 hover:text-white text-sm opacity-0 group-hover/preview:opacity-100 transition-all backdrop-blur-sm"><i class="ph ph-arrows-out"></i></button></div>`;
+                // No expand button. It floated over the artwork to do what
+                // clicking the artwork already does, and the image carries the
+                // affordance itself through the cursor.
+                return `<div class="relative group/preview w-full h-full"><img src="${item.url}" class="w-full h-full object-cover cursor-zoom-in" onclick="openAssetLightbox(activeGalleryIndex)" title="Click to view full size" /></div>`;
             }
 
             function setGalleryItem(index) {
