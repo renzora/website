@@ -254,7 +254,16 @@ pub fn AssetDetailPage() -> impl IntoView {
                                 const cat = (a.category || '').toLowerCase();
                                 const previewable = ['3d models', 'animations', 'materials & shaders', 'textures & hdris', 'particle effects'];
                                 const hasLivePreview = previewable.some(c => cat.includes(c.split(' ')[0]));
-                                if (!hasLivePreview) return '<div class="rounded-2xl overflow-hidden border border-zinc-800/50 bg-zinc-900 relative group/preview" id="main-preview">' + mainPreviewHtml + '</div>' + thumbsHtml;
+                                // The container owns the ratio, and caps it.
+                                //
+                                // 16:9 across a full-width column is about 600px
+                                // tall on a desktop, which put the asset's name,
+                                // its buttons and its description below the fold:
+                                // the first screen was one picture. The cap keeps
+                                // the ratio on narrow screens, where 16:9 is not
+                                // yet tall enough to crowd anything out, and stops
+                                // it growing past a header on wide ones.
+                                if (!hasLivePreview) return '<div class="rounded-2xl overflow-hidden border border-zinc-800/50 bg-zinc-900 relative group/preview aspect-video max-h-[420px]" id="main-preview">' + mainPreviewHtml + '</div>' + thumbsHtml;
 
                                 let previewMode = 'shader';
                                 if (cat.includes('3d') || cat.includes('model')) previewMode = 'model';
@@ -286,7 +295,7 @@ pub fn AssetDetailPage() -> impl IntoView {
                                             meshBtns +
                                         '</div>' +
                                     '</div>' +
-                                    '<div class="rounded-2xl overflow-hidden border border-zinc-800/50 bg-[#0f0f13] relative" style="aspect-ratio:16/9" id="preview-container">' +
+                                    '<div class="rounded-2xl overflow-hidden border border-zinc-800/50 bg-[#0f0f13] relative max-h-[420px]" style="aspect-ratio:16/9" id="preview-container">' +
                                         '<canvas id="preview-canvas" class="w-full h-full" style="pointer-events:none"></canvas>' +
                                         '<div id="preview-loading" class="absolute inset-0 flex items-center justify-center bg-[#0f0f13]">' +
                                             '<div class="text-center">' +
@@ -971,7 +980,7 @@ pub fn AssetDetailPage() -> impl IntoView {
 
             function renderMainPreview(item) {
                 if (!item || item.type === 'placeholder') {
-                    return '<div class="aspect-video flex items-center justify-center"><i class="ph ph-package text-6xl text-zinc-700"></i></div>';
+                    return '<div class="w-full h-full flex items-center justify-center"><i class="ph ph-package text-6xl text-zinc-700"></i></div>';
                 }
                 if (item.type === 'audio') {
                     const hasCover = item.cover;
@@ -979,7 +988,7 @@ pub fn AssetDetailPage() -> impl IntoView {
                         ? `<div class="absolute inset-0 bg-cover bg-center" style="background-image:url('${item.cover}')"></div><div class="absolute inset-0 bg-black/60 backdrop-blur-sm"></div>`
                         : `<div class="absolute inset-0 bg-gradient-to-b from-zinc-900 to-[#0a0a0b]"></div>`;
                     return `
-                        <div class="aspect-video flex flex-col items-end justify-end relative overflow-hidden">
+                        <div class="w-full h-full flex flex-col items-end justify-end relative overflow-hidden">
                             ${coverBg}
                             <audio id="audio-player" src="${item.url}" preload="metadata" crossorigin="anonymous" class="hidden"></audio>
                             <!-- Waveform canvas centered -->
@@ -1016,12 +1025,12 @@ pub fn AssetDetailPage() -> impl IntoView {
                     // YouTube/external embed
                     if (item.url.includes('youtube.com') || item.url.includes('youtu.be')) {
                         const vid = item.url.match(/(?:v=|youtu\.be\/)([a-zA-Z0-9_-]+)/)?.[1];
-                        return vid ? `<div class="aspect-video"><iframe src="https://www.youtube.com/embed/${vid}" class="w-full h-full" frameborder="0" allowfullscreen></iframe></div>` :
-                            `<div class="aspect-video flex items-center justify-center text-zinc-600">Invalid video URL</div>`;
+                        return vid ? `<div class="w-full h-full"><iframe src="https://www.youtube.com/embed/${vid}" class="w-full h-full" frameborder="0" allowfullscreen></iframe></div>` :
+                            `<div class="w-full h-full flex items-center justify-center text-zinc-600">Invalid video URL</div>`;
                     }
                     // Custom video player
                     return `
-                        <div class="aspect-video relative bg-black group/vp" id="video-container">
+                        <div class="w-full h-full relative bg-black group/vp" id="video-container">
                             <video id="video-player" src="${item.url}" ${item.thumb ? `poster="${item.thumb}"` : ''} preload="metadata" class="w-full h-full object-contain" onclick="toggleVideoPlay()" ondblclick="toggleVideoFullscreen()"></video>
                             <!-- Big play button overlay -->
                             <div id="video-big-play" class="absolute inset-0 flex items-center justify-center cursor-pointer" onclick="toggleVideoPlay()">
@@ -1058,7 +1067,7 @@ pub fn AssetDetailPage() -> impl IntoView {
                             </div>
                         </div>`;
                 }
-                return `<div class="relative group/preview"><img src="${item.url}" class="w-full aspect-video object-cover cursor-pointer" onclick="openAssetLightbox(activeGalleryIndex)" /><button onclick="openAssetLightbox(activeGalleryIndex)" class="absolute top-3 right-3 w-8 h-8 rounded-lg bg-black/50 hover:bg-black/70 flex items-center justify-center text-white/70 hover:text-white text-sm opacity-0 group-hover/preview:opacity-100 transition-all backdrop-blur-sm"><i class="ph ph-arrows-out"></i></button></div>`;
+                return `<div class="relative group/preview w-full h-full"><img src="${item.url}" class="w-full h-full object-cover cursor-pointer" onclick="openAssetLightbox(activeGalleryIndex)" /><button onclick="openAssetLightbox(activeGalleryIndex)" class="absolute top-3 right-3 w-8 h-8 rounded-lg bg-black/50 hover:bg-black/70 flex items-center justify-center text-white/70 hover:text-white text-sm opacity-0 group-hover/preview:opacity-100 transition-all backdrop-blur-sm"><i class="ph ph-arrows-out"></i></button></div>`;
             }
 
             function setGalleryItem(index) {
