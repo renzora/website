@@ -345,34 +345,32 @@ pub fn AssetDetailPage() -> impl IntoView {
 
                                 <!-- Identity column -->
                                 <div class="flex-1 min-w-0">
-                            <!-- Identity. The name owns this line by itself: the
-                                 owner's controls used to sit inline beside it,
-                                 which put three buttons between the title and
-                                 everything describing it, and pushed the rating
-                                 onto a line of its own. They are a toolbar, and
-                                 they are at the foot of the card now. -->
+                            <!--
+                                THE SPLIT between this card and the sidebar.
+
+                                Every fact used to appear in both, because each
+                                was designed on its own. The rule now is that a
+                                fact lives wherever it is USED, and appears once.
+
+                                Here: which thing this is, and what you can do to
+                                it if you own it. Identity and controls.
+
+                                Sidebar: the action (Download) and the reference
+                                table nobody reads top to bottom but everybody
+                                scans -- counts, category, tags, dates.
+
+                                So the version PICKER is here, because choosing a
+                                release changes what the page is showing and that
+                                is not a statistic; the view and download counts
+                                are there, because they are.
+                            -->
                             <div class="flex flex-col h-full">
                                 <h1 class="text-2xl font-bold leading-tight">${a.name}</h1>
 
-                                <div class="flex items-center gap-x-3 gap-y-2 mt-3 flex-wrap">
-                                    <a href="/shop/${a.creator.username}" class="flex items-center gap-2 text-sm font-medium text-accent hover:text-accent-hover transition-colors">
-                                        <div class="w-6 h-6 rounded-full bg-accent/10 flex items-center justify-center"><i class="ph ph-user text-xs text-accent"></i></div>
-                                        ${a.creator.username}
-                                    </a>
-                                    <span class="px-2.5 py-1 rounded-full bg-white/[0.05] border border-zinc-700/60 text-sm text-zinc-200">${a.category}</span>
-                                    <!-- Tags and the category used to be repeated
-                                         here and in the sidebar, at two sizes,
-                                         neither readable. The sidebar keeps them,
-                                         and this line carries what identifies the
-                                         thing you are looking at instead: which
-                                         version, and which engine it runs on. -->
-                                    <span class="px-2.5 py-1 rounded-full bg-white/[0.05] border border-zinc-700/60 text-sm font-medium text-zinc-100">v${a.version}</span>
-                                    <span id="detail-engine-badge"></span>
-                                    <!-- Stars and their count are one thing, so
-                                         they wrap as one rather than leaving a
-                                         stray "(0)" on the next line. -->
-                                    <span class="inline-flex items-center gap-1.5 whitespace-nowrap text-sm">${starsHtml}<span class="text-zinc-400">${ratingLabel}</span></span>
-                                </div>
+                                <a href="/shop/${a.creator.username}" class="inline-flex items-center gap-2 mt-2 text-sm font-medium text-accent hover:text-accent-hover transition-colors w-fit">
+                                    <div class="w-6 h-6 rounded-full bg-accent/10 flex items-center justify-center"><i class="ph ph-user text-xs text-accent"></i></div>
+                                    ${a.creator.username}
+                                </a>
 
                                 <!--
                                     No description here. Every plugin ships a
@@ -386,11 +384,18 @@ pub fn AssetDetailPage() -> impl IntoView {
                                     there is no room to render a README.
                                 -->
 
-                                <div class="mt-4 flex items-center gap-x-4 gap-y-2 flex-wrap text-sm text-zinc-400">
-                                    <span><i class="ph ph-calendar-blank"></i> Published ${fmtDate(a.created_at)}</span>
-                                    <span><i class="ph ph-clock-clockwise"></i> Updated ${fmtDate(a.updated_at)}</span>
-                                    <span><i class="ph ph-eye"></i> ${a.views.toLocaleString()} views</span>
-                                    <span><i class="ph ph-download-simple"></i> ${a.downloads.toLocaleString()} downloads</span>
+                                <!-- Which release you are looking at. A control,
+                                     so it is here rather than in the fact table:
+                                     it changes the page. -->
+                                <div class="mt-4 flex items-end gap-3 flex-wrap">
+                                    <div class="min-w-[220px]">
+                                        <label for="detail-release-select" class="block text-xs uppercase tracking-wider text-zinc-500 mb-1.5">Version</label>
+                                        <select id="detail-release-select" onchange="goToRelease(this.value)"
+                                            class="w-full px-3 py-2 bg-white/[0.05] border border-zinc-700/60 rounded-lg text-zinc-100 text-sm outline-none focus:border-accent/50 transition-all">
+                                            <option value="">v${a.version}</option>
+                                        </select>
+                                    </div>
+                                    <span id="detail-engine-badge" class="mb-1.5"></span>
                                 </div>
 
                                 ${isCreator ? `
@@ -477,30 +482,34 @@ pub fn AssetDetailPage() -> impl IntoView {
                                 <!-- Asset Files List -->
                                 <div id="asset-files-list" class="mt-4"></div>
 
+                                <!--
+                                    The fact table. Nobody reads it top to bottom,
+                                    everybody scans it for one row, so it is
+                                    grouped by the question being asked rather
+                                    than run together as one list: how is it
+                                    received, what is it, when did it change.
+
+                                    Version and Engine are NOT here. Choosing a
+                                    release changes what the page shows, which
+                                    makes it a control rather than a fact, and it
+                                    lives in the header card with the identity it
+                                    determines.
+                                -->
                                 <div class="mt-6 pt-6 border-t border-zinc-800/50 space-y-3">
                                     <div class="flex justify-between text-sm"><span class="text-zinc-500">Rating</span><span>${starsHtml} <span class="text-zinc-500">(${ratingCount})</span></span></div>
                                     <div class="flex justify-between text-sm"><span class="text-zinc-500">Reviews</span><span class="text-zinc-300">${ratingCount}</span></div>
+                                    <div class="flex justify-between text-sm"><span class="text-zinc-500">Comments</span><span class="text-zinc-300">${commentsData.comments?.length || 0}</span></div>
                                     <div class="flex justify-between text-sm"><span class="text-zinc-500">Views</span><span class="text-zinc-300">${a.views.toLocaleString()}</span></div>
                                     <div class="flex justify-between text-sm"><span class="text-zinc-500">Downloads</span><span class="text-zinc-300">${a.downloads.toLocaleString()}</span></div>
+                                </div>
+
+                                <div class="mt-4 pt-4 border-t border-zinc-800/50 space-y-3">
                                     <div class="flex justify-between text-sm"><span class="text-zinc-500">Category</span><span class="text-zinc-300">${a.category}</span></div>
                                     ${(a.tags || []).length ? `<div class="text-sm"><span class="text-zinc-500 block mb-1.5">Tags</span><div class="flex flex-wrap gap-1.5">${a.tags.map(t => `<span class="px-2.5 py-1 rounded-full bg-accent/15 border border-accent/40 text-xs text-accent">${t}</span>`).join('')}</div></div>` : ''}
                                     ${a.credit_name ? `<div class="flex justify-between text-sm"><span class="text-zinc-500">Credit</span><span class="text-zinc-300">${a.credit_url ? `<a href="${a.credit_url}" target="_blank" class="text-accent hover:underline">${a.credit_name}</a>` : a.credit_name}</span></div>` : ''}
-                                    <!-- A picker, not a label. A listing can carry
-                                         several lines of releases at once, one per
-                                         engine, and the newest overall is not what
-                                         every editor gets; without this there is no
-                                         way to look at any release but the latest. -->
-                                    <div class="text-sm">
-                                        <span class="text-zinc-500 block mb-1.5">Version</span>
-                                        <select id="detail-release-select" onchange="goToRelease(this.value)"
-                                            class="w-full px-3 py-2 bg-white/[0.05] border border-zinc-700/60 rounded-lg text-zinc-100 text-sm outline-none focus:border-accent/50 transition-all">
-                                            <option value="">v${a.version}</option>
-                                        </select>
-                                    </div>
-                                    <div class="flex justify-between text-sm" id="detail-engine-row">
-                                        <span class="text-zinc-500">Engine</span><span class="text-zinc-300">Any</span>
-                                    </div>
-                                    <div class="flex justify-between text-sm"><span class="text-zinc-500">Comments</span><span class="text-zinc-300">${commentsData.comments?.length || 0}</span></div>
+                                </div>
+
+                                <div class="mt-4 pt-4 border-t border-zinc-800/50 space-y-3">
                                     <div class="flex justify-between text-sm"><span class="text-zinc-500">Published</span><span class="text-zinc-300">${fmtDate(a.created_at)}</span></div>
                                     <div class="flex justify-between text-sm"><span class="text-zinc-500">Updated</span><span class="text-zinc-300">${fmtDate(a.updated_at)}</span></div>
                                 </div>
@@ -747,20 +756,16 @@ pub fn AssetDetailPage() -> impl IntoView {
                         }${r.is_current ? ' · latest' : ''}</option>`).join('');
                 }
 
+                // One place only. The engine used to be written here AND as a
+                // row in the sidebar's fact table, which is the duplication this
+                // whole split exists to stop: it belongs beside the picker that
+                // selects it, because changing the release is what changes it.
                 const engine = current?.min_engine_version || '';
-                const row = document.getElementById('detail-engine-row');
-                if (row) {
-                    row.innerHTML = '<span class="text-zinc-500">Engine</span>' +
-                        (engine
-                            ? `<span class="text-cyan-200 font-medium">${treeEsc(engine)} and newer</span>`
-                            : '<span class="text-zinc-300">Any</span>');
-                }
-
                 const badge = document.getElementById('detail-engine-badge');
                 if (badge) {
                     badge.className = engine
-                        ? 'px-2.5 py-1 rounded-full bg-cyan-500/15 border border-cyan-500/40 text-sm font-medium text-cyan-200'
-                        : 'px-2.5 py-1 rounded-full bg-white/[0.05] border border-zinc-700/60 text-sm text-zinc-300';
+                        ? 'mb-1.5 px-2.5 py-1 rounded-full bg-cyan-500/15 border border-cyan-500/40 text-sm font-medium text-cyan-200'
+                        : 'mb-1.5 px-2.5 py-1 rounded-full bg-white/[0.05] border border-zinc-700/60 text-sm text-zinc-300';
                     badge.textContent = engine ? engine + ' and newer' : 'Any engine';
                     badge.title = engine
                         ? 'Runs on ' + engine + ' and newer. Older engines are offered the newest release that still works for them.'
