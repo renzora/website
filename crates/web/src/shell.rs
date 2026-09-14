@@ -183,14 +183,16 @@ pub fn Shell() -> impl IntoView {
                        is no longer pushed off-centre by a column of promos, and
                        the header can align to the same centred measure as the
                        content beneath it rather than to the window. */
-                    :root{--header-h:60px;--page-w:1600px}
+                    :root{--header-h:60px}
                     .app-main{padding-top:var(--header-h);min-height:100vh}
                     #app-header{position:fixed;top:0;left:0;right:0;height:var(--header-h);z-index:62;background:rgba(11,6,23,0.78);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);border-bottom:1px solid rgba(255,255,255,0.06)}
-                    /* The bar spans the window (the blur and border want to);
-                       its contents ride a centred container the width of the
-                       page, so the logo sits over the content's left edge and
-                       the account controls over its right. */
-                    .header-inner{max-width:var(--page-w);height:100%;margin:0 auto;padding:0 1.5rem;display:flex;align-items:center;gap:1rem}
+                    /* Full width, contents included. The bar always spanned the
+                       window, but its contents rode a 1600px centred container,
+                       so past that width the logo and the account controls drifted
+                       inward and left a growing empty margin inside a bar that
+                       still reached the edges. The chrome is the window's, not the
+                       page's: it belongs at the corners. */
+                    .header-inner{width:100%;height:100%;padding:0 1.5rem;display:flex;align-items:center;gap:1rem}
                     @media (min-width:1024px){#sidebar-burger{display:none}}
                     /* Sidebar nav links */
                     .side-link{position:relative;display:flex;align-items:center;gap:.7rem;padding:.55rem .7rem;border-radius:.6rem;font-size:.9rem;color:#a1a1aa;transition:all .15s}
