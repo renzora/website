@@ -92,8 +92,39 @@ html, body, * {
 .doc-body input[type="checkbox"] { margin-right: 0.5rem; accent-color: #a855f7; }
 .doc-body h1:first-child, .doc-body h2:first-child { margin-top: 0; }
 
-/* Marketplace file browser — source view */
+/* Marketplace file browser — source view.
+
+   Two columns, because highlight.js rewrites the innerHTML of the element it
+   highlights. Anything put inside that <code> to mark up a line is destroyed by
+   it, which is what happened to the per-line <span class="ln"> this replaces.
+   The gutter is a sibling, so it survives.
+
+   The two must share font, size and line-height exactly or the numbers drift
+   out of step with the rows they label. */
 .code-view { background: #18181b; border: 1px solid #27272a; border-radius: 12px; overflow: hidden; }
-.code-view pre { margin: 0; padding: 1rem 1rem 1rem 0; overflow-x: auto; }
-.code-view code { font-family: 'Cascadia Code', 'Fira Code', monospace; font-size: 0.8125rem; line-height: 1.6; }
-.code-view .ln { display: inline-block; width: 3.5rem; padding-right: 1rem; text-align: right; color: #52525b; user-select: none; }
+.code-view .code-scroll { display: flex; align-items: stretch; overflow-x: auto; }
+.code-view pre,
+.code-view code {
+    font-family: 'Cascadia Code', 'Fira Code', monospace;
+    font-size: 0.8125rem;
+    line-height: 1.6;
+}
+.code-view pre { margin: 0; padding: 1rem 0; }
+
+/* Sticky so the numbers stay put while the code scrolls sideways under them,
+   and unselectable so copying the file does not drag them along. */
+.code-view .code-gutter {
+    position: sticky;
+    left: 0;
+    z-index: 1;
+    flex: 0 0 auto;
+    padding-left: 1rem;
+    padding-right: 0.875rem;
+    text-align: right;
+    color: #6b6b76;
+    background: #18181b;
+    border-right: 1px solid #27272a;
+    user-select: none;
+    -webkit-user-select: none;
+}
+.code-view .code-body { flex: 0 0 auto; padding-left: 1rem; padding-right: 1.25rem; }

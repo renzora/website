@@ -222,14 +222,28 @@ pub fn AssetFilesPage() -> impl IntoView {
             }
 
             // Source view with line numbers.
+            //
+            // The numbers live in their OWN column, outside the element
+            // highlight.js touches. They used to be a <span class="ln"> at the
+            // head of each line inside the <code>, and highlightElement
+            // replaces that element's innerHTML wholesale: it re-tokenises the
+            // text and writes its own markup, so the spans were destroyed and
+            // the numbers came out as bare text with none of the gutter's width
+            // or padding, welded to the code as "9[workspace]".
+            //
+            // Two columns also fix what the old one could not: selecting the
+            // code no longer picks up the line numbers with it.
             function codeBlock(view) {
                 const lines = (view.content || '').split('\n');
                 const lang = view.language ? ' class="language-' + esc(view.language) + '"' : '';
-                const body = lines.map((l, i) =>
-                    `<span class="ln">${i + 1}</span>${esc(l)}`).join('\n');
+                const gutter = lines.map((_, i) => i + 1).join('\n');
+                const body = lines.map(l => esc(l)).join('\n');
                 return `
                     <div class="code-view">
-                        <pre><code${lang}>${body}</code></pre>
+                        <div class="code-scroll">
+                            <pre class="code-gutter" aria-hidden="true">${gutter}</pre>
+                            <pre class="code-body"><code${lang}>${body}</code></pre>
+                        </div>
                     </div>
                     ${view.truncated ? '<p class="text-xs text-amber-400/80 mt-2"><i class="ph ph-warning"></i> File is too large to show in full — download it to see the rest.</p>' : ''}`;
             }
