@@ -10,3 +10,6 @@ time = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 argon2 = { workspace = true }
+# Content addressing: a stored file is identified by the SHA-256 of its bytes.
+sha2 = { workspace = true }
+hex = { workspace = true }

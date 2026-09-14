@@ -13,6 +13,7 @@ use renzora_models::asset_stats;
 use renzora_models::asset_release::AssetRelease;
 use renzora_models::category::Category;
 use renzora_models::engine_version::EngineVersion;
+use renzora_models::storage_blob::{self, StorageBlob};
 use renzora_models::subcategory::Subcategory;
 use renzora_models::tag::Tag;
 use renzora_models::user::User;
@@ -855,7 +856,7 @@ async fn update_asset_files(
         // other release untouched.
         let old_files = AssetFile::delete_by_release(&state.db, release.id).await?;
         for af in &old_files {
-            delete_from_storage_by_key(&state, &af.file_key).await;
+            release_file_storage(&state, af).await;
             if let Some(pk) = &af.preview_key {
                 delete_from_storage(&state, pk).await?;
             }
@@ -1036,7 +1037,7 @@ async fn delete_asset(
     // Delete asset_files from storage (private keys)
     let deleted_files = AssetFile::delete_by_asset(&state.db, id).await?;
     for af in &deleted_files {
-        delete_from_storage_by_key(&state, &af.file_key).await;
+        release_file_storage(&state, af).await;
         if let Some(pk) = &af.preview_key {
             delete_from_storage(&state, pk).await?;
         }
@@ -2083,6 +2084,24 @@ async fn upload_to_storage_private(
 ) -> Result<String, ApiError> {
     let key = storage_key(folder, original_filename);
     let content_type = content_type_for_key(&key);
+    upload_bytes_to_key(state, &key, &data, content_type).await?;
+    Ok(key)
+}
+
+/// Put bytes at a key the caller chose.
+///
+/// Split out of [`upload_to_storage_private`], which invents a key with a UUID
+/// in it. Content-addressed storage needs the opposite: the key is derived from
+/// the bytes and decided before the upload, because it is what says whether an
+/// upload is needed at all.
+async fn upload_bytes_to_key(
+    state: &AppState,
+    key: &str,
+    data: &[u8],
+    content_type: &str,
+) -> Result<(), ApiError> {
+    let key = key.to_string();
+    let data = data.to_vec();
 
     if let Some(bucket) = &state.s3_bucket {
         let response = bucket
@@ -2097,7 +2116,7 @@ async fn upload_to_storage_private(
             )));
         }
 
-        Ok(key) // Return bare key, not public URL
+        Ok(())
     } else {
         // Local fallback
         let path = format!("{}/{}", state.upload_dir, key);
@@ -2109,7 +2128,85 @@ async fn upload_to_storage_private(
         tokio::fs::write(&path, &data)
             .await
             .map_err(|e| ApiError::Internal(format!("Failed to write file: {e}")))?;
-        Ok(key) // Return key for local too, presigned fallback will use it
+        Ok(())
+    }
+}
+
+/// Store a release file by the hash of its contents, uploading only if these
+/// exact bytes are not stored already.
+///
+/// Returns the storage key to reference and the hash that identifies it.
+///
+/// This is what makes a release cost only what is new in it. Every file used to
+/// be uploaded under a key with a fresh UUID in it, so republishing a plugin
+/// that changed one line stored a second full copy of everything else, and
+/// correcting a README on a 400 MB model stored the model again.
+///
+/// The hash is taken over the file's contents alone, deliberately. Two assets
+/// from two creators containing the same licence text share one object, and that
+/// is correct: the bytes are the same bytes. Access is decided by the
+/// `asset_files` row pointing at the blob, never by the blob itself, so sharing
+/// storage shares nothing else.
+async fn store_blob(
+    state: &AppState,
+    asset_id: Uuid,
+    filename: &str,
+    data: &[u8],
+) -> Result<(String, String), ApiError> {
+    let sha = storage_blob::sha256_hex(data);
+    let content_type = mime_from_extension(filename);
+
+    // Fanned out by the first two hex characters. A single flat prefix with
+    // hundreds of thousands of keys under it is awkward to list and, on some
+    // backends, slower to write into.
+    let ext = filename.rsplit('.').next().unwrap_or("");
+    let proposed = if ext.is_empty() || ext == filename {
+        format!("private/blobs/{}/{}", &sha[..2], sha)
+    } else {
+        format!("private/blobs/{}/{}.{}", &sha[..2], sha, ext.to_lowercase())
+    };
+
+    let claim = StorageBlob::claim(
+        &state.db,
+        &sha,
+        &proposed,
+        data.len() as i64,
+        &content_type,
+    )
+    .await?;
+
+    let key = match claim {
+        storage_blob::Claim::Reuse { storage_key } => return Ok((storage_key, sha)),
+        storage_blob::Claim::Upload { storage_key } => storage_key,
+    };
+
+    upload_bytes_to_key(state, &key, data, &content_type).await?;
+    StorageBlob::mark_uploaded(&state.db, &sha).await?;
+    // `asset_id` is not part of the key: the bytes belong to whoever references
+    // them. It stays in the signature because a future per-creator quota has to
+    // know who caused an upload.
+    let _ = asset_id;
+    Ok((key, sha))
+}
+
+/// Delete a file's object, but only when no other file still points at it.
+///
+/// The obvious version of this deletes the object whenever the file goes, and
+/// that is a way to lose data the moment two releases can share one object: the
+/// second release keeps a row pointing at bytes the first one deleted.
+///
+/// A `blob_sha` of `None` means the file predates content addressing and owns
+/// its object outright, which is why the old path is kept rather than migrated.
+async fn release_file_storage(state: &AppState, file: &AssetFile) {
+    match &file.blob_sha {
+        Some(sha) => match StorageBlob::release_if_unreferenced(&state.db, sha).await {
+            // Nothing else wants these bytes, so the object goes with the row.
+            Ok(Some(key)) => delete_from_storage_by_key(state, key.as_str()).await,
+            // Still referenced: leaving the object is the entire point.
+            Ok(None) => {}
+            Err(e) => tracing::warn!("blob {sha}: could not check references: {e}"),
+        },
+        None => delete_from_storage_by_key(state, &file.file_key).await,
     }
 }
 
@@ -2860,13 +2957,10 @@ async fn store_release_files(
         let filename = path.rsplit('/').next().unwrap_or(path);
         let mime = mime_from_extension(filename);
 
-        let file_key = upload_to_storage_private(
-            state,
-            &format!("private/assets/{asset_id}"),
-            filename,
-            data.clone(),
-        )
-        .await?;
+        // Content addressed: identical bytes are stored once, so a release only
+        // costs what is actually new in it. Republishing a plugin with one line
+        // changed used to store a second full copy of every other file.
+        let (file_key, blob_sha) = store_blob(state, asset_id, filename, data).await?;
 
         // Generate preview for paid assets with previewable content
         let preview_key = if is_paid && preview::is_previewable(&mime) {
@@ -2901,6 +2995,7 @@ async fn store_release_files(
             i as i32,
             false,
             text.as_deref(),
+            Some(&blob_sha),
         )
         .await?;
 
@@ -3812,7 +3907,7 @@ async fn delete_release(
 
     let files = AssetFile::delete_by_release(&state.db, release.id).await?;
     for f in &files {
-        delete_from_storage_by_key(&state, &f.file_key).await;
+        release_file_storage(&state, f).await;
         if let Some(pk) = &f.preview_key {
             let _ = delete_from_storage(&state, pk).await;
         }

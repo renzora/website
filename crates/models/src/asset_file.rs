@@ -27,10 +27,17 @@ pub struct AssetFile {
     /// be rendered without a round-trip to object storage. `None` means not
     /// cached — the reader fetches and backfills it.
     pub text_content: Option<String>,
+    /// The content-addressed blob holding this file's bytes, when it has one.
+    ///
+    /// `None` for rows predating content addressing: those own their object
+    /// outright and are deleted along with it. `Some` means the object may be
+    /// shared with other releases, so it can only be removed once nothing points
+    /// at it any more. See `storage_blob::release_if_unreferenced`.
+    pub blob_sha: Option<String>,
     pub created_at: OffsetDateTime,
 }
 
-const COLS: &str = "id, asset_id, release_id, file_key, preview_key, original_filename, path, file_size, mime_type, sort_order, archived, text_content, created_at";
+const COLS: &str = "id, asset_id, release_id, file_key, preview_key, original_filename, path, file_size, mime_type, sort_order, archived, text_content, blob_sha, created_at";
 
 impl AssetFile {
     /// Files of the asset's *current* release — what the asset page, previews
@@ -41,7 +48,7 @@ impl AssetFile {
     pub async fn list_by_asset(pool: &PgPool, asset_id: Uuid) -> Result<Vec<Self>, sqlx::Error> {
         sqlx::query_as::<_, Self>(&format!(
             "SELECT f.id, f.asset_id, f.release_id, f.file_key, f.preview_key, f.original_filename,
-                    f.path, f.file_size, f.mime_type, f.sort_order, f.archived, f.text_content, f.created_at
+                    f.path, f.file_size, f.mime_type, f.sort_order, f.archived, f.text_content, f.blob_sha, f.created_at
              FROM asset_files f
              LEFT JOIN asset_releases r ON r.id = f.release_id
              WHERE f.asset_id = $1 AND (f.release_id IS NULL OR r.is_current)
@@ -119,10 +126,11 @@ impl AssetFile {
         sort_order: i32,
         archived: bool,
         text_content: Option<&str>,
+        blob_sha: Option<&str>,
     ) -> Result<Self, sqlx::Error> {
         sqlx::query_as::<_, Self>(&format!(
-            "INSERT INTO asset_files (asset_id, release_id, file_key, preview_key, original_filename, path, file_size, mime_type, sort_order, archived, text_content)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+            "INSERT INTO asset_files (asset_id, release_id, file_key, preview_key, original_filename, path, file_size, mime_type, sort_order, archived, text_content, blob_sha)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
              RETURNING {COLS}"
         ))
         .bind(asset_id)
@@ -136,6 +144,7 @@ impl AssetFile {
         .bind(sort_order)
         .bind(archived)
         .bind(text_content)
+        .bind(blob_sha)
         .fetch_one(pool)
         .await
     }

@@ -26,6 +26,7 @@ pub mod voucher;
 pub mod launcher_download;
 pub mod withdrawal;
 pub mod social_connection;
+pub mod storage_blob;
 pub mod donation;
 pub mod gift_card;
 pub mod xp;
