@@ -249,7 +249,19 @@ pub fn AssetDetailPage() -> impl IntoView {
                     <!-- Gallery + Sidebar -->
                     <div class="flex flex-col lg:flex-row gap-8">
                         <div class="flex-1 min-w-0">
-                            <!-- Live Preview or static gallery -->
+                            <!-- Header card.
+                                 The cover used to sit above the name, so the
+                                 artwork and the thing it is artwork OF were never
+                                 on screen together: you saw a picture, scrolled,
+                                 and then found out what it was. Side by side they
+                                 read as one object, and the fold stops being a
+                                 decision about which half you get. -->
+                            <div class="p-5 bg-white/[0.02] border border-zinc-800/50 rounded-2xl">
+                              <div class="flex flex-col lg:flex-row gap-6">
+                                <!-- Cover column. Fixed on desktop so the text
+                                     beside it gets a predictable measure; full
+                                     width on mobile, where the two stack. -->
+                                <div class="lg:w-[440px] shrink-0">
                             ${(() => {
                                 const cat = (a.category || '').toLowerCase();
                                 const previewable = ['3d models', 'animations', 'materials & shaders', 'textures & hdris', 'particle effects'];
@@ -263,12 +275,12 @@ pub fn AssetDetailPage() -> impl IntoView {
                                 // the ratio on narrow screens, where 16:9 is not
                                 // yet tall enough to crowd anything out, and stops
                                 // it growing past a header on wide ones.
-                                // `max-w` rather than a full-width box, so the
-                                // cover sits at its natural size on the left
-                                // instead of stretching to whatever the column
-                                // happens to be. 746px is 420 at 16:9, so the
-                                // two caps agree and the box never letterboxes
-                                // itself.
+                                // The cover fills its column, and the column is
+                                // what sizes it: 440px on desktop, 247 tall at
+                                // 16:9. The caps only bind on mobile, where the
+                                // two columns stack and this one goes full
+                                // width; 746 is 420 at 16:9, so they agree with
+                                // each other and the box never letterboxes.
                                 if (!hasLivePreview) return '<div class="rounded-2xl overflow-hidden border border-zinc-800/50 bg-zinc-900 relative group/preview aspect-video max-h-[420px] max-w-[746px]" id="main-preview">' + mainPreviewHtml + '</div>' + thumbsHtml;
 
                                 let previewMode = 'shader';
@@ -313,10 +325,13 @@ pub fn AssetDetailPage() -> impl IntoView {
                                     '<div id="preview-params" class="mt-2"></div>' +
                                 '</div>';
                             })()}
+                                </div>
 
+                                <!-- Identity column -->
+                                <div class="flex-1 min-w-0">
                             <!-- Title + meta -->
-                            <div class="mt-8">
-                                <div class="flex items-center gap-3">
+                            <div>
+                                <div class="flex items-center gap-3 flex-wrap">
                                     <h1 class="text-3xl font-bold leading-tight">${a.name}</h1>
                                     ${isCreator ? `<a href="/marketplace/asset/${a.slug}/edit" class="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium bg-white/[0.03] border border-zinc-800/50 text-zinc-400 hover:border-zinc-600 hover:text-zinc-200 transition-colors"><i class="ph ph-pencil-simple"></i>Edit listing &amp; releases</a><a href="/marketplace/asset/${a.slug}/releases/new" class="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium bg-accent/10 border border-accent/30 text-accent hover:bg-accent/15 transition-colors"><i class="ph ph-rocket-launch"></i>New Release</a><button onclick="deleteAsset('${a.id}')" class="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium bg-white/[0.03] border border-red-900/50 text-red-400 hover:border-red-700 hover:text-red-300 hover:bg-red-950/30 transition-colors"><i class="ph ph-trash"></i>Delete</button>` : ''}
                                 </div>
@@ -341,16 +356,19 @@ pub fn AssetDetailPage() -> impl IntoView {
                             </div>
 
                             <!-- Description -->
-                            <div class="mt-8">
-                                <h2 class="text-lg font-semibold mb-3">About this asset</h2>
-                                <p class="text-base text-zinc-400 leading-relaxed whitespace-pre-wrap">${a.description}</p>
+                            <div class="mt-5">
+                                <h2 class="text-base font-semibold mb-2">About this asset</h2>
+                                <p class="text-base text-zinc-300 leading-relaxed whitespace-pre-wrap">${a.description}</p>
                             </div>
 
-                            <div class="mt-6 flex items-center gap-4 text-sm text-zinc-600">
+                            <div class="mt-5 flex items-center gap-4 flex-wrap text-sm text-zinc-400">
                                 <span><i class="ph ph-calendar-blank"></i> Published ${fmtDate(a.created_at)}</span>
                                 <span><i class="ph ph-clock-clockwise"></i> Updated ${fmtDate(a.updated_at)}</span>
                                 <span><i class="ph ph-eye"></i> ${a.views.toLocaleString()} views</span>
                                 <span><i class="ph ph-download-simple"></i> ${a.downloads.toLocaleString()} downloads</span>
+                            </div>
+                                </div>
+                              </div>
                             </div>
 
                             <!-- Files, README and releases (filled in after render) -->
