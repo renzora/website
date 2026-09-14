@@ -206,8 +206,8 @@ pub fn MarketplacePage() -> impl IntoView {
         // The same renderer the standalone listing page uses, so the overlay
         // cannot drift from it. stats-chart first, because the renderer mounts
         // the activity chart as soon as it has drawn.
-        <script src="/assets/js/stats-chart.js"></script>
-        <script src="/assets/js/asset-detail.js"></script>
+        <script src=crate::assets::STATS_CHART_JS.as_str()></script>
+        <script src=crate::assets::ASSET_DETAIL_JS.as_str()></script>
 
         <script>
             r##"

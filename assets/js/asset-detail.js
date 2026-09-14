@@ -198,8 +198,22 @@
                                      which is 1024 wide: a fixed 300 there left
                                      the text about 330 to live in, which is
                                      under what the owner's toolbar needs and is
-                                     why it wrapped onto two rows. -->
-                                <div class="lg:w-[240px] shrink-0">
+                                     why it wrapped onto two rows.
+
+                                     A full-width base, not only the lg width. A
+                                     width that exists at one breakpoint alone
+                                     means any moment the rule is missing -- a
+                                     stale stylesheet mid-deploy, a viewport
+                                     nobody planned for -- leaves this sized by
+                                     its contents, and shrink-0 then refuses to
+                                     hand the space back. That is not graceful
+                                     degradation, it is a blowout that crushes
+                                     the column beside it.
+
+                                     (No backticks in this comment: it sits
+                                     inside a template literal, and one would
+                                     end the string.) -->
+                                <div class="w-full lg:w-[240px] shrink-0">
                             ${(() => {
                                 const cat = (a.category || '').toLowerCase();
                                 // 3D models are deliberately NOT in this list.
@@ -228,7 +242,7 @@
                                 // two columns stack and this one goes full
                                 // width; 746 is 420 at 16:9, so they agree with
                                 // each other and the box never letterboxes.
-                                if (!hasLivePreview) return '<div class="rounded-2xl overflow-hidden border border-zinc-800/50 bg-zinc-900 relative group/preview aspect-video max-h-[420px] max-w-[746px]" id="main-preview">' + mainPreviewHtml + '</div>' + thumbsHtml;
+                                if (!hasLivePreview) return '<div class="rounded-2xl overflow-hidden border border-zinc-800/50 bg-zinc-900 relative group/preview aspect-video max-h-[420px] max-w-full" id="main-preview">' + mainPreviewHtml + '</div>' + thumbsHtml;
 
                                 // No 'model' branch: that category returns above,
                                 // so it could only ever be dead code here. The
@@ -262,7 +276,7 @@
                                             meshBtns +
                                         '</div>' +
                                     '</div>' +
-                                    '<div class="rounded-2xl overflow-hidden border border-zinc-800/50 bg-[#0f0f13] relative max-h-[420px] max-w-[746px]" style="aspect-ratio:16/9" id="preview-container">' +
+                                    '<div class="rounded-2xl overflow-hidden border border-zinc-800/50 bg-[#0f0f13] relative max-h-[420px] max-w-full" style="aspect-ratio:16/9" id="preview-container">' +
                                         '<canvas id="preview-canvas" class="w-full h-full" style="pointer-events:none"></canvas>' +
                                         '<div id="preview-loading" class="absolute inset-0 flex items-center justify-center bg-[#0f0f13]">' +
                                             '<div class="text-center">' +

@@ -87,9 +87,12 @@ pub fn AssetDetailPage() -> impl IntoView {
         </section>
         // Loaded ahead of the page script, which mounts the chart as soon as the
         // asset detail has rendered.
-        <script src="/assets/js/stats-chart.js"></script>
+        <script src=crate::assets::STATS_CHART_JS.as_str()></script>
         // The listing renderer itself, shared with the marketplace overlay.
-        <script src="/assets/js/asset-detail.js"></script>
+        // Fingerprinted: the stylesheet it depends on is inlined in this
+        // response, so a cached copy of this file could otherwise be a build
+        // behind the classes it names.
+        <script src=crate::assets::ASSET_DETAIL_JS.as_str()></script>
         <script>
             r##"
             // The renderer lives in /assets/js/asset-detail.js, shared with the
