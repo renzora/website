@@ -183,6 +183,32 @@ pub fn MarketplacePage() -> impl IntoView {
         </div>
         </section>
 
+        // ── Quick look ──────────────────────────────────────────────────────
+        // A listing opens over the grid instead of replacing it, so closing it
+        // returns to the same scroll position, filters and page rather than a
+        // reload of all three. Hidden until something opens it, and empty until
+        // then too: the renderer fills `#mp-overlay-root`.
+        <div id="mp-overlay" class="hidden fixed inset-0 z-[70]" role="dialog" aria-modal="true" aria-label="Asset details">
+            <div id="mp-overlay-scrim" class="absolute inset-0 bg-black/70 backdrop-blur-sm"></div>
+            <div class="absolute inset-0 overflow-y-auto mp-scroll" id="mp-overlay-scroll">
+                <div class="min-h-full px-4 py-6 sm:px-6 sm:py-10">
+                    <div class="relative max-w-[1440px] mx-auto rounded-2xl border border-zinc-800/60 bg-surface shadow-2xl shadow-black/60">
+                        <button onclick="closeQuickLook()" aria-label="Close"
+                            class="sticky top-3 float-right mr-3 z-10 w-9 h-9 rounded-lg bg-black/60 hover:bg-black/80 border border-zinc-700/60 text-zinc-300 hover:text-white flex items-center justify-center transition-colors">
+                            <i class="ph ph-x"></i>
+                        </button>
+                        <div class="px-4 sm:px-6 pb-8 pt-4" id="mp-overlay-root"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        // The same renderer the standalone listing page uses, so the overlay
+        // cannot drift from it. stats-chart first, because the renderer mounts
+        // the activity chart as soon as it has drawn.
+        <script src="/assets/js/stats-chart.js"></script>
+        <script src="/assets/js/asset-detail.js"></script>
+
         <script>
             r##"
             // ── Marketplace logic ──
@@ -493,6 +519,138 @@ pub fn MarketplacePage() -> impl IntoView {
                 loadAssets();
                 window.scrollTo({top: 0, behavior: 'smooth'});
             }
+
+            // ── Quick look ──────────────────────────────────────────────────
+            //
+            // Clicking a card opens the listing over the grid and pushes its
+            // URL, so the address bar names what is on screen, the link is
+            // shareable, and Back closes the overlay onto the grid exactly as it
+            // was rather than reloading it.
+            //
+            // A middle click, a modifier click or a right click is left alone:
+            // those mean "open a copy elsewhere", and an overlay cannot honour
+            // that. Hence the guard below rather than a blanket preventDefault.
+
+            // Responses warmed on hover, keyed by slug.
+            //
+            // A Response body can only be read once, so `take` hands the entry
+            // over and drops it. A miss returns undefined and the renderer
+            // fetches normally, which is also what happens when the pointer
+            // moved too fast for the delay to fire.
+            window.assetDetailPrefetch = (function () {
+                const warm = new Map();
+                let timer = null;
+                const LIMIT = 30;
+
+                function slugFrom(a) {
+                    const m = a && a.getAttribute('href') || '';
+                    const parts = m.split('/marketplace/asset/');
+                    return parts.length === 2 ? parts[1].split(/[?#]/)[0] : null;
+                }
+
+                function warmUp(slug) {
+                    if (!slug || warm.has(slug)) return;
+                    // Cheap insurance against a long browse warming hundreds of
+                    // listings: drop the oldest rather than grow without bound.
+                    if (warm.size >= LIMIT) warm.delete(warm.keys().next().value);
+                    const token = document.cookie.match('(^|;)\\s*token\\s*=\\s*([^;]+)')?.pop();
+                    const headers = token ? { 'Authorization': 'Bearer ' + token } : {};
+                    warm.set(slug, fetch('/api/marketplace/detail/' + slug, { headers })
+                        .catch(() => null));
+                }
+
+                return {
+                    slugFrom,
+                    // 120ms: long enough that sweeping the pointer across a row
+                    // of cards on the way somewhere else costs nothing, short
+                    // enough to be well ahead of a click.
+                    hover(a) {
+                        clearTimeout(timer);
+                        const slug = slugFrom(a);
+                        if (slug) timer = setTimeout(() => warmUp(slug), 120);
+                    },
+                    cancel() { clearTimeout(timer); },
+                    take(slug) {
+                        const p = warm.get(slug);
+                        if (!p) return null;
+                        warm.delete(slug);
+                        // A failed prefetch must not become a failed render.
+                        return p.then(r => (r && r.ok) ? r : fetch('/api/marketplace/detail/' + slug));
+                    },
+                };
+            })();
+
+            function assetLinkFrom(target) {
+                const a = target.closest && target.closest('a[href^="/marketplace/asset/"]');
+                return a || null;
+            }
+
+            document.addEventListener('mouseover', e => {
+                const a = assetLinkFrom(e.target);
+                if (a) window.assetDetailPrefetch.hover(a);
+            }, { passive: true });
+            document.addEventListener('mouseout', e => {
+                if (assetLinkFrom(e.target)) window.assetDetailPrefetch.cancel();
+            }, { passive: true });
+
+            document.addEventListener('click', e => {
+                // Anything that means "open elsewhere" stays a normal link.
+                if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey ||
+                    e.shiftKey || e.altKey) return;
+                const a = assetLinkFrom(e.target);
+                if (!a || a.target === '_blank') return;
+                const slug = window.assetDetailPrefetch.slugFrom(a);
+                if (!slug) return;
+                e.preventDefault();
+                openQuickLook(slug, true);
+            });
+
+            let quickLookOpen = false;
+
+            function openQuickLook(slug, push) {
+                const overlay = document.getElementById('mp-overlay');
+                const root = document.getElementById('mp-overlay-root');
+                if (!overlay || !root || !window.renderAssetDetail) {
+                    // No renderer means no overlay. Fall back to the page rather
+                    // than swallowing the click.
+                    window.location.href = '/marketplace/asset/' + slug;
+                    return;
+                }
+                if (push) history.pushState({ quickLook: slug }, '', '/marketplace/asset/' + slug);
+
+                root.innerHTML = '<div class="text-center py-20"><div class="inline-block animate-spin w-6 h-6 border-2 border-zinc-700 border-t-accent rounded-full"></div></div>';
+                overlay.classList.remove('hidden');
+                // The grid must not scroll behind the overlay, and must be
+                // exactly where it was when this closes.
+                document.body.style.overflow = 'hidden';
+                document.getElementById('mp-overlay-scroll').scrollTop = 0;
+                quickLookOpen = true;
+                window.renderAssetDetail(slug, root);
+            }
+
+            function closeQuickLook(pop) {
+                const overlay = document.getElementById('mp-overlay');
+                if (!overlay || !quickLookOpen) return;
+                overlay.classList.add('hidden');
+                document.getElementById('mp-overlay-root').innerHTML = '';
+                document.body.style.overflow = '';
+                quickLookOpen = false;
+                // `pop` means history already moved; anything else has to move it.
+                if (!pop) history.back();
+            }
+
+            document.getElementById('mp-overlay-scrim')?.addEventListener('click', () => closeQuickLook());
+            document.addEventListener('keydown', e => {
+                if (e.key === 'Escape' && quickLookOpen) closeQuickLook();
+            });
+
+            // Back and forward. The URL is the state: an asset path means open,
+            // anything else means closed.
+            window.addEventListener('popstate', () => {
+                const m = window.location.pathname.match(/^\/marketplace\/asset\/([^/?#]+)/);
+                if (m) openQuickLook(m[1], false);
+                else closeQuickLook(true);
+            });
             "##
         </script>
 
@@ -505,6 +663,15 @@ pub fn MarketplacePage() -> impl IntoView {
             .mp-scroll { scrollbar-width: thin; scrollbar-color: #27272a transparent; }
             .no-scrollbar::-webkit-scrollbar { display: none; }
             .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+            /* The renderer draws a "Back to Marketplace" link for the standalone
+               page. In the overlay the marketplace is literally behind it and
+               the close button is three pixels away, so it is noise here. */
+            #mp-overlay .detail-back { display: none; }
+
+            /* The listing page runs its own fixed background layer. Inside the
+               overlay it would sit over the scrim and under nothing useful. */
+            #mp-overlay #asset-bg-layer { display: none; }
             "#
         </style>
     }
