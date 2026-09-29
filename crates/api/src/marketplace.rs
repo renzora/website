@@ -430,6 +430,20 @@ async fn upload_asset(
 
     // ── Validate all fields ──
 
+    // The oldest engine the first release runs on, from the listing metadata the
+    // publishing tool sends. Read here, before anything is created, so an
+    // unknown version rejects the upload rather than leaving a listing behind.
+    //
+    // It used to be ignored on this path: the first release was always created
+    // with no floor, so a brand-new plugin was offered to every engine however
+    // new the APIs it was built on. Only a second release picked the floor up,
+    // through `create_release`'s fallback to the listing's metadata.
+    let first_release_engine = engine_version_for_storage(
+        &state.db,
+        meta.metadata.get("min_engine_version").and_then(|v| v.as_str()),
+    )
+    .await?;
+
     // Name: 1-128 characters
     let name = meta.name.trim();
     if name.is_empty() || name.len() > 128 {
@@ -595,7 +609,14 @@ async fn upload_asset(
     // Every asset starts with one release. Files hang off it rather than off
     // the asset, so a later version can be published without destroying this
     // one for the people who already bought it.
-    let release = AssetRelease::create_current(&state.db, asset.id, &asset.version, "", None).await?;
+    let release = AssetRelease::create_current(
+        &state.db,
+        asset.id,
+        &asset.version,
+        "",
+        first_release_engine.as_deref(),
+    )
+    .await?;
 
     // A plugin's zip is the deliverable, not a container to unpack: the editor
     // extracts the whole source tree into `plugins/<crate>/` and builds it, so
