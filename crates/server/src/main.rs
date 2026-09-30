@@ -180,7 +180,7 @@ async fn main() {
             move || { let s = s.clone(); let db = db.clone(); async move { sitemap_xml(&db, &s).await } }
         }))
         // TikTok developer domain verification (must live at the site root)
-        .route_service("/tiktokUZx7LGpJ4aCcrPT5TSOzdSCYh5WdIZF2.txt", ServeFile::new("assets/tiktokUZx7LGpJ4aCcrPT5TSOzdSCYh5WdIZF2.txt"))
+        .route_service("/tiktoknf4SObHRHWVq7QffBl0V8X4A3Twh96rc.txt", ServeFile::new("assets/tiktoknf4SObHRHWVq7QffBl0V8X4A3Twh96rc.txt"))
         // Serve uploaded files
         .nest_service("/uploads", ServeDir::new(&upload_dir))
         // Serve static assets (CSS, JS, images)
