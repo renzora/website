@@ -16,7 +16,7 @@ use renzora_web::shell::{Shell, EmbedShell};
 use sqlx::postgres::PgPoolOptions;
 use tower_http::compression::CompressionLayer;
 use tower_http::cors::CorsLayer;
-use tower_http::services::ServeDir;
+use tower_http::services::{ServeDir, ServeFile};
 use tower_http::set_header::SetResponseHeaderLayer;
 use tower_http::trace::TraceLayer;
 
@@ -179,6 +179,8 @@ async fn main() {
             let db = seo_db.clone();
             move || { let s = s.clone(); let db = db.clone(); async move { sitemap_xml(&db, &s).await } }
         }))
+        // TikTok developer domain verification (must live at the site root)
+        .route_service("/tiktokUZx7LGpJ4aCcrPT5TSOzdSCYh5WdIZF2.txt", ServeFile::new("assets/tiktokUZx7LGpJ4aCcrPT5TSOzdSCYh5WdIZF2.txt"))
         // Serve uploaded files
         .nest_service("/uploads", ServeDir::new(&upload_dir))
         // Serve static assets (CSS, JS, images)
