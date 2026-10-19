@@ -614,12 +614,12 @@ pub fn AdminPage() -> impl IntoView {
             if (q) url += '&q=' + encodeURIComponent(q);
             if (pub) url += '&published=' + pub;
             try {
-                const d = await api(url);
+                const [d, cats] = await Promise.all([api(url), assetCategories()]);
                 const rows = (d.assets || []).map(a =>
                     '<tr class="hover:bg-white/[0.02]">'
                     + '<td class="px-4 py-3"><a href="/marketplace/asset/' + esc(a.slug) + '" class="text-zinc-200 hover:text-accent">' + esc(a.name) + '</a></td>'
                     + '<td class="px-4 py-3 text-zinc-500">' + esc(a.creator_name) + '</td>'
-                    + '<td class="px-4 py-3 text-zinc-500">' + esc(a.category) + '</td>'
+                    + '<td class="px-4 py-3">' + categorySelect(a, cats) + '</td>'
                     + '<td class="px-4 py-3 text-zinc-400">' + (a.price_credits === 0 ? 'Free' : num(a.price_credits) + ' cr') + '</td>'
                     + '<td class="px-4 py-3 text-zinc-500">' + num(a.downloads) + '</td>'
                     + '<td class="px-4 py-3">' + (a.published ? '<span class="text-xs text-emerald-400">Published</span>' : '<span class="text-xs text-amber-400">Draft</span>') + '</td>'
@@ -635,6 +635,39 @@ pub fn AdminPage() -> impl IntoView {
         async function togglePublish(id) {
             try { await api('/assets/' + id + '/publish', { method: 'PUT', headers: H() }); flash('ok', 'Asset updated.'); loadAssets(A.assetPage); }
             catch (e) { flash('err', e.message); }
+        }
+        // The marketplace's categories, fetched once for the Category column.
+        async function assetCategories() {
+            if (!A.categories) {
+                const res = await fetch('/api/marketplace/categories');
+                A.categories = res.ok ? await res.json() : [];
+            }
+            return A.categories;
+        }
+        // A listing's category as a dropdown; a listing in a category that no
+        // longer exists keeps it as an extra option rather than showing blank.
+        function categorySelect(a, cats) {
+            const known = cats.some(c => c.slug === a.category);
+            const opts = (known ? [] : [{ slug: a.category, name: a.category }]).concat(cats)
+                .map(c => '<option value="' + esc(c.slug) + '"' + (c.slug === a.category ? ' selected' : '') + '>' + esc(c.name) + '</option>')
+                .join('');
+            return '<select onchange="setAssetCategory(this, \'' + a.id + '\', \'' + esc(a.category) + '\')"'
+                + ' class="px-2 py-1 bg-surface border border-zinc-800 rounded-lg text-zinc-300 text-xs outline-none focus:border-accent">'
+                + opts + '</select>';
+        }
+        // Moving a listing changes how its downloads install (a plugin is kept
+        // as a zip and built, most categories are unpacked), so it asks first.
+        async function setAssetCategory(sel, id, from) {
+            const to = sel.value;
+            if (!confirm('Move this listing from ' + from + ' to ' + to + '? Its downloads will install as ' + to + ' from now on, so publish a ' + to + ' release for it next.')) {
+                sel.value = from;
+                return;
+            }
+            try {
+                await api('/assets/' + id + '/category', { method: 'PUT', headers: HJ(), body: JSON.stringify({ category: to }) });
+                flash('ok', 'Moved to ' + to + '.');
+                loadAssets(A.assetPage);
+            } catch (e) { sel.value = from; flash('err', e.message); }
         }
         async function deleteAsset(id) {
             if (!confirm('Delete this asset? This cannot be undone.')) return;

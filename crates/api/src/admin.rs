@@ -36,6 +36,7 @@ pub fn router() -> Router<AppState> {
         .route("/categories/:id", delete(delete_category))
         .route("/assets", get(list_assets))
         .route("/assets/:id/publish", put(toggle_publish))
+        .route("/assets/:id/category", put(set_asset_category))
         .route("/assets/:id", delete(delete_asset))
         .route("/disputes", get(list_disputes))
         .route("/disputes/:id/resolve", put(resolve_dispute))
@@ -371,6 +372,76 @@ async fn toggle_publish(
     verify_admin(&state, auth.user_id).await?;
     sqlx::query("UPDATE assets SET published = NOT published, updated_at = NOW() WHERE id = $1").bind(id).execute(&state.db).await?;
     Ok(Json(serde_json::json!({"message": "Toggled"})))
+}
+
+#[derive(Deserialize)]
+struct SetCategoryBody {
+    category: String,
+}
+
+/// `PUT /api/admin/assets/:id/category` — move a listing to another category.
+///
+/// Nothing else can: publishing never changes a listing's category, and the
+/// owner's update endpoint does not take one. It exists for the case that
+/// prompted it, a set of effect plugins that became shader files and should
+/// keep their pages, downloads and reviews rather than start again as new
+/// listings.
+///
+/// A subcategory belongs to one category, so one that has no match under the
+/// new category is cleared rather than left pointing at the old one's.
+///
+/// What it does not touch: the files already published. How a download
+/// installs (kept as a plugin zip, or unpacked) follows the category, so the
+/// release that should match the new one is published straight after the move.
+async fn set_asset_category(
+    State(state): State<AppState>,
+    Extension(auth): Extension<AuthUser>,
+    Path(id): Path<Uuid>,
+    Json(body): Json<SetCategoryBody>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    verify_admin(&state, auth.user_id).await?;
+    let slug = body.category.trim().to_lowercase();
+    let known: bool = sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM categories WHERE slug = $1)")
+        .bind(&slug)
+        .fetch_one(&state.db)
+        .await?;
+    if !known {
+        return Err(ApiError::Validation(format!("there is no category `{slug}`")));
+    }
+    let from: Option<String> = sqlx::query_scalar("SELECT category FROM assets WHERE id = $1")
+        .bind(id)
+        .fetch_optional(&state.db)
+        .await?;
+    let Some(from) = from else {
+        return Err(ApiError::NotFound);
+    };
+    if from == slug {
+        return Ok(Json(serde_json::json!({"category": slug, "changed": false})));
+    }
+    sqlx::query(
+        "UPDATE assets SET
+             category = $1,
+             subcategory = CASE WHEN EXISTS(
+                 SELECT 1 FROM subcategories s JOIN categories c ON c.id = s.category_id
+                 WHERE c.slug = $1 AND s.slug = assets.subcategory
+             ) THEN subcategory ELSE '' END,
+             updated_at = NOW()
+         WHERE id = $2",
+    )
+    .bind(&slug)
+    .bind(id)
+    .execute(&state.db)
+    .await?;
+    audit_log(
+        &state.db,
+        auth.user_id,
+        "set_category",
+        "asset",
+        Some(id),
+        serde_json::json!({"from": from, "to": slug}),
+    )
+    .await;
+    Ok(Json(serde_json::json!({"category": slug, "from": from, "changed": true})))
 }
 
 async fn delete_asset(
