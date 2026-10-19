@@ -45,6 +45,14 @@ jobs:
     needs: build-and-push
     runs-on: ubuntu-latest
     environment: production
+    # One deploy at a time. Two pushes seconds apart (a commit and the docs sync
+    # it sets off) used to run `compose up` on the droplet concurrently, and the
+    # second failed recreating a container the first was still replacing. Not
+    # cancel-in-progress: a deploy stopped halfway can leave the app down. A run
+    # waiting here is superseded by a newer one, so the newest commit lands last.
+    concurrency:
+      group: production-deploy
+      cancel-in-progress: false
     permissions:
       contents: read
       packages: read
