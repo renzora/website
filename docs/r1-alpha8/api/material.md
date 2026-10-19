@@ -9,7 +9,7 @@ A Renzora material is a **node graph**, not a fixed list of PBR sliders. You bui
 There are two compile paths, chosen automatically by the resolver:
 
 - **Trivial graphs** — a texture/factor wired straight into a PBR output pin compile to a plain Bevy `StandardMaterial`. Most imported materials land here.
-- **Procedural graphs** — anything with math, noise, animation, or custom logic compile to a `GraphMaterial` (an `ExtendedMaterial<StandardMaterial, SurfaceGraphExt>`) with a generated WGSL fragment shader.
+- **Procedural graphs** — anything with math, noise, animation, or custom logic compile to a `GraphMaterial` (an `ExtendedMaterial<StandardMaterial, SurfaceGraphExt>`) with a generated fragment shader, written in WESL. Pipeline-dependent reads (a prepass, the environment map, vertex tangents or colours) are gated with `@if(FLAG)` and fall back to a neutral value when the flag is off, so one shader serves every camera and mesh.
 
 Compiled results are cached per file path in the `MaterialCache` resource, so editing one material in the editor invalidates and recompiles only that material.
 
@@ -19,7 +19,7 @@ Compiled results are cached per file path in the `MaterialCache` resource, so ed
 
 A `GraphMaterial`'s generated shader is **forward-only**. Bevy's prepass, shadow
 pass and deferred G-buffer pass all shade from the *base* `StandardMaterial`
-instead, and `renzora_lumen` reads its `base_color` on the CPU to tint GI voxels.
+instead.
 
 So the resolver fills that base in with as much of the graph as a plain
 `StandardMaterial` can express — albedo and its alpha, normal map,
@@ -81,7 +81,7 @@ A master `.material` file is a JSON-serialized `MaterialGraph`:
 | Field | Type | Notes |
 |-------|------|-------|
 | `name` | string | Display name |
-| `domain` | enum | `Surface`, `TerrainLayer`, `Vegetation`, or `Unlit` |
+| `domain` | enum | `Surface`, `TerrainLayer`, `Vegetation`, `Unlit`, or `Sprite` |
 | `nodes` | array | The graph's nodes (see below) |
 | `connections` | array | Wires between pins |
 | `next_id` | u64 | Next node id the editor will allocate |
@@ -94,7 +94,7 @@ A master `.material` file is a JSON-serialized `MaterialGraph`:
 
 | Field | Type | Notes |
 |-------|------|-------|
-| `wgsl` | string | The fragment shader codegen emitted |
+| `wgsl` | string | The fragment shader codegen emitted: WESL since r1-alpha8, the old `#import` dialect before that (translated on load). The field keeps its name so older files still read |
 | `meta.domain` | enum | Domain the shader was compiled for |
 | `meta.alpha_mode` | enum | Copied from the graph at compile time |
 | `meta.double_sided` | bool | Copied from the graph at compile time |
@@ -203,6 +203,21 @@ Two of those stored constants can't be expressed as `StandardMaterial` fields �
 | `output/terrain_layer` | Terrain Layer (blended via splatmap) | `base_color`, `metallic`, `roughness`, `normal`, `height` |
 | `output/vegetation` | PBR + vertex displacement | `base_color`, `metallic`, `roughness`, `normal`, `emissive`, `ao`, `alpha`, `vertex_offset` |
 | `output/unlit` | Unlit (no lighting) | `color`, `alpha` |
+| `output/sprite` | Sprite (2D) | `color`, `alpha` |
+
+## Sprite materials
+
+A Sprite material is a material graph for a 2D sprite. Make one with **Add ▸ Sprite Material** in the Assets panel, edit it in the Material Editor like any other, and drag it onto a sprite in the Hierarchy, or onto the sprite itself in the 2D view; it is stored as the sprite's `MaterialRef`, the same component a 3D mesh uses.
+
+It compiles to a fragment shader for Bevy's `SpriteMaterial`, so the sprite renderer still draws the sprite and the graph only decides its colour:
+
+- An unwired **Color** pin is the sprite's own texture, so an empty graph draws the sprite unchanged. The **Sprite Color** node reads the same texture at any UV, for waves, wobble or dissolve masks.
+- The sprite's tint, flip, tiling, slicing and alpha mode still apply, on top of the graph. The graph's own alpha mode is not used on a sprite.
+- Textures, parameters, noise, time, maths and Custom nodes work as they do in 3D. The scene nodes that read the 3D view (scene depth and normal, motion vectors, scene colour, the environment map) are left out of a Sprite material's add-node menu, and one that gets in anyway is marked red and is a compile error that names the node.
+- The Material Preview shows a Sprite material on a sample sprite over a checkerboard, live as you edit.
+- A sprite only wears a Sprite material, and a 3D mesh never does. Dragging one over something that cannot wear it shows a "not allowed" cursor and the drop does nothing; a mismatch that arrives another way is refused with a Console line rather than drawn wrong.
+
+Material instances of a Sprite master are not supported yet.
 
 ## Material instances
 
@@ -447,11 +462,12 @@ At compile time each `function/call` inlines the function's WGSL helper at modul
 
 ## Code shaders
 
-Besides node graphs, `MaterialRef` can point at a `.shader` file — a hand-written shader. `renzora_shader` ships four transpiling backends, all targeting WGSL for Bevy's pipeline:
+Besides node graphs, `MaterialRef` can point at a `.shader` file, or straight at a `.wgsl` / `.wesl` file: a hand-written shader. `renzora_shader` ships five backends, all producing what Bevy's pipeline compiles (WGSL or WESL):
 
 | Backend (`language`) | Handles | Notes |
 |----------------------|---------|-------|
-| `Bevy` | WGSL using `#import bevy_*` | Bevy-flavored WGSL (naga_oil); default |
+| `WESL` | WESL (`.wesl`) | `import bevy_pbr::render::...;`, `@if(FLAG)`; the default since Bevy 0.20 |
+| `Bevy` | the pre-0.20 dialect using `#import` / `#ifdef` | translated to WESL as it loads, so old shaders keep working |
 | `WGSL` | raw WGSL | `@fragment`, `var<uniform>`, … |
 | `GLSL` | `.glsl`, `.frag`, `.vert` | `#version`, `void main()`, `uniform`/`varying` |
 | `ShaderToy` | ShaderToy-style fragment code | `mainImage`, `iTime`, `iResolution` |
@@ -468,7 +484,7 @@ A `.shader` file is a JSON `ShaderFile`:
 The compiler transpiles to WGSL, injects a `ShaderUniforms` bind group (`time`, `delta_time`, `resolution`, `mouse`, `frame`) at `@group(3) @binding(0)` when the source references `uniforms.*`, and turns `@param` comment annotations into WGSL `const` declarations so parameter names resolve as variables. A `Fragment` shader previews on a mesh via `CodeShaderMaterial`; `Material` and `PostProcess` types are compile-checked.
 
 ```wgsl
-#import bevy_pbr::forward_io::VertexOutput
+import bevy_pbr::render::forward_io::VertexOutput;
 
 // @param speed float 1.0 0.1 5.0 Animation speed
 // @param tint  color 1.0 0.8 0.6 1.0
@@ -483,7 +499,7 @@ fn fragment(in: VertexOutput) -> @location(0) vec4<f32> {
 }
 ```
 
-`@param` syntax is `// @param <name> <type> <default> [min max] [description]`, where `<type>` is `float`, `vec2`, `vec3`, `vec4`, `color`, `int`, or `bool`. Author and preview code shaders in the **Shader Editor** (the asset browser routes `.wgsl`/`.glsl`/`.vert`/`.frag` there).
+`@param` syntax is `// @param <name> <type> <default> [min max] [description]`, where `<type>` is `float`, `vec2`, `vec3`, `vec4`, `color`, `int`, or `bool`. Author and preview code shaders in the **Shader Editor** (the asset browser routes `.wgsl`/`.glsl`/`.vert`/`.frag` there). The example is WESL; the same shader written with `#import bevy_pbr::forward_io::VertexOutput` still works, because the engine translates the old dialect (see [Shaders](../rendering/shaders.md)).
 
 ## Scripting
 

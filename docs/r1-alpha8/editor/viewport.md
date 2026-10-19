@@ -126,6 +126,24 @@ Turning **Textures** off does not unlight the scene. Surfaces keep their real li
 | `Alt+Shift+Z` | Lighting |
 | `Ctrl+G` | Grid |
 
+### Realtime
+
+By default the viewport renders only when something in the scene changes. It keeps rendering for a moment afterwards so anti-aliasing and ray tracing can settle, then holds its last image until the next change.
+
+This matters most in a heavy scene. The editor UI and the viewport share one renderer, so a scene that renders at 6 FPS used to hold every panel, hover and keystroke to 6 FPS too. With the viewport idle, the rest of the editor runs at full speed. Moving something, or the camera, still runs at the scene's own frame rate.
+
+What wakes it:
+
+- Moving, adding, removing or editing anything in the scene, including the World Environment
+- Moving the camera
+- Moving the mouse or pressing a key over the viewport
+- Meshes, materials and textures changing or finishing loading
+- Changing the selection or a viewport setting
+- Resizing or docking a viewport
+- **Play** and **Simulate**, which render every frame
+
+Some things move without the scene changing, and they hold still while the viewport is idle: wind sway, water, animated clouds, and GPU particles. Switch on **Render > Realtime** in the Display menu to render every frame, as the viewport did before. The same switch is **Settings > Viewport > Performance > Realtime Viewport**, and it is saved with the project.
+
 ### Visualization modes
 
 The **Visualization** row replaces every material in the viewport with one that answers a single question: Normals, Roughness, Metallic, Depth, UV Checker or Matcap. **None** puts the real materials back.
@@ -210,12 +228,14 @@ Gizmo settings are global, so switching one switches all of them. Each viewport 
 
 Most of the cost of a frame is fullscreen image effects, and that cost grows with your display's resolution. On older laptops, integrated graphics or high-DPI screens the editor can feel sluggish even on an empty scene.
 
+If the whole editor drags, check **Display > Render > Realtime** is off, so the viewport only renders when something changes (see [Realtime](#realtime)).
+
 Open **Settings > Viewport > Performance > Graphics Quality** and drop it a notch.
 
 | Tier | What it does |
 |---|---|
 | High | Everything on |
-| Medium | Turns off screen-space global illumination (the single most expensive effect) and SSAO, and drops the sky to its cheaper lookup path. Bloom, anti-aliasing, auto-exposure and clouds are kept |
+| Medium | Turns off SSAO and drops the sky to its cheaper lookup path. Bloom, anti-aliasing, auto-exposure and clouds are kept |
 | Low | Turns those off too: bloom, TAA, auto-exposure and clouds all go |
 
 Shadow maps and the sky's reflection probe also shrink a step at each tier, which is the rest of where the frame time goes.
@@ -230,7 +250,7 @@ A gated effect keeps its component, its enable toggle and its settings, and simp
 
 <!-- screenshot: inspector_quality_gate.png - a Clouds component header showing the amber gate warning and its tooltip -->
 
-The components that can carry it are Clouds, Bloom, TAA, Auto Exposure, SSAO, the two GI sections (Lumen and RT), and Atmosphere. So if clouds are not drawing and the Clouds header has the triangle, nothing is broken: raise the tier.
+The components that can carry it are Clouds, Bloom, TAA, Auto Exposure, SSAO and Atmosphere. So if clouds are not drawing and the Clouds header has the triangle, nothing is broken: raise the tier.
 
 ## Related pages
 

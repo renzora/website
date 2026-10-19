@@ -1,6 +1,6 @@
 # Architecture
 
-How Renzora is put together: one Bevy 0.19 binary, a removable editor bundle, the `renzora.dll` contract, the `add!` plugin model, and the render/scene/asset pipelines.
+How Renzora is put together: one Bevy 0.20 binary, a removable editor bundle, the `renzora.dll` contract, the `add!` plugin model, and the render/scene/asset pipelines.
 
 Renzora is a large Cargo workspace where almost every feature is its own crate that registers a Bevy `Plugin`. The defining structural decision is the **"one binary, editor-as-removable-cdylib" model** (internally "Operation Merge", now fully shipped): the editor, the runtime, and the dedicated server are the *same* executable, and what it does is decided at startup, not at compile time.
 
@@ -133,7 +133,7 @@ Renzora builds on Bevy's PBR/HDR pipeline plus a large family of plugin crates. 
 
 1. **The unified post-process family** — one `RenderComposition` registry (`crates/renzora/src/postprocess.rs`) that runs every active effect as a fullscreen fragment pass, dispatched in one of four phases positioned around Bevy's own tonemapping and anti-aliasing.
 2. **Bevy built-in wrappers** that author user-facing settings and route a stock Bevy component onto the camera (bloom → `Bloom`, dof → `DepthOfField`, ssao → `ScreenSpaceAmbientOcclusion`, ssr → `ScreenSpaceReflections`, motion blur, auto-exposure, fog, atmosphere → `Atmosphere`, skybox → `Skybox`, etc.).
-3. **Custom multi-pass render-graph crates** for global illumination and transparency (`renzora_lumen`, `renzora_rt`, `renzora_oit`) and for material/mesh sky & water (clouds, night stars, water, lighting).
+3. **Custom multi-pass render-graph crates** for transparency (`renzora_oit`) and for material/mesh sky & water (clouds, night stars, water, lighting).
 
 ### The unified post-process pipeline
 
@@ -173,7 +173,7 @@ renzora::plugin!(AsciiPlugin, Runtime);
 
 > `renzora_postprocess` is a re-export shim (`pub use renzora::postprocess::*`). The framework lives **inside `renzora.dll`**, so every effect shares one `RenderComposition` and matching `TypeId`s across the dlopen boundary.
 
-What stays in-tree: the **built-in wrappers** (bloom, DOF, SSAO, SSR, vignette, motion blur, …), which route a stock Bevy component rather than running a pass of their own, and the **multi-pass graph crates** (`renzora_lumen`, `renzora_rt`, `renzora_oit`, `renzora_solari`).
+What stays in-tree: the **built-in wrappers** (bloom, DOF, SSAO, SSR, vignette, motion blur, …), which route a stock Bevy component rather than running a pass of their own, and the **multi-pass graph crates** (`renzora_oit`, `renzora_solari`).
 
 ## Scene serialization
 
@@ -218,6 +218,10 @@ The packed archive itself is detected by the VFS in its own order at startup:
 ## Crash handling
 
 A panic hook is installed once the session kind is known. The editor writes `~/.renzora/crashes/last_crash.txt` and shows a native dialog; the shipped game silently appends to `<exe_dir>/crash.log`.
+
+In the editor, a panic inside a system, command or observer is not a crash. Bevy catches it and passes it to the world's `FallbackErrorHandler`, and the editor installs one (in the main world and the render world) that logs it to the Console and keeps running: one broken plugin or script system no longer takes the editor down. The first failure of each system is logged with its message and location, then the count at 10, 100, 1000 and so on. An error a system returns without a severity, which Bevy also treats as a panic, is logged the same way.
+
+The panic hook runs before Bevy's catch, so on a thread that runs systems it holds the report back instead of writing it, and the handler claims it once Bevy has caught the panic. A panic nothing catches unwinds out of `App::run`, and `main` then saves and shows the held report as a normal crash. A shipped game keeps Bevy's default handler, so a panicking system still ends the game and writes `crash.log`.
 
 ## What's next
 

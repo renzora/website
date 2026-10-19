@@ -419,8 +419,8 @@ menu saved hundreds of them into its scenes. What the toggle actually controls i
 settings component instead. UI hit-testing is a separate bevy feature that rides
 the UI capability and is unaffected.
 
-**Tonemapping lookup tables** follow the curve your scene names. Five of Bevy's
-eight tone curves need no tables at all; only AgX, TonyMcMapface and
+**Tonemapping lookup tables** follow the curve your scene names. Most of Bevy's
+tone curves need no tables at all; only AgX, TonyMcMapface and
 BlenderFilmic sample them. If the tables turn out to be wanted after all, the
 engine substitutes a table-free curve rather than failing — so the worst case
 here is a slightly different picture, not a broken build.
@@ -447,7 +447,7 @@ pipeline back in and undo the saving. Current groups:
 
 Turning a parent off switches its children off **in the list**, not just at build
 time. So does turning **3D rendering** off, which takes terrain, water, the sky
-set, every post-process effect, Lumen, cloth, ragdolls, parkour, gaussian
+set, every post-process effect, cloth, ragdolls, parkour, gaussian
 splatting, forward decals and raytraced lighting with it — all of them are
 `bevy_pbr` underneath, so keeping one is not a bigger binary, it is a build that
 does not compile. The build has always enforced that; the list now shows it,
