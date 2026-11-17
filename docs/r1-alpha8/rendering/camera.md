@@ -45,7 +45,7 @@ Defaults are `focus = Vec3::ZERO`, `distance = 4.5`, `yaw = 0.3`, `pitch = 0.4`,
 
 > In **Edit** (mesh-edit) mode, E/Q are surrendered to the extrude tool, so vertical fly is unavailable — use scroll-dolly or Shift+Right pan instead.
 
-When `distance_relative_speed` is on (the default), move and zoom speed scale with the orbit distance, so navigation stays comfortable whether you're framing a whole level or a single vertex.
+Flying moves at exactly the camera speed set in the viewport header, in units a second, however far the pivot is (Ctrl and the ground ease for Q/E aside). When `distance_relative_speed` is on (the default), scroll zoom scales with the orbit distance, so a scroll step stays useful whether you're framing a whole level or a single vertex.
 
 ### Keyboard shortcuts
 
@@ -55,7 +55,7 @@ These are `EditorAction`s with the default bindings below — all rebindable in 
 |-------------|--------|
 | **F** | Focus Selected — frame the selected entity (engages pivot lock) |
 | **A** | Frame All — fit every mesh in the scene |
-| **End** | Camera to Cursor — move the pivot to the point under the cursor |
+| **End** | Camera to Cursor — move the pivot to the surface under the cursor (the ground plane where there is none) |
 | **Home** | Reset Camera (back to default orbit) |
 | **L** | Toggle Pivot Lock |
 | **Numpad 5** | Toggle Orthographic / Perspective |
@@ -68,19 +68,23 @@ These are `EditorAction`s with the default bindings below — all rebindable in 
 
 Pivot lock (`PivotLock`) keeps the orbit centered on whatever you focused. While it's on, zoom becomes a true dolly (it changes `distance` only, leaving `focus` anchored) and Shift+Right pan is suppressed. It engages automatically on **Focus Selected (F)**, **Frame All (A)**, and **Camera to Cursor (End)**, breaks when you fly with WASD, and toggles with **L**.
 
+### Pivot marker
+
+While you orbit, pan or zoom, and for a moment after **F**, **End**, **A** or **Home** moves it, the pivot shows as a small ring with its distance beside it ("128 m", "1.1 km"). Orbit and zoom speed follow that distance, so the label explains a zoom that lurches. The ring is white, or amber while pivot lock is on, and dims when a surface stands between it and the camera (a pivot left underground reads as one). Flying and mouse-look carry the pivot along with the camera, so they do not show it. Turn it off with **Gizmos → Camera Pivot** in the viewport toolbar or **Settings → Viewport → Camera Pivot** (`ViewportSettings::show_pivot`).
+
 ### Camera settings
 
 The controller reads tuning from the `CameraSettings` resource, which the viewport header keeps in sync:
 
 | Field | Default | Meaning |
 |-------|---------|---------|
-| `move_speed` | 10.0 | WASD fly speed |
+| `move_speed` | 10.0 | WASD fly speed, in units a second |
 | `look_sensitivity` | 0.3 | Right-drag look speed |
 | `orbit_sensitivity` | 0.5 | Middle/Alt-drag orbit speed |
 | `pan_sensitivity` | 1.0 | Pan speed |
 | `zoom_sensitivity` | 1.0 | Scroll dolly speed |
 | `invert_y` | false | Invert vertical look |
-| `distance_relative_speed` | true | Scale move/zoom by distance from focus |
+| `distance_relative_speed` | true | Scale scroll zoom by distance from focus (flying is never scaled) |
 
 ## Projection
 
@@ -161,6 +165,45 @@ How routing works:
 - All the custom shader effects run inside a **single unified fullscreen pass** placed between tonemapping and the end of main-pass post-processing. Each effect only runs when its component is present, so an inactive effect costs nothing.
 
 See [Post-Processing Effects](../extending/post-processing.md) for how the 53 shipped effects are authored, and [Render Pipeline](./pipeline.md) for how they compose.
+
+## Anti-aliasing
+
+Anti-aliasing is set in the camera's **Camera** section, on two rows: **Anti-Aliasing** (**Off**, or one of the methods below) and **AA Quality**, whose choices follow the method and which is hidden while anti-aliasing is Off. New scene cameras start on TAA. One method runs at a time: they all attack the same jagged edges, and two at once only blur twice (TAA under FXAA) or fight over one camera jitter (TAA and DLSS).
+
+The setting is stored in its own component, `renzora_antialiasing::AntiAliasing`; the Camera section only draws it. Off switches the component's `enabled` off rather than removing it, so the method and each method's quality are still there when it is turned back on. A camera without the component reads as Off, and choosing a method adds one.
+
+| Method | Quality | What it is |
+|---|---|---|
+| **MSAA** | 2x, 4x, 8x | Several samples per pixel at triangle edges. Sharp and stable, but smooths only geometry edges, and only works where the render path allows it (below). |
+| **FXAA** | Low to Extreme | A cheap full-screen pass that blurs along detected edges. Softens the whole image a little. |
+| **SMAA** | Low to Ultra | Edge detection like FXAA with a sharper result. Does not fix shimmer in motion. |
+| **TAA** | (none) | Jitters the camera and blends frames. The best on thin detail and shimmer (foliage, specular, soft shadows), and what most of the rendering is tuned for. Can ghost on fast motion. |
+| **DLSS** | Auto, DLAA, Quality, Balanced, Performance, Ultra Performance | NVIDIA DLSS Super Resolution: upscaling and anti-aliasing in one. See [DLSS](./dlss.md#dlss-without-solari). |
+
+Sharpening (**Sharpening (CAS)**) is a separate component that sits on top of any method, mostly to give back the detail TAA and DLSS soften.
+
+### When a method cannot run
+
+Not every method works on every camera. The **Anti-Aliasing** dropdown puts an amber warning icon on each option that cannot run on this camera right now, and beside the box while that option is the selected one; hover it for the reason and what to change.
+
+| Method | Cannot run when |
+|---|---|
+| MSAA | the camera renders **Deferred** (Project Settings > Rendering, or Solari forcing it), or has **SSAO**, the **sky** (atmosphere) or **order-independent transparency** on |
+| TAA | the project's Graphics Quality is **Low**, or Solari's DLSS Ray Reconstruction is anti-aliasing the camera already |
+| DLSS | the build has no DLSS SDK, the GPU or renderer cannot run it (an NVIDIA RTX GPU on Vulkan), or Ray Reconstruction is already on the camera |
+| FXAA, SMAA | always run |
+
+A method that cannot run is held off, not forced: the camera renders with no anti-aliasing until whatever is in the way goes, and then the method takes effect by itself. The choice stays on the component. Several of these combinations crash the renderer rather than failing quietly, which is why the engine refuses them.
+
+What decides it is the cameras that actually render: in the editor, the viewport cameras the scene camera's settings are routed onto. The rules live in one place (`renzora_antialiasing::compat`), read by both the inspector's warnings and the system that applies the method, so the warning and the viewport always agree.
+
+Scenes saved with the old per-method components (`TaaSettings`, `FxaaSettings`, `SmaaSettings`) still load: each camera's old components are folded into one Anti-Aliasing as the scene loads, keeping the method that was on (TAA first, then SMAA, then FXAA) and each method's quality.
+
+## Tonemapping
+
+The camera's tonemapping curve is the **Tonemapping** row of its **Camera** section: **None** (no curve), Reinhard, Reinhard Luminance, ACES Fitted, AgX, Somewhat Boring, Tony McMapface (the default) or Blender Filmic. It is stored in `renzora_tonemapping::TonemappingSettings`, which the section only draws; exposure is the section's **EV100**, not part of tonemapping.
+
+Older scenes that carry `TonemappingSettings` on a non-camera entity (the World Environment) still show it there as its own Tonemapping section.
 
 ## Auto Exposure (keeping night dark)
 

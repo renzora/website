@@ -62,7 +62,7 @@ Four dispatcher systems drain it, one per phase, each pinned into `Core3d` relat
 | Phase | Runs | Image |
 |---|---|---|
 | `Gi` | `EarlyPostProcess`, before temporal AA | HDR |
-| `HdrPost` | `EarlyPostProcess`, after temporal AA | HDR |
+| `HdrPost` | `PostProcess`, after temporal AA and DLSS, before tonemapping | HDR |
 | `LdrPost` | `PostProcess`, after tonemapping, before FXAA/SMAA | LDR |
 | `Overlay` | `PostProcess`, after FXAA/SMAA and after `LdrPost` | final |
 
@@ -135,12 +135,19 @@ changing, and freezes it otherwise. A map filters for a few frames after:
 - the component is added or edited (new source, new intensity),
 - its source image asset loads or changes,
 - the camera carrying it turns active,
-- for the sky probe, the sun, the atmosphere or the environment settings change.
+- for the sky probe, the sun, the atmosphere or the environment settings change,
+- the images it filters into are new or were re-uploaded.
 
-A map on an inactive camera, or at zero intensity, never filters. A frozen map
-keeps its last result, which for an unchanged input is the correct one. The
-freeze happens in the render world, so the component itself stays on the camera
-and nothing that reads or writes it needs to know.
+A map on an inactive camera, or at zero intensity, otherwise never filters. A
+frozen map keeps its last result, which for an unchanged input is the correct
+one. The freeze happens in the render world, so the component itself stays on
+the camera and nothing that reads or writes it needs to know.
+
+The last rule is the one exception to the inactive-camera freeze. Bevy creates
+the radiance and irradiance images empty, and only the filter writes into them,
+so a new pair always gets a full filter first, whatever its camera is doing.
+Freezing a new pair left it empty, and every rough surface lit by it reflected
+garbage instead of the sky.
 
 ## Planar reflections: `renzora_planar_reflection`
 
@@ -198,6 +205,8 @@ if let Some(render_app) = app.get_sub_app_mut(RenderApp) {
 ## Ambient occlusion — the SSAO section
 
 SSAO is not a component you add. It is a **section of the one `WorldEnvironment`**, alongside Fog — select the World Environment entity and the Inspector shows an **SSAO** section whose header toggle is the effect's on/off switch. There is no trash button, because the section is intrinsic to the environment.
+
+While [Solari](./solari.md) is lighting a camera, that camera gets no SSAO, whatever the section says: Solari traces its own ambient occlusion, and SSAO on top would darken every corner twice. The section keeps its setting, so SSAO returns when Solari is switched off or the GPU cannot ray trace.
 
 Turning it off removes `ScreenSpaceAmbientOcclusion` from the routed cameras outright, so "off" costs nothing (SSAO's pipeline key reads the component directly, in sync with its bind group, so unlike the resident-and-neutral effects this one is safe to toggle by presence).
 
@@ -263,19 +272,22 @@ far worse on the integrated GPUs `Low` exists for), and it was previously ungate
 so choosing `Low` explicitly for frame rate still paid for it. Gating it took the
 measured GPU total at `Low` from 2.870 ms to 1.798 ms — **−37%**.
 
-**The tier applies in both the editor and shipped games**, from two sources that
-write one shared `ResolvedGraphicsQuality` resource:
+**There is one tier, and the editor and the shipped game both run on it.** It is
+the `[rendering] graphics_quality` key (`"Low"` / `"Medium"` / `"High"`), set in
+**Settings > Project > Rendering > Graphics Quality**. It lives outside the
+`[editor]` block, so export keeps it, and without a key a project defaults to
+`Medium`. The editor is the game with chrome on top, so the viewport shows the
+passes the game will actually run. Both sides fill one shared
+`ResolvedGraphicsQuality` resource from it:
 
-- **Editor** — **Settings → Viewport → Performance → Graphics Quality**, stored per
-  project on `ViewportSettings.graphics_quality` in `project.toml`'s editor-only
-  `[editor]` section. Enforced on the viewport cameras by
+- **Editor**: enforced on the viewport cameras by
   `renzora_level_presets::graphics_quality` (Editor scope).
-- **Shipped game** — the `[rendering] graphics_quality` key (`"Low"` / `"Medium"` /
-  `"High"`), which lives outside the `[editor]` block so export keeps it. The
-  runtime resolves it and enforces it on the play camera in
-  `renzora_engine::graphics_quality` (registered only when `!is_editor`). Without a
-  key a game defaults to `Medium` — a game no longer runs the full stack
-  unconditionally the way it did before r1-alpha8.
+- **Shipped game**: enforced on the play camera by
+  `renzora_engine::graphics_quality` (registered only when `!is_editor`).
+
+The editor used to have a tier of its own under Settings > Viewport > Performance.
+A project that still has `graphics_quality` under `[editor.viewport]` loads
+normally; the old key is ignored.
 
 ```toml
 [rendering]
@@ -289,7 +301,7 @@ virtual_geometry_budget_mb = 512   # GPU memory streamed virtual geometry may us
 ### The integrated-GPU hint
 
 The tier defaults to `Medium`, and the users who most need `Low` are the least
-likely to go looking for Settings → Viewport → Performance — the editor just feels
+likely to go looking for Settings > Project > Rendering: the editor just feels
 slow and there's no reason to suspect a setting. So on first launch, if the
 adapter is integrated (`renzora::GpuIsIntegrated`, probed once from wgpu at
 startup) and the tier isn't already `Low`, the editor raises a toast suggesting it.
@@ -342,10 +354,11 @@ present pass.
 
 ### Vsync and measuring frame cost
 
-A shipped game creates its window with vsync on, which caps the frame rate to the
-monitor's refresh — so on a fast GPU the reported FPS is pinned at (say) 60 and
-**hides the true per-frame cost**. To read real frametimes, uncap it with the
-`[window] vsync` key (it lives outside `[editor]`, so export keeps it):
+Vsync is on by default, which caps the frame rate to the monitor's refresh, so on
+a fast GPU the reported FPS is pinned at (say) 60 and **hides the true per-frame
+cost**. There is one vsync, **Settings > Project > Window > VSync**, the
+`[window] vsync` key. The game's window uses it, and so does the editor's, so
+turning it off uncaps both. It lives outside `[editor]`, so export keeps it:
 
 ```toml
 [window]
@@ -354,8 +367,10 @@ height = 720
 vsync = false   # uncap the frame rate — useful for profiling
 ```
 
-`apply_window_config` maps this to the window's `PresentMode` (`AutoVsync` when
-true, `AutoNoVsync` when false). Defaults to `true`.
+`apply_window_config` (the game) and `apply_vsync_setting` (the editor) map this
+to the window's `PresentMode` (`AutoVsync` when true, `AutoNoVsync` when false).
+Defaults to `true`. The editor's old VSync switch under Settings > Viewport >
+Performance is gone; a leftover `vsync` under `[editor.viewport]` is ignored.
 
 ## Debugging the pipeline
 
