@@ -698,6 +698,9 @@ async fn upload_asset(
     // Award XP for uploading
     let _ = renzora_models::xp::award_xp(&state.db, auth.user_id, renzora_models::xp::XP_UPLOAD_ASSET, "upload_asset", Some(asset.id)).await;
 
+    // A new plugin: have CI compile it against the official builds now.
+    crate::prebuilt::request_plugin_build(&asset.category, asset.id);
+
     Ok(Json(asset_to_detail(&asset, &creator, Some(true))))
 }
 
@@ -2292,7 +2295,7 @@ pub(crate) async fn generate_presigned_url(state: &AppState, key: &str) -> Resul
 }
 
 /// Fetch file bytes from S3 by key (for zip generation, preview proxy, etc.)
-async fn fetch_file_from_storage(state: &AppState, key: &str) -> Result<Vec<u8>, ApiError> {
+pub(crate) async fn fetch_file_from_storage(state: &AppState, key: &str) -> Result<Vec<u8>, ApiError> {
     if let Some(bucket) = &state.s3_bucket {
         let resp = bucket
             .get_object(key)
@@ -3880,6 +3883,9 @@ async fn create_release(
 
     // The asset's headline version follows its current release.
     Asset::update_metadata(&state.db, id, None, None, None, Some(&version), None).await?;
+
+    // A new plugin release: have CI compile it against the official builds now.
+    crate::prebuilt::request_plugin_build(&asset.category, id);
 
     let files = AssetFile::list_release_tree(&state.db, release.id).await?;
     let ctx = crate::markdown::MdContext::new(

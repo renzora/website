@@ -17,6 +17,19 @@
 //!   page, which cannot know which build its visitor runs.
 //! - `GET /:asset_id/file/:id`: the binary's bytes, by redirect, counted.
 //! - `POST /upload`: CI's upload, with an admin's API token.
+//!
+//! And for building third-party plugins, which CI compiles from the source their
+//! creators uploaded against each official engine build (never against a
+//! creator's own engine, which could be anything):
+//!
+//! - `GET /build-list?engine_version=<v>`: every published plugin and the
+//!   release of it that engine version would install. Admin.
+//! - `GET /source/:asset_id/:release_id`: that release's source zip, whatever
+//!   the listing's price, since CI is building it rather than buying it. Admin.
+//! - `POST /build-result`: whether a plugin compiled, with the compiler's
+//!   output. Admin.
+//! - `GET /:asset_id/builds`: the newest result per platform. The compiler log
+//!   only to the listing's creator or an admin.
 
 use axum::{
     extract::{Extension, Multipart, Path, Query, State},
@@ -47,11 +60,15 @@ pub fn router() -> Router<AppState> {
     let public = Router::new()
         .route("/:asset_id", get(lookup))
         .route("/:asset_id/latest", get(latest))
+        .route("/:asset_id/builds", get(builds))
         .route("/:asset_id/file/:id", get(file))
         .layer(axum::middleware::from_fn(middleware::optional_auth));
 
     let upload = Router::new()
         .route("/upload", post(upload))
+        .route("/build-list", get(build_list))
+        .route("/source/:asset_id/:release_id", get(source))
+        .route("/build-result", post(build_result))
         .layer(axum::middleware::from_fn(middleware::require_auth));
 
     Router::new().merge(upload).merge(public)
@@ -254,6 +271,215 @@ async fn upload(
         "platform": row.platform,
         "release_matched": release_id.is_some(),
     })))
+}
+
+/// Ask the engine's CI to compile a plugin that was just published, against the
+/// latest nightly and stable builds, so its creator learns whether it compiles
+/// (and its users get a prebuilt) now rather than at the next nightly.
+///
+/// Fire and forget, off the request: publishing must not wait on GitHub, and a
+/// failed notice only means the plugin waits for the nightly, which builds
+/// every plugin anyway. Needs `ENGINE_DISPATCH_TOKEN`, a GitHub token allowed
+/// to dispatch to the engine repository (`ENGINE_REPO`, `renzora/engine` by
+/// default); without it this does nothing.
+pub(crate) fn request_plugin_build(category: &str, asset_id: Uuid) {
+    if !matches!(category, "plugins" | "plugin") {
+        return;
+    }
+    let Ok(token) = std::env::var("ENGINE_DISPATCH_TOKEN") else { return };
+    if token.trim().is_empty() {
+        return;
+    }
+    let repo = std::env::var("ENGINE_REPO").unwrap_or_else(|_| "renzora/engine".to_string());
+    tokio::spawn(async move {
+        let body = serde_json::json!({
+            "event_type": "plugin-release",
+            "client_payload": { "asset_id": asset_id },
+        });
+        let sent = reqwest::Client::new()
+            .post(format!("https://api.github.com/repos/{repo}/dispatches"))
+            .bearer_auth(token.trim())
+            .header("accept", "application/vnd.github+json")
+            .header("user-agent", "renzora-marketplace")
+            .json(&body)
+            .send()
+            .await;
+        match sent {
+            Ok(r) if r.status().is_success() => {}
+            Ok(r) => tracing::warn!("plugin build request for {asset_id} refused: HTTP {}", r.status()),
+            Err(e) => tracing::warn!("plugin build request for {asset_id} failed: {e}"),
+        }
+    });
+}
+
+#[derive(Deserialize)]
+struct BuildListQuery {
+    engine_version: String,
+}
+
+/// One plugin release CI should compile.
+#[derive(Serialize)]
+struct BuildTarget {
+    asset_id: Uuid,
+    marketplace_id: String,
+    release_id: Uuid,
+    version: String,
+    name: String,
+}
+
+/// Every published plugin and the release of it `engine_version` would
+/// install: what CI compiles against that engine's builds. A plugin with no
+/// release for that engine is left out, since nobody on it can install it.
+async fn build_list(
+    State(state): State<AppState>,
+    Extension(auth): Extension<AuthUser>,
+    Query(q): Query<BuildListQuery>,
+) -> Result<Json<Vec<BuildTarget>>, ApiError> {
+    crate::admin::verify_admin(&state, auth.user_id).await?;
+    let listings: Vec<(Uuid, String, String)> = sqlx::query_as(
+        "SELECT id, marketplace_id, name FROM assets
+         WHERE published AND category IN ('plugins', 'plugin')
+         ORDER BY created_at",
+    )
+    .fetch_all(&state.db)
+    .await?;
+    let mut out = Vec::new();
+    for (asset_id, marketplace_id, name) in listings {
+        if let Some(release) = AssetRelease::resolve_for_engine(&state.db, asset_id, &q.engine_version).await? {
+            out.push(BuildTarget { asset_id, marketplace_id, release_id: release.id, version: release.version, name });
+        }
+    }
+    Ok(Json(out))
+}
+
+/// A plugin release's source zip, for CI to compile. Admin-only, and
+/// regardless of price: compiling a paid plugin to serve its buyers a binary is
+/// not a purchase, and the binary is only served to people who may download it.
+async fn source(
+    State(state): State<AppState>,
+    Extension(auth): Extension<AuthUser>,
+    Path((asset_id, release_id)): Path<(Uuid, Uuid)>,
+) -> Result<axum::response::Response, ApiError> {
+    crate::admin::verify_admin(&state, auth.user_id).await?;
+    let release = AssetRelease::find_by_id(&state.db, release_id)
+        .await?
+        .filter(|r| r.asset_id == asset_id)
+        .ok_or(ApiError::NotFound)?;
+    // A plugin is uploaded as one source zip and stored whole.
+    let files = renzora_models::asset_file::AssetFile::list_by_release(&state.db, release.id).await?;
+    let zip = files
+        .iter()
+        .find(|f| f.original_filename.to_lowercase().ends_with(".zip"))
+        .ok_or_else(|| ApiError::Validation("this release has no source zip".into()))?;
+    let bytes = crate::marketplace::fetch_file_from_storage(&state, &zip.file_key).await?;
+    Ok(axum::response::Response::builder()
+        .header("content-type", "application/zip")
+        .header("cache-control", "no-store")
+        .body(axum::body::Body::from(bytes))
+        .unwrap())
+}
+
+#[derive(Deserialize)]
+struct BuildResultBody {
+    marketplace_id: String,
+    version: String,
+    platform: String,
+    engine_stamp: String,
+    #[serde(default)]
+    engine_tag: String,
+    ok: bool,
+    #[serde(default)]
+    summary: String,
+    #[serde(default)]
+    log: String,
+}
+
+/// Longest compiler log kept. A failed build's first errors are what a creator
+/// needs; a megabyte of cascading ones is not worth storing.
+const MAX_LOG: usize = 64 * 1024;
+
+/// Record whether a plugin compiled against an engine build.
+async fn build_result(
+    State(state): State<AppState>,
+    Extension(auth): Extension<AuthUser>,
+    Json(body): Json<BuildResultBody>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    crate::admin::verify_admin(&state, auth.user_id).await?;
+    if !PLATFORMS.contains(&body.platform.as_str()) {
+        return Err(ApiError::Validation(format!("unknown platform '{}'", body.platform)));
+    }
+    let asset = Asset::find_by_marketplace_id(&state.db, &body.marketplace_id)
+        .await?
+        .ok_or_else(|| ApiError::Validation(format!("no listing has the marketplace id '{}'", body.marketplace_id)))?;
+    let release_id = AssetRelease::find_by_version(&state.db, asset.id, &body.version).await?.map(|r| r.id);
+    let cap = |s: &str, n: usize| -> String {
+        if s.len() <= n {
+            return s.to_string();
+        }
+        let mut end = n;
+        while !s.is_char_boundary(end) {
+            end -= 1;
+        }
+        format!("{}\n... (truncated)", &s[..end])
+    };
+    renzora_models::plugin_build::PluginBuild::upsert(
+        &state.db,
+        &renzora_models::plugin_build::NewBuild {
+            asset_id: asset.id,
+            release_id,
+            plugin_version: &body.version,
+            platform: &body.platform,
+            engine_stamp: &body.engine_stamp,
+            engine_tag: &body.engine_tag,
+            ok: body.ok,
+            summary: &cap(&body.summary, 500),
+            log: &cap(&body.log, MAX_LOG),
+        },
+    )
+    .await?;
+    Ok(Json(serde_json::json!({ "recorded": true })))
+}
+
+#[derive(Serialize)]
+struct BuildStatus {
+    platform: String,
+    plugin_version: String,
+    engine_tag: String,
+    ok: bool,
+    summary: String,
+    /// Only for the listing's creator or an admin.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    log: Option<String>,
+    created_at: time::OffsetDateTime,
+}
+
+/// The newest build result per platform: anyone may see whether a plugin
+/// compiles, but only its creator (and admins) read the compiler's output.
+async fn builds(
+    State(state): State<AppState>,
+    Extension(auth): Extension<Option<AuthUser>>,
+    Path(asset_id): Path<Uuid>,
+) -> Result<Json<Vec<BuildStatus>>, ApiError> {
+    let asset = Asset::find_by_id(&state.db, asset_id).await?.ok_or(ApiError::NotFound)?;
+    let privileged = match &auth {
+        Some(u) if u.user_id == asset.creator_id => true,
+        Some(u) => crate::admin::verify_admin(&state, u.user_id).await.is_ok(),
+        None => false,
+    };
+    let rows = renzora_models::plugin_build::PluginBuild::latest_per_platform(&state.db, asset_id).await?;
+    Ok(Json(
+        rows.into_iter()
+            .map(|b| BuildStatus {
+                platform: b.platform,
+                plugin_version: b.plugin_version,
+                engine_tag: b.engine_tag,
+                ok: b.ok,
+                summary: b.summary,
+                log: privileged.then_some(b.log),
+                created_at: b.created_at,
+            })
+            .collect(),
+    ))
 }
 
 /// What this site can check about an upload without the signing keys: the

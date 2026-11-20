@@ -28,6 +28,7 @@ pub mod withdrawal;
 pub mod social_connection;
 pub mod storage_blob;
 pub mod prebuilt_plugin;
+pub mod plugin_build;
 pub mod donation;
 pub mod gift_card;
 pub mod xp;

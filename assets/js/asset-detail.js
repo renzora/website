@@ -794,10 +794,18 @@
                 if (!container || !hasAccess) return;
                 const token = document.cookie.match('(^|;)\\s*token\\s*=\\s*([^;]+)')?.pop();
                 const headers = token ? { 'Authorization': 'Bearer ' + token } : {};
-                const res = await fetch('/api/prebuilt-plugins/' + assetId + '/latest', { headers });
-                if (!res.ok) return;
-                const builds = await res.json();
-                if (!builds || builds.length === 0) return;
+                const [res, statusRes] = await Promise.all([
+                    fetch('/api/prebuilt-plugins/' + assetId + '/latest', { headers }),
+                    fetch('/api/prebuilt-plugins/' + assetId + '/builds', { headers }),
+                ]);
+                const builds = res.ok ? await res.json() : [];
+                const results = statusRes.ok ? await statusRes.json() : [];
+                const failures = (results || []).filter(r => !r.ok);
+                if ((!builds || builds.length === 0) && failures.length === 0) return;
+                if (!builds || builds.length === 0) {
+                    container.innerHTML = buildFailuresHtml(failures);
+                    return;
+                }
 
                 const mine = await detectPlatform();
                 const own = builds.find(b => b.platform === mine);
@@ -822,7 +830,28 @@
                     + 'Installing from the editor picks the right one automatically, or builds from source when there is none. '
                     + 'On an engine you built from source yourself, use Download above for the source.</p>';
                 html += '</div>';
-                container.innerHTML = html;
+                container.innerHTML = html + (failures.length ? buildFailuresHtml(failures) : '');
+            }
+
+            // Platforms the engine's CI could not compile this plugin on. Everyone
+            // sees which; the compiler's output comes back only for the plugin's
+            // creator (and admins), so it is shown when present.
+            function buildFailuresHtml(failures) {
+                const esc = treeEsc;
+                const label = p => PLATFORM_LABELS[p] || p;
+                let html = '<div class="mt-2 p-3 rounded-xl bg-red-500/[0.04] border border-red-500/20">';
+                html += '<p class="text-xs font-semibold text-red-300 flex items-center gap-1.5"><i class="ph ph-warning"></i>Does not compile on '
+                    + esc(failures[0].engine_tag || 'the latest engine build') + '</p>';
+                for (const f of failures) {
+                    html += '<p class="text-[11px] text-zinc-400 mt-1.5"><span class="text-zinc-200">' + esc(label(f.platform)) + '</span>'
+                        + ' (v' + esc(f.plugin_version) + ')' + (f.summary ? ': ' + esc(f.summary) : '') + '</p>';
+                    if (f.log) {
+                        html += '<details class="mt-1"><summary class="text-[11px] text-zinc-500 cursor-pointer hover:text-zinc-300">Compiler output</summary>'
+                            + '<pre class="mt-1 p-2 rounded bg-black/40 text-[10px] text-zinc-300 overflow-x-auto max-h-64 whitespace-pre-wrap">' + esc(f.log) + '</pre></details>';
+                    }
+                }
+                html += '<p class="text-[11px] text-zinc-500 mt-2">Installing it on that engine build compiles it from source, which is expected to fail the same way.</p></div>';
+                return html;
             }
 
             async function loadAssetFiles(assetId, hasAccess) {
