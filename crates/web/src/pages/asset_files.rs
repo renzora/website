@@ -84,7 +84,7 @@ pub fn AssetFilesPage() -> impl IntoView {
                 if (entry.mime_type.startsWith('image/')) return 'ph-image text-purple-400';
                 if (entry.mime_type.startsWith('audio/')) return 'ph-music-note text-pink-400';
                 if (entry.mime_type.startsWith('video/')) return 'ph-video text-pink-400';
-                if (/\.(lua|rhai|rs|js|ts|py|wgsl|glsl|json|toml|ron|yaml|yml)$/.test(n))
+                if (/\.(lua|rhai|rs|js|ts|py|wgsl|wesl|glsl|json|toml|ron|yaml|yml)$/.test(n))
                     return 'ph-file-code text-zinc-500';
                 return 'ph-file text-zinc-600';
             }

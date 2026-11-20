@@ -59,7 +59,7 @@ pub fn UploadPage() -> impl IntoView {
                                     <p id="file-drop-label" class="text-sm text-zinc-500">"Drop a file or click to browse"</p>
                                     <p class="text-xs text-zinc-600 mt-2">"Accepted formats vary by category — max 50 MB"</p>
                                     <input type="file" id="w-file" class="hidden" onchange="previewMainFile(this)"
-                                        accept=".zip,.rar,.7z,.lua,.rhai,.rs,.wgsl,.glsl,.fbx,.obj,.gltf,.glb,.blend,.png,.jpg,.svg,.hdr,.exr,.mp4,.webm,.mov,.wav,.ogg,.mp3,.flac,.ttf,.otf,.json,.ron" />
+                                        accept=".zip,.rar,.7z,.lua,.rhai,.rs,.wesl,.wgsl,.glsl,.fbx,.obj,.gltf,.glb,.blend,.png,.jpg,.svg,.hdr,.exr,.mp4,.webm,.mov,.wav,.ogg,.mp3,.flac,.ttf,.otf,.json,.ron" />
                                 </div>
                                 <p id="download-name-hint" class="hidden text-xs text-zinc-600 mt-1.5"></p>
                             </div>

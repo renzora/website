@@ -523,7 +523,7 @@
                 if (e.mime_type.startsWith('image/')) return 'ph-image text-purple-400';
                 if (e.mime_type.startsWith('audio/')) return 'ph-music-note text-pink-400';
                 if (e.mime_type.startsWith('video/')) return 'ph-video text-pink-400';
-                if (/\.(lua|rhai|rs|js|ts|py|wgsl|glsl|json|toml|ron|ya?ml)$/i.test(e.name))
+                if (/\.(lua|rhai|rs|js|ts|py|wgsl|wesl|glsl|json|toml|ron|ya?ml)$/i.test(e.name))
                     return 'ph-file-code text-zinc-500';
                 return 'ph-file text-zinc-600';
             }

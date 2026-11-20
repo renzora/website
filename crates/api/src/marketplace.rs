@@ -1144,7 +1144,34 @@ async fn serve_asset_file(
         .ok_or(ApiError::NotFound)?;
 
     // For preview proxy, try to serve from asset_files first
-    let asset_files = AssetFile::list_by_asset(&state.db, id).await?;
+    let mut asset_files = AssetFile::list_by_asset(&state.db, id).await?;
+
+    // An install takes the current release's files, as `/download` does, and
+    // all of them. It used to serve only the first file, with no name: a shader
+    // listed with its README reached the editor as the README, which saved it
+    // under the listing's name with no extension, so it was neither recognised
+    // as a shader nor droppable on a post process. Several files now come as
+    // one zip, which the editor extracts by its `PK` magic; one file comes with
+    // its own name, so the extension survives.
+    if installing && asset.price_credits == 0 {
+        if let Some(release) = AssetRelease::resolve(&state.db, id, None).await? {
+            let files = AssetFile::list_by_release(&state.db, release.id).await?;
+            if !files.is_empty() {
+                asset_files = files;
+            }
+        }
+        if asset_files.len() > 1 {
+            let zip = zip_asset_files(&state, &asset_files).await?;
+            Asset::increment_downloads(&state.db, id).await?;
+            return Ok(axum::response::Response::builder()
+                .header("content-type", "application/zip")
+                .header("content-disposition", attachment_header(&format!("{}.zip", asset.slug)))
+                .header("cache-control", "no-store")
+                .body(axum::body::Body::from(zip))
+                .unwrap());
+        }
+    }
+    let filename = asset_files.first().map(|f| f.original_filename.clone());
 
     let (fetch_url, content_type_hint) = if let Some(first) = asset_files.first() {
         if asset.price_credits > 0 {
@@ -1211,16 +1238,19 @@ async fn serve_asset_file(
         Asset::increment_downloads(&state.db, id).await?;
     }
 
-    Ok(axum::response::Response::builder()
+    let mut response = axum::response::Response::builder()
         .header("content-type", content_type)
         // An install is a one-off fetch of the real file; only the preview is
         // worth caching for an hour.
         .header(
             "cache-control",
             if installing { "no-store" } else { "public, max-age=3600" },
-        )
-        .body(axum::body::Body::from(bytes))
-        .unwrap())
+        );
+    // The file's own name, so a client that reads it keeps the extension.
+    if let Some(name) = filename.filter(|n| !n.is_empty()) {
+        response = response.header("content-disposition", attachment_header(&name));
+    }
+    Ok(response.body(axum::body::Body::from(bytes)).unwrap())
 }
 
 /// Record a view of an asset from a client that never loads its web page.
@@ -2043,28 +2073,7 @@ async fn download_all_zip(
             .unwrap());
     }
 
-    // Build zip in memory from all files
-    let mut zip_buf = Vec::new();
-    {
-        let mut zip_writer = zip::ZipWriter::new(std::io::Cursor::new(&mut zip_buf));
-        let options = zip::write::SimpleFileOptions::default()
-            .compression_method(zip::CompressionMethod::Deflated);
-
-        for file in &files {
-            let file_bytes = fetch_file_from_storage(&state, &file.file_key).await?;
-            // Write the archive path, not just the filename, so the download
-            // unpacks with the same structure the creator uploaded.
-            zip_writer
-                .start_file(&file.path, options)
-                .map_err(|e| ApiError::Internal(format!("Zip write failed: {e}")))?;
-            std::io::Write::write_all(&mut zip_writer, &file_bytes)
-                .map_err(|e| ApiError::Internal(format!("Zip write failed: {e}")))?;
-        }
-
-        zip_writer
-            .finish()
-            .map_err(|e| ApiError::Internal(format!("Zip finalize failed: {e}")))?;
-    }
+    let zip_buf = zip_asset_files(&state, &files).await?;
 
     // Skipped when the caller already counted this install on `/download`; see
     // `ReleaseQuery::count`.
@@ -2092,6 +2101,44 @@ async fn download_all_zip(
         )
         .body(axum::body::Body::from(zip_buf))
         .unwrap())
+}
+
+/// Every file of an asset in one zip, built in memory. Shared by
+/// `/download-zip` and by `install-file`, which serves a multi-file asset this
+/// way rather than as its first file.
+async fn zip_asset_files(state: &AppState, files: &[AssetFile]) -> Result<Vec<u8>, ApiError> {
+    let mut zip_buf = Vec::new();
+    {
+        let mut zip_writer = zip::ZipWriter::new(std::io::Cursor::new(&mut zip_buf));
+        let options = zip::write::SimpleFileOptions::default()
+            .compression_method(zip::CompressionMethod::Deflated);
+
+        for file in files {
+            let file_bytes = fetch_file_from_storage(state, &file.file_key).await?;
+            // Write the archive path, not just the filename, so the download
+            // unpacks with the same structure the creator uploaded.
+            zip_writer
+                .start_file(&file.path, options)
+                .map_err(|e| ApiError::Internal(format!("Zip write failed: {e}")))?;
+            std::io::Write::write_all(&mut zip_writer, &file_bytes)
+                .map_err(|e| ApiError::Internal(format!("Zip write failed: {e}")))?;
+        }
+
+        zip_writer
+            .finish()
+            .map_err(|e| ApiError::Internal(format!("Zip finalize failed: {e}")))?;
+    }
+    Ok(zip_buf)
+}
+
+/// A `content-disposition` header value naming `filename`, with the
+/// characters that would end or break the quoted string taken out.
+fn attachment_header(filename: &str) -> String {
+    let safe: String = filename
+        .chars()
+        .filter(|c| !matches!(c, '"' | '\\' | '\r' | '\n'))
+        .collect();
+    format!("attachment; filename=\"{safe}\"")
 }
 
 // ── Private storage and presigned URL helpers ──
@@ -2775,7 +2822,9 @@ fn mime_from_extension(filename: &str) -> String {
         "flac" => "audio/flac",
         "aac" => "audio/aac",
         "zip" => "application/zip",
-        "wgsl" => "text/plain",
+        // WESL is the engine's shader format since Bevy 0.20; WGSL is the older
+        // one it still loads.
+        "wgsl" | "wesl" => "text/plain",
         "glb" | "gltf" => "model/gltf-binary",
         "fbx" => "application/octet-stream",
         "obj" => "model/obj",
@@ -2875,7 +2924,7 @@ fn language_for(path: &str) -> Option<&'static str> {
         // Rhai is Rust-shaped, and reads far better highlighted as Rust than
         // as nothing at all.
         "rhai" => "rust",
-        "wgsl" | "glsl" | "vert" | "frag" => "glsl",
+        "wgsl" | "wesl" | "glsl" | "vert" | "frag" => "glsl",
         "js" | "mjs" | "cjs" => "javascript",
         "ts" | "tsx" | "jsx" => "typescript",
         "py" => "python",
@@ -4055,6 +4104,7 @@ mod tests {
             sort_order: 0,
             archived: false,
             text_content: None,
+            blob_sha: None,
             created_at: time::OffsetDateTime::UNIX_EPOCH,
         }
     }
@@ -4255,6 +4305,7 @@ mod tests {
         assert_eq!(language_for("src/main.lua"), Some("lua"));
         assert_eq!(language_for("build.rs"), Some("rust"));
         assert_eq!(language_for("shader.wgsl"), Some("glsl"));
+        assert_eq!(language_for("rain.wesl"), Some("glsl"));
         assert_eq!(language_for("Dockerfile"), Some("dockerfile"));
         assert_eq!(language_for("model.glb"), None);
     }
@@ -4268,6 +4319,7 @@ mod tests {
             notes: String::new(),
             is_current: true,
             downloads: 0,
+            min_engine_version: None,
             created_at: time::OffsetDateTime::UNIX_EPOCH,
         };
         assert_eq!(release_query_for(&r), "");
