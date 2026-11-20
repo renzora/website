@@ -1153,7 +1153,7 @@ async fn delete_badge(
 
 // ── Helper ──
 
-async fn verify_admin(state: &AppState, user_id: Uuid) -> Result<(), ApiError> {
+pub(crate) async fn verify_admin(state: &AppState, user_id: Uuid) -> Result<(), ApiError> {
     // Check legacy role column OR permission-based roles
     let user = User::find_by_id(&state.db, user_id).await?.ok_or(ApiError::NotFound)?;
     if user.role == "admin" { return Ok(()); }

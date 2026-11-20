@@ -12,6 +12,7 @@ pub mod gameservices;
 pub mod jwt;
 pub mod markdown;
 pub mod marketplace;
+pub mod prebuilt;
 pub mod preview;
 pub mod middleware;
 pub mod profiles;
@@ -46,6 +47,7 @@ pub fn api_router(state: AppState) -> Router {
     Router::new()
         .nest("/auth", auth::router())
         .nest("/marketplace", marketplace::router())
+        .nest("/prebuilt-plugins", prebuilt::router())
         .nest("/waitlist", waitlist::router())
         .nest("/gameservices", gameservices::router())
         .nest("/credits", credits::router())

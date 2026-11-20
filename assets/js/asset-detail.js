@@ -382,6 +382,10 @@
                                     <a href="/login" class="block w-full mt-4 px-4 py-3 rounded-xl text-sm font-semibold bg-accent text-white hover:bg-accent-hover transition-all text-center">Sign in to purchase</a>
                                 `}
 
+                                <!-- Prebuilt plugin binaries, filled in by
+                                     loadPrebuilts for a plugin that has any. -->
+                                <div id="asset-prebuilts" class="mt-4"></div>
+
                                 <!-- Asset Files List -->
                                 <div id="asset-files-list" class="mt-4"></div>
 
@@ -491,6 +495,9 @@
 
                 // Fetch and render asset files list
                 loadAssetFiles(a.id, a.owned || isCreator || a.price_credits === 0);
+                if (a.category === 'plugins' || a.category === 'plugin') {
+                    loadPrebuilts(a.id, a.owned || isCreator || a.price_credits === 0);
+                }
 
                 // Repository view: file tree, rendered README, release history
                 loadAssetTree(a);
@@ -745,6 +752,77 @@
                 if (mime.includes('zip')) return 'ph-file-zip';
                 if (mime.includes('gltf') || mime.includes('model')) return 'ph-cube';
                 return 'ph-file';
+            }
+
+            // ── Prebuilt plugin binaries ─────────────────────────────────
+            // The engine's CI compiles first-party plugins for each nightly and
+            // release. The editor picks the binary for its exact build itself;
+            // this section is for someone fetching one by hand, so it leads
+            // with the visitor's own platform.
+            const PLATFORM_LABELS = {
+                'windows-x64': 'Windows', 'windows-arm64': 'Windows (ARM)',
+                'macos-arm64': 'macOS (Apple Silicon)', 'macos-x64': 'macOS (Intel)',
+                'linux-x64': 'Linux', 'linux-arm64': 'Linux (ARM)',
+            };
+
+            // The visitor's platform in the engine's naming. A browser does not
+            // say a Mac's chip outright, so a Mac without the high-entropy hint
+            // is taken to be Apple Silicon, which every Mac since 2020 is.
+            async function detectPlatform() {
+                const ua = navigator.userAgent || '';
+                const hint = navigator.userAgentData;
+                const name = ((hint && hint.platform) || navigator.platform || '').toLowerCase();
+                let os = null;
+                if (name.includes('win') || ua.includes('Windows')) os = 'windows';
+                else if (name.includes('mac') || ua.includes('Mac OS')) os = 'macos';
+                else if (name.includes('linux') || ua.includes('Linux')) os = 'linux';
+                if (!os) return null;
+                let arch = /arm|aarch64/i.test(ua) ? 'arm64' : 'x64';
+                if (hint && hint.getHighEntropyValues) {
+                    try {
+                        const v = await hint.getHighEntropyValues(['architecture']);
+                        if (v.architecture) arch = v.architecture.startsWith('arm') ? 'arm64' : 'x64';
+                    } catch (_) {}
+                } else if (os === 'macos') {
+                    arch = 'arm64';
+                }
+                return os + '-' + arch;
+            }
+
+            async function loadPrebuilts(assetId, hasAccess) {
+                const container = document.getElementById('asset-prebuilts');
+                if (!container || !hasAccess) return;
+                const token = document.cookie.match('(^|;)\\s*token\\s*=\\s*([^;]+)')?.pop();
+                const headers = token ? { 'Authorization': 'Bearer ' + token } : {};
+                const res = await fetch('/api/prebuilt-plugins/' + assetId + '/latest', { headers });
+                if (!res.ok) return;
+                const builds = await res.json();
+                if (!builds || builds.length === 0) return;
+
+                const mine = await detectPlatform();
+                const own = builds.find(b => b.platform === mine);
+                const others = builds.filter(b => b !== own);
+                const label = p => PLATFORM_LABELS[p] || p;
+                const size = b => fmtFileSize(b.size);
+                const escapeHtml = treeEsc;
+                const tag = builds[0].engine_tag ? escapeHtml(builds[0].engine_tag) : 'the latest engine build';
+
+                let html = '<div class="p-3 rounded-xl bg-white/[0.02] border border-zinc-800/50">';
+                html += '<p class="text-xs font-semibold text-zinc-300 flex items-center gap-1.5"><i class="ph ph-package text-accent"></i>Prebuilt for ' + tag + '</p>';
+                if (own) {
+                    html += '<a href="' + own.download_url + '" class="w-full mt-2 px-4 py-2.5 rounded-xl text-sm font-medium bg-white/[0.04] border border-zinc-700/60 text-zinc-100 hover:border-zinc-500 transition-all flex items-center justify-center gap-2">'
+                        + '<i class="ph ph-download-simple"></i>Download for ' + escapeHtml(label(own.platform)) + ' <span class="text-zinc-500 text-xs">' + size(own) + '</span></a>';
+                }
+                if (others.length) {
+                    html += '<p class="text-[11px] text-zinc-500 mt-2">' + (own ? 'Also for ' : 'For ') + others
+                        .map(b => '<a class="text-zinc-300 hover:text-white underline-offset-2 hover:underline" href="' + b.download_url + '">' + escapeHtml(label(b.platform)) + '</a>')
+                        .join(', ') + '</p>';
+                }
+                html += '<p class="text-[11px] text-zinc-500 mt-2 leading-relaxed">A prebuilt runs only on the engine build it was made for. '
+                    + 'Installing from the editor picks the right one automatically, or builds from source when there is none. '
+                    + 'On an engine you built from source yourself, use Download above for the source.</p>';
+                html += '</div>';
+                container.innerHTML = html;
             }
 
             async function loadAssetFiles(assetId, hasAccess) {

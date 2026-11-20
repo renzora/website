@@ -928,7 +928,7 @@ async fn update_asset_files(
 /// not; a paid asset requires a signed-in user who owns it. The creator can
 /// always fetch their own asset, which is also the only way to reach one that
 /// is still unpublished — anonymous downloads must not expose drafts.
-fn authorize_download(asset: &Asset, auth: &Option<AuthUser>, owns: bool) -> Result<(), ApiError> {
+pub(crate) fn authorize_download(asset: &Asset, auth: &Option<AuthUser>, owns: bool) -> Result<(), ApiError> {
     let is_creator = auth.as_ref().is_some_and(|u| asset.creator_id == u.user_id);
     if is_creator {
         return Ok(());
@@ -2215,7 +2215,7 @@ async fn upload_bytes_to_key(
 /// is correct: the bytes are the same bytes. Access is decided by the
 /// `asset_files` row pointing at the blob, never by the blob itself, so sharing
 /// storage shares nothing else.
-async fn store_blob(
+pub(crate) async fn store_blob(
     state: &AppState,
     asset_id: Uuid,
     filename: &str,
@@ -2279,7 +2279,7 @@ async fn release_file_storage(state: &AppState, file: &AssetFile) {
 }
 
 /// Generate a presigned download URL for a private S3 key (5-minute expiry).
-async fn generate_presigned_url(state: &AppState, key: &str) -> Result<String, ApiError> {
+pub(crate) async fn generate_presigned_url(state: &AppState, key: &str) -> Result<String, ApiError> {
     if let Some(bucket) = &state.s3_bucket {
         bucket
             .presign_get(key, 300, None)
