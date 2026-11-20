@@ -44,7 +44,7 @@ pub fn App() -> impl IntoView {
         <Meta property="og:type" content="website" />
         <Meta property="og:site_name" content="Renzora" />
         <Meta property="og:title" content="Download Renzora, Open Source Bevy Editor & Game Engine" />
-        <Meta property="og:description" content="A free, open-source Bevy editor and game engine, full 2D & 3D scene tooling, scripting, plugins, physics and real-time rendering, built in Rust on Bevy 0.19." />
+        <Meta property="og:description" content="A free, open-source Bevy editor and game engine, full 2D & 3D scene tooling, scripting, plugins, physics and real-time rendering, built in Rust on Bevy 0.20." />
         <Meta property="og:image" content="https://renzora.com/assets/previews/og.jpg" />
         <Meta property="og:url" content="https://renzora.com/" />
 

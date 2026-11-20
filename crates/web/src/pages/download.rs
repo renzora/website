@@ -23,9 +23,9 @@ pub fn DownloadPage() -> impl IntoView {
                 <h1 class="dl-hero-title text-5xl md:text-6xl lg:text-7xl font-extrabold tracking-tight leading-[1.05]">
                     "Renzora Engine"
                 </h1>
-                <p class="dl-hero-sub mt-4 text-sm text-zinc-500 uppercase tracking-widest font-medium">"Powered by Rust & Bevy 0.19"</p>
+                <p class="dl-hero-sub mt-4 text-sm text-zinc-500 uppercase tracking-widest font-medium">"Powered by Rust & Bevy 0.20"</p>
                 <p class="dl-hero-sub mt-5 text-lg md:text-xl text-zinc-300 leading-relaxed max-w-2xl mx-auto">
-                    "The first fully-featured game engine built on Bevy. Get the editor for Windows, macOS, and Linux, or clone the repo and build it with Cargo in minutes."
+                    "The first ever game engine built on Bevy. Get the editor for Windows, macOS, and Linux, or clone the repo and build it with Cargo in minutes."
                 </p>
 
                 <div class="mt-10 flex gap-3 justify-center flex-wrap">
@@ -132,19 +132,22 @@ pub fn DownloadPage() -> impl IntoView {
                 </div>
 
                 <p class="text-xs text-zinc-500 mb-5">
-                    <span id="dl-release-label">"Latest stable release: "</span>
-                    <span id="dl-release-tag" class="text-zinc-300">"r1-alpha7"</span>
+                    <span id="dl-release-label">"Latest release: "</span>
+                    <span id="dl-release-tag" class="text-zinc-300">"resolving…"</span>
                     <span id="dl-release-note" class="text-zinc-600"></span>
                 </p>
 
                 // One card per platform; the build (editor/runtime, architecture)
-                // is picked from the card's dropdown. Options are server-rendered
-                // for the stable channel so the page works without JS, and swapped
-                // out by `dlRender` when the channel changes.
+                // is picked from the card's dropdown. Which release each channel
+                // points at, and which builds it has, is asked of GitHub on load
+                // (`dlResolve`), never written into the page: a hard-coded stable
+                // tag kept linking to r1-alpha7 after that release was withdrawn.
+                // Without JS every button opens the releases list, which is
+                // always there.
                 <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                     <DownloadCard platform="windows" name="Windows" icon="ph-windows-logo" opt_label="Editor · x64" opt_asset="windows-x64.zip" />
-                    <DownloadCard platform="macos" name="macOS" icon="ph-apple-logo" opt_label="Editor · Apple Silicon" opt_asset="macos-arm64.zip" />
-                    <DownloadCard platform="linux" name="Linux" icon="ph-linux-logo" opt_label="Editor · ARM64" opt_asset="linux-arm64.zip" />
+                    <DownloadCard platform="macos" name="macOS" icon="ph-apple-logo" opt_label="Editor · Apple Silicon" opt_asset="macos-arm64.dmg" />
+                    <DownloadCard platform="linux" name="Linux" icon="ph-linux-logo" opt_label="Editor · x64" opt_asset="linux-x64.zip" />
                     <DownloadCard platform="web" name="Web" icon="ph-globe" opt_label="" opt_asset="" />
                 </div>
 
@@ -300,50 +303,55 @@ pub fn DownloadPage() -> impl IntoView {
             document.addEventListener('keydown', function(e) { if (e.key === 'Escape') dlClose(); });
 
             // ── Download channel + per-platform build picker ──
-            // Which builds each channel ships, per platform: [asset, label].
-            // Stable only publishes three editor builds; the full architecture
-            // matrix and the runtime bundles are nightly-only.
+            // Every build a release may carry, per platform: [asset, label]. A
+            // channel shows only the ones its release actually has, read from
+            // the release's asset list, so a release that skipped a platform
+            // never offers a dead link.
+            //
+            // Editors only: the runtimes (`renzora-runtime-*`) are the export
+            // templates, and the editor fetches the one it needs when it exports
+            // a game, so nobody has to download them by hand. macOS ships as a
+            // .dmg (the signed app bundle), not a .zip.
             var DL_BUILDS = {
-                stable: {
-                    windows: [['windows-x64.zip', 'Editor · x64']],
-                    macos:   [['macos-arm64.zip', 'Editor · Apple Silicon']],
-                    linux:   [['linux-arm64.zip', 'Editor · ARM64']],
-                    web:     []
-                },
-                nightly: {
-                    windows: [
-                        ['windows-x64.zip', 'Editor · x64'],
-                        ['windows-arm64.zip', 'Editor · ARM64'],
-                        ['renzora-runtime-windows-x64.zip', 'Runtime · x64'],
-                        ['renzora-runtime-windows-arm64.zip', 'Runtime · ARM64']
-                    ],
-                    macos: [
-                        ['macos-arm64.zip', 'Editor · Apple Silicon'],
-                        ['macos-x64.zip', 'Editor · Intel x64'],
-                        ['renzora-runtime-macos-arm64.zip', 'Runtime · Apple Silicon'],
-                        ['renzora-runtime-macos-x64.zip', 'Runtime · Intel x64']
-                    ],
-                    linux: [
-                        ['linux-x64.zip', 'Editor · x64'],
-                        ['linux-arm64.zip', 'Editor · ARM64'],
-                        ['renzora-runtime-linux-x64.zip', 'Runtime · x64'],
-                        ['renzora-runtime-linux-arm64.zip', 'Runtime · ARM64']
-                    ],
-                    web: [
-                        ['web-wasm32.zip', 'Editor · wasm32'],
-                        ['renzora-runtime-web-wasm32.zip', 'Runtime · wasm32'],
-                        ['engine-source.zip', 'Engine source']
-                    ]
-                }
+                windows: [
+                    ['windows-x64.zip', 'Editor · x64'],
+                    ['windows-arm64.zip', 'Editor · ARM64']
+                ],
+                macos: [
+                    ['macos-arm64.dmg', 'Editor · Apple Silicon'],
+                    ['macos-x64.dmg', 'Editor · Intel x64']
+                ],
+                linux: [
+                    ['linux-x64.zip', 'Editor · x64'],
+                    ['linux-arm64.zip', 'Editor · ARM64']
+                ],
+                web: [
+                    ['web-wasm32.zip', 'Editor · wasm32'],
+                    ['engine-source.zip', 'Engine source']
+                ]
             };
             var DL_RELEASES = 'https://github.com/renzora/engine/releases';
-            var DL_TAGS = { stable: 'r1-alpha7', nightly: null };
+            // Per channel, once resolved: { tag, assets: [names] }, or null when
+            // GitHub has no such release (no stable has been published yet, or
+            // the lookup failed).
+            var DL_REL = { stable: null, nightly: null };
+            var DL_TAGS = { stable: null, nightly: null };
             var dlChannelName = 'stable';
+            var dlResolved = false;
 
             function dlAssetUrl(asset) {
                 var tag = DL_TAGS[dlChannelName];
                 if (!tag || !asset) return DL_RELEASES;
                 return DL_RELEASES + '/download/' + tag + '/' + asset;
+            }
+
+            function dlBuildsFor(ch) {
+                var rel = DL_REL[ch];
+                var out = {};
+                Object.keys(DL_BUILDS).forEach(function(p) {
+                    out[p] = rel ? DL_BUILDS[p].filter(function(b) { return rel.assets.indexOf(b[0]) >= 0; }) : [];
+                });
+                return out;
             }
 
             // Keep a card's button in step with its dropdown.
@@ -354,7 +362,10 @@ pub fn DownloadPage() -> impl IntoView {
             }
 
             function dlRender() {
-                var builds = DL_BUILDS[dlChannelName] || {};
+                // Before the lookup answers, leave the server-rendered cards
+                // (which link to the releases list) as they are.
+                if (!dlResolved) return;
+                var builds = dlBuildsFor(dlChannelName);
                 document.querySelectorAll('[data-dl-select]').forEach(function(sel) {
                     var platform = sel.getAttribute('data-dl-select');
                     var opts = builds[platform] || [];
@@ -404,52 +415,65 @@ pub fn DownloadPage() -> impl IntoView {
                 var label = document.getElementById('dl-release-label');
                 var tagEl = document.getElementById('dl-release-tag');
                 var note = document.getElementById('dl-release-note');
+                var shown = dlResolved ? (DL_TAGS[ch] || 'see all releases') : 'resolving…';
                 if (nightly) {
                     if (label) label.textContent = 'Latest nightly: ';
-                    if (tagEl) tagEl.textContent = DL_TAGS.nightly || 'resolving…';
                     if (note) note.textContent = ' · built from main, expect breakage';
-                    dlResolveNightly();
                 } else {
                     if (label) label.textContent = 'Latest stable release: ';
-                    if (tagEl) tagEl.textContent = DL_TAGS.stable;
                     if (note) note.textContent = '';
                 }
+                if (tagEl) tagEl.textContent = shown;
                 dlRender();
             }
 
-            // Nightlies are tagged per-day, so the tag can't be baked into the page.
-            // Resolve the newest pre-release once per tab; on any failure the cards
-            // fall back to the releases list, which still gets people somewhere.
-            var nightlyPending = false;
-            async function dlResolveNightly() {
-                if (DL_TAGS.nightly || nightlyPending) return;
-                nightlyPending = true;
-                var tag = null;
-                try { tag = sessionStorage.getItem('renzora_nightly_tag'); } catch (e) {}
-                if (!tag) {
+            // Both channels' releases from one lookup, cached for the tab: the
+            // newest published full release is stable, the newest pre-release is
+            // nightly. With no usable stable release on GitHub (none published
+            // yet, or the last one withdrawn) the Stable button is disabled and the page
+            // opens on the nightly, rather than offering links that 404.
+            async function dlResolve() {
+                var data = null;
+                try { data = JSON.parse(sessionStorage.getItem('renzora_releases') || 'null'); } catch (e) {}
+                if (!data) {
                     try {
-                        var res = await fetch('https://api.github.com/repos/renzora/engine/releases?per_page=20');
+                        var res = await fetch('https://api.github.com/repos/renzora/engine/releases?per_page=30');
                         if (!res.ok) throw new Error('releases lookup failed');
-                        var list = await res.json();
-                        var latest = (list || []).find(function(r) { return r.prerelease && !r.draft; });
-                        if (!latest) throw new Error('no pre-release found');
-                        tag = latest.tag_name;
-                        try { sessionStorage.setItem('renzora_nightly_tag', tag); } catch (e) {}
+                        var list = (await res.json()) || [];
+                        // A release counts only when it carries an editor we
+                        // offer: a withdrawn release can stay on GitHub with its
+                        // files deleted (r1-alpha7 did), and must be skipped.
+                        var known = [];
+                        Object.keys(DL_BUILDS).forEach(function(p) {
+                            DL_BUILDS[p].forEach(function(b) { known.push(b[0]); });
+                        });
+                        var usable = function(r) {
+                            return (r.assets || []).some(function(a) { return known.indexOf(a.name) >= 0; });
+                        };
+                        var pick = function(pre) {
+                            var r = list.find(function(r) { return !r.draft && !!r.prerelease === pre && usable(r); });
+                            return r ? { tag: r.tag_name, assets: (r.assets || []).map(function(a) { return a.name; }) } : null;
+                        };
+                        data = { stable: pick(false), nightly: pick(true) };
+                        try { sessionStorage.setItem('renzora_releases', JSON.stringify(data)); } catch (e) {}
                     } catch (e) {
                         var t = document.getElementById('dl-release-tag');
                         if (t) t.textContent = 'see all releases';
-                        nightlyPending = false;   // allow a retry on the next switch
                         return;
                     }
                 }
-                DL_TAGS.nightly = tag;
-                nightlyPending = false;
-                if (dlChannelName === 'nightly') {
-                    var t2 = document.getElementById('dl-release-tag');
-                    if (t2) t2.textContent = tag;
-                    dlRender();
+                DL_REL = data;
+                DL_TAGS = { stable: data.stable && data.stable.tag, nightly: data.nightly && data.nightly.tag };
+                dlResolved = true;
+                var stableBtn = document.getElementById('ch-stable');
+                if (!data.stable && stableBtn) {
+                    stableBtn.disabled = true;
+                    stableBtn.title = 'No stable release yet';
+                    stableBtn.classList.add('opacity-40', 'cursor-not-allowed');
                 }
+                dlChannel(data.stable ? 'stable' : 'nightly');
             }
+            dlResolve();
             "#
         </script>
 
@@ -595,9 +619,11 @@ pub fn DownloadPage() -> impl IntoView {
 }
 
 /// One platform's download card. `opt_label`/`opt_asset` seed the dropdown with
-/// that platform's stable build so the card is usable before (or without) JS;
-/// `dlRender` replaces the options when the channel changes. An empty
-/// `opt_asset` means the platform has no build on the stable channel.
+/// the platform's usual build for the first paint; `dlRender` replaces the
+/// options once GitHub has said which release each channel is and what it
+/// carries. Until then (and without JS) the button opens the releases list,
+/// since no tag written here can be trusted to still exist. An empty
+/// `opt_asset` means the platform has no build on the default channel.
 #[component]
 fn DownloadCard(
     platform: &'static str,
@@ -614,11 +640,7 @@ fn DownloadCard(
         "relative p-5 bg-white/[0.02] border border-zinc-800/50 rounded-xl flex flex-col items-center gap-3 text-center transition-all hover:border-accent/40 hover:bg-white/[0.04]{}",
         if available { "" } else { " opacity-40" }
     );
-    let href = if available {
-        format!("https://github.com/renzora/engine/releases/download/r1-alpha7/{opt_asset}")
-    } else {
-        "https://github.com/renzora/engine/releases".to_string()
-    };
+    let href = "https://github.com/renzora/engine/releases";
     view! {
         <div data-dl-card=platform class=card_class>
             <div class="w-12 h-12 rounded-2xl bg-white/[0.03] border border-zinc-800/30 flex items-center justify-center">

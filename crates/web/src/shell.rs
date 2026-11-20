@@ -87,7 +87,7 @@ pub fn Shell() -> impl IntoView {
                 <meta name="theme-color" content="#0b0617" />
                 <meta name="twitter:card" content="summary_large_image" />
                 <meta name="twitter:title" content="Renzora, Open Source Bevy Editor & Game Engine" />
-                <meta name="twitter:description" content="A free, open-source Bevy editor and game engine, built in Rust on Bevy 0.19." />
+                <meta name="twitter:description" content="A free, open-source Bevy editor and game engine, built in Rust on Bevy 0.20." />
                 <meta name="twitter:image" content=og_image />
                 <script type="application/ld+json" inner_html=json_ld></script>
 
