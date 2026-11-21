@@ -56,13 +56,21 @@ if [ -z "$TAG" ]; then
     exit 1
 fi
 
-BUILD="$DEST/builds/$TAG"
+# A build is named for its tag AND the zip's checksum, not the tag alone: a
+# nightly that is rebuilt keeps its tag (the engine replaces a same-day nightly
+# rather than inventing a suffix), so a tag-only name said "already live" and
+# kept serving the old wasm after a fix had shipped. A new name per checksum
+# also means a rebuild never deletes the directory `current` points at.
+SUM=$(curl -sfL "https://github.com/$REPO/releases/download/$TAG/SHA256SUMS" \
+      | grep -E " (\./)?$ASSET\$" | cut -c1-12 || true)
+NAME="$TAG${SUM:+-$SUM}"
+BUILD="$DEST/builds/$NAME"
 
 # Skip a re-fetch of a build that is already live. The dispatch and a deploy can
 # land within a minute of each other, and pulling 52 MB twice to write the same
-# bytes is pure waste.
-if [ "$(readlink "$DEST/current" 2>/dev/null || true)" = "builds/$TAG" ] && [ -d "$BUILD" ]; then
-    echo "engine wasm already at $TAG — nothing to do"
+# bytes is pure waste. Without a checksum there is no way to tell, so fetch.
+if [ -n "$SUM" ] && [ "$(readlink "$DEST/current" 2>/dev/null || true)" = "builds/$NAME" ] && [ -d "$BUILD" ]; then
+    echo "engine wasm already at $NAME, nothing to do"
     exit 0
 fi
 
@@ -126,7 +134,7 @@ mv "$STAGE/tree" "$BUILD"
 
 # Atomic publish: `ln -T` onto a temp name, then rename it over `current`. A
 # plain `ln -sfn` unlinks first, which leaves a window where /engine 404s.
-ln -sfn "builds/$TAG" "$DEST/.current.$$"
+ln -sfn "builds/$NAME" "$DEST/.current.$$"
 mv -T "$DEST/.current.$$" "$DEST/current"
 
 # One build is ~260 MB with its .gz/.br companions, so old ones do not stay.
@@ -137,4 +145,4 @@ for old in "$DEST"/builds/*; do
     rm -rf "$old"
 done
 
-echo "engine wasm now at $TAG ($(du -sh "$BUILD" | cut -f1))"
+echo "engine wasm now at $NAME ($(du -sh "$BUILD" | cut -f1))"
