@@ -434,7 +434,7 @@ pub fn DownloadPage() -> impl IntoView {
             // opens on the nightly, rather than offering links that 404.
             async function dlResolve() {
                 var data = null;
-                try { data = JSON.parse(sessionStorage.getItem('renzora_releases') || 'null'); } catch (e) {}
+                try { data = JSON.parse(sessionStorage.getItem('renzora_releases_v2') || 'null'); } catch (e) {}
                 if (!data) {
                     try {
                         var res = await fetch('https://api.github.com/repos/renzora/engine/releases?per_page=30');
@@ -455,7 +455,21 @@ pub fn DownloadPage() -> impl IntoView {
                             return r ? { tag: r.tag_name, assets: (r.assets || []).map(function(a) { return a.name; }) } : null;
                         };
                         data = { stable: pick(false), nightly: pick(true) };
-                        try { sessionStorage.setItem('renzora_releases', JSON.stringify(data)); } catch (e) {}
+                        // Stable must be current: the nightly's own version or
+                        // the one just before it (r1-alpha8 while nightlies are
+                        // r1-alpha8 or r1-alpha9). Anything older is not offered,
+                        // even when it is the newest release that has files:
+                        // with r1-alpha7 withdrawn that was r1-alpha6, and
+                        // nobody should be handed an engine two versions behind.
+                        var ver = function(tag) {
+                            var m = /^r(\d+)-alpha(\d+)/.exec(tag || '');
+                            return m ? Number(m[1]) * 1000 + Number(m[2]) : null;
+                        };
+                        if (data.stable && data.nightly) {
+                            var s = ver(data.stable.tag), n = ver(data.nightly.tag);
+                            if (s !== null && n !== null && s < n - 1) data.stable = null;
+                        }
+                        try { sessionStorage.setItem('renzora_releases_v2', JSON.stringify(data)); } catch (e) {}
                     } catch (e) {
                         var t = document.getElementById('dl-release-tag');
                         if (t) t.textContent = 'see all releases';
