@@ -179,17 +179,58 @@ What it strips/changes versus the copy modes:
 - On Windows it also static-links the MSVC runtime (no `VCRUNTIME140.dll`
   dependency), which is safe here precisely because a lean binary has no dynamic
   plugin ABI to preserve.
+- **No plugin loader, no script compiler, no live link.** A static binary cannot
+  load a plugin or a script library from disk, so it carries neither the loader
+  nor the compiler behind them: the plugins you ship and your Rust scripts are
+  compiled into it instead. The live link, which only serves a game Play starts,
+  is left out too.
+
+### Watching the build in a console
+
+A lean build compiles in a terminal window of its own, so you see cargo as it
+shows itself, with colours and the live progress bar. While any export runs, the
+export dialog shrinks to a small card showing **Exporting project…** and the step
+it is on, with one **Cancel**. When it ends, the card says where the export went
+(or why it failed), the export's folder opens in your file manager, and the card
+offers **Open folder**, **Back** (to the settings) and **Close**. **Copy log**
+copies everything the export printed. The editor viewport pauses while the
+export dialog is open, as it does while a game runs, so the build is not
+competing with a scene nobody can see under the dialog.
+
+The window closes by itself when the build succeeds and stays open after a
+failure, so the errors are still there to read. **Cancel** in the dialog stops
+the build either way. Closing the window yourself mid-build fails the export.
+
+- **Windows** opens a console window (in Windows Terminal, if that is your
+  default terminal).
+- **macOS** opens Terminal. Depending on your Terminal profile, the window may
+  stay open after a successful build, marked *Process completed*.
+- **Linux** opens `$TERMINAL` if you have set it, otherwise the first of
+  `x-terminal-emulator`, `gnome-terminal`, `konsole`, `xfce4-terminal`, `kitty`,
+  `alacritty`, `wezterm`, `foot` and `xterm` that is installed. With no desktop
+  (an SSH session) or no terminal found, the build runs in the dialog instead and
+  the dialog says why.
+
+It is on by default. Turn off **Show the build in a console** under the
+packaging mode to build inside the dialog instead, which also shows cargo's
+output when the build fails. The choice is saved with the preset.
 
 ### It needs a Rust toolchain — installed automatically
 
 Because it compiles, lean mode needs `cargo`. If Rust is already on your `PATH`
 it's used directly. If not — e.g. on a canonical editor release where the user has
 no Rust — the editor **provisions `rustup` automatically** into a private cache
-beside the editor (its own `CARGO_HOME`/`RUSTUP_HOME`, the pinned toolchain,
-minimal profile). This **never touches your global environment** or any existing
-Rust install, and the toolchain is reused on later exports. The first lean export
-therefore does a one-time toolchain download plus a full from-scratch compile, so
-it takes several minutes; subsequent ones are incremental.
+at `~/.renzora/toolchain` (its own `CARGO_HOME`/`RUSTUP_HOME`, the toolchain
+`rust-toolchain.toml` pins, minimal profile). This **never touches your global
+environment** or any existing Rust install. The cache is per user, not inside the
+editor's folder, so it is reused across exports and across editor updates, and
+its crates.io cache comes along with it. The first lean export therefore does a
+one-time toolchain download plus a full from-scratch compile, so it takes several
+minutes; subsequent ones are incremental.
+
+The first lean export needs an internet connection: for the engine source, for
+Rust when it has to be provisioned, and for the crates the engine depends on.
+Later exports reuse all three.
 
 ### Where a lean build runs
 
@@ -211,7 +252,10 @@ for a compile the host can already do.
 
 Every lean build needs the **engine source**, which is what the mode recompiles.
 A canonical editor download does not ship it; the Packaging tab offers a
-**Download engine source** button when that is what is missing.
+**Download engine source** button when that is what is missing. It installs
+into `~/.renzora/src/<version>/` with a note of the release it came from, and
+it has to be the source of this exact editor: after you update to a newer
+nightly the button comes back, and downloading again replaces the old tree.
 
 ### Plugins
 
@@ -383,6 +427,12 @@ isn't. Subsystems a script can reach without naming a type are matched on the
 script API instead — a Lua file calling `play_sound` keeps audio, one calling
 `parkour_jump` keeps the traversal controller.
 
+A few features ride on others or on one component. **IK**, constraints and spring
+bones belong to **Skeletal animation**: an IK component in a scene or an IK call in
+a script keeps animation on, and a game without either drops both. **Planar
+reflections** (mirrors) are their own toggle, kept exactly when a scene has a
+`PlanarReflection`.
+
 The scan runs on **every** fresh open, so editing a scene and re-opening the
 dialog changes what it offers — saved presets included. A preset stores the
 platform, packaging, output path, window settings and plugin choice; the feature
@@ -406,13 +456,24 @@ switch for the whole section and a count of how many of its features are on.
 Outside a lean build none of this applies, and the tab says so at the top with a
 **Use lean build** button.
 
+**A camera on its own is not evidence.** Every scene camera carries the effects
+the camera preset gives it (bloom, anti-aliasing, a tonemapping curve, contact
+shadows), and UI is drawn after all of them. So 3D rendering, 2D sprites, the
+post-process stack and the tonemapping tables need something in the world for
+the camera to draw: a mesh, a sprite, a 2D node, a model file, a physics body, a
+subsystem that draws (terrain, sky, particles, tilemaps), or a script call that
+spawns one (`spawn_entity`, `spawn_model`, `spawn_primitive`,
+`spawn_scene_instance`). A project whose scenes hold only UI and cameras exports
+with all of them off.
+
 Three things it deliberately won't decide, because "no evidence" isn't the same
 as "not used":
 
-- **A project with no scenes** — everything falls back to the engine defaults, so
+- **A project with no scenes**: everything falls back to the engine defaults, so
   a freshly created project doesn't export as an empty shell.
-- **A project with no renderer in evidence** (a pure-UI menu, say) keeps *both*
-  pipelines. A game a few MB larger beats a game that can't draw.
+- **World content with no pipeline in evidence** (a script building its level
+  from calls the scan can't place) keeps *both* pipelines. A game a few MB
+  larger beats a game that can't draw.
 - **Which physics world**: the 2D and 3D worlds share their components and
   their script API, so the scene genuinely doesn't record the answer. Physics
   follows the pipeline, which is what the engine does at runtime anyway.
@@ -434,6 +495,39 @@ The two kinds of default still apply to whatever the scan can't speak to:
 - **Structural subsystems** (localisation, gamepad input, …) default to **on**.
 - **Safe leaves** (raytraced lighting, debug gizmos, system diagnostics, editor
   conveniences) default to **off**, because nothing needs them unless you say so.
+
+Three small pieces follow other signals:
+
+- **SVG images** ships only when the project contains an `.svg` or `.svgz` file.
+- **Script HTTP** also carries the engine's request pump, so a game that never
+  calls `http_get` / `http_post` ships without it.
+- The **companion profiler** ships only when **Allow profiling** is on, since
+  without the key it bakes in nothing can reach it. So do the per-system timing
+  spans it records and the real names of systems and components. Without them
+  an error from a system names it `<Enable the debug feature to see the name>`,
+  and `RENZORA_SHUFFLE_SEED` is ignored. On a UI-only game this is about 8% of
+  the binary.
+
+**Heavy UI widgets** each have a switch of their own under **Interface**. Most
+widgets cost tens of KB and always ship, but a few draw with a shader of their
+own, which brings a whole render pipeline: 150 to 600 KB each. Each is kept
+when the project uses it:
+
+| Switch | Kept when the project has |
+|---|---|
+| Gauge and knob | `<gauge>`, `<knob>`, `vector="gauge"` (or `arc`, `ring`, `speedometer`, `dial`), or a script calling `gauge(` / `knob(` |
+| Charts | `<line_chart>`, `<bar_chart>`, `<sparkline>`, `vector="line"` / `vector="bars"`, or their builders |
+| Waveform and audio player | `<waveform>`, `vector="waveform"`, `waveform(` or `audio_player(` |
+| Colour picker | `<hsv_picker>` or `hsv_picker(` |
+| Curve editor, Gradient editor, Code editor, Timeline, Node graph | their tag or builder in markup or a script |
+| Script drawing canvas | a script with `on_draw` (it also keeps the five shapes it draws with) |
+| Circle, Arc, Radial progress, Line, Triangle, Polygon, Rectangle, Wedge, Filled triangle | that shape placed in a scene |
+
+A tag whose widget was left out shows *"&lt;tag&gt; is not in this build"* in
+the game, and the log names the switch to turn on.
+
+The editor's own themed chrome (top bar, tabs, status bar, panel shaders) never
+ships in a game.
 
 > A game that makes any network request also needs `plugins/http` staged beside
 > it — the engine carries no HTTP client. See

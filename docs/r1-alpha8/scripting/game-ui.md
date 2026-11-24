@@ -105,6 +105,7 @@ What goes inside the braces? A few common forms:
 - `{{ score }}` — a variable from the script on the same entity as this UI.
 - `{{ Player.score }}` — a variable on the entity you named `Player`.
 - `{{ Name }}` — the entity's name.
+- `{{ t("menu.play") }}`: the text for `menu.play` in the player's current language, from your project's `languages/*.toml` packs. Change the language while the game runs and it switches on the next frame. See [Localization](/docs/r1-alpha8/extending/localization).
 
 So when your Lua script changes `score`, the text on screen changes too. You don't have to do anything else.
 
@@ -347,6 +348,240 @@ The difference only shows up once a canvas holds more than one thing. A single c
 So: **Fit** for menus, dialogue, anything you laid out by eye. **Expand** for a HUD whose corners are meant to hug the screen edges however wide it gets. **Constant** for pixel-art UI that must not resample.
 
 Fit is what the UI editor shows you, which is why it's the default — the editor renders at the reference size, so the panel and the game agree. World UI Panels ignore the setting entirely: their surface *is* the reference resolution, so there's nothing to reconcile.
+
+### Player's UI size
+
+On top of the fit, the game applies a player multiplier: a "UI size" option in your settings menu. `1` is the canvas as designed, `1.25` is a quarter larger, and it is clamped to between `0.25` and `4` so a bad value cannot make the UI unreadable. It takes effect on the next frame, and it is not saved: store the player's choice yourself and set it again on start.
+
+```lua
+set_setting("ui.scale", "1.25")
+local size = get_setting_number("ui.scale")
+```
+
+A Rust script sets the resource directly: `ctx.world().resource_mut::<renzora::GameUiScale>().set(1.25)`. Writing Bevy's `UiScale` yourself does not work: the canvas scaler owns it and rewrites it whenever the fit changes. See [Game settings](../api/scripting.md#game-settings-set_setting-get_setting) for every other setting a script can change.
+
+## Ember widgets in markup
+
+The whole ember widget library is available as markup tags: the same widgets
+the editor's own panels are built from. Because they are part of the template,
+they show in the editor's viewport and UI editor exactly as in the game.
+
+```html
+<dropdown setting="window.mode" options="Windowed,Fullscreen,Borderless" />
+<dropdown setting="window.max_fps" options="Unlimited,30 FPS,60 FPS" values="0,30,60" />
+<switch setting="window.vsync" />
+<slider setting="audio.buses.Music.volume" min="0" max="1" step="0.01" width="100%" />
+<dropdown setting="language" />
+<checkbox bind="show_hints" />
+<badge text="New" tone="success" />
+<tabs labels="General,Audio">
+    <node>...first tab...</node>
+    <node>...second tab...</node>
+</tabs>
+```
+
+Lists in attributes are comma-separated. `tone` is `info`, `success`, `warn`,
+`error` or left out for neutral. In text that spans lines (`<markdown>`,
+`<code_block>`, `<code_editor>`, `<multiline>`), write a line break as `\n`.
+
+Style a tag like any `<node>`. Widgets that stretch (sliders, text inputs, grids,
+tables of content) take the full width of their parent unless you give the tag a
+`width`. `<code_editor>`, `<multiline>`, `<tabs>` and `<scroll>` fill the tag's
+`height` when you set one; a `<scroll>` needs one, or it grows to fit everything
+and has nothing to scroll.
+
+A few widgets are large enough that a lean export leaves them out unless the
+project uses them: the gauge and knob, charts, waveform, HSV picker, curve and
+code editors. Using the tag anywhere in the project's markup is what keeps it
+(see [Exporting](../exporting/overview.md)). If one is missing from a build, its
+tag shows *"&lt;tag&gt; is not in this build"* instead.
+
+### Controls tied to a value
+
+These take `setting=` or `bind=` (below) and keep it in step both ways.
+
+| Tag | Widget | Attributes |
+|---|---|---|
+| `<dropdown>` | dropdown | `options` (labels), `values` (what each label stands for; the labels if left out), `selected` |
+| `<segmented>` | segmented buttons | as `<dropdown>` |
+| `<radio>` | radio group | as `<dropdown>` |
+| `<switch>` | on/off switch | `on` |
+| `<checkbox>` | checkbox | `on` |
+| `<slider>` | slider | `min`, `max`, `step` (changes snap to it), `value` |
+| `<fader>` | mixer fader | `min`, `max`, `step`, `value`, `direction="horizontal"` |
+| `<knob>` | rotary knob | `min`, `max`, `step`, `value` |
+| `<spin_slider>` | labelled slider with a number | `label`, `min`, `max`, `step`, `value` |
+| `<drag_value>` | number you drag to change | `label`, `step`, `value` |
+| `<field>` | text input | `placeholder`, `value` |
+| `<password>` | password input | `placeholder`, `value` |
+| `<search>` | search input | `placeholder`, `value` |
+
+### Interactive widgets with their own state
+
+| Tag | Widget | Attributes |
+|---|---|---|
+| `<toggle>` | toggle button | `on` |
+| `<stepper>` | number with - / + buttons | `value`, `step` |
+| `<range>` | two-handle range | `low`, `high` (0 to 1) |
+| `<xy_pad>` | 2D pad | `x`, `y` (0 to 1) |
+| `<vector>` | 2, 3 or 4 number fields, one per value | `value="1,2,3"` |
+| `<color_picker>` | color picker | `color="r,g,b"` (0 to 255) |
+| `<hsv_picker>` | HSV picker | `hue`, `saturation`, `value` (0 to 1) |
+| `<curve>` | bezier curve editor | `points="x1,y1,x2,y2"` |
+| `<multiline>` | multi-line text | `placeholder`, `value` |
+| `<tags_input>` | tag list | `tags` |
+| `<multi_select>` | checklist | `items`, `selected` |
+| `<list_group>` | selectable list | `items`, `active` (index) |
+| `<pagination>` | page buttons | `pages`, `active` |
+| `<hamburger>` | menu button | `items` |
+| `<icon_button>` | icon button | `icon` |
+| `<icon_label_button>` | icon and label button | `icon`, `label` |
+
+### Display
+
+| Tag | Widget | Attributes |
+|---|---|---|
+| `<badge>` | badge | `text`, `tone` |
+| `<chip>` | chip | `text` |
+| `<alert>` | alert box | `title`, `text`, `tone` |
+| `<toast>` | toast | `text`, `tone` |
+| `<validation>` | field with a message | `value`, `text`, `tone` |
+| `<card>` | card | `title`, `text` |
+| `<divider>` | divider line | |
+| `<spinner>` | loading spinner | |
+| `<skeleton>` | loading placeholder | `length`, `thickness` (pixels) |
+| `<progress>` | progress bar | `value` (0 to 1), or `indeterminate` with `length`, `thickness` |
+| `<gauge>` | round gauge | `value` (0 to 1) |
+| `<floating_label>` | input with a floating label | `label`, `value` |
+| `<input_group>` | input with an addon | `addon`, `placeholder` |
+| `<breadcrumb>` | breadcrumb trail | `items` |
+| `<navbar>` | navigation bar | `brand`, `links` |
+| `<table>` | table | `headers`, `rows="a,b;c,d"` (rows split by `;`) |
+| `<grid>` | tile grid | `count`, `columns` |
+| `<markdown>` | rendered markdown | `text` |
+| `<code_block>` | code block | `text` |
+| `<code_editor>` | code editor | `text` |
+| `<line_chart>` | line chart | `values` |
+| `<bar_chart>` | bar chart | `values` |
+| `<sparkline>` | sparkline | `values` |
+| `<waveform>` | waveform | `values` |
+| `<vu_meter>` | level meter | |
+| `<mixer_strip>` | mixer channel | `label`, `value` |
+
+### Containers
+
+Their markup children become their content.
+
+| Tag | Widget | Attributes |
+|---|---|---|
+| `<tabs>` | tabs, one per child | `labels` |
+| `<accordion>` | collapsible section | `title`, `open` |
+| `<scroll>` | scrolling area | |
+| `<popover>` | button that opens its content | `label` |
+| `<tree>` | tree node; nest `<tree>`s for branches | `label`, `open` |
+
+Tag names are letters and underscores, and a tag starting with `node`, `image`,
+`button`, `text`, `slot` or `template` reads as that built-in, which is why the
+text input is `<field>` and the multi-line one `<multiline>`.
+
+### Tying a control to a value
+
+Each control above is tied to one value:
+
+- `setting="<path>"` is a game setting, by the same path `set_setting` takes
+  (see [Game settings](../api/scripting.md#game-settings-set_setting-get_setting)).
+  Two more work here: `ui.scale` (the player's UI size) and `language` (the active
+  language; a language dropdown with no `options` lists the languages the game
+  has). Likewise a `ui_theme` dropdown with no `options` lists the game's themes
+  (see [Themes](#themes)). Changing the control changes the setting while the
+  game runs.
+- `bind="<var>"` is a variable on the canvas's script, for anything that is not a
+  single setting: the script reads the variable and does what it means.
+  `bind="<entity>.<var>"` is a variable on another entity's script.
+- `bind="<entity>.<Component>.<field>"` is a field of a component on a named
+  entity, nested fields included, so a control can drive the scene directly with
+  no script at all:
+
+  ```html
+  <spin_slider label="Sun height" bind="world_environment.Sun.elevation" min="-10" max="90" />
+  <switch bind="world_environment.SsrSettings.enabled" />
+  <slider bind="world_environment.WorldEnvironment.fog.density" min="0" max="0.05" />
+  ```
+
+  The component is named by its type's short name. Number and on/off fields
+  work; a field that picks one of several named options (a quality level) cannot
+  be set this way yet.
+
+A control can be styled like any `<node>` (`width`, `margin` and so on). In the
+editor, controls show their values but don't change them, so laying out a menu
+never changes your project's settings by accident.
+
+## Themes
+
+A game's widgets are drawn in a theme, the same kind the editor uses. Pick it
+in **Settings > Project > Game UI Theme**: `Dark`, `Light`, or any theme in your
+project's `themes/` folder. A theme you make or edit in the editor's **Theme**
+settings tab is saved there, so it is available to your game too. Left at
+**Default**, the game uses the dark theme.
+
+The choice is the `ui_theme` project setting, so the player can change it while
+the game runs:
+
+```html
+<dropdown setting="ui_theme" />
+```
+
+With no `options`, the dropdown lists every theme the game has. Switching
+rebuilds the game's markup UI in the new colours. Widgets a script built itself
+keep their colours until the script builds them again.
+
+An export includes every theme in `themes/`, so each one the dropdown offers is
+there in the shipped game. Only the theme file travels: a theme's shader and
+image effects decorate the editor's own panels and have nothing to draw on in a
+game.
+
+In the editor, templates show the editor's own theme, not the game's: there is
+one set of colours per program, and the editor's panels are drawn with it. Press
+Play to see the game's theme.
+
+## Ember widgets in a Rust script
+
+A game has the same widget toolkit the editor builds its own panels from:
+dropdowns, switches, sliders, checkboxes, text inputs, steppers, knobs, colour
+pickers and the rest of `renzora::ui::widgets`. A Rust script creates one with
+the same builder function an editor panel calls, and binds it to whatever it
+controls with `bind_2way`, which keeps the two in step both ways: the player's
+edit is written to your state, and a change made anywhere else shows on the
+widget.
+
+```rust
+use bevy::ecs::world::CommandQueue;
+use renzora::ui::reactive::bind_2way;
+use renzora::ui::widgets::{slider_ranged, toggle_switch};
+
+let world = ctx.world();
+let row = /* the node to put it in, such as a named slot in your template */;
+let mut queue = CommandQueue::default();
+{
+    let mut commands = Commands::new(&mut queue, world);
+    let vsync = toggle_switch(&mut commands, true);
+    bind_2way(
+        &mut commands,
+        vsync,
+        |w: &World| w.resource::<renzora::CurrentProject>().config.window.vsync,
+        |w: &mut World, on: &bool| {
+            w.resource_mut::<renzora::CurrentProject>().config.window.vsync = *on
+        },
+    );
+    commands.entity(row).add_child(vsync);
+}
+queue.apply(world);
+```
+
+A good split is a template for the layout, with an empty
+`<node name="slot_vsync" />` where each control goes, and the script putting
+the widget into it. Builders that draw text (`dropdown`) also take
+`&renzora::ui::font::EmberFonts`, which the game has as a resource.
 
 ## UI in the 3D world
 
