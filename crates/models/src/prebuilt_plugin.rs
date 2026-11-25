@@ -27,6 +27,19 @@ pub struct PrebuiltPlugin {
     pub created_at: OffsetDateTime,
 }
 
+/// One engine build a plugin has binaries for.
+#[derive(Debug, sqlx::FromRow, Serialize, Clone)]
+pub struct EngineBuild {
+    /// The engine release or nightly (`r1-alpha8-nightly-22nov26`).
+    pub engine_tag: String,
+    pub engine_version: Option<String>,
+    /// The plugin version built for it.
+    pub plugin_version: Option<String>,
+    /// How many platforms have a binary for it.
+    pub platforms: i64,
+    pub built_at: OffsetDateTime,
+}
+
 /// What an upload records. Everything but the storage location comes from the
 /// statement CI signed.
 pub struct NewPrebuilt<'a> {
@@ -116,6 +129,44 @@ impl PrebuiltPlugin {
              ORDER BY platform, created_at DESC"
         ))
         .bind(asset_id)
+        .fetch_all(pool)
+        .await
+    }
+
+    /// The newest binary of `asset_id` on each platform for one engine build,
+    /// named by its tag (`r1-alpha8-nightly-22nov26`). By tag rather than
+    /// stamp because a build's stamp differs per platform (each platform's SDK
+    /// is its own set of images), while its tag is the one name a person picks.
+    pub async fn for_engine_tag(pool: &PgPool, asset_id: Uuid, engine_tag: &str) -> Result<Vec<Self>, sqlx::Error> {
+        sqlx::query_as::<_, Self>(&format!(
+            "SELECT DISTINCT ON (platform) {COLS} FROM prebuilt_plugins
+             WHERE asset_id = $1 AND engine_tag = $2
+             ORDER BY platform, created_at DESC"
+        ))
+        .bind(asset_id)
+        .bind(engine_tag)
+        .fetch_all(pool)
+        .await
+    }
+
+    /// Every engine build `asset_id` has binaries for, newest first: what the
+    /// listing page's build picker offers. One plugin version is rebuilt for
+    /// every nightly, so the same version appears under many builds.
+    pub async fn engine_builds(pool: &PgPool, asset_id: Uuid, limit: i64) -> Result<Vec<EngineBuild>, sqlx::Error> {
+        sqlx::query_as::<_, EngineBuild>(
+            "SELECT engine_tag,
+                    MAX(engine_version) AS engine_version,
+                    MAX(plugin_version) AS plugin_version,
+                    COUNT(DISTINCT platform) AS platforms,
+                    MAX(created_at) AS built_at
+             FROM prebuilt_plugins
+             WHERE asset_id = $1 AND engine_tag <> ''
+             GROUP BY engine_tag
+             ORDER BY MAX(created_at) DESC
+             LIMIT $2",
+        )
+        .bind(asset_id)
+        .bind(limit)
         .fetch_all(pool)
         .await
     }

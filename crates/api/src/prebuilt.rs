@@ -13,8 +13,10 @@
 //!
 //! - `GET /:asset_id?engine=<stamp>&platform=<id>`: the binary for this exact
 //!   build, or 404, which tells the editor to install from source.
-//! - `GET /:asset_id/latest`: the newest binary per platform, for the listing
-//!   page, which cannot know which build its visitor runs.
+//! - `GET /:asset_id/latest[?engine_tag=<tag>]`: the binary per platform for
+//!   one engine build, or the newest of each, for the listing page.
+//! - `GET /:asset_id/engine-builds`: the engine builds a plugin has binaries
+//!   for, newest first, for the listing page's build picker.
 //! - `GET /:asset_id/file/:id`: the binary's bytes, by redirect, counted.
 //! - `POST /upload`: CI's upload, with an admin's API token.
 //!
@@ -28,8 +30,9 @@
 //!   the listing's price, since CI is building it rather than buying it. Admin.
 //! - `POST /build-result`: whether a plugin compiled, with the compiler's
 //!   output. Admin.
-//! - `GET /:asset_id/builds`: the newest result per platform. The compiler log
-//!   only to the listing's creator or an admin.
+//! - `GET /:asset_id/builds[?engine_tag=<tag>]`: the result per platform for
+//!   one engine build, or the newest. The compiler log only to the listing's
+//!   creator or an admin.
 
 use axum::{
     extract::{Extension, Multipart, Path, Query, State},
@@ -60,6 +63,7 @@ pub fn router() -> Router<AppState> {
     let public = Router::new()
         .route("/:asset_id", get(lookup))
         .route("/:asset_id/latest", get(latest))
+        .route("/:asset_id/engine-builds", get(engine_builds))
         .route("/:asset_id/builds", get(builds))
         .route("/:asset_id/file/:id", get(file))
         .layer(axum::middleware::from_fn(middleware::optional_auth));
@@ -140,15 +144,42 @@ async fn lookup(
     Ok(Json(response_for(&asset, prebuilt)))
 }
 
+/// `?engine_tag=<tag>` picks one engine build; without it, the newest.
+#[derive(Deserialize)]
+struct EngineTagQuery {
+    engine_tag: Option<String>,
+}
+
+/// The binaries per platform for one engine build (`?engine_tag=`), or the
+/// newest of each when none is named. A plugin version that has not changed is
+/// rebuilt for every nightly, so the build is what tells its binaries apart,
+/// and a visitor on an older nightly needs that nightly's.
 async fn latest(
     State(state): State<AppState>,
     Extension(auth): Extension<Option<AuthUser>>,
     Path(asset_id): Path<Uuid>,
+    Query(q): Query<EngineTagQuery>,
 ) -> Result<Json<Vec<PrebuiltResponse>>, ApiError> {
     let asset = Asset::find_by_id(&state.db, asset_id).await?.ok_or(ApiError::NotFound)?;
     authorize(&state, &auth, &asset).await?;
-    let rows = PrebuiltPlugin::latest_per_platform(&state.db, asset_id).await?;
+    let rows = match q.engine_tag.as_deref().filter(|t| !t.is_empty()) {
+        Some(tag) => PrebuiltPlugin::for_engine_tag(&state.db, asset_id, tag).await?,
+        None => PrebuiltPlugin::latest_per_platform(&state.db, asset_id).await?,
+    };
     Ok(Json(rows.into_iter().map(|p| response_for(&asset, p)).collect()))
+}
+
+/// The engine builds a plugin has binaries for, newest first, for the
+/// listing page's picker. Capped: a plugin rebuilt every night for a year has
+/// hundreds, and nobody is running a nightly from months ago.
+async fn engine_builds(
+    State(state): State<AppState>,
+    Extension(auth): Extension<Option<AuthUser>>,
+    Path(asset_id): Path<Uuid>,
+) -> Result<Json<Vec<renzora_models::prebuilt_plugin::EngineBuild>>, ApiError> {
+    let asset = Asset::find_by_id(&state.db, asset_id).await?.ok_or(ApiError::NotFound)?;
+    authorize(&state, &auth, &asset).await?;
+    Ok(Json(PrebuiltPlugin::engine_builds(&state.db, asset_id, 60).await?))
 }
 
 /// The bytes, by redirect to a short-lived storage URL, counted as a download
@@ -459,6 +490,7 @@ async fn builds(
     State(state): State<AppState>,
     Extension(auth): Extension<Option<AuthUser>>,
     Path(asset_id): Path<Uuid>,
+    Query(q): Query<EngineTagQuery>,
 ) -> Result<Json<Vec<BuildStatus>>, ApiError> {
     let asset = Asset::find_by_id(&state.db, asset_id).await?.ok_or(ApiError::NotFound)?;
     let privileged = match &auth {
@@ -466,7 +498,11 @@ async fn builds(
         Some(u) => crate::admin::verify_admin(&state, u.user_id).await.is_ok(),
         None => false,
     };
-    let rows = renzora_models::plugin_build::PluginBuild::latest_per_platform(&state.db, asset_id).await?;
+    use renzora_models::plugin_build::PluginBuild;
+    let rows = match q.engine_tag.as_deref().filter(|t| !t.is_empty()) {
+        Some(tag) => PluginBuild::for_engine_tag(&state.db, asset_id, tag).await?,
+        None => PluginBuild::latest_per_platform(&state.db, asset_id).await?,
+    };
     Ok(Json(
         rows.into_iter()
             .map(|b| BuildStatus {

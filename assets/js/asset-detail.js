@@ -789,21 +789,54 @@
                 return os + '-' + arch;
             }
 
-            async function loadPrebuilts(assetId, hasAccess) {
+            // A plugin version that has not changed is rebuilt for every engine
+            // nightly, and a binary runs only on the build it was made for, so
+            // the section shows one engine build at a time and lets the visitor
+            // pick theirs. Newest first; the editor picks for itself anyway.
+            async function loadPrebuilts(assetId, hasAccess, engineTag) {
                 const container = document.getElementById('asset-prebuilts');
                 if (!container || !hasAccess) return;
                 const token = document.cookie.match('(^|;)\\s*token\\s*=\\s*([^;]+)')?.pop();
                 const headers = token ? { 'Authorization': 'Bearer ' + token } : {};
-                const [res, statusRes] = await Promise.all([
-                    fetch('/api/prebuilt-plugins/' + assetId + '/latest', { headers }),
-                    fetch('/api/prebuilt-plugins/' + assetId + '/builds', { headers }),
+                const q = engineTag ? '?engine_tag=' + encodeURIComponent(engineTag) : '';
+                const [res, statusRes, engineRes] = await Promise.all([
+                    fetch('/api/prebuilt-plugins/' + assetId + '/latest' + q, { headers }),
+                    fetch('/api/prebuilt-plugins/' + assetId + '/builds' + q, { headers }),
+                    fetch('/api/prebuilt-plugins/' + assetId + '/engine-builds', { headers }),
                 ]);
                 const builds = res.ok ? await res.json() : [];
                 const results = statusRes.ok ? await statusRes.json() : [];
+                const engines = engineRes.ok ? await engineRes.json() : [];
                 const failures = (results || []).filter(r => !r.ok);
-                if ((!builds || builds.length === 0) && failures.length === 0) return;
+                if ((!builds || builds.length === 0) && failures.length === 0 && !engineTag) return;
+                const escapeHtml = treeEsc;
+                const current = engineTag || (builds && builds[0] && builds[0].engine_tag) || '';
+
+                // The build picker, or the one build's name when there is one.
+                const pickerHtml = () => {
+                    if (!engines || engines.length <= 1) {
+                        return '<span class="text-[11px] text-zinc-400 truncate">' + escapeHtml(current || 'the latest engine build') + '</span>';
+                    }
+                    let s = '<select id="asset-prebuilt-engine" class="min-w-0 max-w-[60%] bg-white/[0.04] border border-zinc-700/60 rounded-lg text-[11px] text-zinc-200 px-2 py-1 focus:outline-none focus:border-zinc-500">';
+                    engines.forEach((e, i) => {
+                        const v = e.plugin_version ? ' (v' + escapeHtml(e.plugin_version) + ')' : '';
+                        const latest = i === 0 ? ' · latest' : '';
+                        s += '<option value="' + escapeHtml(e.engine_tag) + '"' + (e.engine_tag === current ? ' selected' : '') + '>'
+                            + escapeHtml(e.engine_tag) + v + latest + '</option>';
+                    });
+                    return s + '</select>';
+                };
+                const wirePicker = () => {
+                    const picker = document.getElementById('asset-prebuilt-engine');
+                    if (picker) picker.addEventListener('change', () => loadPrebuilts(assetId, hasAccess, picker.value));
+                };
+
+                // A build with no binary (it did not compile there): its
+                // failures, and the picker so another build can be chosen.
                 if (!builds || builds.length === 0) {
-                    container.innerHTML = buildFailuresHtml(failures);
+                    container.innerHTML = '<div class="flex items-center justify-end gap-2">' + pickerHtml() + '</div>'
+                        + buildFailuresHtml(failures);
+                    wirePicker();
                     return;
                 }
 
@@ -812,11 +845,13 @@
                 const others = builds.filter(b => b !== own);
                 const label = p => PLATFORM_LABELS[p] || p;
                 const size = b => fmtFileSize(b.size);
-                const escapeHtml = treeEsc;
-                const tag = builds[0].engine_tag ? escapeHtml(builds[0].engine_tag) : 'the latest engine build';
 
                 let html = '<div class="p-3 rounded-xl bg-white/[0.02] border border-zinc-800/50">';
-                html += '<p class="text-xs font-semibold text-zinc-300 flex items-center gap-1.5"><i class="ph ph-package text-accent"></i>Prebuilt for ' + tag + '</p>';
+                html += '<div class="flex items-center justify-between gap-2">';
+                html += '<p class="text-xs font-semibold text-zinc-300 flex items-center gap-1.5 min-w-0"><i class="ph ph-package text-accent"></i>Prebuilt v'
+                    + escapeHtml(builds[0].version) + ' for</p>';
+                html += pickerHtml();
+                html += '</div>';
                 if (own) {
                     html += '<a href="' + own.download_url + '" class="w-full mt-2 px-4 py-2.5 rounded-xl text-sm font-medium bg-white/[0.04] border border-zinc-700/60 text-zinc-100 hover:border-zinc-500 transition-all flex items-center justify-center gap-2">'
                         + '<i class="ph ph-download-simple"></i>Download for ' + escapeHtml(label(own.platform)) + ' <span class="text-zinc-500 text-xs">' + size(own) + '</span></a>';
@@ -826,11 +861,12 @@
                         .map(b => '<a class="text-zinc-300 hover:text-white underline-offset-2 hover:underline" href="' + b.download_url + '">' + escapeHtml(label(b.platform)) + '</a>')
                         .join(', ') + '</p>';
                 }
-                html += '<p class="text-[11px] text-zinc-500 mt-2 leading-relaxed">A prebuilt runs only on the engine build it was made for. '
+                html += '<p class="text-[11px] text-zinc-500 mt-2 leading-relaxed">A prebuilt runs only on the engine build it was made for: pick the nightly or release you run. '
                     + 'Installing from the editor picks the right one automatically, or builds from source when there is none. '
                     + 'On an engine you built from source yourself, use Download above for the source.</p>';
                 html += '</div>';
                 container.innerHTML = html + (failures.length ? buildFailuresHtml(failures) : '');
+                wirePicker();
             }
 
             // Platforms the engine's CI could not compile this plugin on. Everyone
