@@ -68,14 +68,20 @@ impl PluginBuild {
 
     /// The newest result for each platform of `asset_id` against one engine
     /// build, by its tag.
-    pub async fn for_engine_tag(pool: &PgPool, asset_id: Uuid, engine_tag: &str) -> Result<Vec<Self>, sqlx::Error> {
+    pub async fn for_engine_tag(
+        pool: &PgPool,
+        asset_id: Uuid,
+        engine_tag: &str,
+        plugin_version: Option<&str>,
+    ) -> Result<Vec<Self>, sqlx::Error> {
         sqlx::query_as::<_, Self>(&format!(
             "SELECT DISTINCT ON (platform) {COLS} FROM plugin_builds
-             WHERE asset_id = $1 AND engine_tag = $2
+             WHERE asset_id = $1 AND engine_tag = $2 AND ($3::text IS NULL OR plugin_version = $3)
              ORDER BY platform, created_at DESC"
         ))
         .bind(asset_id)
         .bind(engine_tag)
+        .bind(plugin_version)
         .fetch_all(pool)
         .await
     }

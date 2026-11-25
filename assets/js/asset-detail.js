@@ -162,6 +162,41 @@
                     }
                 }
 
+                // The listing's facts, over the bottom of the cover (`overlay`)
+                // or as a strip under a live preview. One block for what used to
+                // be the sidebar's fact table: they describe the picture, and
+                // beside it the rail is free for the download. The engine
+                // requirement is filled in by fillReleasePicker once the
+                // releases arrive, since it belongs to the release shown.
+                function coverInfoHtml(overlay, hidden) {
+                    const chip = 'px-2.5 py-1 rounded-full text-xs';
+                    const tags = (a.tags || []).map(t => `<span class="${chip} bg-accent/20 border border-accent/50 text-indigo-200">${treeEsc(t)}</span>`).join('');
+                    const credit = a.credit_name
+                        ? `<span>Credit: ${a.credit_url ? `<a href="${a.credit_url}" target="_blank" class="text-indigo-200 hover:underline">${treeEsc(a.credit_name)}</a>` : treeEsc(a.credit_name)}</span>`
+                        : '';
+                    const body = `
+                        <div class="flex flex-wrap items-center gap-2">
+                            <span id="detail-engine-badge" class="hidden"></span>
+                            <span class="${chip} bg-white/10 border border-white/20 text-zinc-100">${treeEsc(a.category)}</span>
+                            ${tags}
+                        </div>
+                        <div class="flex flex-wrap items-center gap-x-5 gap-y-1 text-xs sm:text-[13px] text-zinc-300">
+                            <span>${starsHtml} <span class="text-zinc-300">${ratingCount > 0 ? ratingAvg.toFixed(1) + ' (' + ratingCount + ')' : 'No ratings yet'}</span></span>
+                            <span>${a.downloads.toLocaleString()} downloads</span>
+                            <span>${a.views.toLocaleString()} views</span>
+                            <span>${(commentsData.comments?.length || 0).toLocaleString()} comments</span>
+                            <span>Published ${fmtDate(a.created_at)}</span>
+                            <span>Updated ${fmtDate(a.updated_at)}</span>
+                            ${credit}
+                        </div>`;
+                    if (!overlay) {
+                        return `<div class="mt-3 p-4 rounded-xl bg-white/[0.02] border border-zinc-800/50 flex flex-col gap-3">${body}</div>`;
+                    }
+                    return `<div id="cover-info" class="${hidden ? 'hidden ' : ''}absolute inset-x-0 bottom-0 px-4 sm:px-6 pb-4 sm:pb-5 pt-16 flex flex-col gap-3 pointer-events-none bg-gradient-to-b from-transparent via-[#09090b]/80 to-[#09090b]/95">
+                        <div class="flex flex-col gap-3 pointer-events-auto">${body}</div>
+                    </div>`;
+                }
+
                 const el = rootEl;
                 el.innerHTML = `
 
@@ -217,7 +252,15 @@
                                 // The cap was there to stop the image pushing
                                 // the name and buttons below the fold, and they
                                 // no longer sit underneath it.
-                                if (!hasLivePreview) return '<div class="rounded-2xl overflow-hidden border border-zinc-800/50 bg-zinc-900 relative group/preview aspect-video w-full" id="main-preview">' + mainPreviewHtml + '</div>' + thumbsHtml;
+                                // The listing's facts lie over the bottom of the cover. They
+                // are a sibling of #main-preview, not inside it, because
+                // switching the gallery item rewrites that element; and they
+                // hide over audio and video, whose controls sit in the same
+                // place (see setGalleryItem).
+                if (!hasLivePreview) return '<div class="rounded-2xl overflow-hidden border border-zinc-800/50 bg-zinc-900 relative aspect-video w-full">'
+                    + '<div class="absolute inset-0 group/preview" id="main-preview">' + mainPreviewHtml + '</div>'
+                    + coverInfoHtml(true, mainMedia && (mainMedia.type === 'audio' || mainMedia.type === 'video'))
+                    + '</div>' + thumbsHtml;
 
                                 // No 'model' branch: that category returns above,
                                 // so it could only ever be dead code here. The
@@ -261,6 +304,9 @@
                                         '</div>' +
                                     '</div>' +
                                     '<div id="preview-params" class="mt-2"></div>' +
+                                    // A live preview has controls across its
+                                    // canvas, so the facts go under it instead.
+                                    coverInfoHtml(false, false) +
                                 '</div>';
                             })()}
                                 </div>
@@ -344,27 +390,29 @@
 
                                 <h1 class="mt-2 text-2xl font-bold leading-tight break-words">${a.name}</h1>
 
-                                <!-- Which release, and what it needs. A control,
-                                     so it sits with the identity rather than in
-                                     the fact table below: changing it changes
-                                     what the whole page is showing.
-
-                                     max-w-full because a select is as wide as its
-                                     longest option, and these read
-                                     "v1.0.11 - r1-alpha7+ - latest". -->
-                                <div class="mt-3 flex items-center gap-2 flex-wrap">
-                                    <label for="detail-release-select" class="sr-only">Version</label>
+                                <!-- Download: which release, then (for a plugin
+                                     with prebuilt binaries) which platform and
+                                     engine build, then the button. The version is
+                                     the first choice because it decides the rest:
+                                     it reloads the page at that release, so the
+                                     README, files and engine requirement on the
+                                     cover follow it too. -->
+                                <div class="mt-5 pt-5 border-t border-zinc-800/50">
+                                    <p class="text-[15px] font-semibold">Download</p>
+                                    <label for="detail-release-select" class="block mt-3 mb-1.5 text-xs text-zinc-400">Version</label>
                                     <select id="detail-release-select" onchange="goToRelease(this.value)"
-                                        class="max-w-full px-3 py-1.5 bg-white/[0.05] border border-zinc-700/60 rounded-lg text-zinc-100 text-sm outline-none focus:border-accent/50 transition-all">
+                                        class="w-full px-3 py-2 bg-white/[0.05] border border-zinc-700/60 rounded-lg text-zinc-100 text-sm outline-none focus:border-accent/50 transition-all">
                                         <option value="">v${a.version}</option>
                                     </select>
-                                    <span id="detail-engine-badge"></span>
+
+                                    <!-- Platform, architecture, engine build and
+                                         "Download plugin", filled by loadPrebuilts
+                                         for a plugin that has binaries. -->
+                                    <div id="asset-prebuilts"></div>
                                 </div>
 
-                                <div class="mt-5 pt-5 border-t border-zinc-800/50"></div>
-
                                 ${(isCreator || a.owned || a.price_credits === 0) ? `
-                                    <button onclick="downloadAsset('${a.id}')" class="w-full mt-4 px-4 py-3 rounded-xl text-sm font-semibold bg-green-600 text-white hover:bg-green-500 transition-all hover:shadow-[0_0_20px_rgba(22,163,74,0.2)] flex items-center justify-center gap-2"><i class="ph ph-download-simple text-lg"></i>Download</button>
+                                    <button id="detail-source-download" onclick="downloadAsset('${a.id}')" class="w-full mt-4 px-4 py-3 rounded-xl text-sm font-semibold bg-green-600 text-white hover:bg-green-500 transition-all hover:shadow-[0_0_20px_rgba(22,163,74,0.2)] flex items-center justify-center gap-2"><i class="ph ph-download-simple text-lg"></i>Download</button>
                                     ${isCreator ? `
                                         <p class="text-xs text-zinc-500 text-center mt-2">This is your asset</p>
                                     ` : a.owned ? `
@@ -381,10 +429,6 @@
                                 ` : `
                                     <a href="/login" class="block w-full mt-4 px-4 py-3 rounded-xl text-sm font-semibold bg-accent text-white hover:bg-accent-hover transition-all text-center">Sign in to purchase</a>
                                 `}
-
-                                <!-- Prebuilt plugin binaries, filled in by
-                                     loadPrebuilts for a plugin that has any. -->
-                                <div id="asset-prebuilts" class="mt-4"></div>
 
                                 <!-- Asset Files List -->
                                 <div id="asset-files-list" class="mt-4"></div>
@@ -404,39 +448,13 @@
                                     <button onclick="deleteAsset('${a.id}')" aria-label="Delete this listing" title="Delete this listing" class="px-2.5 py-2 rounded-xl text-red-400 hover:text-red-300 hover:bg-red-950/30 border border-transparent hover:border-red-900/50 transition-colors shrink-0"><i class="ph ph-trash"></i></button>
                                 </div>` : ''}
 
-                                <!--
-                                    The fact table. Nobody reads it top to bottom,
-                                    everybody scans it for one row, so it is
-                                    grouped by the question being asked rather
-                                    than run together as one list: how is it
-                                    received, what is it, when did it change.
+                                <!-- The fact table that stood here (rating,
+                                     downloads, category, tags, dates) is on the
+                                     cover now (coverInfoHtml): it describes the
+                                     picture, and the rail is left to the download.
 
-                                    Version and Engine are NOT here. Choosing a
-                                    release changes what the page shows, which
-                                    makes it a control rather than a fact, and it
-                                    lives with the identity it determines, above.
-                                -->
-                                <div class="mt-6 pt-6 border-t border-zinc-800/50 space-y-3">
-                                    <div class="flex justify-between text-sm"><span class="text-zinc-500">Rating</span><span>${starsHtml} <span class="text-zinc-500">(${ratingCount})</span></span></div>
-                                    <div class="flex justify-between text-sm"><span class="text-zinc-500">Reviews</span><span class="text-zinc-300">${ratingCount}</span></div>
-                                    <div class="flex justify-between text-sm"><span class="text-zinc-500">Comments</span><span class="text-zinc-300">${commentsData.comments?.length || 0}</span></div>
-                                    <div class="flex justify-between text-sm"><span class="text-zinc-500">Views</span><span class="text-zinc-300">${a.views.toLocaleString()}</span></div>
-                                    <div class="flex justify-between text-sm"><span class="text-zinc-500">Downloads</span><span class="text-zinc-300">${a.downloads.toLocaleString()}</span></div>
-                                </div>
-
-                                <div class="mt-4 pt-4 border-t border-zinc-800/50 space-y-3">
-                                    <div class="flex justify-between text-sm"><span class="text-zinc-500">Category</span><span class="text-zinc-300">${a.category}</span></div>
-                                    ${(a.tags || []).length ? `<div class="text-sm"><span class="text-zinc-500 block mb-1.5">Tags</span><div class="flex flex-wrap gap-1.5">${a.tags.map(t => `<span class="px-2.5 py-1 rounded-full bg-accent/15 border border-accent/40 text-xs text-accent">${t}</span>`).join('')}</div></div>` : ''}
-                                    ${a.credit_name ? `<div class="flex justify-between text-sm"><span class="text-zinc-500">Credit</span><span class="text-zinc-300">${a.credit_url ? `<a href="${a.credit_url}" target="_blank" class="text-accent hover:underline">${a.credit_name}</a>` : a.credit_name}</span></div>` : ''}
-                                </div>
-
-                                <div class="mt-4 pt-4 border-t border-zinc-800/50 space-y-3">
-                                    <div class="flex justify-between text-sm"><span class="text-zinc-500">Published</span><span class="text-zinc-300">${fmtDate(a.created_at)}</span></div>
-                                    <div class="flex justify-between text-sm"><span class="text-zinc-500">Updated</span><span class="text-zinc-300">${fmtDate(a.updated_at)}</span></div>
-                                </div>
-
-                                <!-- Activity over time, directly under the Views and
-                                     Downloads rows it is the history of. Mounted
+                                     Activity over time, the history of the views
+                                     and downloads shown on the cover. Mounted
                                      once this HTML is in the DOM (see below). -->
                                 <div id="asset-activity" class="relative mt-6 pt-6 border-t border-zinc-800/50"></div>
 
@@ -496,7 +514,7 @@
                 // Fetch and render asset files list
                 loadAssetFiles(a.id, a.owned || isCreator || a.price_credits === 0);
                 if (a.category === 'plugins' || a.category === 'plugin') {
-                    loadPrebuilts(a.id, a.owned || isCreator || a.price_credits === 0);
+                    loadPrebuilts(a.id, a.owned || isCreator || a.price_credits === 0, a.version);
                 }
 
                 // Repository view: file tree, rendered README, release history
@@ -688,21 +706,20 @@
                 if (sel) {
                     sel.innerHTML = releases.map(r =>
                         `<option value="${treeEsc(r.version)}"${r === current ? ' selected' : ''}>v${treeEsc(r.version)}${
-                            r.min_engine_version ? ' · ' + treeEsc(r.min_engine_version) + '+' : ' · any engine'
-                        }${r.is_current ? ' · latest' : ''}</option>`).join('');
+                            r.is_current ? ' · latest' : ''
+                        }</option>`).join('');
                 }
 
-                // One place only. The engine used to be written here AND as a
-                // row in the sidebar's fact table, which is the duplication this
-                // whole split exists to stop: it belongs beside the picker that
-                // selects it, because changing the release is what changes it.
+                // One place only: on the cover, first among the facts, for the
+                // release the page is showing. Choosing another release reloads
+                // the page at it, so this always agrees with the picker.
                 const engine = current?.min_engine_version || '';
                 const badge = document.getElementById('detail-engine-badge');
                 if (badge) {
                     badge.className = engine
-                        ? 'mb-1.5 px-2.5 py-1 rounded-full bg-cyan-500/15 border border-cyan-500/40 text-sm font-medium text-cyan-200'
-                        : 'mb-1.5 px-2.5 py-1 rounded-full bg-white/[0.05] border border-zinc-700/60 text-sm text-zinc-300';
-                    badge.textContent = engine ? engine + ' and newer' : 'Any engine';
+                        ? 'px-2.5 py-1 rounded-full bg-cyan-500/20 border border-cyan-400/50 text-xs font-semibold text-cyan-100'
+                        : 'px-2.5 py-1 rounded-full bg-white/10 border border-white/20 text-xs text-zinc-100';
+                    badge.textContent = engine ? 'Requires ' + engine + ' or newer' : 'Any engine';
                     badge.title = engine
                         ? 'Runs on ' + engine + ' and newer. Older engines are offered the newest release that still works for them.'
                         : 'Runs on any engine.';
@@ -789,84 +806,161 @@
                 return os + '-' + arch;
             }
 
-            // A plugin version that has not changed is rebuilt for every engine
-            // nightly, and a binary runs only on the build it was made for, so
-            // the section shows one engine build at a time and lets the visitor
-            // pick theirs. Newest first; the editor picks for itself anyway.
-            async function loadPrebuilts(assetId, hasAccess, engineTag) {
+            // An engine build's tag as a person reads it:
+            // `r1-alpha8-nightly-23nov26` is "r1-alpha8 nightly · 23 Nov 2026",
+            // a release tag stays as it is. Anything unexpected is shown raw.
+            function engineLabel(tag) {
+                const m = /^(.+)-nightly-(\d{1,2})([a-z]{3})(\d{2})$/i.exec(tag || '');
+                if (!m) return tag || '';
+                const month = m[3].charAt(0).toUpperCase() + m[3].slice(1).toLowerCase();
+                return m[1] + ' nightly · ' + Number(m[2]) + ' ' + month + ' 20' + m[4];
+            }
+
+            // The download section's prebuilt half: platform, architecture,
+            // engine channel and build, then "Download plugin".
+            //
+            // A plugin version is rebuilt for every engine nightly and release,
+            // and a binary runs only on the build it was made for, so one
+            // version has a binary per build and the visitor picks theirs.
+            // The version is the page's own (the picker above reloads the page
+            // at another release), and every list here is that version's.
+            // The editor picks for itself; this is for fetching one by hand.
+            const OS_LABELS = { windows: 'Windows', macos: 'macOS', linux: 'Linux' };
+            // Each OS names its chips its own way.
+            function archLabel(os, arch) {
+                if (os === 'macos') return arch === 'arm64' ? 'Apple Silicon' : 'Intel';
+                return arch === 'arm64' ? 'ARM64' : 'x64';
+            }
+            const isNightlyTag = t => /-nightly-/i.test(t || '');
+
+            async function loadPrebuilts(assetId, hasAccess, pageVersion) {
                 const container = document.getElementById('asset-prebuilts');
                 if (!container || !hasAccess) return;
                 const token = document.cookie.match('(^|;)\\s*token\\s*=\\s*([^;]+)')?.pop();
                 const headers = token ? { 'Authorization': 'Bearer ' + token } : {};
-                const q = engineTag ? '?engine_tag=' + encodeURIComponent(engineTag) : '';
-                const [res, statusRes, engineRes] = await Promise.all([
-                    fetch('/api/prebuilt-plugins/' + assetId + '/latest' + q, { headers }),
-                    fetch('/api/prebuilt-plugins/' + assetId + '/builds' + q, { headers }),
-                    fetch('/api/prebuilt-plugins/' + assetId + '/engine-builds', { headers }),
-                ]);
-                const builds = res.ok ? await res.json() : [];
-                const results = statusRes.ok ? await statusRes.json() : [];
+                const base = '/api/prebuilt-plugins/' + assetId;
+                const version = new URLSearchParams(window.location.search).get('release') || pageVersion || '';
+                const vq = version ? 'version=' + encodeURIComponent(version) : '';
+
+                const engineRes = await fetch(base + '/engine-builds' + (vq ? '?' + vq : ''), { headers });
                 const engines = engineRes.ok ? await engineRes.json() : [];
-                const failures = (results || []).filter(r => !r.ok);
-                if ((!builds || builds.length === 0) && failures.length === 0 && !engineTag) return;
-                const escapeHtml = treeEsc;
-                const current = engineTag || (builds && builds[0] && builds[0].engine_tag) || '';
-
-                // The build picker, or the one build's name when there is one.
-                const pickerHtml = () => {
-                    if (!engines || engines.length <= 1) {
-                        return '<span class="text-[11px] text-zinc-400 truncate">' + escapeHtml(current || 'the latest engine build') + '</span>';
-                    }
-                    let s = '<select id="asset-prebuilt-engine" class="min-w-0 max-w-[60%] bg-white/[0.04] border border-zinc-700/60 rounded-lg text-[11px] text-zinc-200 px-2 py-1 focus:outline-none focus:border-zinc-500">';
-                    engines.forEach((e, i) => {
-                        const v = e.plugin_version ? ' (v' + escapeHtml(e.plugin_version) + ')' : '';
-                        const latest = i === 0 ? ' · latest' : '';
-                        s += '<option value="' + escapeHtml(e.engine_tag) + '"' + (e.engine_tag === current ? ' selected' : '') + '>'
-                            + escapeHtml(e.engine_tag) + v + latest + '</option>';
-                    });
-                    return s + '</select>';
-                };
-                const wirePicker = () => {
-                    const picker = document.getElementById('asset-prebuilt-engine');
-                    if (picker) picker.addEventListener('change', () => loadPrebuilts(assetId, hasAccess, picker.value));
-                };
-
-                // A build with no binary (it did not compile there): its
-                // failures, and the picker so another build can be chosen.
-                if (!builds || builds.length === 0) {
-                    container.innerHTML = '<div class="flex items-center justify-end gap-2">' + pickerHtml() + '</div>'
-                        + buildFailuresHtml(failures);
-                    wirePicker();
+                if (!engines.length) {
+                    // No binaries at all: say so only when the engine's CI tried
+                    // and failed, which is something the reader can act on.
+                    const st = await fetch(base + '/builds', { headers });
+                    const failures = (st.ok ? await st.json() : []).filter(r => !r.ok);
+                    if (failures.length) container.innerHTML = buildFailuresHtml(failures);
                     return;
                 }
 
-                const mine = await detectPlatform();
-                const own = builds.find(b => b.platform === mine);
-                const others = builds.filter(b => b !== own);
-                const label = p => PLATFORM_LABELS[p] || p;
-                const size = b => fmtFileSize(b.size);
+                // With binaries, the source becomes the second choice, named
+                // for what it is, below the plugin's own button.
+                const src = document.getElementById('detail-source-download');
+                if (src) {
+                    src.className = 'w-full mt-2 px-4 py-2.5 rounded-xl text-sm font-medium bg-white/[0.04] border border-zinc-700/60 text-zinc-200 hover:border-zinc-500 hover:text-white transition-all flex items-center justify-center gap-2';
+                    src.innerHTML = '<i class="ph ph-file-zip"></i>Download v' + treeEsc(version) + ' source';
+                }
 
-                let html = '<div class="p-3 rounded-xl bg-white/[0.02] border border-zinc-800/50">';
-                html += '<div class="flex items-center justify-between gap-2">';
-                html += '<p class="text-xs font-semibold text-zinc-300 flex items-center gap-1.5 min-w-0"><i class="ph ph-package text-accent"></i>Prebuilt v'
-                    + escapeHtml(builds[0].version) + ' for</p>';
-                html += pickerHtml();
-                html += '</div>';
-                if (own) {
-                    html += '<a href="' + own.download_url + '" class="w-full mt-2 px-4 py-2.5 rounded-xl text-sm font-medium bg-white/[0.04] border border-zinc-700/60 text-zinc-100 hover:border-zinc-500 transition-all flex items-center justify-center gap-2">'
-                        + '<i class="ph ph-download-simple"></i>Download for ' + escapeHtml(label(own.platform)) + ' <span class="text-zinc-500 text-xs">' + size(own) + '</span></a>';
+                const mine = (await detectPlatform()) || 'windows-x64';
+                const s = {
+                    os: mine.split('-')[0],
+                    arch: mine.split('-')[1],
+                    channel: engines.some(e => isNightlyTag(e.engine_tag)) ? 'nightly' : 'stable',
+                    tag: '',
+                    binaries: [],
+                    failures: [],
+                };
+                const inChannel = () => engines.filter(e => isNightlyTag(e.engine_tag) === (s.channel === 'nightly'));
+
+                async function loadTag() {
+                    s.binaries = []; s.failures = [];
+                    if (!s.tag) return;
+                    const q = '?engine_tag=' + encodeURIComponent(s.tag) + (vq ? '&' + vq : '');
+                    const [binRes, resultRes] = await Promise.all([
+                        fetch(base + '/latest' + q, { headers }),
+                        fetch(base + '/builds' + q, { headers }),
+                    ]);
+                    s.binaries = binRes.ok ? await binRes.json() : [];
+                    s.failures = (resultRes.ok ? await resultRes.json() : []).filter(r => !r.ok);
                 }
-                if (others.length) {
-                    html += '<p class="text-[11px] text-zinc-500 mt-2">' + (own ? 'Also for ' : 'For ') + others
-                        .map(b => '<a class="text-zinc-300 hover:text-white underline-offset-2 hover:underline" href="' + b.download_url + '">' + escapeHtml(label(b.platform)) + '</a>')
-                        .join(', ') + '</p>';
+
+                const seg = on => 'min-h-[36px] rounded-md text-[13px] font-semibold transition-colors '
+                    + (on ? 'bg-indigo-600 text-white' : 'text-zinc-400 hover:text-zinc-100 disabled:opacity-40 disabled:hover:text-zinc-400');
+                const small = on => 'min-h-[32px] rounded-md text-xs font-medium border transition-colors '
+                    + (on ? 'bg-indigo-500/20 border-indigo-500 text-indigo-100' : 'border-zinc-700/70 text-zinc-400 hover:text-zinc-100');
+                const box = cols => 'grid ' + cols + ' gap-1 p-1 rounded-lg bg-white/[0.04] border border-zinc-800/60';
+
+                function render() {
+                    const has = p => s.binaries.some(b => b.platform === p);
+                    const archesFor = os => ['x64', 'arm64'].filter(a => has(os + '-' + a));
+                    // Keep the visitor's architecture when this build has it,
+                    // else the one it does have.
+                    const arches = archesFor(s.os);
+                    if (arches.length && !arches.includes(s.arch)) s.arch = arches[0];
+                    const builds = inChannel();
+                    const binary = s.binaries.find(b => b.platform === s.os + '-' + s.arch);
+
+                    let h = '<p id="dl-os-label" class="mt-4 mb-1.5 text-xs text-zinc-400">Platform</p>'
+                        + '<div role="group" aria-labelledby="dl-os-label" class="' + box('grid-cols-3') + '">'
+                        + ['windows', 'macos', 'linux'].map(os =>
+                            '<button type="button" data-os="' + os + '" class="' + seg(os === s.os) + '"'
+                            + (archesFor(os).length || !s.tag ? '' : ' disabled title="Not built for ' + OS_LABELS[os] + ' on this engine build"')
+                            + '>' + OS_LABELS[os] + '</button>').join('')
+                        + '</div>';
+                    if (arches.length > 1) {
+                        h += '<div role="group" aria-label="Architecture" class="mt-1.5 grid grid-cols-2 gap-1">'
+                            + arches.map(a => '<button type="button" data-arch="' + a + '" class="' + small(a === s.arch) + '">' + archLabel(s.os, a) + '</button>').join('')
+                            + '</div>';
+                    }
+
+                    h += '<p id="dl-channel-label" class="mt-4 mb-1.5 text-xs text-zinc-400">Engine</p>'
+                        + '<div role="group" aria-labelledby="dl-channel-label" class="' + box('grid-cols-2') + '">'
+                        + ['nightly', 'stable'].map(c =>
+                            '<button type="button" data-channel="' + c + '" class="' + seg(c === s.channel) + '">' + (c === 'nightly' ? 'Nightly' : 'Stable') + '</button>').join('')
+                        + '</div>';
+                    if (builds.length) {
+                        h += '<label for="dl-build" class="sr-only">Engine build</label>'
+                            + '<select id="dl-build" class="mt-1.5 w-full px-3 py-2 bg-white/[0.05] border border-zinc-700/60 rounded-lg text-zinc-100 text-sm outline-none focus:border-accent/50 transition-all">'
+                            + builds.map((e, i) => '<option value="' + treeEsc(e.engine_tag) + '"' + (e.engine_tag === s.tag ? ' selected' : '') + '>'
+                                + treeEsc(engineLabel(e.engine_tag)) + (i === 0 ? ' · latest' : '') + '</option>').join('')
+                            + '</select>';
+                    } else {
+                        h += '<p class="mt-1.5 p-3 rounded-lg border border-dashed border-zinc-700 text-xs leading-relaxed text-zinc-400">'
+                            + 'No ' + s.channel + ' engine build has v' + treeEsc(version) + ' yet. '
+                            + (s.channel === 'stable' ? 'Use a nightly, or download the source.' : 'Use a stable release, or download the source.')
+                            + '</p>';
+                    }
+
+                    if (builds.length && binary) {
+                        h += '<a href="' + binary.download_url + '" class="w-full mt-4 px-4 py-3.5 rounded-xl text-sm font-semibold bg-green-600 text-white hover:bg-green-500 transition-all hover:shadow-[0_0_20px_rgba(22,163,74,0.2)] flex items-center justify-center gap-2">'
+                            + '<i class="ph ph-download-simple text-lg"></i>Download plugin</a>';
+                    } else if (builds.length) {
+                        h += '<button type="button" disabled class="w-full mt-4 px-4 py-3.5 rounded-xl text-sm font-semibold bg-white/[0.04] border border-zinc-800 text-zinc-500 cursor-not-allowed">'
+                            + 'Not built for ' + OS_LABELS[s.os] + ' on this build</button>';
+                    }
+                    if (s.failures.length) h += buildFailuresHtml(s.failures);
+                    h += '<p class="mt-2 text-xs leading-relaxed text-zinc-400">Installing from the editor picks the right build for you.</p>';
+                    container.innerHTML = h;
+
+                    container.querySelectorAll('[data-os]').forEach(b => b.addEventListener('click', () => { s.os = b.dataset.os; render(); }));
+                    container.querySelectorAll('[data-arch]').forEach(b => b.addEventListener('click', () => { s.arch = b.dataset.arch; render(); }));
+                    container.querySelectorAll('[data-channel]').forEach(b => b.addEventListener('click', async () => {
+                        if (s.channel === b.dataset.channel) return;
+                        s.channel = b.dataset.channel;
+                        s.tag = inChannel()[0]?.engine_tag || '';
+                        await loadTag();
+                        render();
+                    }));
+                    container.querySelector('#dl-build')?.addEventListener('change', async e => {
+                        s.tag = e.target.value;
+                        await loadTag();
+                        render();
+                    });
                 }
-                html += '<p class="text-[11px] text-zinc-500 mt-2 leading-relaxed">A prebuilt runs only on the engine build it was made for: pick the nightly or release you run. '
-                    + 'Installing from the editor picks the right one automatically, or builds from source when there is none. '
-                    + 'On an engine you built from source yourself, use Download above for the source.</p>';
-                html += '</div>';
-                container.innerHTML = html + (failures.length ? buildFailuresHtml(failures) : '');
-                wirePicker();
+
+                s.tag = inChannel()[0]?.engine_tag || '';
+                await loadTag();
+                render();
             }
 
             // Platforms the engine's CI could not compile this plugin on. Everyone
@@ -877,7 +971,7 @@
                 const label = p => PLATFORM_LABELS[p] || p;
                 let html = '<div class="mt-2 p-3 rounded-xl bg-red-500/[0.04] border border-red-500/20">';
                 html += '<p class="text-xs font-semibold text-red-300 flex items-center gap-1.5"><i class="ph ph-warning"></i>Does not compile on '
-                    + esc(failures[0].engine_tag || 'the latest engine build') + '</p>';
+                    + esc(engineLabel(failures[0].engine_tag) || 'the latest engine build') + '</p>';
                 for (const f of failures) {
                     html += '<p class="text-[11px] text-zinc-400 mt-1.5"><span class="text-zinc-200">' + esc(label(f.platform)) + '</span>'
                         + ' (v' + esc(f.plugin_version) + ')' + (f.summary ? ': ' + esc(f.summary) : '') + '</p>';
@@ -1220,6 +1314,9 @@
                 activeGalleryIndex = index;
                 const item = galleryItems[index];
                 document.getElementById('main-preview').innerHTML = renderMainPreview(item);
+                // The facts overlay would sit on an audio or video player's
+                // controls; it comes back for a picture.
+                document.getElementById('cover-info')?.classList.toggle('hidden', item.type === 'audio' || item.type === 'video');
                 // Re-init players based on type
                 if (item.type === 'audio') initAudioPlayer();
                 if (item.type === 'video') initVideoPlayer();

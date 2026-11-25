@@ -15,8 +15,9 @@
 //!   build, or 404, which tells the editor to install from source.
 //! - `GET /:asset_id/latest[?engine_tag=<tag>]`: the binary per platform for
 //!   one engine build, or the newest of each, for the listing page.
-//! - `GET /:asset_id/engine-builds`: the engine builds a plugin has binaries
-//!   for, newest first, for the listing page's build picker.
+//! - `GET /:asset_id/engine-builds[?version=<v>]`: the engine builds a plugin
+//!   (or one version of it) has binaries for, newest first, for the listing
+//!   page's build picker. `/latest` and `/builds` take `version` too.
 //! - `GET /:asset_id/file/:id`: the binary's bytes, by redirect, counted.
 //! - `POST /upload`: CI's upload, with an admin's API token.
 //!
@@ -145,9 +146,22 @@ async fn lookup(
 }
 
 /// `?engine_tag=<tag>` picks one engine build; without it, the newest.
+/// `?version=<v>` keeps one plugin version's binaries, for a listing page
+/// showing an older release.
 #[derive(Deserialize)]
 struct EngineTagQuery {
     engine_tag: Option<String>,
+    version: Option<String>,
+}
+
+impl EngineTagQuery {
+    fn tag(&self) -> Option<&str> {
+        self.engine_tag.as_deref().filter(|t| !t.is_empty())
+    }
+
+    fn version(&self) -> Option<&str> {
+        self.version.as_deref().filter(|v| !v.is_empty())
+    }
 }
 
 /// The binaries per platform for one engine build (`?engine_tag=`), or the
@@ -162,8 +176,8 @@ async fn latest(
 ) -> Result<Json<Vec<PrebuiltResponse>>, ApiError> {
     let asset = Asset::find_by_id(&state.db, asset_id).await?.ok_or(ApiError::NotFound)?;
     authorize(&state, &auth, &asset).await?;
-    let rows = match q.engine_tag.as_deref().filter(|t| !t.is_empty()) {
-        Some(tag) => PrebuiltPlugin::for_engine_tag(&state.db, asset_id, tag).await?,
+    let rows = match q.tag() {
+        Some(tag) => PrebuiltPlugin::for_engine_tag(&state.db, asset_id, tag, q.version()).await?,
         None => PrebuiltPlugin::latest_per_platform(&state.db, asset_id).await?,
     };
     Ok(Json(rows.into_iter().map(|p| response_for(&asset, p)).collect()))
@@ -176,10 +190,11 @@ async fn engine_builds(
     State(state): State<AppState>,
     Extension(auth): Extension<Option<AuthUser>>,
     Path(asset_id): Path<Uuid>,
+    Query(q): Query<EngineTagQuery>,
 ) -> Result<Json<Vec<renzora_models::prebuilt_plugin::EngineBuild>>, ApiError> {
     let asset = Asset::find_by_id(&state.db, asset_id).await?.ok_or(ApiError::NotFound)?;
     authorize(&state, &auth, &asset).await?;
-    Ok(Json(PrebuiltPlugin::engine_builds(&state.db, asset_id, 60).await?))
+    Ok(Json(PrebuiltPlugin::engine_builds(&state.db, asset_id, q.version(), 60).await?))
 }
 
 /// The bytes, by redirect to a short-lived storage URL, counted as a download
@@ -499,8 +514,8 @@ async fn builds(
         None => false,
     };
     use renzora_models::plugin_build::PluginBuild;
-    let rows = match q.engine_tag.as_deref().filter(|t| !t.is_empty()) {
-        Some(tag) => PluginBuild::for_engine_tag(&state.db, asset_id, tag).await?,
+    let rows = match q.tag() {
+        Some(tag) => PluginBuild::for_engine_tag(&state.db, asset_id, tag, q.version()).await?,
         None => PluginBuild::latest_per_platform(&state.db, asset_id).await?,
     };
     Ok(Json(

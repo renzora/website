@@ -137,22 +137,37 @@ impl PrebuiltPlugin {
     /// named by its tag (`r1-alpha8-nightly-22nov26`). By tag rather than
     /// stamp because a build's stamp differs per platform (each platform's SDK
     /// is its own set of images), while its tag is the one name a person picks.
-    pub async fn for_engine_tag(pool: &PgPool, asset_id: Uuid, engine_tag: &str) -> Result<Vec<Self>, sqlx::Error> {
+    ///
+    /// `plugin_version` narrows it to binaries of that version, for a listing
+    /// page showing an older release.
+    pub async fn for_engine_tag(
+        pool: &PgPool,
+        asset_id: Uuid,
+        engine_tag: &str,
+        plugin_version: Option<&str>,
+    ) -> Result<Vec<Self>, sqlx::Error> {
         sqlx::query_as::<_, Self>(&format!(
             "SELECT DISTINCT ON (platform) {COLS} FROM prebuilt_plugins
-             WHERE asset_id = $1 AND engine_tag = $2
+             WHERE asset_id = $1 AND engine_tag = $2 AND ($3::text IS NULL OR plugin_version = $3)
              ORDER BY platform, created_at DESC"
         ))
         .bind(asset_id)
         .bind(engine_tag)
+        .bind(plugin_version)
         .fetch_all(pool)
         .await
     }
 
     /// Every engine build `asset_id` has binaries for, newest first: what the
     /// listing page's build picker offers. One plugin version is rebuilt for
-    /// every nightly, so the same version appears under many builds.
-    pub async fn engine_builds(pool: &PgPool, asset_id: Uuid, limit: i64) -> Result<Vec<EngineBuild>, sqlx::Error> {
+    /// every nightly, so the same version appears under many builds;
+    /// `plugin_version` keeps only that version's.
+    pub async fn engine_builds(
+        pool: &PgPool,
+        asset_id: Uuid,
+        plugin_version: Option<&str>,
+        limit: i64,
+    ) -> Result<Vec<EngineBuild>, sqlx::Error> {
         sqlx::query_as::<_, EngineBuild>(
             "SELECT engine_tag,
                     MAX(engine_version) AS engine_version,
@@ -160,12 +175,13 @@ impl PrebuiltPlugin {
                     COUNT(DISTINCT platform) AS platforms,
                     MAX(created_at) AS built_at
              FROM prebuilt_plugins
-             WHERE asset_id = $1 AND engine_tag <> ''
+             WHERE asset_id = $1 AND engine_tag <> '' AND ($2::text IS NULL OR plugin_version = $2)
              GROUP BY engine_tag
              ORDER BY MAX(created_at) DESC
-             LIMIT $2",
+             LIMIT $3",
         )
         .bind(asset_id)
+        .bind(plugin_version)
         .bind(limit)
         .fetch_all(pool)
         .await
