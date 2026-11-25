@@ -18,7 +18,14 @@ services:
       retries: 3
     volumes:
       - uploads:/app/uploads
-      - ./assets:/app/assets:ro
+      # Only `assets/wasm` from the checkout, never the whole of `./assets`:
+      # CI builds main.css, the Phosphor icon subset and the optimised previews
+      # into the image from the same commit, and a mount of the whole folder
+      # hid all three behind the committed copies, so a Tailwind class added
+      # after the last hand-built main.css shipped unstyled (the listing page's
+      # download controls, 2026-11-25). The preview WASM is the one asset the
+      # deploy fetches onto the droplet (deploy.yml) rather than the image.
+      - ./assets/wasm:/app/assets/wasm:ro
       # The browser build of the engine, served at /engine. Host-mounted rather
       # than baked into the image because it is ~170 MB that changes every
       # nightly: scripts/fetch-engine-wasm.sh drops each release in here and

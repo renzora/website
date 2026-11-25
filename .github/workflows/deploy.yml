@@ -70,7 +70,8 @@ jobs:
             set -e
             cd /opt/renzora-website
 
-            # Pull latest code (compose file, nginx config, host-mounted assets)
+            # Pull latest code (compose file, nginx config). Assets come from the
+            # image, except the preview WASM below, which is host-mounted.
             git fetch origin main
             git reset --hard origin/main
 
