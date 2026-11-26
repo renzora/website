@@ -151,6 +151,15 @@ The **trash** button in a header removes a component. The header toggle turns on
 
 Removing the last script also drops the underlying component, so an entity you never scripted carries nothing.
 
+## Mesh
+
+The **Mesh** section, on any shape or imported model, swaps what the object is without making a new one. Its name, position, scripts, physics and place in the Hierarchy all stay.
+
+- **Shape** lists every shape in the Shape Library. Pick one and the object becomes that shape; a shape keeps its material and colour. On a model it shows a dash.
+- **Model** takes a model file (`.glb`, `.gltf` or `.rvg`) dragged from the Assets panel. Drop one and the object becomes that model, its meshes and materials as the import made them. Clear the slot and it becomes a cube.
+
+A model's own parts are not saved with the scene (the file is), so a shape with children of its own cannot become a model; the Console says so. Move the children out first.
+
 ## Material
 
 The **Material** section is the fastest way to dress a mesh.
@@ -165,7 +174,7 @@ See [Materials](/docs/r1-alpha8/editor/materials).
 
 Any entity with text gets two sections.
 
-**Text Font** picks the font from a dropdown that fills itself from your project's `fonts/` folder plus the built-in faces. Drop a `.ttf` or `.otf` there and it appears. Set the size, and for variable fonts the weight, width, letter spacing and line height.
+**Text Font** picks the font from a dropdown that fills itself from your project's `fonts/` folder plus the built-in faces. Drop a `.ttf` or `.otf` there, or a family's folder of them (`fonts/barlow/Barlow-Bold.ttf`), and it appears. Two fonts with the same file name in different folders are shown with their folder. Set the size, and for variable fonts the weight, width, letter spacing and line height.
 
 **Rich Text** builds styled spans: several runs of text on one line, each with its own text and colour. **Add span** appends one. Spans render in order after the base text.
 
