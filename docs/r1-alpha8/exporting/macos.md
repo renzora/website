@@ -87,23 +87,44 @@ lipo -create -output renzora-universal \
 
 ## Distributing to other Macs
 
-The macOS lane produces a **plain directory** of a binary plus dynamic libraries — it does not generate an `.app` bundle, an `Info.plist`, a code signature, or a `.dmg`. (Only the Linux editor lane wraps its output, into an AppImage.) Bundling, signing, notarizing, and disk-image packaging are macOS-side steps you perform yourself, on a Mac, if you distribute beyond your own machine.
+### Exporting from the editor (on a Mac)
 
-Because the cross-compiled binaries are **unsigned**, Gatekeeper blocks them on other Macs until you either sign/notarize them or clear the quarantine attribute:
+The editor's **Export** dialog produces a ready-to-run game. A new macOS export preset wraps the output in a `.app` (the **Wrap as a .app bundle** switch; presets you saved before this default keep their old setting), and every macOS export is **code-signed** as its final step. The signing is what lets the game launch at all: a copy-mode export ships the runtime template, whose signature belongs to the editor's own bundle and which Apple Silicon refuses to run anywhere else, so an unsigned export shows "the application can't be opened" the instant you double-click it.
+
+Inside a `.app`, all three packaging modes put the game data (`<game>.rpak`) beside the executable in `Contents/MacOS/`, including **Single executable** and **Lean single binary**. The bundle is already one file to the player, and `codesign` refuses an executable with data appended to it, so a bundle built that way could not be signed. Outside a `.app`, the single-file modes still append the data; the export signs the executable around it, which launches fine on a Mac but cannot be notarized, so distribute the `.app`.
+
+**Zip the `.app` with Finder (right-click -> Compress) or `ditto -c -k --keepParent`**, not a plain `zip`, `tar` or git. The seal on the data files in `Contents/MacOS/` is stored in extended attributes, and tools that drop them leave a bundle macOS reports as damaged.
+
+Which tier you get depends only on what you have configured:
+
+- **No Apple account (the default): ad-hoc signed.** The `.app` runs on your machine and on any Mac it reaches without the download quarantine (a USB stick, AirDrop, itch's app, Steam). A copy a player *downloads* is quarantined and meets Gatekeeper, which they clear once with right-click -> Open (or System Settings -> Privacy & Security -> "Open Anyway"). This is as far as a free account goes, and it is enough for testing and for launchers that do not quarantine.
+- **Developer ID + notarization: opens with a clean double-click anywhere.** Set these in the environment before launching the editor, and the export signs with your identity, submits to Apple's notary service, and staples the ticket:
+
+  ```bash
+  export RENZORA_CODESIGN_IDENTITY="Developer ID Application: You (TEAMID)"
+  export RENZORA_NOTARY_KEY="/path/to/AuthKey_XXXXXXXXXX.p8"
+  export RENZORA_NOTARY_KEY_ID="XXXXXXXXXX"
+  export RENZORA_NOTARY_ISSUER="your-issuer-uuid"
+  ```
+
+  With only `RENZORA_CODESIGN_IDENTITY` set, the export is signed with your Developer ID but not notarized, so a download still warns. Notarization staples its ticket to the `.app`, so keep **Wrap as a .app bundle** on. The identity lives in your login keychain, and the export unlocks it once per signing call; choose **Always Allow** on the keychain prompt (or allow `codesign` in the key's Access Control) and it stops asking. Signing happens only when you export **from a Mac**: `codesign`, `notarytool` and `stapler` do not exist on other hosts, and a macOS game cross-exported from Linux or Windows is left unsigned with a note saying so.
+
+**Include server** writes `server.rpak` and `server.sh` beside the `.app`; the script runs the game binary inside the bundle in server mode.
+
+### `renzora build` (Docker cross-compile)
+
+The Docker lane is a different path, and it produces a **plain, unsigned directory** of a binary plus dynamic libraries: no `.app`, no `Info.plist`, no signature. Bundling and signing are macOS-side steps you run on a Mac, the same `codesign` -> `notarytool submit` -> `stapler staple` the editor's export automates. For a quick local run of an unsigned cross-built binary, clear the quarantine:
 
 ```bash
-# Quick local workaround for an unsigned build
 xattr -cr /path/to/renzora
 ```
-
-If you have an Apple Developer account, the standard distribution flow on a Mac is `codesign` → `notarytool submit` → `stapler staple`. These are Apple tools, not part of the Renzora build; see Apple's developer documentation for the current commands.
 
 ## Troubleshooting
 
 | Issue | Cause / fix |
 |---|---|
 | `WARN: osxcross not found, skipping macOS builds` | The container has no osxcross. Use the official `ghcr.io/renzora/macos` image, which bundles it. |
-| `"<app> is damaged and can't be opened"` | Unsigned cross-built binary flagged by Gatekeeper. Run `xattr -cr <binary>`, or sign and notarize on a Mac. |
+| `"<app> is damaged and can't be opened"` / `"the application can't be opened"` / `zsh: killed` | An unsigned binary. An export from the editor on a Mac is signed automatically; this is a cross-built (`renzora build`) or hand-assembled binary. Run `xattr -cr <binary>`, or sign and notarize on a Mac. |
 | `dyld: Library not loaded: ...dylib` | A required dylib is missing. Ship the whole platform directory — keep `librenzora.dylib`, `libbevy_dylib-*.dylib`, `libstd-*.dylib`, and `plugins/` next to the binary. |
 | Editor launches instead of the game | `librenzora_editor.dylib` is still present. Delete it, or run with `--no-editor`. |
 | Won't launch on older macOS | The build floor is macOS 11.0 Big Sur. |
