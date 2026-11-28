@@ -76,110 +76,88 @@ pub fn MarketplacePage() -> impl IntoView {
         {asset_head}
         {asset_body}
 
-        <section class="min-h-[calc(100vh-3rem)]">
+        <section class="min-h-[calc(100vh-3rem)] pb-20">
 
-        <div class="flex">
-            // ── Left Sidebar: Categories ──
-            <aside class="w-64 shrink-0 border-r border-white/[0.04] sticky top-[60px] h-[calc(100vh-60px)] overflow-y-auto hidden lg:block bg-surface">
-                <div class="p-3">
-                    <div class="menu-label">"Categories"</div>
-                    <div id="mp-sidebar-cats">
-                        <button class="menu-item active">
-                            <i class="ph ph-squares-four text-base"></i>"All"
-                        </button>
-                    </div>
+            // ── Hero ────────────────────────────────────────────────────────
+            // A tilted wall of the marketplace's own thumbnails behind the
+            // search. It starts as category-coloured tiles so it is never empty
+            // or jumpy, and the first page of results swaps real art in (see
+            // fillHeroMosaic). Fixed height, so nothing below it moves when it
+            // fills.
+            <div class="relative overflow-hidden h-[340px] sm:h-[420px]">
+                <div id="mp-hero-mosaic" aria-hidden="true"
+                     class="absolute -inset-x-20 -inset-y-16 grid grid-cols-4 sm:grid-cols-6 lg:grid-cols-8 auto-rows-[110px] sm:auto-rows-[150px] gap-3 -rotate-6 opacity-50 pointer-events-none"></div>
+                <div class="absolute inset-0 pointer-events-none"
+                     style="background: radial-gradient(ellipse at 50% 55%, rgba(8,5,14,0.92) 0, rgba(8,5,14,0.75) 45%, rgba(8,5,14,0.35) 100%), linear-gradient(180deg, rgba(8,5,14,0.55), transparent 25%, transparent 70%, #09040f)"></div>
+                <div class="relative h-full max-w-3xl mx-auto px-4 sm:px-8 flex flex-col items-center justify-center gap-4 sm:gap-5 text-center">
+                    <span class="px-3 py-1 rounded-full bg-purple-600 text-white text-[11px] sm:text-xs font-bold tracking-[0.08em]">"RENZORA MARKETPLACE"</span>
+                    <h1 class="text-3xl sm:text-5xl lg:text-6xl font-bold tracking-tight leading-none text-zinc-50">"Plugins, shaders and assets, straight into your editor."</h1>
+                    <label class="w-full flex items-center gap-3 px-4 sm:px-5 py-3 sm:py-4 rounded-2xl bg-[#160d26]/95 border border-accent/50 focus-within:border-accent transition-colors">
+                        <i class="ph ph-magnifying-glass text-xl text-purple-300"></i>
+                        <span class="sr-only">"Search the marketplace"</span>
+                        <input type="search" id="mp-search" placeholder="Search assets" oninput="onMpSearch()"
+                               class="flex-1 min-w-0 bg-transparent border-0 outline-none text-zinc-50 text-base placeholder:text-zinc-500" />
+                    </label>
                 </div>
-                <div class="p-3 border-t border-zinc-800">
-                    <div class="menu-label">"Price"</div>
-                    <button onclick="setPrice('all')" id="price-all" class="mp-price-btn menu-item active">
-                        <i class="ph ph-coins text-base"></i>"All Prices"
-                    </button>
-                    <button onclick="setPrice('free')" id="price-free" class="mp-price-btn menu-item">
-                        <i class="ph ph-gift text-base"></i>"Free Only"
-                    </button>
-                    <button onclick="setPrice('paid')" id="price-paid" class="mp-price-btn menu-item">
-                        <i class="ph ph-credit-card text-base"></i>"Paid Only"
-                    </button>
-                </div>
-                <div class="p-3 border-t border-zinc-800">
-                    <div class="menu-label">"Min Rating"</div>
-                    <button onclick="setMinRating(0)" id="rating-0" class="mp-rating-btn menu-item active">
-                        <i class="ph ph-star text-base"></i>"Any"
-                    </button>
-                    <button onclick="setMinRating(3)" id="rating-3" class="mp-rating-btn menu-item">
-                        <span class="text-amber-400">"★★★"</span><span class="text-zinc-600">"☆☆"</span>"& up"
-                    </button>
-                    <button onclick="setMinRating(4)" id="rating-4" class="mp-rating-btn menu-item">
-                        <span class="text-amber-400">"★★★★"</span><span class="text-zinc-600">"☆"</span>"& up"
-                    </button>
-                    <button onclick="setMinRating(5)" id="rating-5" class="mp-rating-btn menu-item">
-                        <span class="text-amber-400">"★★★★★"</span>"only"
-                    </button>
-                </div>
-                <div class="flex-1"></div>
-            </aside>
+            </div>
 
-            // ── Main Content ──
-            <div class="flex-1 min-w-0">
-                // Top bar: search + sort + filters
-                <div class="sticky top-[60px] z-20 bg-black/30 backdrop-blur-2xl px-6 py-3">
-                    <div class="flex items-center gap-3">
-                        // Mobile category toggle
-                        <button onclick="toggleMobileCats()" class="lg:hidden inline-flex items-center gap-1.5 px-3 py-2.5 bg-white/[0.03] border border-zinc-800/50 rounded-xl text-zinc-400 text-sm hover:border-zinc-600 transition-all shrink-0">
-                            <i class="ph ph-list text-base"></i>
-                        </button>
-                        <div class="relative flex-1">
-                            <i class="ph ph-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500"></i>
-                            <input type="text" id="mp-search" placeholder="Search assets..." oninput="loadAssets()" class="w-full pl-9 pr-4 py-2.5 bg-white/[0.03] border border-zinc-800/50 rounded-xl text-zinc-50 text-sm outline-none focus:border-teal-500/50 focus:bg-white/[0.05] transition-all" />
+            <div class="max-w-[1376px] mx-auto px-4 sm:px-8 flex flex-col gap-6 sm:gap-8">
+
+                // ── Category tiles ──────────────────────────────────────────
+                // Filled from /api/marketplace/categories. Each starts on its
+                // generated cover and takes a real thumbnail once the first
+                // page shows one from that category.
+                <nav id="mp-cat-strip" aria-label="Categories"
+                     class="no-scrollbar grid grid-flow-col auto-cols-[140px] sm:auto-cols-[160px] gap-3 overflow-x-auto pb-1"></nav>
+
+                // ── Tabs + tools ────────────────────────────────────────────
+                <div id="mp-toolbar" class="sticky top-[60px] z-20 -mx-4 sm:-mx-8 px-4 sm:px-8 bg-[#09040f]/85 backdrop-blur-xl">
+                    <div class="flex flex-wrap items-center gap-x-2 gap-y-2 shadow-[inset_0_-1px_0_rgba(255,255,255,0.07)]">
+                        <div role="tablist" aria-label="Sort" class="flex items-center overflow-x-auto no-scrollbar">
+                            <button type="button" role="tab" data-mp-sort="popular" onclick="setMpSort('popular')" class="mp-sort-tab">"Trending"</button>
+                            <button type="button" role="tab" data-mp-sort="newest" onclick="setMpSort('newest')" class="mp-sort-tab">"New"</button>
+                            <button type="button" role="tab" data-mp-sort="top_rated" onclick="setMpSort('top_rated')" class="mp-sort-tab">"Top rated"</button>
+                            <button type="button" role="tab" data-mp-sort="most_viewed" onclick="setMpSort('most_viewed')" class="mp-sort-tab">"Most viewed"</button>
                         </div>
-                        // In the top bar rather than inside the Filters panel.
-                        // Which engine you are on decides what is installable at
-                        // all, so it is not the same kind of question as a price
-                        // range, and a collapsed panel meant nobody found it.
-                        <select id="mp-engine" onchange="setEngineFilter(this.value)" title="Show only what this engine version can run"
-                                class="px-3 py-2.5 bg-white/[0.03] border border-zinc-800/50 rounded-xl text-zinc-50 text-sm focus:border-teal-500/50 transition-all shrink-0">
-                            <option value="">"All engine versions"</option>
-                        </select>
-                        <select id="mp-sort" onchange="loadAssets()" class="px-3 py-2.5 bg-white/[0.03] border border-zinc-800/50 rounded-xl text-zinc-50 text-sm focus:border-teal-500/50 transition-all shrink-0">
-                            <option value="newest">"Newest"</option>
-                            <option value="popular">"Most Popular"</option>
-                            <option value="top_rated">"Top Rated"</option>
-                            <option value="price_asc">"Price: Low → High"</option>
-                            <option value="price_desc">"Price: High → Low"</option>
-                        </select>
-                        <button onclick="toggleAdvancedFilter()" id="adv-filter-btn" class="inline-flex items-center gap-1.5 px-3 py-2.5 bg-white/[0.03] border border-zinc-800/50 rounded-xl text-zinc-400 text-sm hover:border-zinc-600 hover:text-zinc-200 transition-all shrink-0">
-                            <i class="ph ph-faders-horizontal text-base"></i><span class="hidden sm:inline">"Filters"</span>
-                        </button>
-                        // View toggle
-                        <div class="flex items-center gap-0.5 p-0.5 bg-white/[0.02] rounded-lg border border-zinc-800/40 shrink-0">
-                            <button onclick="setMpView('grid')" id="mp-view-grid" class="p-1.5 rounded-md text-zinc-300 bg-white/[0.06] transition-all" title="Grid">
-                                <i class="ph ph-grid-four text-sm"></i>
+                        <span class="flex-1"></span>
+                        <div class="flex items-center gap-2 py-2">
+                            <button type="button" id="mp-free-toggle" onclick="toggleFreeOnly()" aria-pressed="false"
+                                    class="px-3 py-2 rounded-xl text-sm font-medium border border-zinc-800/60 bg-white/[0.03] text-zinc-300 hover:border-zinc-600 transition-colors">"Free only"</button>
+                            // In the bar rather than inside Filters. Which engine
+                            // you are on decides what is installable at all, so it
+                            // is not the same kind of question as a price range.
+                            <select id="mp-engine" onchange="setEngineFilter(this.value)" title="Show only what this engine version can run" aria-label="Engine version"
+                                    class="hidden sm:block px-3 py-2 bg-white/[0.03] border border-zinc-800/60 rounded-xl text-zinc-50 text-sm focus:border-accent/50 transition-all">
+                                <option value="">"All engine versions"</option>
+                            </select>
+                            <button onclick="toggleAdvancedFilter()" id="adv-filter-btn" class="inline-flex items-center gap-1.5 px-3 py-2 bg-white/[0.03] border border-zinc-800/60 rounded-xl text-zinc-300 text-sm hover:border-zinc-600 transition-all">
+                                <i class="ph ph-faders-horizontal text-base"></i><span class="hidden sm:inline">"Filters"</span>
                             </button>
-                            <button onclick="setMpView('list')" id="mp-view-list" class="p-1.5 rounded-md text-zinc-500 hover:text-zinc-300 transition-all" title="List">
-                                <i class="ph ph-list text-sm"></i>
-                            </button>
+                            <div class="flex items-center gap-0.5 p-0.5 bg-white/[0.02] rounded-lg border border-zinc-800/40">
+                                <button onclick="setMpView('grid')" id="mp-view-grid" class="p-1.5 rounded-md text-zinc-300 bg-white/[0.06] transition-all" title="Grid" aria-label="Grid view">
+                                    <i class="ph ph-grid-four text-sm"></i>
+                                </button>
+                                <button onclick="setMpView('list')" id="mp-view-list" class="p-1.5 rounded-md text-zinc-500 hover:text-zinc-300 transition-all" title="List" aria-label="List view">
+                                    <i class="ph ph-list text-sm"></i>
+                                </button>
+                            </div>
+                            <span id="mp-result-count" class="text-xs text-zinc-500 hidden md:block whitespace-nowrap"></span>
+                            // Upload (signed-in only, revealed via JS)
+                            <a id="publish-btn-hero" href="/marketplace/upload" class="hidden group inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium bg-teal-600 text-white hover:bg-teal-500 transition-all">
+                                <i class="ph ph-plus-circle text-base group-hover:rotate-90 transition-transform duration-300"></i><span class="hidden sm:inline">"Upload"</span>
+                            </a>
                         </div>
-                        // Result count
-                        <span id="mp-result-count" class="text-xs text-zinc-600 shrink-0 hidden sm:block"></span>
-                        // Upload (creators only, revealed via JS)
-                        <a id="publish-btn-hero" href="/marketplace/upload" class="hidden group inline-flex items-center gap-1.5 px-3 py-2.5 rounded-xl text-sm font-medium bg-teal-500 text-white hover:bg-teal-400 transition-all shrink-0">
-                            <i class="ph ph-plus-circle text-base group-hover:rotate-90 transition-transform duration-300"></i><span class="hidden sm:inline">"Upload"</span>
-                        </a>
                     </div>
                     // Advanced filter panel
-                    <div id="adv-filter-panel" class="hidden mt-3 p-4 bg-white/[0.02] border border-zinc-800/50 rounded-xl">
+                    <div id="adv-filter-panel" class="hidden my-3 p-4 bg-[#120b1f] border border-zinc-800/50 rounded-xl">
                         <div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
                             <div>
-                                <label class="text-[10px] text-zinc-500 uppercase tracking-wider font-medium mb-1.5 block">"Price Range"</label>
-                                <div class="flex items-center gap-2">
-                                    <input type="number" id="adv-min-price" placeholder="Min" min="0" class="w-full px-2.5 py-1.5 bg-white/[0.03] border border-zinc-800/50 rounded-lg text-zinc-50 text-xs outline-none focus:border-teal-500/50 transition-all" />
-                                    <span class="text-zinc-600 text-xs">"-"</span>
-                                    <input type="number" id="adv-max-price" placeholder="Max" min="0" class="w-full px-2.5 py-1.5 bg-white/[0.03] border border-zinc-800/50 rounded-lg text-zinc-50 text-xs outline-none focus:border-teal-500/50 transition-all" />
-                                </div>
+                                <label for="adv-max-price" class="text-[10px] text-zinc-500 uppercase tracking-wider font-medium mb-1.5 block">"Max price (credits)"</label>
+                                <input type="number" id="adv-max-price" placeholder="Any" min="0" class="w-full px-2.5 py-1.5 bg-white/[0.03] border border-zinc-800/50 rounded-lg text-zinc-50 text-xs outline-none focus:border-accent/50 transition-all" />
                             </div>
                             <div>
-                                <label class="text-[10px] text-zinc-500 uppercase tracking-wider font-medium mb-1.5 block">"Min Rating"</label>
-                                <select id="adv-min-rating" class="w-full px-2.5 py-1.5 bg-white/[0.03] border border-zinc-800/50 rounded-lg text-zinc-50 text-xs focus:border-teal-500/50 transition-all">
+                                <label for="adv-min-rating" class="text-[10px] text-zinc-500 uppercase tracking-wider font-medium mb-1.5 block">"Min Rating"</label>
+                                <select id="adv-min-rating" class="w-full px-2.5 py-1.5 bg-white/[0.03] border border-zinc-800/50 rounded-lg text-zinc-50 text-xs focus:border-accent/50 transition-all">
                                     <option value="0">"Any"</option>
                                     <option value="3">"★★★ & up"</option>
                                     <option value="4">"★★★★ & up"</option>
@@ -187,29 +165,20 @@ pub fn MarketplacePage() -> impl IntoView {
                                 </select>
                             </div>
                             <div>
-                                <label class="text-[10px] text-zinc-500 uppercase tracking-wider font-medium mb-1.5 block">"Licence"</label>
-                                <select id="adv-licence" class="w-full px-2.5 py-1.5 bg-white/[0.03] border border-zinc-800/50 rounded-lg text-zinc-50 text-xs focus:border-teal-500/50 transition-all">
-                                    <option value="">"Any"</option>
-                                    <option value="standard">"Standard"</option>
-                                    <option value="extended">"Extended"</option>
-                                    <option value="cc0">"CC0 (Public Domain)"</option>
-                                    <option value="mit">"MIT"</option>
-                                    <option value="apache2">"Apache 2.0"</option>
-                                    <option value="gpl3">"GPL 3.0"</option>
+                                <label for="adv-tag" class="text-[10px] text-zinc-500 uppercase tracking-wider font-medium mb-1.5 block">"Tag"</label>
+                                <input type="text" id="adv-tag" placeholder="e.g. low-poly" class="w-full px-2.5 py-1.5 bg-white/[0.03] border border-zinc-800/50 rounded-lg text-zinc-50 text-xs outline-none focus:border-accent/50 transition-all" />
+                            </div>
+                            // The engine select sits in the bar on wider screens;
+                            // a phone gets it here instead of not at all.
+                            <div class="sm:hidden">
+                                <label for="mp-engine-sm" class="text-[10px] text-zinc-500 uppercase tracking-wider font-medium mb-1.5 block">"Engine"</label>
+                                <select id="mp-engine-sm" onchange="setEngineFilter(this.value)" class="w-full px-2.5 py-1.5 bg-white/[0.03] border border-zinc-800/50 rounded-lg text-zinc-50 text-xs">
+                                    <option value="">"All engine versions"</option>
                                 </select>
                             </div>
-                            <div>
-                                <label class="text-[10px] text-zinc-500 uppercase tracking-wider font-medium mb-1.5 block">"Tag"</label>
-                                <input type="text" id="adv-tag" placeholder="e.g. low-poly" class="w-full px-2.5 py-1.5 bg-white/[0.03] border border-zinc-800/50 rounded-lg text-zinc-50 text-xs outline-none focus:border-teal-500/50 transition-all" />
-                            </div>
-                            // Populated from /api/marketplace/engine-versions, so
-                            // this is empty until that resolves. Left as "Any"
-                            // rather than defaulting to the newest: browsing the
-                            // website is not browsing from an engine, and
-                            // guessing one would silently hide listings.
                         </div>
                         <div class="flex items-center gap-3 mt-3">
-                            <button onclick="applyAdvancedFilter()" class="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-xs font-medium bg-teal-500 text-white hover:bg-teal-400 transition-all">
+                            <button onclick="applyAdvancedFilter()" class="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-xs font-medium bg-purple-600 text-white hover:bg-purple-500 transition-all">
                                 <i class="ph ph-check text-sm"></i>"Apply"
                             </button>
                             <button onclick="clearAdvancedFilter()" class="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-xs font-medium text-zinc-400 hover:text-zinc-200 bg-white/[0.03] border border-zinc-800/50 hover:border-zinc-600 transition-all">
@@ -217,39 +186,44 @@ pub fn MarketplacePage() -> impl IntoView {
                             </button>
                         </div>
                     </div>
-                    // Mobile categories (hidden by default)
-                    <div id="mp-mobile-cats" class="hidden lg:hidden mt-3">
-                        <div id="mp-categories" class="flex gap-2 flex-wrap">"Loading..."</div>
+                </div>
+
+                // ── The wall ────────────────────────────────────────────────
+                <div id="mp-grid" class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 sm:gap-4">
+                    <div class="col-span-full text-center py-16">
+                        <div class="inline-block animate-spin w-5 h-5 border-2 border-zinc-700 border-t-accent rounded-full"></div>
                     </div>
                 </div>
 
-                // Asset grid
-                <div class="flex-1 overflow-y-auto mp-scroll" id="mp-scroll-area">
-                    <div class="p-3">
-                        <div id="mp-grid" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
-                            <div class="col-span-full text-center py-16">
-                                <div class="inline-block animate-spin w-5 h-5 border-2 border-zinc-700 border-t-teal-400 rounded-full"></div>
-                            </div>
-                        </div>
+                // Pagination
+                <div id="mp-pagination" class="hidden flex items-center justify-center gap-3">
+                    <button onclick="goPage(currentPage - 1)" id="mp-prev" aria-label="Previous page" class="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-white/[0.03] border border-zinc-800/50 text-zinc-400 hover:text-zinc-200 hover:border-zinc-600 transition-all disabled:opacity-30 disabled:pointer-events-none">
+                        <i class="ph ph-caret-left text-sm"></i>
+                    </button>
+                    <div class="flex items-center gap-2 text-xs text-zinc-500">
+                        "Page"
+                        <input type="number" id="mp-page-input" min="1" value="1" onchange="goPage(parseInt(this.value)||1)" aria-label="Page" class="w-12 px-2 py-1 bg-white/[0.03] border border-zinc-800/50 rounded-lg text-zinc-50 text-xs text-center outline-none focus:border-accent/50 transition-all" />
+                        "of "<span id="mp-total-pages">"1"</span>
                     </div>
-
-                    // Pagination
-                    <div id="mp-pagination" class="hidden flex items-center justify-center gap-3 py-4">
-                        <button onclick="goPage(currentPage - 1)" id="mp-prev" class="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-white/[0.03] border border-zinc-800/50 text-zinc-400 hover:text-zinc-200 hover:border-zinc-600 transition-all disabled:opacity-30 disabled:pointer-events-none">
-                            <i class="ph ph-caret-left text-sm"></i>
-                        </button>
-                        <div class="flex items-center gap-2 text-xs text-zinc-500">
-                            "Page"
-                            <input type="number" id="mp-page-input" min="1" value="1" onchange="goPage(parseInt(this.value)||1)" class="w-12 px-2 py-1 bg-white/[0.03] border border-zinc-800/50 rounded-lg text-zinc-50 text-xs text-center outline-none focus:border-teal-500/50 transition-all" />
-                            "of "<span id="mp-total-pages">"1"</span>
-                        </div>
-                        <button onclick="goPage(currentPage + 1)" id="mp-next" class="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-white/[0.03] border border-zinc-800/50 text-zinc-400 hover:text-zinc-200 hover:border-zinc-600 transition-all disabled:opacity-30 disabled:pointer-events-none">
-                            <i class="ph ph-caret-right text-sm"></i>
-                        </button>
-                    </div>
+                    <button onclick="goPage(currentPage + 1)" id="mp-next" aria-label="Next page" class="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-white/[0.03] border border-zinc-800/50 text-zinc-400 hover:text-zinc-200 hover:border-zinc-600 transition-all disabled:opacity-30 disabled:pointer-events-none">
+                        <i class="ph ph-caret-right text-sm"></i>
+                    </button>
                 </div>
+
+                // ── Collection banner ───────────────────────────────────────
+                // Shaders, drawn from whatever shader art the current page
+                // already holds. Hidden until there are at least two to show.
+                <button type="button" id="mp-collection" onclick="setCategory('shaders'); window.scrollTo({top: 0, behavior: 'smooth'})"
+                        class="hidden relative w-full min-h-[200px] rounded-3xl overflow-hidden text-left items-center"
+                        style="background: radial-gradient(circle at 85% 50%, rgba(34,211,238,0.33) 0, transparent 40%), linear-gradient(90deg, #1e1b4b, #4c1d95)">
+                    <span id="mp-collection-art" aria-hidden="true" class="hidden md:grid absolute right-8 top-1/2 -translate-y-1/2 -rotate-6 grid-cols-4 gap-2.5"></span>
+                    <span class="relative p-6 sm:p-8 max-w-lg flex flex-col gap-2">
+                        <span class="text-xs font-bold tracking-[0.08em] text-cyan-300">"COLLECTION"</span>
+                        <span class="text-2xl sm:text-3xl font-bold leading-tight text-white">"Post-processing shaders"</span>
+                        <span class="text-sm text-zinc-200">"Camera effects you can drop on a scene, each with a live preview on its listing."</span>
+                    </span>
+                </button>
             </div>
-        </div>
         </section>
 
         // ── Quick look ──────────────────────────────────────────────────────
@@ -283,10 +257,55 @@ pub fn MarketplacePage() -> impl IntoView {
             // ── Marketplace logic ──
             let mpView = 'grid';
             let lastAssets = [];
-            let currentCategory = new URLSearchParams(window.location.search).get('category') || 'all';
+            const mpParams = new URLSearchParams(window.location.search);
+            const MP_SORTS = ['popular', 'newest', 'top_rated', 'most_viewed'];
+            let currentCategory = mpParams.get('category') || 'all';
             let currentPage = 1;
-            let currentPrice = 'all';
+            // Trending first: on a catalogue this size "newest" is mostly
+            // whatever was uploaded in the last batch, which says nothing about
+            // what is worth a look.
+            let currentSort = MP_SORTS.includes(mpParams.get('sort')) ? mpParams.get('sort') : 'popular';
+            let freeOnly = mpParams.get('free') === '1';
             let currentMinRating = 0;
+            let advMaxPrice = null;
+            let advTag = '';
+            let advEngine = '';
+            let catInfo = {};      // slug -> { name, icon }
+            const catArt = {};     // slug -> a thumbnail seen in that category
+            let heroFilled = false;
+            let loadSeq = 0;
+
+            function mpEsc(s) {
+                return String(s ?? '').replace(/[&<>"']/g, c =>
+                    ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+            }
+
+            // ── Generated covers ──
+            // A listing with no thumbnail gets a cover in its category's colour
+            // with a monogram, instead of an empty grey box. Each colour carries
+            // white text at 4.5:1, since the category chip sits on it too.
+            const CAT_COLORS = {
+                'plugins': '#7c3aed', 'plugin': '#7c3aed', 'shaders': '#0e7490', 'materials': '#a16207',
+                'textures': '#4d7c0f', 'hdris': '#0369a1', '3d-models': '#c2410c', 'animations': '#be185d',
+                '2d-art': '#9d174d', 'particles': '#b45309', 'sfx': '#be123c', 'music': '#9f1239',
+                'scripts': '#15803d', 'script': '#15803d', 'blueprints': '#1d4ed8', 'projects': '#0f766e',
+                'themes': '#6d28d9', 'fonts': '#854d0e', 'prefabs': '#c2410c', 'starter-templates': '#0f766e',
+            };
+            const catColor = slug => CAT_COLORS[slug] || '#6d28d9';
+            const catName = slug => (catInfo[slug] && catInfo[slug].name) || slug;
+            function coverStyle(slug) {
+                return 'background: radial-gradient(circle at 1px 1px, rgba(255,255,255,0.16) 1px, transparent 0) 0 0 / 14px 14px, linear-gradient(135deg, ' + catColor(slug) + ', #0c0715)';
+            }
+            function monogram(name) {
+                return String(name || '').split(/[\s_\-]+/).filter(Boolean).map(w => w[0]).join('').slice(0, 2).toUpperCase();
+            }
+            // The picture for a card: its thumbnail, else its generated cover.
+            function artHtml(a, monoCls) {
+                if (a.thumbnail_url) {
+                    return `<img src="${mpEsc(a.thumbnail_url)}" alt="" loading="lazy" decoding="async" class="absolute inset-0 w-full h-full object-cover transition-transform duration-500 ease-out group-hover:scale-105" />`;
+                }
+                return `<span class="absolute inset-0 flex items-center justify-center transition-transform duration-500 ease-out group-hover:scale-105" style="${coverStyle(a.category)}"><span class="font-bold text-white/90 ${monoCls}">${mpEsc(monogram(a.name))}</span></span>`;
+            }
 
             function setMpView(v) {
                 mpView = v;
@@ -295,8 +314,119 @@ pub fn MarketplacePage() -> impl IntoView {
                 if (lastAssets.length) renderMpAssets(lastAssets);
             }
 
-            function toggleMobileCats() {
-                document.getElementById('mp-mobile-cats').classList.toggle('hidden');
+            // Sort and the free toggle live in the address, so a reload or a
+            // shared link keeps them. Replace rather than push: they refine the
+            // page you are on, and Back should not walk through every one.
+            function syncMpUrl() {
+                if (/^\/marketplace\/asset\//.test(window.location.pathname)) return;
+                const url = new URL(window.location);
+                if (currentSort === 'popular') url.searchParams.delete('sort'); else url.searchParams.set('sort', currentSort);
+                if (freeOnly) url.searchParams.set('free', '1'); else url.searchParams.delete('free');
+                history.replaceState(history.state, '', url);
+            }
+
+            function syncSortTabs() {
+                document.querySelectorAll('[data-mp-sort]').forEach(b =>
+                    b.setAttribute('aria-selected', b.dataset.mpSort === currentSort ? 'true' : 'false'));
+            }
+
+            function syncFreeToggle() {
+                const b = document.getElementById('mp-free-toggle');
+                if (!b) return;
+                b.setAttribute('aria-pressed', freeOnly ? 'true' : 'false');
+                b.className = 'px-3 py-2 rounded-xl text-sm font-medium border transition-colors ' + (freeOnly
+                    ? 'bg-purple-600 border-purple-600 text-white'
+                    : 'border-zinc-800/60 bg-white/[0.03] text-zinc-300 hover:border-zinc-600');
+            }
+
+            function setMpSort(s) {
+                if (!MP_SORTS.includes(s)) return;
+                currentSort = s;
+                currentPage = 1;
+                syncSortTabs();
+                syncMpUrl();
+                loadAssets();
+            }
+
+            function toggleFreeOnly() {
+                freeOnly = !freeOnly;
+                currentPage = 1;
+                syncFreeToggle();
+                syncMpUrl();
+                loadAssets();
+            }
+
+            let searchTimer = null;
+            function onMpSearch() {
+                clearTimeout(searchTimer);
+                searchTimer = setTimeout(() => { currentPage = 1; loadAssets(); }, 180);
+            }
+
+            // ── Hero mosaic ──
+            // Category-coloured tiles at first, so the hero never flashes empty,
+            // then the first page's thumbnails once there are enough of them.
+            const HERO_TILES = 24;
+            function renderHeroPlaceholders() {
+                const el = document.getElementById('mp-hero-mosaic');
+                if (!el) return;
+                const slugs = Object.keys(CAT_COLORS);
+                el.innerHTML = Array.from({ length: HERO_TILES }, (_, i) =>
+                    `<span class="rounded-2xl" style="${coverStyle(slugs[(i * 5) % slugs.length])}"></span>`).join('');
+            }
+            function fillHeroMosaic(assets) {
+                if (heroFilled) return;
+                const el = document.getElementById('mp-hero-mosaic');
+                const thumbs = [...new Set(assets.map(a => a.thumbnail_url).filter(Boolean))];
+                if (!el || thumbs.length < 6) return;
+                heroFilled = true;
+                el.innerHTML = Array.from({ length: HERO_TILES }, (_, i) =>
+                    `<img src="${mpEsc(thumbs[i % thumbs.length])}" alt="" decoding="async" class="w-full h-full object-cover rounded-2xl" />`).join('');
+            }
+
+            // ── Category tiles ──
+            function catTileClass(active) {
+                return 'mp-cat-tile group relative h-[84px] sm:h-[92px] rounded-2xl overflow-hidden text-left ring-2 ring-inset transition-shadow '
+                    + (active ? 'ring-accent' : 'ring-transparent');
+            }
+            function renderCatStrip(categories) {
+                const el = document.getElementById('mp-cat-strip');
+                if (!el) return;
+                el.innerHTML = categories.map(c => {
+                    const bg = c.slug === 'all'
+                        ? 'background: conic-gradient(from 210deg, #7c3aed, #0e7490, #c2410c, #be185d, #7c3aed)'
+                        : coverStyle(c.slug);
+                    return `<button type="button" onclick="setCategory('${mpEsc(c.slug)}')" data-cat="${mpEsc(c.slug)}" class="${catTileClass(c.slug === currentCategory)}">
+                        <span class="mp-cat-art absolute inset-0 bg-cover bg-center transition-transform duration-300 group-hover:scale-105" style="${bg}"></span>
+                        <i class="ph ${mpEsc(c.icon)} absolute top-2.5 right-3 text-lg text-white/80"></i>
+                        <span class="absolute inset-x-0 bottom-0 px-3 pt-7 pb-2.5 bg-gradient-to-b from-transparent to-black/85 text-white text-sm font-semibold truncate">${mpEsc(c.name)}</span>
+                    </button>`;
+                }).join('');
+                for (const slug in catArt) paintCatArt(slug);
+            }
+            function paintCatArt(slug) {
+                const art = document.querySelector(`[data-cat="${CSS.escape(slug)}"] .mp-cat-art`);
+                if (art) art.style.background = `center / cover no-repeat url("${catArt[slug].replace(/"/g, '%22')}")`;
+            }
+            // A category tile takes the first real thumbnail seen in it, and
+            // keeps it: later pages and filters only fill tiles still bare.
+            function fillCategoryArt(assets) {
+                for (const a of assets) {
+                    if (!a.thumbnail_url || catArt[a.category]) continue;
+                    catArt[a.category] = a.thumbnail_url;
+                    paintCatArt(a.category);
+                }
+            }
+
+            // ── Collection banner ──
+            function renderCollection(assets) {
+                const el = document.getElementById('mp-collection');
+                const art = document.getElementById('mp-collection-art');
+                if (!el || !art) return;
+                const thumbs = [...new Set(assets.filter(a => a.category === 'shaders' && a.thumbnail_url).map(a => a.thumbnail_url))].slice(0, 4);
+                const show = currentCategory === 'all' && thumbs.length >= 2;
+                el.classList.toggle('hidden', !show);
+                el.classList.toggle('flex', show);
+                if (show) art.innerHTML = thumbs.map(t => `<img src="${mpEsc(t)}" alt="" loading="lazy" class="w-24 h-24 rounded-2xl object-cover" />`).join('');
             }
 
             (async function() {
@@ -304,66 +434,35 @@ pub fn MarketplacePage() -> impl IntoView {
                 const pubBtn = document.getElementById('publish-btn-hero');
                 if (pubBtn && token) { pubBtn.classList.remove('hidden'); }
 
+                syncSortTabs();
+                syncFreeToggle();
+                renderHeroPlaceholders();
+
+                const [engRes, catRes] = await Promise.all([
+                    fetch('/api/marketplace/engine-versions').catch(() => null),
+                    fetch('/api/marketplace/categories').catch(() => null),
+                ]);
+
                 // The engine filter is additive, so a failure here leaves the
-                // select on "Any" and the grid unfiltered rather than breaking
+                // select on "All" and the grid unfiltered rather than breaking
                 // browsing.
-                const engRes = await fetch('/api/marketplace/engine-versions');
-                if (engRes.ok) {
+                if (engRes && engRes.ok) {
                     const engines = await engRes.json();
-                    const sel = document.getElementById('mp-engine');
-                    if (sel) {
-                        sel.innerHTML = '<option value="">All engine versions</option>' + engines.map(e =>
-                            `<option value="${e.version}"${e.version === advEngine ? ' selected' : ''}>${e.version}</option>`).join('');
-                    }
+                    const opts = '<option value="">All engine versions</option>' + engines.map(e =>
+                        `<option value="${mpEsc(e.version)}"${e.version === advEngine ? ' selected' : ''}>${mpEsc(e.version)}</option>`).join('');
+                    ['mp-engine', 'mp-engine-sm'].forEach(id => { const s = document.getElementById(id); if (s) s.innerHTML = opts; });
                 }
 
-                const catRes = await fetch('/api/marketplace/categories');
-                const dbCats = catRes.ok ? await catRes.json() : [];
-                // Every row gets an icon, including the categories the database
-                // has none for. Without the fallback those rendered an empty
-                // <i>, which collapses to nothing: Shaders, Media, SVGs &
-                // Vectors and UI Templates lost their indent and sat a glyph's
-                // width left of everything above them. It reads as a broken list
-                // rather than a missing icon.
+                const dbCats = (catRes && catRes.ok) ? await catRes.json() : [];
+                // Every tile gets an icon, including categories the database has
+                // none for.
                 const categories = [{slug: 'all', name: 'All', icon: 'ph-squares-four'},
                     ...dbCats.map(c => ({slug: c.slug, name: c.name, icon: c.icon || 'ph-folder-simple'}))];
-
-                // Sidebar categories
-                const sideEl = document.getElementById('mp-sidebar-cats');
-                sideEl.innerHTML = categories.map(c => `
-                    <button onclick="setCategory('${c.slug}')" id="scat-${c.slug}" class="menu-item mp-cat-btn ${c.slug === currentCategory ? 'active' : ''}">
-                        <i class="ph ${c.icon} text-base"></i>${c.name}
-                    </button>
-                `).join('');
-
-                // Mobile category chips
-                const catEl = document.getElementById('mp-categories');
-                catEl.innerHTML = categories.map(c => `
-                    <button onclick="setCategory('${c.slug}')" id="cat-${c.slug}" class="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-medium transition-all ${c.slug === currentCategory ? 'bg-teal-500 text-white' : 'bg-white/[0.03] border border-zinc-800/50 text-zinc-400 hover:border-zinc-600 hover:text-zinc-200'}">
-                        <i class="ph ${c.icon}"></i>${c.name}
-                    </button>
-                `).join('');
+                categories.forEach(c => { catInfo[c.slug] = c; });
+                renderCatStrip(categories);
 
                 loadAssets();
             })();
-
-            function setPrice(val) {
-                currentPrice = val;
-                currentPage = 1;
-                document.querySelectorAll('.mp-price-btn').forEach(el => el.classList.remove('active'));
-                const active = document.getElementById('price-' + val);
-                if (active) { active.classList.add('active'); active.classList.remove('text-zinc-400'); }
-                loadAssets();
-            }
-
-            function setMinRating(val) {
-                currentMinRating = val;
-                currentPage = 1;
-                document.querySelectorAll('.mp-rating-btn').forEach(el => el.classList.remove('active'));
-                const active = document.getElementById('rating-' + val);
-                if (active) { active.classList.add('active'); active.classList.remove('text-zinc-400'); }
-                loadAssets();
-            }
 
             function setCategory(slug) {
                 currentCategory = slug;
@@ -372,27 +471,18 @@ pub fn MarketplacePage() -> impl IntoView {
                 if (slug === 'all') url.searchParams.delete('category');
                 else url.searchParams.set('category', slug);
                 history.pushState({}, '', url);
-                // Update sidebar
-                document.querySelectorAll('.mp-cat-btn').forEach(el => el.classList.remove('active'));
-                const sActive = document.getElementById('scat-' + slug);
-                if (sActive) { sActive.classList.add('active'); sActive.classList.remove('text-zinc-400'); }
-                // Update mobile chips
-                document.querySelectorAll('[id^="cat-"]').forEach(el => {
-                    const isActive = el.id === 'cat-' + slug;
-                    el.className = `inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-medium transition-all ${isActive ? 'bg-teal-500 text-white' : 'bg-white/[0.03] border border-zinc-800/50 text-zinc-400 hover:border-zinc-600 hover:text-zinc-200'}`;
+                document.querySelectorAll('.mp-cat-tile').forEach(el => {
+                    el.className = catTileClass(el.dataset.cat === slug);
                 });
                 loadAssets();
             }
 
-            // ── Advanced filter ──
-            let advMaxPrice = null;
-            let advTag = '';
-            let advEngine = '';
-
-            // Its own setter rather than part of Apply: this one lives in the top
-            // bar and takes effect on change, like sort does.
+            // Its own setter rather than part of Apply: it takes effect on
+            // change, like the sort tabs do. Two selects (bar and phone panel)
+            // drive it, so each mirrors the other.
             function setEngineFilter(v) {
                 advEngine = v || '';
+                ['mp-engine', 'mp-engine-sm'].forEach(id => { const s = document.getElementById(id); if (s) s.value = advEngine; });
                 currentPage = 1;
                 loadAssets();
             }
@@ -401,66 +491,41 @@ pub fn MarketplacePage() -> impl IntoView {
                 const panel = document.getElementById('adv-filter-panel');
                 const btn = document.getElementById('adv-filter-btn');
                 panel.classList.toggle('hidden');
-                if (!panel.classList.contains('hidden')) {
-                    btn.classList.add('border-teal-500/50', 'text-teal-400');
-                } else {
-                    btn.classList.remove('border-teal-500/50', 'text-teal-400');
-                }
+                const open = !panel.classList.contains('hidden');
+                btn.classList.toggle('border-accent/50', open);
+                btn.classList.toggle('text-purple-300', open);
             }
 
             function applyAdvancedFilter() {
                 const maxPrice = document.getElementById('adv-max-price')?.value;
                 const minRating = document.getElementById('adv-min-rating')?.value;
                 const tag = document.getElementById('adv-tag')?.value?.trim();
-
                 advMaxPrice = maxPrice ? parseInt(maxPrice) : null;
                 advTag = tag || '';
                 currentMinRating = parseInt(minRating) || 0;
-
-                // Sync sidebar rating buttons
-                document.querySelectorAll('.mp-rating-btn').forEach(el => el.classList.remove('active'));
-                const rBtn = document.getElementById('rating-' + currentMinRating);
-                if (rBtn) { rBtn.classList.add('active'); rBtn.classList.remove('text-zinc-400'); }
-
-                // Handle free from min price = 0
-                const minPrice = document.getElementById('adv-min-price')?.value;
-                if (minPrice === '0' && !maxPrice) {
-                    currentPrice = 'free';
-                }
-
                 currentPage = 1;
                 loadAssets();
             }
 
             function clearAdvancedFilter() {
-                document.getElementById('adv-min-price').value = '';
                 document.getElementById('adv-max-price').value = '';
                 document.getElementById('adv-min-rating').value = '0';
-                document.getElementById('adv-licence').value = '';
                 document.getElementById('adv-tag').value = '';
                 advMaxPrice = null;
                 advTag = '';
                 currentMinRating = 0;
-                currentPrice = 'all';
                 currentPage = 1;
-
-                // Reset sidebar buttons
-                document.querySelectorAll('.mp-rating-btn').forEach(el => el.classList.remove('active'));
-                document.getElementById('rating-0')?.classList.add('active');
-                document.querySelectorAll('.mp-price-btn').forEach(el => el.classList.remove('active'));
-                document.getElementById('price-all')?.classList.add('active');
-
                 loadAssets();
             }
 
             async function loadAssets() {
+                const seq = ++loadSeq;
                 const q = document.getElementById('mp-search')?.value || '';
-                const sort = document.getElementById('mp-sort')?.value || 'newest';
                 const cat = currentCategory === 'all' ? '' : currentCategory;
-                let url = `/api/marketplace?page=${currentPage}&sort=${sort}`;
+                let url = `/api/marketplace?page=${currentPage}&sort=${currentSort}`;
                 if (q) url += '&q=' + encodeURIComponent(q);
-                if (cat) url += '&category=' + cat;
-                if (currentPrice === 'free') url += '&free=true';
+                if (cat) url += '&category=' + encodeURIComponent(cat);
+                if (freeOnly) url += '&free=true';
                 if (currentMinRating > 0) url += '&min_rating=' + currentMinRating;
                 if (advMaxPrice !== null) url += '&max_price=' + advMaxPrice;
                 if (advTag) url += '&tag=' + encodeURIComponent(advTag);
@@ -471,38 +536,33 @@ pub fn MarketplacePage() -> impl IntoView {
 
                 const res = await fetch(url);
                 const data = await res.json();
+                // A slower, older request (typing fast in search) must not paint
+                // over the newer one's results.
+                if (seq !== loadSeq) return;
                 const el = document.getElementById('mp-grid');
 
-                // Update result count
                 const countEl = document.getElementById('mp-result-count');
-                if (countEl) countEl.textContent = (data.total || 0) + ' asset' + ((data.total||0) !== 1 ? 's' : '');
-
-                // Update hero stats
-                const statTotal = document.getElementById('mp-stat-total');
-                const statFree = document.getElementById('mp-stat-free');
-                if (statTotal) statTotal.textContent = (data.total || 0).toLocaleString();
+                if (countEl) countEl.textContent = (data.total || 0).toLocaleString() + ' asset' + ((data.total || 0) !== 1 ? 's' : '');
 
                 if (!data.assets?.length) {
-                    if (statFree) statFree.textContent = '0';
+                    el.className = 'grid grid-cols-1';
                     el.innerHTML = `
-                        <div class="col-span-full text-center py-20">
+                        <div class="text-center py-20">
                             <div class="w-16 h-16 bg-zinc-800/50 rounded-2xl flex items-center justify-center mx-auto mb-4">
                                 <i class="ph ph-storefront text-3xl text-zinc-600"></i>
                             </div>
                             <p class="text-zinc-500 text-sm">${q ? 'No results. Try a different search.' : 'No assets found with these filters.'}</p>
                         </div>`;
                     document.getElementById('mp-pagination').classList.add('hidden');
+                    renderCollection([]);
                     return;
-                }
-
-                // Count free assets in results
-                if (statFree) {
-                    const freeCount = data.assets.filter(a => a.price_credits === 0).length;
-                    statFree.textContent = freeCount.toString();
                 }
 
                 lastAssets = data.assets;
                 renderMpAssets(data.assets);
+                fillHeroMosaic(data.assets);
+                fillCategoryArt(data.assets);
+                renderCollection(data.assets);
 
                 // Pagination
                 const totalPages = Math.ceil(data.total / data.per_page);
@@ -519,85 +579,57 @@ pub fn MarketplacePage() -> impl IntoView {
                 }
             }
 
+            // Stars only once somebody has rated it. Where there is no rating,
+            // downloads are the honest signal, and unlike empty stars they
+            // actually differ between listings.
+            function signalText(a) {
+                return a.rating_count > 0
+                    ? `★ ${a.rating_avg.toFixed(1)} (${a.rating_count})`
+                    : `${a.downloads.toLocaleString()} download${a.downloads === 1 ? '' : 's'}`;
+            }
+
             function renderMpAssets(assets) {
                 const el = document.getElementById('mp-grid');
                 if (mpView === 'list') {
-                    el.className = 'divide-y divide-zinc-800/30 rounded-xl border border-zinc-800/40 bg-white/[0.01] overflow-hidden';
-                    el.innerHTML = assets.map((a, i) => {
-                        const priceLabel = a.price_credits === 0 ? 'Free' : a.price_credits.toLocaleString() + ' cr';
-                        const fullStars = a.rating_count > 0 ? Math.round(a.rating_avg) : 0;
-                        const starsHtml = a.rating_count > 0 ? `<span class="text-amber-400">${'★'.repeat(fullStars)}</span><span class="text-zinc-700">${'☆'.repeat(5-fullStars)}</span><span class="text-zinc-500 ml-1">(${a.rating_count})</span>` : '';
-                        const thumb = a.thumbnail_url
-                            ? `<img src="${a.thumbnail_url}" class="w-full h-full object-cover" loading="lazy" />`
-                            : `<i class="ph ph-package text-lg text-zinc-600"></i>`;
-                        return `<a href="/marketplace/asset/${a.slug}" class="flex items-center gap-4 px-5 py-3 hover:bg-white/[0.02] transition-all group" style="animation: mpFadeIn 0.2s ease both; animation-delay:${i * 10}ms">
-                            <div class="w-12 h-12 rounded-lg bg-zinc-900 border border-zinc-800/50 flex items-center justify-center shrink-0 overflow-hidden">${thumb}</div>
-                            <div class="flex-1 min-w-0">
-                                <div class="text-sm font-semibold text-zinc-100 group-hover:text-teal-400 transition-colors truncate">${a.name}</div>
-                                <div class="flex items-center gap-2 mt-0.5 text-xs text-zinc-400">
-                                    <span class="text-zinc-300">${a.category}</span><span class="text-zinc-600">·</span>
-                                    <span>${a.creator_name}</span><span class="text-zinc-600">·</span>
-                                    <span>${a.downloads.toLocaleString()} downloads</span>
-                                    ${starsHtml ? `<span class="text-zinc-600">·</span>${starsHtml}` : ''}
-                                </div>
-                            </div>
-                            <span class="text-sm font-semibold ${a.price_credits === 0 ? 'text-emerald-400' : 'text-zinc-100'} min-w-[60px] text-right shrink-0">${priceLabel}</span>
-                        </a>`;
-                    }).join('');
-                } else {
-                    el.className = 'grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3';
+                    el.className = 'divide-y divide-zinc-800/30 rounded-2xl border border-zinc-800/40 bg-white/[0.01] overflow-hidden';
                     el.innerHTML = assets.map((a, i) => {
                         const priceLabel = a.price_credits === 0 ? 'Free' : a.price_credits.toLocaleString() + ' credits';
-
-                        // Stars only once somebody has rated it.
-                        //
-                        // Five empty outlines and a "(0)" appeared on every card
-                        // in a catalogue where almost nothing is rated: a whole
-                        // row saying the same nothing about everything, in the
-                        // most eye-catching shape on the card. Where there is no
-                        // rating, downloads are the honest signal, and unlike the
-                        // stars they actually differ between listings.
-                        const rated = a.rating_count > 0;
-                        const full = rated ? Math.round(a.rating_avg) : 0;
-                        const signalHtml = rated
-                            ? `<span class="inline-flex items-baseline gap-1 text-xs whitespace-nowrap"><span class="text-amber-400 text-sm">${'★'.repeat(full)}</span><span class="text-zinc-600 text-sm">${'☆'.repeat(5 - full)}</span><span class="text-zinc-400 ml-0.5">${a.rating_avg.toFixed(1)}</span><span class="text-zinc-500">(${a.rating_count})</span></span>`
-                            : `<span class="text-xs text-zinc-400 whitespace-nowrap">${a.downloads.toLocaleString()} download${a.downloads === 1 ? '' : 's'}</span>`;
-                        return `
-                        <a href="/marketplace/asset/${a.slug}" class="block group" style="animation: mpFadeIn 0.25s ease both; animation-delay: ${i * 15}ms">
-                            <div class="bg-white/[0.02] border border-zinc-800/40 rounded-xl overflow-hidden hover:border-teal-500/20 transition-all duration-200 hover:shadow-[0_0_20px_rgba(20,184,166,0.05)]">
-                                <div class="aspect-[4/3] bg-zinc-900 relative overflow-hidden">
-                                    ${a.thumbnail_url
-                                        ? `<img src="${a.thumbnail_url}" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 ease-out" loading="lazy" />`
-                                        : `<div class="w-full h-full flex items-center justify-center"><i class="ph ph-package text-3xl text-zinc-800"></i></div>`}
-                                </div>
-                                <!-- Three lines, not five. The name leads at a
-                                     size worth reading, the category classifies
-                                     it, and the bottom row pairs the one number
-                                     that varies with the price.
-
-                                     The tag row is gone. It read "post-processing
-                                     shader plugins" on card after card, which
-                                     told you nothing about any of them, and its
-                                     last chip was the CATEGORY dressed as a tag,
-                                     so the one genuinely useful classifier was
-                                     hidden among the noise. Tags still filter
-                                     from the Filters panel, which is where they
-                                     earn their keep. -->
-                                <div class="p-3.5">
-                                    <h3 class="text-base font-semibold text-zinc-100 group-hover:text-white truncate leading-snug">${a.name}</h3>
-                                    <div class="mt-1 text-xs truncate">
-                                        <span class="text-zinc-300">${a.category}</span>
-                                        <span class="text-zinc-600 mx-1">·</span><span class="text-zinc-400">${a.creator_name}</span>
-                                    </div>
-                                    <div class="flex items-center justify-between gap-2 mt-2.5">
-                                        ${signalHtml}
-                                        <span class="text-sm font-semibold ${a.price_credits === 0 ? 'text-emerald-400' : 'text-zinc-100'} shrink-0">${priceLabel}</span>
-                                    </div>
+                        return `<a href="/marketplace/asset/${mpEsc(a.slug)}" class="flex items-center gap-4 px-4 sm:px-5 py-3 hover:bg-white/[0.02] transition-all group" style="animation: mpFadeIn 0.2s ease both; animation-delay:${i * 10}ms">
+                            <div class="relative w-20 h-14 rounded-lg overflow-hidden shrink-0 bg-zinc-900">${artHtml(a, 'text-lg')}</div>
+                            <div class="flex-1 min-w-0">
+                                <div class="text-sm font-semibold text-zinc-100 group-hover:text-purple-300 transition-colors truncate">${mpEsc(a.name)}</div>
+                                <div class="flex items-center gap-2 mt-1 text-xs text-zinc-400 min-w-0">
+                                    <span class="px-2 py-0.5 rounded-full text-[10.5px] font-semibold text-white shrink-0" style="background:${catColor(a.category)}">${mpEsc(catName(a.category))}</span>
+                                    <span class="truncate">${mpEsc(a.creator_name)} · ${signalText(a)}</span>
                                 </div>
                             </div>
+                            <span class="text-sm font-semibold ${a.price_credits === 0 ? 'text-emerald-400' : 'text-amber-300'} min-w-[60px] text-right shrink-0">${priceLabel}</span>
                         </a>`;
                     }).join('');
+                    return;
                 }
+
+                // The wall: square tiles, the art is the card. The name sits on
+                // a scrim at the bottom; on hover the price makes way for Open.
+                el.className = 'grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 sm:gap-4';
+                el.innerHTML = assets.map((a, i) => {
+                    const free = a.price_credits === 0;
+                    return `
+                    <a href="/marketplace/asset/${mpEsc(a.slug)}" class="group relative block aspect-square rounded-2xl overflow-hidden bg-zinc-900" style="animation: mpFadeIn 0.25s ease both; animation-delay: ${Math.min(i, 40) * 12}ms">
+                        ${artHtml(a, 'text-4xl sm:text-5xl')}
+                        <span class="absolute top-2.5 left-2.5 max-w-[70%] truncate px-2.5 py-1 rounded-full text-[11px] font-semibold text-white" style="background:${catColor(a.category)}">${mpEsc(catName(a.category))}</span>
+                        ${free ? '' : `<span class="absolute top-2.5 right-2.5 px-2.5 py-1 rounded-full text-[11px] font-bold bg-amber-400 text-zinc-950">${a.price_credits.toLocaleString()} cr</span>`}
+                        <span class="absolute inset-x-0 bottom-0 px-3 sm:px-3.5 pt-10 pb-3 bg-gradient-to-b from-transparent to-[#08050e]/95">
+                            <span class="block text-sm sm:text-[15px] font-bold text-white truncate">${mpEsc(a.name)}</span>
+                            <span class="flex items-center gap-2 mt-1 text-xs text-zinc-300">
+                                <span class="truncate">${signalText(a)}</span>
+                                <span class="flex-1"></span>
+                                ${free ? '<span class="text-emerald-400 font-semibold sm:group-hover:hidden">Free</span>' : ''}
+                                <span class="hidden sm:group-hover:inline-flex px-2.5 py-1 rounded-lg bg-purple-600 text-white font-semibold">Open</span>
+                            </span>
+                        </span>
+                    </a>`;
+                }).join('');
             }
 
             function goPage(p) {
@@ -823,6 +855,14 @@ pub fn MarketplacePage() -> impl IntoView {
             .mp-scroll { scrollbar-width: thin; scrollbar-color: #27272a transparent; }
             .no-scrollbar::-webkit-scrollbar { display: none; }
             .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+            /* Sort tabs: an underline on the active one, nothing on the rest. */
+            .mp-sort-tab {
+                padding: 12px 14px; font-size: 14px; font-weight: 600; white-space: nowrap;
+                color: #a1a1aa; border-bottom: 2px solid transparent; transition: color .15s;
+            }
+            .mp-sort-tab:hover { color: #e4e4e7; }
+            .mp-sort-tab[aria-selected="true"] { color: #fafafa; border-bottom-color: #a855f7; }
 
             /* The renderer draws a "Back to Marketplace" link for the standalone
                page. In the overlay the marketplace is literally behind it and
