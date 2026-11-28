@@ -170,14 +170,14 @@
                 // releases arrive, since it belongs to the release shown.
                 function coverInfoHtml(overlay, hidden) {
                     const chip = 'px-2.5 py-1 rounded-full text-xs';
-                    const tags = (a.tags || []).map(t => `<span class="${chip} bg-accent/20 border border-accent/50 text-indigo-200">${treeEsc(t)}</span>`).join('');
+                    const tags = (a.tags || []).map(t => `<span class="${chip} bg-accent text-white font-medium">${treeEsc(t)}</span>`).join('');
                     const credit = a.credit_name
                         ? `<span>Credit: ${a.credit_url ? `<a href="${a.credit_url}" target="_blank" class="text-indigo-200 hover:underline">${treeEsc(a.credit_name)}</a>` : treeEsc(a.credit_name)}</span>`
                         : '';
                     const body = `
                         <div class="flex flex-wrap items-center gap-2">
                             <span id="detail-engine-badge" class="hidden"></span>
-                            <span class="${chip} bg-white/10 border border-white/20 text-zinc-100">${treeEsc(a.category)}</span>
+                            <span class="${chip} bg-zinc-700 text-white font-medium">${treeEsc(a.category)}</span>
                             ${tags}
                         </div>
                         <div class="flex flex-wrap items-center gap-x-5 gap-y-1 text-xs sm:text-[13px] text-zinc-300">
@@ -329,13 +329,28 @@
                                 and it is still the page's meta description.
                             -->
 
-                            <!-- Files, README and releases (filled in after render) -->
-                            <div id="asset-tree-section"></div>
-                            <div id="asset-readme-section"></div>
-                            <div id="asset-releases-section"></div>
+                            <!-- Tabs. Files, Docs and Releases are filled in
+                                 after render and their tabs stay hidden until
+                                 there is something in them; Reviews and
+                                 Comments always show. -->
+                            <div id="asset-tabs" role="tablist" class="mt-10 flex items-center gap-1 border-b border-zinc-800/60 overflow-x-auto">
+                                ${[
+                                    ['files', 'ph-folder-simple', 'Files', true],
+                                    ['docs', 'ph-book-open', 'Docs', true],
+                                    ['releases', 'ph-tag', 'Releases', true],
+                                    ['reviews', 'ph-star', 'Reviews <span class="text-zinc-600 font-normal">(' + ratingCount + ')</span>', false],
+                                    ['comments', 'ph-chat-circle', 'Comments <span class="text-zinc-600 font-normal">(' + (commentsData.comments?.length || 0) + ')</span>', false],
+                                ].map(([key, icon, label, hidden]) => `
+                                    <button type="button" role="tab" data-asset-tab="${key}" onclick="selectAssetTab('${key}', true)" class="${hidden ? 'hidden ' : ''}asset-tab -mb-px px-4 py-2.5 text-sm font-medium border-b-2 border-transparent text-zinc-400 hover:text-zinc-100 transition-colors whitespace-nowrap flex items-center gap-1.5"><i class="ph ${icon}"></i>${label}</button>
+                                `).join('')}
+                            </div>
+
+                            <div data-asset-panel="files" class="hidden"><div id="asset-tree-section"></div></div>
+                            <div data-asset-panel="docs" class="hidden"><div id="asset-readme-section"></div></div>
+                            <div data-asset-panel="releases" class="hidden"><div id="asset-releases-section"></div></div>
 
                             <!-- Reviews -->
-                            <div class="mt-12" id="reviews">
+                            <div data-asset-panel="reviews" class="hidden mt-6" id="reviews">
                                 <div class="flex items-center justify-between mb-6">
                                     <h2 class="text-lg font-semibold">Reviews</h2>
                                     ${true ? `
@@ -363,8 +378,7 @@
                             </div>
 
                             <!-- Comments -->
-                            <div class="mt-12" id="comments">
-                                <h2 class="text-lg font-semibold mb-6">Comments <span class="text-zinc-600 font-normal">(${commentsData.comments?.length || 0})</span></h2>
+                            <div data-asset-panel="comments" class="hidden mt-6" id="comments">
                                 <div class="space-y-3 mb-6">${commentsHtml}</div>
                                 ${(token && (a.owned || isCreator || a.price_credits === 0)) ? `
                                     <div class="flex gap-3">
@@ -412,7 +426,7 @@
                                 </div>
 
                                 ${(isCreator || a.owned || a.price_credits === 0) ? `
-                                    <button id="detail-source-download" onclick="downloadAsset('${a.id}')" class="w-full mt-4 px-4 py-3 rounded-xl text-sm font-semibold bg-green-600 text-white hover:bg-green-500 transition-all hover:shadow-[0_0_20px_rgba(22,163,74,0.2)] flex items-center justify-center gap-2"><i class="ph ph-download-simple text-lg"></i>Download</button>
+                                    <button id="detail-source-download" onclick="openOrDownload(this, '${a.slug}', () => downloadAsset('${a.id}'))" class="w-full mt-4 px-4 py-3 rounded-xl text-sm font-semibold bg-green-600 text-white hover:bg-green-500 transition-all hover:shadow-[0_0_20px_rgba(22,163,74,0.2)] flex items-center justify-center gap-2"><i class="ph ph-download-simple text-lg"></i>Download</button>
                                     ${isCreator ? `
                                         <p class="text-xs text-zinc-500 text-center mt-2">This is your asset</p>
                                     ` : a.owned ? `
@@ -499,11 +513,15 @@
                     </div>
                 `;
 
-                const urlParams = new URLSearchParams(window.location.search);
-                const tab = urlParams.get('tab');
-                if (tab) {
-                    const target = document.getElementById(tab);
-                    if (target) target.scrollIntoView({ behavior: 'smooth' });
+                // `?tab=` (library "Review" links, new-release notifications)
+                // picks the tab and scrolls to it. Without one, Files shows
+                // first; if the listing turns out to have no files, the first
+                // tab that does have content takes over once the loaders finish.
+                const requestedTab = new URLSearchParams(window.location.search).get('tab');
+                assetTabChosen = false;
+                selectAssetTab(ASSET_TABS.includes(requestedTab) ? requestedTab : 'files', false);
+                if (ASSET_TABS.includes(requestedTab)) {
+                    document.getElementById('asset-tabs')?.scrollIntoView({ behavior: 'smooth' });
                 }
 
                 // Initialize live preview if section exists
@@ -514,12 +532,19 @@
                 // Fetch and render asset files list
                 loadAssetFiles(a.id, a.owned || isCreator || a.price_credits === 0);
                 if (a.category === 'plugins' || a.category === 'plugin') {
-                    loadPrebuilts(a.id, a.owned || isCreator || a.price_credits === 0, a.version);
+                    loadPrebuilts(a.id, a.owned || isCreator || a.price_credits === 0, a.version, a.slug);
                 }
 
                 // Repository view: file tree, rendered README, release history
-                loadAssetTree(a);
-                loadAssetReleases(a, isCreator);
+                Promise.allSettled([loadAssetTree(a), loadAssetReleases(a, isCreator)]).then(() => {
+                    if (ASSET_TABS.includes(requestedTab) && !assetTabButton(requestedTab)?.classList.contains('hidden')) return;
+                    // Asked-for tab (or the Files default) never got content:
+                    // hand over to the first one that did, unless the visitor
+                    // has already picked one themselves.
+                    if (assetTabChosen) return;
+                    const first = ASSET_TABS.find(t => !assetTabButton(t)?.classList.contains('hidden'));
+                    if (first && first !== assetTabActive) selectAssetTab(first, false);
+                });
 
                 // Activity over time. Public, like the totals above it: the same
                 // numbers, told as a history instead of as two running counts.
@@ -531,6 +556,45 @@
                 });
             };
 
+
+            // ── Tabs ──────────────────────────────────────────────────────
+            // Files, Docs (the README), Releases, Reviews and Comments share
+            // one strip under the preview, one panel showing at a time.
+            const ASSET_TABS = ['files', 'docs', 'releases', 'reviews', 'comments'];
+            let assetTabActive = null;
+            let assetTabChosen = false; // the visitor clicked a tab
+
+            function assetTabButton(key) {
+                return document.querySelector('[data-asset-tab="' + key + '"]');
+            }
+
+            // A loader calls this once its panel has something in it.
+            function showAssetTab(key) {
+                assetTabButton(key)?.classList.remove('hidden');
+            }
+
+            function selectAssetTab(key, byVisitor) {
+                if (byVisitor) assetTabChosen = true;
+                assetTabActive = key;
+                document.querySelectorAll('[data-asset-tab]').forEach(b => {
+                    const on = b.dataset.assetTab === key;
+                    b.setAttribute('aria-selected', on ? 'true' : 'false');
+                    b.classList.toggle('border-accent', on);
+                    b.classList.toggle('text-zinc-50', on);
+                    b.classList.toggle('border-transparent', !on);
+                    b.classList.toggle('text-zinc-400', !on);
+                });
+                document.querySelectorAll('[data-asset-panel]').forEach(p =>
+                    p.classList.toggle('hidden', p.dataset.assetPanel !== key));
+                // Keep the choice in the address so it survives a reload and
+                // can be shared, without adding a history entry per click.
+                if (byVisitor) {
+                    const url = new URL(window.location.href);
+                    url.searchParams.set('tab', key);
+                    history.replaceState(history.state, '', url);
+                }
+            }
+            window.selectAssetTab = selectAssetTab;
 
             // ── Repository view ───────────────────────────────────────────
             // The asset page doubles as a repo landing: the root of the file
@@ -598,8 +662,9 @@
                         ? `<a href="/marketplace/asset/${a.slug}/files${fq}" class="block px-4 py-2 text-xs text-accent hover:underline border-t border-zinc-800/50">${root.length - shown.length} more…</a>`
                         : '';
 
+                    showAssetTab('files');
                     treeEl.innerHTML = `
-                        <div class="mt-12">
+                        <div class="mt-6">
                             <div class="flex items-center justify-between mb-4">
                                 <h2 class="text-lg font-semibold">Files</h2>
                                 <a href="/marketplace/asset/${a.slug}/files${fq}" class="text-xs text-accent hover:underline flex items-center gap-1">
@@ -617,8 +682,9 @@
                 }
 
                 if (tree.readme && readmeEl) {
+                    showAssetTab('docs');
                     readmeEl.innerHTML = `
-                        <div class="mt-8">
+                        <div class="mt-6">
                             <div class="border border-zinc-800/50 rounded-2xl overflow-hidden bg-white/[0.01]">
                                 <div class="flex items-center gap-2 px-4 py-2.5 border-b border-zinc-800/50 bg-white/[0.02]">
                                     <i class="ph ph-book-open text-cyan-400"></i>
@@ -674,8 +740,9 @@
                         ${r.notes_html ? `<div class="doc-body mt-4 pt-4 border-t border-zinc-800/50 text-sm">${r.notes_html}</div>` : ''}
                     </div>`).join('');
 
+                showAssetTab('releases');
                 el.innerHTML = `
-                    <div class="mt-12" id="releases">
+                    <div class="mt-6" id="releases">
                         <div class="flex items-center justify-between mb-4">
                             <h2 class="text-lg font-semibold">Releases <span class="text-zinc-600 font-normal">(${releases.length})</span></h2>
                             ${isCreator ? `<a href="/marketplace/asset/${a.slug}/releases/new" class="text-xs text-accent hover:underline flex items-center gap-1"><i class="ph ph-plus"></i> New release</a>` : ''}
@@ -687,12 +754,6 @@
                 // and both are filled from this same list rather than from a
                 // second request, so they can never disagree with the cards.
                 fillReleasePicker(releases);
-
-                // `?tab=releases` (the link in a new-release notification)
-                // arrives before this section exists, so honour it here.
-                if (new URLSearchParams(window.location.search).get('tab') === 'releases') {
-                    el.scrollIntoView({ behavior: 'smooth' });
-                }
             }
 
             /// Which release the page is showing, and what engine it needs.
@@ -717,8 +778,8 @@
                 const badge = document.getElementById('detail-engine-badge');
                 if (badge) {
                     badge.className = engine
-                        ? 'px-2.5 py-1 rounded-full bg-cyan-500/20 border border-cyan-400/50 text-xs font-semibold text-cyan-100'
-                        : 'px-2.5 py-1 rounded-full bg-white/10 border border-white/20 text-xs text-zinc-100';
+                        ? 'px-2.5 py-1 rounded-full bg-cyan-600 text-xs font-semibold text-white'
+                        : 'px-2.5 py-1 rounded-full bg-zinc-700 text-xs font-medium text-white';
                     badge.textContent = engine ? 'Requires ' + engine + ' or newer' : 'Any engine';
                     badge.title = engine
                         ? 'Runs on ' + engine + ' and newer. Older engines are offered the newest release that still works for them.'
@@ -769,6 +830,90 @@
                 if (mime.includes('zip')) return 'ph-file-zip';
                 if (mime.includes('gltf') || mime.includes('model')) return 'ph-cube';
                 return 'ph-file';
+            }
+
+            // ── Open in the editor ───────────────────────────────────────
+            // With the engine installed, a download button opens the listing
+            // in the editor's Marketplace instead, through the
+            // `renzora://marketplace/<slug>` link every editor registers on
+            // launch. The editor installs the right build for itself, which a
+            // zip in the downloads folder cannot do.
+            //
+            // A page cannot ask whether a scheme has a handler, so it tries and
+            // watches: the browser's "Open Renzora?" prompt, or the editor
+            // coming forward, takes focus from the page. No blur within the
+            // wait means nothing answered, and the download goes ahead. A
+            // false "opened" (the visitor switched tabs, or cancelled the
+            // prompt) leaves a note under the button with the plain download.
+            const ENGINE_LINK_WAIT_MS = 1500;
+            const ENGINE_ABSENT_KEY = 'renzora-engine-link-absent';
+
+            function tryOpenInEngine(slug) {
+                // Only Windows and Linux editors take links so far (a Mac hands
+                // them over as an event the editor cannot hear yet), and Safari
+                // answers an unhandled scheme with an alert that would read as
+                // a hand-off. Phones have no editor at all.
+                const ua = navigator.userAgent || '';
+                if (!/Windows|Linux/.test(ua) || /Android/.test(ua)) return Promise.resolve(false);
+                // Once nothing answered, later clicks this session skip the wait.
+                try { if (sessionStorage.getItem(ENGINE_ABSENT_KEY)) return Promise.resolve(false); } catch (_) {}
+                return new Promise(resolve => {
+                    let done = false;
+                    const onBlur = () => finish(true);
+                    const onHide = () => { if (document.hidden) finish(true); };
+                    const timer = setTimeout(() => finish(false), ENGINE_LINK_WAIT_MS);
+                    function finish(opened) {
+                        if (done) return;
+                        done = true;
+                        clearTimeout(timer);
+                        window.removeEventListener('blur', onBlur);
+                        document.removeEventListener('visibilitychange', onHide);
+                        if (!opened) { try { sessionStorage.setItem(ENGINE_ABSENT_KEY, '1'); } catch (_) {} }
+                        resolve(opened);
+                    }
+                    window.addEventListener('blur', onBlur);
+                    document.addEventListener('visibilitychange', onHide);
+                    const url = 'renzora://marketplace/' + encodeURIComponent(slug);
+                    // Firefox replaces the page with an error for a scheme
+                    // nothing handles, unless the attempt is in a frame. Other
+                    // browsers ignore it quietly, and some will not launch a
+                    // handler from a frame at all.
+                    if (/firefox/i.test(navigator.userAgent)) {
+                        const frame = document.createElement('iframe');
+                        frame.style.display = 'none';
+                        frame.src = url;
+                        document.body.appendChild(frame);
+                        setTimeout(() => frame.remove(), ENGINE_LINK_WAIT_MS + 500);
+                    } else {
+                        window.location.href = url;
+                    }
+                });
+            }
+
+            // The note shown after a hand-off, beside the button that made it.
+            function engineOpenedNote(button, download) {
+                const old = button.parentElement?.querySelector('.engine-opened-note');
+                if (old) old.remove();
+                const note = document.createElement('p');
+                note.className = 'engine-opened-note mt-2 text-xs leading-relaxed text-zinc-400';
+                note.innerHTML = '<i class="ph ph-arrow-square-out"></i> Opened in Renzora. Nothing happened? <button type="button" class="text-accent hover:underline">Download it here</button>';
+                note.querySelector('button').addEventListener('click', () => { note.remove(); download(); });
+                button.insertAdjacentElement('afterend', note);
+            }
+
+            // Every download button on the listing goes through this: the
+            // editor if it answers, else `download`. Called straight from the
+            // click, before anything is awaited, so the browser still counts
+            // the attempt as the visitor's own.
+            async function openOrDownload(button, slug, download) {
+                if (button.dataset.busy) return;
+                button.dataset.busy = '1';
+                try {
+                    if (slug && await tryOpenInEngine(slug)) engineOpenedNote(button, download);
+                    else await download();
+                } finally {
+                    delete button.dataset.busy;
+                }
             }
 
             // ── Prebuilt plugin binaries ─────────────────────────────────
@@ -833,7 +978,7 @@
             }
             const isNightlyTag = t => /-nightly-/i.test(t || '');
 
-            async function loadPrebuilts(assetId, hasAccess, pageVersion) {
+            async function loadPrebuilts(assetId, hasAccess, pageVersion, slug) {
                 const container = document.getElementById('asset-prebuilts');
                 if (!container || !hasAccess) return;
                 const token = document.cookie.match('(^|;)\\s*token\\s*=\\s*([^;]+)')?.pop();
@@ -932,7 +1077,7 @@
                     }
 
                     if (builds.length && binary) {
-                        h += '<a href="' + binary.download_url + '" class="w-full mt-4 px-4 py-3.5 rounded-xl text-sm font-semibold bg-green-600 text-white hover:bg-green-500 transition-all hover:shadow-[0_0_20px_rgba(22,163,74,0.2)] flex items-center justify-center gap-2">'
+                        h += '<a id="dl-plugin" href="' + binary.download_url + '" class="w-full mt-4 px-4 py-3.5 rounded-xl text-sm font-semibold bg-green-600 text-white hover:bg-green-500 transition-all hover:shadow-[0_0_20px_rgba(22,163,74,0.2)] flex items-center justify-center gap-2">'
                             + '<i class="ph ph-download-simple text-lg"></i>Download plugin</a>';
                     } else if (builds.length) {
                         h += '<button type="button" disabled class="w-full mt-4 px-4 py-3.5 rounded-xl text-sm font-semibold bg-white/[0.04] border border-zinc-800 text-zinc-500 cursor-not-allowed">'
@@ -941,6 +1086,15 @@
                     if (s.failures.length) h += buildFailuresHtml(s.failures);
                     h += '<p class="mt-2 text-xs leading-relaxed text-zinc-400">Installing from the editor picks the right build for you.</p>';
                     container.innerHTML = h;
+
+                    // The link stays a real link (copyable, and right for a
+                    // modified click); a plain click tries the editor first.
+                    const pluginLink = container.querySelector('#dl-plugin');
+                    pluginLink?.addEventListener('click', e => {
+                        if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+                        e.preventDefault();
+                        openOrDownload(pluginLink, slug, () => { window.location.href = pluginLink.href; });
+                    });
 
                     container.querySelectorAll('[data-os]').forEach(b => b.addEventListener('click', () => { s.os = b.dataset.os; render(); }));
                     container.querySelectorAll('[data-arch]').forEach(b => b.addEventListener('click', () => { s.arch = b.dataset.arch; render(); }));
