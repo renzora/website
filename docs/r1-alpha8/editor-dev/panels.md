@@ -68,7 +68,7 @@ Calling this also registers the id with `NativePanelIds`, so the shell stops dra
 ```rust
 pub struct ShellStatusItem {
     pub id: &'static str,
-    pub align: ShellStatusAlign,            // Left | Right
+    pub align: ShellStatusAlign,            // Left | Right | Ready
     pub order: i32,                         // sort within the side
     pub render: fn(&World) -> Vec<ShellStatusSegment>,
 }
@@ -81,6 +81,8 @@ impl ShellStatusSegment {
 ```
 
 `render` runs **every frame** with `&World`, so live metrics update without re-registering. Each `ShellStatusSegment` is an optional Phosphor icon name + text + an RGB color, optionally a progress bar, and optionally a shell action a click invokes.
+
+`ShellStatusAlign::Ready` is for work the editor is busy with, such as scripts or a plugin compiling. While any `Ready` item returns segments, they replace the **Ready** label at the far left. Return no segments when idle, and **Ready** comes back.
 
 ## A complete panel
 

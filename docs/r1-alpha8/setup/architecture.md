@@ -89,6 +89,7 @@ The layers, and what plugins still call each one:
 | `renzora_animation_api` | Animation clips, bone styles, sprite animation | `renzora::AnimClip`, `renzora::bone_style`, ... |
 | `renzora_save_api` | Save games | `renzora::save` |
 | `renzora_bus_api` | Named events and services between plugins | `renzora::bus` |
+| `renzora_asset_api` | Load groups, their progress, scene loads, load zones, handlers for asset kinds the asset server does not own | `renzora::assets` |
 | `renzora_physics_api` | The physics contract, vehicles, scene queries | `renzora::physics`, `renzora::vehicle`, `renzora::scene_query` |
 | `renzora_particles_api` | The particle components: which effect, how it plays, its parameter values | `renzora::particles` |
 | `renzora_world_api` | World environment, wind, sun, splines | `renzora::WorldEnvironment`, `renzora::Sun`, ... |

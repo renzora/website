@@ -35,7 +35,7 @@ play_clients = 1     # extra client windows to open beside the game
 - `host`: the game runs as a listen server, and `play_clients` more windows join it.
 - `server`: a headless dedicated server starts first (its log appears in the Console under **Server**), then the game and the extra clients join it.
 
-**Stop**, or closing the game window, ends every process in the session. The editor's live link follows the main game window only.
+**Stop**, or closing the game window, ends every process in the session. The Game panel shows the main game only (extra test clients open in windows of their own), and agent tools such as game_screenshot reach the main game only.
 
 ## Marking things for multiplayer
 

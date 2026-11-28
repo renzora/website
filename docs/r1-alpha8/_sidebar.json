@@ -54,6 +54,7 @@
             { "slug": "scripting/overview", "title": "Scripting Overview" },
             { "slug": "scripting/input", "title": "Input Handling" },
             { "slug": "scripting/saving", "title": "Saving the Game" },
+            { "slug": "scripting/loading", "title": "Loading Assets" },
             { "slug": "scripting/physics", "title": "Physics" },
             { "slug": "scripting/parkour", "title": "Parkour & Traversal" },
             { "slug": "scripting/ragdoll", "title": "Ragdoll Physics" },
