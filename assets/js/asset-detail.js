@@ -333,7 +333,7 @@
                                  after render and their tabs stay hidden until
                                  there is something in them; Reviews and
                                  Comments always show. -->
-                            <div id="asset-tabs" role="tablist" class="mt-10 flex items-center gap-1 border-b border-zinc-800/60 overflow-x-auto">
+                            <div id="asset-tabs" role="tablist" class="mt-5 flex items-center gap-1 shadow-[inset_0_-1px_0_rgba(39,39,42,0.6)] overflow-x-auto overflow-y-hidden ![scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                                 ${[
                                     ['files', 'ph-folder-simple', 'Files', true],
                                     ['docs', 'ph-book-open', 'Docs', true],
@@ -341,7 +341,7 @@
                                     ['reviews', 'ph-star', 'Reviews <span class="text-zinc-600 font-normal">(' + ratingCount + ')</span>', false],
                                     ['comments', 'ph-chat-circle', 'Comments <span class="text-zinc-600 font-normal">(' + (commentsData.comments?.length || 0) + ')</span>', false],
                                 ].map(([key, icon, label, hidden]) => `
-                                    <button type="button" role="tab" data-asset-tab="${key}" onclick="selectAssetTab('${key}', true)" class="${hidden ? 'hidden ' : ''}asset-tab -mb-px px-4 py-2.5 text-sm font-medium border-b-2 border-transparent text-zinc-400 hover:text-zinc-100 transition-colors whitespace-nowrap flex items-center gap-1.5"><i class="ph ${icon}"></i>${label}</button>
+                                    <button type="button" role="tab" data-asset-tab="${key}" onclick="selectAssetTab('${key}', true)" class="${hidden ? 'hidden ' : ''}asset-tab shrink-0 px-4 py-2.5 text-sm font-medium border-b-2 border-transparent text-zinc-400 hover:text-zinc-100 transition-colors whitespace-nowrap flex items-center gap-1.5"><i class="ph ${icon}"></i>${label}</button>
                                 `).join('')}
                             </div>
 
