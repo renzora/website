@@ -34,6 +34,9 @@ zip = { workspace = true }
 toml = "1"
 # Rendering README/docs markdown out of uploaded marketplace archives.
 pulldown-cmark = { workspace = true }
+# Unpacking a gzipped prebuilt plugin upload (see `prebuilt::upload`). Already
+# in the lock through zip/reqwest.
+flate2 = "1"
 
 [dev-dependencies]
 # A WebSocket *client*, so the relay can be tested by driving two real sockets

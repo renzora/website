@@ -2798,6 +2798,7 @@ dependencies = [
  "argon2",
  "axum",
  "axum-extra",
+ "flate2",
  "futures-util",
  "hex",
  "hmac",

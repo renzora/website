@@ -235,7 +235,16 @@ struct Statement {
 }
 
 /// CI's upload: multipart with `statement` (the `prebuilt.json` text),
-/// `engine_tag`, optional `engine_version`, and `library` (the binary).
+/// `engine_tag`, optional `engine_version`, and the binary as either `library`
+/// or `library_gz` (the same bytes, gzipped).
+///
+/// `library_gz` exists because of Cloudflare, not size. Its firewall inspects
+/// request bodies, and a Linux build of a plugin that reads system information
+/// carries strings such as `/proc/...` and `/etc/...` that its path-traversal
+/// rules match, so the raw upload was answered with a 403 block page before it
+/// ever reached this handler. Compressed, the body holds none of those strings.
+/// The statement's size and hash are of the uncompressed library, so nothing
+/// about the check changes.
 async fn upload(
     State(state): State<AppState>,
     Extension(auth): Extension<AuthUser>,
@@ -270,6 +279,7 @@ async fn upload(
                 engine_version = (!v.is_empty()).then_some(v);
             }
             "library" => library = Some(bytes.to_vec()),
+            "library_gz" => library = Some(gunzip(&bytes)?),
             _ => {}
         }
     }
@@ -533,6 +543,25 @@ async fn builds(
     ))
 }
 
+/// The largest library a `library_gz` field may expand to. Well above any real
+/// plugin, and a bound at all so that a small upload cannot expand into memory
+/// without limit. The upload is admin-only, so this is a guard against a bad
+/// archive rather than against an attacker.
+const MAX_LIBRARY_BYTES: u64 = 1024 * 1024 * 1024;
+
+fn gunzip(bytes: &[u8]) -> Result<Vec<u8>, ApiError> {
+    use std::io::Read;
+    let mut out = Vec::new();
+    flate2::read::GzDecoder::new(bytes)
+        .take(MAX_LIBRARY_BYTES + 1)
+        .read_to_end(&mut out)
+        .map_err(|e| ApiError::Validation(format!("library_gz is not valid gzip: {e}")))?;
+    if out.len() as u64 > MAX_LIBRARY_BYTES {
+        return Err(ApiError::Validation("library_gz expands past the size limit".into()));
+    }
+    Ok(out)
+}
+
 /// What this site can check about an upload without the signing keys: the
 /// statement is well formed and signed, and the bytes are the ones it names.
 fn validate(s: &Statement, library: &[u8]) -> Result<(), ApiError> {
@@ -583,6 +612,21 @@ mod tests {
             file_name: "water.dll".into(),
             signature: "ab".repeat(64),
         }
+    }
+
+    /// What CI sends: the library gzipped, checked against a statement written
+    /// for the uncompressed bytes.
+    #[test]
+    fn a_gzipped_library_unpacks_to_the_signed_bytes() {
+        use std::io::Write;
+        let lib = b"\x7fELF /proc/self/status /etc/os-release";
+        let mut gz = flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::default());
+        gz.write_all(lib).unwrap();
+        let packed = gz.finish().unwrap();
+        let unpacked = gunzip(&packed).unwrap();
+        assert_eq!(unpacked, lib);
+        assert!(validate(&statement(lib), &unpacked).is_ok());
+        assert!(gunzip(b"not gzip").is_err());
     }
 
     #[test]
